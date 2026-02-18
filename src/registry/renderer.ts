@@ -30,7 +30,8 @@ export function renderClaudeMd(
   blocks: ClaudeMdBlock[],
   context: RenderContext,
 ): string {
-  const sections: string[] = ["# CLAUDE.md\n"];
+  const header = buildForgeKitHeader(context);
+  const sections: string[] = ["# CLAUDE.md\n", header];
 
   for (const block of blocks) {
     const rendered = renderTemplate(block.content, context);
@@ -38,6 +39,30 @@ export function renderClaudeMd(
   }
 
   return sections.join("\n");
+}
+
+/**
+ * Build the ForgeKit metadata header for CLAUDE.md.
+ * This section tells Claude that the project is managed by ForgeKit
+ * and what tools are available for maintenance.
+ */
+function buildForgeKitHeader(context: RenderContext): string {
+  const date = new Date().toISOString().split("T")[0];
+  const tagList = context.tags.map((t) => `\`${t}\``).join(", ");
+  return (
+    `<!-- ForgeKit managed | ${date} -->\n` +
+    `> **This project is managed by [ForgeKit](https://github.com/jghiringhelli/forgekit).**\n` +
+    `> Tags: ${tagList}\n` +
+    `>\n` +
+    `> Available commands:\n` +
+    `> - \`setup_project\` — re-run full setup (detects tags, generates config + CLAUDE.md)\n` +
+    `> - \`refresh_project\` — detect drift, update tags/tier after project scope changes\n` +
+    `> - \`audit_project\` — score compliance, find gaps\n` +
+    `> - \`review_project\` — structured code review checklist\n` +
+    `> - \`scaffold_project\` — generate folders, hooks, docs skeletons\n` +
+    `>\n` +
+    `> Config: \`forgekit.yaml\` | Tier system: core → recommended → optional\n`
+  );
 }
 
 /**

@@ -167,14 +167,14 @@ async function main(): Promise<void> {
 
   server.tool(
     "setup_project",
-    "Unified project setup: analyzes project, detects tags, creates forgekit.yaml config, and generates CLAUDE.md. Works for new and existing projects. Supports tier-based content filtering (core/recommended/optional).",
+    "RECOMMENDED FIRST STEP. Analyzes project, auto-detects tags from code/dependencies, creates forgekit.yaml config, and generates a tailored CLAUDE.md with engineering standards. Call this when starting a new project, onboarding an existing codebase, or when no forgekit.yaml exists. Works for new and existing projects. Supports tier-based content filtering (core/recommended/optional).",
     setupProjectSchema.shape,
     setupProjectHandler,
   );
 
   server.tool(
     "refresh_project",
-    "Re-analyze a project with existing forgekit.yaml, detect tag drift, propose config updates. Use after project scope changes or to upgrade content tier.",
+    "Re-analyze a project that already has forgekit.yaml. Detects tag drift (e.g. new framework added), proposes adding/removing tags, shows content impact. Use when project scope changes, new dependencies are added, or to upgrade content tier. Preview changes before applying.",
     refreshProjectSchema.shape,
     refreshProjectHandler,
   );
