@@ -179,7 +179,7 @@ tier: recommended
 
 ## Configuration
 
-### Fine-tune what Claude sees
+### Fine-tune what your AI assistant sees
 
 ```yaml
 # forgecraft.yaml

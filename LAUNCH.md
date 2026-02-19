@@ -43,15 +43,15 @@ Verify at: https://registry.modelcontextprotocol.io/ (search for `io.github.jghi
 
 ## 3. Reddit Post
 
-**Subreddit:** r/ClaudeAI (primary), r/ChatGPTPro, r/LocalLLaMA
+**Subreddit:** r/ClaudeAI (primary), r/cursor (Cursor users), r/ChatGPTPro, r/LocalLLaMA
 
-**Title:** I built an MCP server that gives Claude Code real engineering standards automatically — ForgeCraft
+**Title:** I built an MCP server that gives AI coding assistants real engineering standards — works with Claude, Cursor, Copilot, Windsurf, Cline & Aider
 
 **Body:**
 
-`claude init` is great for getting started — it scans your project and creates a basic CLAUDE.md. But it gives you a generic starting point: no architecture patterns, no testing targets, no domain-specific rules, no quality gates.
+AI coding assistants work better with clear engineering standards. But most start with a generic instruction file — no architecture patterns, no testing targets, no domain-specific rules, no quality gates.
 
-I built **ForgeCraft** to pick up where `claude init` leaves off. It's an MCP server (14 tools) that analyzes your project, auto-detects your stack, and generates a production-grade CLAUDE.md from 112 curated template blocks:
+I built **ForgeCraft** to fix that. It's an MCP server (14 tools) that analyzes your project, auto-detects your stack, and generates production-grade instruction files from 112 curated template blocks:
 
 - SOLID principles with concrete, enforceable rules
 - Testing pyramid with coverage targets (80%+ enforced)
@@ -60,13 +60,13 @@ I built **ForgeCraft** to pick up where `claude init` leaves off. It's an MCP se
 - Domain-specific standards (fintech, healthcare, gaming, etc.)
 - Quality-gate hooks that enforce standards pre-commit
 
+**Supports 6 AI assistants:** Claude (CLAUDE.md), Cursor (.cursor/rules/), GitHub Copilot (.github/copilot-instructions.md), Windsurf (.windsurfrules), Cline (.clinerules), Aider (CONVENTIONS.md). Generate for one or all at once.
+
 **Install in one line:**
 ```
 claude mcp add forgecraft -- npx -y forgecraft-mcp
 ```
 Then just tell Claude *"set up this project for production"*.
-
-Think of it as `claude init` on steroids. `claude init` gives you a generic CLAUDE.md; ForgeCraft gives you 112 curated blocks covering SOLID, testing pyramids, architecture patterns, CI/CD, and domain-specific rules — all matched to your stack. It can even merge with an existing CLAUDE.md if you've already run `claude init`.
 
 It has 18 domain tags you can combine (API + WEB-REACT + FINTECH = merged standards with no conflicts), 3 content tiers so you're not overwhelmed on day one, and an audit tool that scores your project 0-100 against the standards.
 
@@ -75,24 +75,26 @@ Everything is composable YAML templates, not hardcoded — so teams can add thei
 **GitHub:** https://github.com/jghiringhelli/forgecraft-mcp
 **npm:** `forgecraft-mcp`
 
-Open source (MIT). Would love feedback — what engineering standards do you wish Claude enforced?
+Open source (MIT). Would love feedback — what engineering standards do you wish your AI assistant enforced?
 
 ---
 
 ## 4. Hacker News (Show HN)
 
-**Title:** Show HN: ForgeCraft – MCP server that gives Claude Code engineering standards automatically
+**Title:** Show HN: ForgeCraft – MCP server that generates engineering standards for AI coding assistants
 
 **Comment (post as first reply):**
 
-`claude init` gives you a blank CLAUDE.md with basic project info. That's fine for getting started, but it doesn't give Claude any real engineering opinions — no architecture, no testing targets, no code standards.
+AI coding assistants work better with explicit engineering standards, but setting those up is tedious and most people skip it.
 
-ForgeCraft picks up where `claude init` leaves off. It's an MCP server with 14 tools. You install it in one line, tell Claude "set up this project", and it:
+ForgeCraft is an MCP server with 14 tools. You install it in one line, tell Claude "set up this project", and it:
 
 1. Scans your codebase and detects your stack
 2. Auto-classifies into domain tags (API, React, fintech, healthcare, etc.)
-3. Generates a CLAUDE.md from 112 curated template blocks
+3. Generates instruction files from 112 curated template blocks
 4. Adds quality-gate hooks
+
+Supports 6 AI assistants: Claude (CLAUDE.md), Cursor (.cursor/rules/), GitHub Copilot, Windsurf, Cline, and Aider. Generate for one or all at once.
 
 The templates cover SOLID, hexagonal architecture, testing pyramids, CI/CD, 12-Factor, and domain-specific patterns. Everything is YAML — no code to write if you want to add your own standards.
 
@@ -111,25 +113,26 @@ Tech: TypeScript, MCP SDK, 111 tests. MIT licensed.
 ## 5. Twitter/X Thread
 
 **Tweet 1:**
-`claude init` creates a basic CLAUDE.md. Good start.
+AI coding assistants work better with real engineering standards. But setting those up? Tedious.
 
-I built ForgeCraft to take it much further — an MCP server that generates production-grade CLAUDE.md from 112 curated template blocks matched to your stack.
+I built ForgeCraft — an MCP server that generates production-grade instruction files from 112 curated template blocks matched to your stack.
 
-One line to install:
+Works with Claude, Cursor, Copilot, Windsurf, Cline & Aider.
+
+One line:
 ```
 claude mcp add forgecraft -- npx -y forgecraft-mcp
 ```
-
-Then say "set up this project" and Claude gets SOLID, testing targets, architecture patterns, and CI/CD guidance. 🧵
+🧵
 
 **Tweet 2:**
-The problem with `claude init`:
-• Generic CLAUDE.md — no architecture
+The problem with generic instruction files:
+• No architecture patterns
 • No testing pyramid or coverage targets
 • No domain-specific rules
 • No quality-gate hooks
 
-ForgeCraft adds all of that in 30 seconds.
+ForgeCraft generates all of that in 30 seconds — for 6 different AI assistants.
 
 **Tweet 3:**
 How it works:
@@ -137,21 +140,23 @@ How it works:
 - 112 curated template blocks
 - 3 content tiers (don't overwhelm on day one)
 - Auto-detects your stack from code
+- Outputs to CLAUDE.md, .cursor/rules/, copilot-instructions.md, and more
 
 Tags compose — pick [API] + [FINTECH] and blocks merge without conflicts.
 
 **Tweet 4:**
-14 tools Claude picks automatically:
+14 tools your AI assistant picks automatically:
 - setup_project (start here)
 - audit_project (score 0-100)
 - refresh_project (scope changed?)
+- generate_instructions (multi-target)
 - add_hook, add_module, review_project...
 
 All open source. Templates are YAML, not code — easy to contribute.
 
 GitHub: https://github.com/jghiringhelli/forgecraft-mcp
 
-**Tags:** @AnthropicAI @ClaudeAI #MCP #ClaudeCode #AI #DevTools
+**Tags:** @AnthropicAI @ClaudeAI @cursor_ai @GitHub #MCP #AI #DevTools
 
 ---
 
