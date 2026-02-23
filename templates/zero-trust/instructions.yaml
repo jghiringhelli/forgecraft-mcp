@@ -1,0 +1,41 @@
+tag: ZERO-TRUST
+section: instructions
+blocks:
+  - id: deny-by-default-iam
+    tier: recommended
+    title: "Deny-by-Default IAM Policies"
+    content: |
+      ## Deny-by-Default IAM Policies
+
+      - Start with zero permissions. Every identity (user, service, Lambda) begins with no access and receives only explicit allows.
+      - Write IAM policies with explicit deny statements for sensitive operations. Explicit denies override any allows — use them as guardrails.
+      - Scope every IAM policy to specific resources using ARNs. Never use wildcard (*) for resources in production policies.
+      - Enforce condition keys on every policy: require specific VPCs, IP ranges, MFA, or time windows for access.
+      - Implement IAM policy boundaries (permission boundaries) to cap the maximum permissions any role can receive, regardless of attached policies.
+      - Automate IAM policy review: scan for overly permissive policies (Action: *, Resource: *) in CI and block deployment.
+
+  - id: explicit-allow-rules
+    tier: recommended
+    title: "Explicit Allow Rules & Least Privilege"
+    content: |
+      ## Explicit Allow Rules & Least Privilege
+
+      - Document every allow rule with a business justification: why this identity needs this action on this resource.
+      - Group related permissions into managed policies named by function (e.g., `OrderServiceReadDynamo`, `PaymentServiceInvokeKMS`).
+      - Use temporary credentials (STS AssumeRole) instead of long-lived access keys. Set maximum session duration to the minimum needed.
+      - Implement just-in-time (JIT) access for elevated privileges: temporary role escalation with automatic expiry and audit logging.
+      - Review and prune unused permissions quarterly using IAM Access Analyzer or equivalent. Remove any permission not used in 90 days.
+      - Tag all IAM roles and policies with owner, team, service, and last-review-date for governance and accountability.
+
+  - id: network-zero-trust
+    tier: optional
+    title: "Network-Level Zero Trust"
+    content: |
+      ## Network-Level Zero Trust
+
+      - Do not rely on network location (VPC, subnet) as a trust boundary. Authenticate and authorize every request regardless of origin.
+      - Encrypt all internal service-to-service communication with mutual TLS (mTLS). No plaintext traffic, even within a VPC.
+      - Implement service mesh or API gateway for policy enforcement at the network layer: rate limiting, authentication, authorization.
+      - Use private endpoints for AWS services (VPC endpoints) to keep traffic off the public internet.
+      - Segment workloads into isolated security groups with minimal ingress/egress rules. Default deny all, then add specific allows.
+      - Monitor and alert on unexpected network flows: new connections between services, unusual data transfer volumes, connections to unknown endpoints.

@@ -1,0 +1,26 @@
+tag: UNIVERSAL
+section: mcp-servers
+servers:
+  - name: forgecraft
+    description: "Production-grade engineering standards and project scaffolding"
+    command: npx
+    args: ["-y", "forgecraft-mcp"]
+    tags: [UNIVERSAL]
+    category: scaffolding
+    url: "https://github.com/jghiringhelli/forgecraft-mcp"
+
+  - name: context7
+    description: "Pulls up-to-date documentation and code examples for libraries directly into your prompt"
+    command: npx
+    args: ["-y", "@upstash/context7-mcp@latest"]
+    tags: [UNIVERSAL]
+    category: documentation
+    url: "https://github.com/upstash/context7"
+
+  - name: sequential-thinking
+    description: "Dynamic, reflective problem-solving through thought sequences"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    tags: [UNIVERSAL]
+    category: general
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"

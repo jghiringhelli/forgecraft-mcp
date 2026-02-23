@@ -1,0 +1,12 @@
+tag: FINTECH
+section: mcp-servers
+servers:
+  - name: stripe
+    description: "Stripe API integration — payments, subscriptions, invoices, and customer management"
+    command: npx
+    args: ["-y", "@stripe/mcp-server"]
+    tags: [FINTECH]
+    category: general
+    env:
+      STRIPE_SECRET_KEY: ""
+    url: "https://github.com/stripe/agent-toolkit"

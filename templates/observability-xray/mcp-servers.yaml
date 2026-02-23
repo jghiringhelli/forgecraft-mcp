@@ -1,0 +1,14 @@
+tag: OBSERVABILITY-XRAY
+section: mcp-servers
+servers:
+  - name: aws-cloudwatch
+    description: "AWS CloudWatch logs and metrics — query X-Ray traces, view Lambda logs, monitor alarms"
+    command: npx
+    args: ["-y", "mcp-server-cloudwatch"]
+    tags: [OBSERVABILITY-XRAY, INFRA]
+    category: monitoring
+    env:
+      AWS_REGION: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+    url: "https://github.com/modelcontextprotocol/servers"

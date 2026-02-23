@@ -1,0 +1,10 @@
+tag: ANALYTICS
+section: mcp-servers
+servers:
+  - name: chrome-devtools
+    description: "Chrome DevTools integration for debugging, profiling, and network inspection"
+    command: npx
+    args: ["-y", "@anthropic/chrome-devtools-mcp@latest"]
+    tags: [WEB-REACT, WEB-STATIC, ANALYTICS]
+    category: devtools
+    url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/chrome-devtools-mcp"

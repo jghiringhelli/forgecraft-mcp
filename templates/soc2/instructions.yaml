@@ -1,0 +1,41 @@
+tag: SOC2
+section: instructions
+blocks:
+  - id: access-control-validation
+    tier: recommended
+    title: "Access Control Validation"
+    content: |
+      ## Access Control Validation
+
+      - Implement role-based access control (RBAC) with the principle of least privilege. No user or service account gets more access than required.
+      - Define access control matrices mapping roles to resources and operations. Review and update quarterly.
+      - Enforce multi-factor authentication (MFA) for all administrative and privileged access.
+      - Automate access reviews: flag dormant accounts (no login in 90 days), over-provisioned roles, and orphaned service accounts.
+      - Log all access control changes (role assignments, permission grants, policy updates) with who-changed-what-when detail.
+      - Test access controls with negative tests: verify that unauthorized roles are denied, not just that authorized roles succeed.
+
+  - id: change-management
+    tier: recommended
+    title: "Change Management & Audit Trail"
+    content: |
+      ## Change Management & Audit Trail
+
+      - Every production change requires a documented change request with description, risk assessment, rollback plan, and approval.
+      - Enforce separation of duties: the person who writes code cannot be the sole approver for deployment.
+      - Maintain an immutable audit trail of all changes: code commits, config changes, infrastructure modifications, access grants.
+      - Implement automated change detection: alert on unexpected file changes, config drift, or unauthorized deployments.
+      - Conduct post-incident reviews for all unplanned changes. Document root cause, timeline, and preventive measures.
+      - Tag all deployments with version, timestamp, deployer, and change request ID for full traceability.
+
+  - id: incident-response
+    tier: recommended
+    title: "Incident Response Procedures"
+    content: |
+      ## Incident Response Procedures
+
+      - Define and document an incident response plan with clear roles: incident commander, communications lead, technical lead.
+      - Classify incidents by severity (P1-P4) with defined response times, escalation paths, and communication templates.
+      - Implement automated incident detection: anomaly alerts, threshold breaches, security event correlation.
+      - Conduct tabletop exercises quarterly to test incident response procedures with realistic scenarios.
+      - Maintain a post-mortem culture: blameless retrospectives within 48 hours, action items tracked to completion.
+      - Ensure incident logs are retained for SOC2 audit periods (minimum 12 months) with tamper-evident storage.

@@ -1,25 +1,19 @@
 # Status.md
 
-## Last Updated: 2026-02-18
+## Last Updated: 2026-02-23
 ## Session Summary
-Major architecture evolution: added tier-based content filtering, unified setup/refresh workflow,
-community template extensibility, and forgecraft.yaml config system.
+Added 6 new domain tags from state project: HIPAA, SOC2, DATA-LINEAGE, OBSERVABILITY-XRAY,
+MEDALLION-ARCHITECTURE, ZERO-TRUST. Now 24 tags with 75 YAML templates total.
 
 ### What Changed
-1. **Tier System**: Added `ContentTier` type (`core | recommended | optional`) to all block types
-   (ClaudeMdBlock, NfrBlock, ReviewBlock). Composer now filters blocks by tier level. All 112 blocks
-   across 33 template files tagged with tier metadata.
-2. **forgecraft.yaml Config**: Expanded `ForgeCraftConfig` with `projectName`, `tags`, `tier`, `include`,
-   `exclude`, `templateDirs`, `variables`. Loader now supports both `forgecraft.yaml` and `.forgecraft.json`.
-3. **setup_project Tool** (new): Unified entry point — analyzes project, detects tags, creates
-   forgecraft.yaml, generates CLAUDE.md. Works for new and existing projects. Supports dry_run.
-4. **refresh_project Tool** (new): Re-analyzes project with existing config, detects drift (new tags,
-   scope changes), proposes updates. Can auto-apply changes.
-5. **Community Template Dirs**: `loadAllTemplatesWithExtras()` loads from built-in + external dirs.
-   Templates are merged additively (community extends built-in, dedup by ID).
-6. **Config-Aware Existing Tools**: `scaffold_project` and `generate_claude_md` now read
-   forgecraft.yaml and respect tier/include/exclude settings.
-7. **Tests**: 111 passing (was 103). Added 8 new tests for tier filtering and include/exclude logic.
+1. **6 New Tags**: HIPAA (PII masking, encryption, audit logging), SOC2 (access control,
+   change management, incident response), DATA-LINEAGE (field coverage, lineage decorators),
+   OBSERVABILITY-XRAY (X-Ray Lambda instrumentation), MEDALLION-ARCHITECTURE (Bronze/Silver/Gold),
+   ZERO-TRUST (deny-by-default IAM, explicit allow rules).
+2. **12 New YAML Templates**: instructions.yaml + mcp-servers.yaml for each of the 6 new tags.
+3. **Type System**: ALL_TAGS expanded to 24 entries, loader mappings + TAG_DESCRIPTIONS updated.
+4. **Tests**: 128 passing, 10 suites. Updated discovery test to verify all 24 tags return servers.
+5. **README**: Tag table updated with 6 new rows.
 
 ## Project Structure
 ```
@@ -82,7 +76,7 @@ forgecraft-mcp/
 | MCP server entry point | ✅ Complete | 14 tools registered |
 | Shared modules (config/errors/logger/types) | ✅ Complete | ContentTier, ForgeCraftConfig expanded |
 | Template registry (loader/composer/renderer) | ✅ Complete | Tier filtering, community dirs |
-| YAML templates (43 files, 18 tags) | ✅ Complete | All blocks have tier metadata |
+| YAML templates (63 files, 18 tags) | ✅ Complete | All blocks have tier metadata + mcp-servers |
 | Tool: list_tags / list_hooks | ✅ Complete | |
 | Tool: classify_project | ✅ Complete | |
 | Tool: scaffold_project | ✅ Complete | Config-aware (forgecraft.yaml) |
@@ -90,7 +84,7 @@ forgecraft-mcp/
 | Tool: audit_project | ✅ Complete | |
 | Tool: add_hook | ✅ Complete | |
 | Tool: add_module | ✅ Complete | |
-| Tool: configure_mcp | ✅ Complete | |
+| Tool: configure_mcp | ✅ Complete | Dynamic MCP discovery service |
 | Tool: get_nfr_template | ✅ Complete | |
 | Tool: convert_existing | ✅ Complete | |
 | Tool: review_project | ✅ Complete | 4-dimension review checklists |
@@ -98,7 +92,7 @@ forgecraft-mcp/
 | Tool: refresh_project | ✅ Complete | **NEW** — drift detection |
 | Analyzers | ✅ Complete | package-json, folder, anti-pattern, completeness |
 | Hook scripts (8 universal + 2 react) | ✅ Complete | |
-| Unit tests | ✅ Complete | 111 passing |
+| Unit tests | ✅ Complete | 128 passing |
 | Integration tests | ✅ Complete | smoke + tools |
 
 ## Known Bugs
@@ -112,14 +106,13 @@ forgecraft-mcp/
 | | | | |
 
 ## Current Context
-- Working on: Architecture complete. Tier system, setup/refresh tools, community loading all implemented.
+- Working on: Publish preparation complete. All features implemented.
 - Blocked by: Nothing
 - Decisions pending: None
 - Next steps:
-  1. Write README.md documentation
-  2. Add tests for setup_project and refresh_project tools
-  3. Consider template caching in loader for performance
-  4. Publish to npm
+  1. Publish to npm
+  2. Publish to MCP Registry
+  3. Follow LAUNCH.md distribution plan
 
 ## Architecture Decision Log
 | Date | Decision | Rationale | Status |
@@ -137,3 +130,4 @@ forgecraft-mcp/
 | 2026-02-18 | forgecraft.yaml config file | Project-level config for tags, tier, include/exclude, community dirs. YAML for easy merge & community contributions | Active |
 | 2026-02-18 | setup_project + refresh_project tools | Unified entry point and drift detection. Replaces manual classify→scaffold flow | Active |
 | 2026-02-18 | Community template directories | loadAllTemplatesWithExtras merges external YAML dirs. Enables npm community packs | Active |
+| 2026-02-20 | MCP server discovery service | Data-driven YAML registry + optional remote fetch. Replaces hardcoded TAG_SERVERS | Active |

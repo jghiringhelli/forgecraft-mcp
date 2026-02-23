@@ -1,0 +1,40 @@
+tag: OBSERVABILITY-XRAY
+section: instructions
+blocks:
+  - id: xray-lambda-instrumentation
+    tier: recommended
+    title: "Auto-Add X-Ray Instrumentation to Lambdas"
+    content: |
+      ## Auto-Add X-Ray Instrumentation to Lambdas
+
+      - Enable X-Ray active tracing on every Lambda function by default. Set `tracing: Active` in SAM/CloudFormation or `tracing_config { mode = "Active" }` in Terraform.
+      - Wrap the AWS SDK client with the X-Ray SDK to automatically trace all downstream AWS service calls (DynamoDB, S3, SQS, SNS).
+      - Add X-Ray middleware or decorators to every Lambda handler. No handler should execute without producing a trace segment.
+      - Include custom subsegments for business-critical operations: database queries, external API calls, heavy computations.
+      - Propagate trace headers across service boundaries: ensure `X-Amzn-Trace-Id` is forwarded in HTTP headers and SQS message attributes.
+      - Set sampling rules appropriate to traffic volume: 100% for low-traffic, reservoir-based for high-traffic. Document sampling decisions.
+
+  - id: xray-annotations-metadata
+    tier: recommended
+    title: "X-Ray Annotations & Metadata Standards"
+    content: |
+      ## X-Ray Annotations & Metadata Standards
+
+      - Add annotations for every trace: `service`, `environment`, `version`, `userId` (hashed), `correlationId`. Annotations are indexed and searchable.
+      - Use metadata for non-indexed debug data: request/response sizes, feature flags, cache hit/miss ratios.
+      - Define a standard annotation taxonomy across all services. No ad-hoc annotation keys — use a shared enum or constant file.
+      - Create X-Ray groups for critical paths: user-facing APIs, payment flows, data pipelines. Monitor group error rates and latency.
+      - Set up X-Ray insights for automated anomaly detection on critical service groups.
+      - Include X-Ray trace IDs in error responses and log entries for cross-referencing between traces and logs.
+
+  - id: xray-alerting
+    tier: optional
+    title: "X-Ray-Based Alerting & SLOs"
+    content: |
+      ## X-Ray-Based Alerting & SLOs
+
+      - Define SLOs per service using X-Ray latency and error rate data: p50, p95, p99 latency targets and error budget thresholds.
+      - Create CloudWatch alarms from X-Ray service maps: alert on elevated fault rates, latency spikes, or throttling.
+      - Monitor cold start impact via X-Ray initialization subsegments. Alert if cold start percentage exceeds threshold.
+      - Build dashboards combining X-Ray service map data with CloudWatch metrics for a unified observability view.
+      - Review X-Ray traces weekly for optimization opportunities: unnecessary downstream calls, serial-when-could-be-parallel patterns.

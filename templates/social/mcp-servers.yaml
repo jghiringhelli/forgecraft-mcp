@@ -1,0 +1,22 @@
+tag: SOCIAL
+section: mcp-servers
+servers:
+  - name: postgres
+    description: "PostgreSQL database inspection, queries, and schema management — common backend for social platforms"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-postgres"]
+    tags: [DATA-PIPELINE, API, SOCIAL]
+    category: database
+    env:
+      POSTGRES_CONNECTION_STRING: ""
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
+
+  - name: redis
+    description: "Redis key-value store management — caching, sessions, feeds, and real-time features"
+    command: npx
+    args: ["-y", "mcp-server-redis"]
+    tags: [REALTIME, SOCIAL]
+    category: database
+    env:
+      REDIS_URL: "redis://localhost:6379"
+    url: "https://github.com/nicholasgriffintn/redis-mcp-server"

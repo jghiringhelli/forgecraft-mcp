@@ -1,0 +1,12 @@
+tag: API
+section: mcp-servers
+servers:
+  - name: postman
+    description: "API testing and collection management via Postman workspace"
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-postman"]
+    tags: [API]
+    category: testing
+    url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-server-postman"
+    env:
+      POSTMAN_API_KEY: ""

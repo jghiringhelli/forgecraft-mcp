@@ -1,0 +1,10 @@
+tag: CLI
+section: mcp-servers
+servers:
+  - name: filesystem
+    description: "Secure file operations — read, write, search, and directory management with configurable access controls"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/"]
+    tags: [CLI, LIBRARY]
+    category: general
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"

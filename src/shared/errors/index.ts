@@ -51,3 +51,10 @@ export class TemplateParseError extends ForgeError {
     super(`Failed to parse template: ${reason}`, { filePath, reason });
   }
 }
+
+/** Remote MCP server discovery failed. */
+export class DiscoveryError extends ForgeError {
+  constructor(message: string, url?: string) {
+    super(message, { url });
+  }
+}

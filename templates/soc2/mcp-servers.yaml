@@ -1,0 +1,22 @@
+tag: SOC2
+section: mcp-servers
+servers:
+  - name: github
+    description: "GitHub repository management — PR reviews, access controls, audit trails for change management"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    tags: [SOC2, UNIVERSAL]
+    category: version-control
+    env:
+      GITHUB_PERSONAL_ACCESS_TOKEN: ""
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/github"
+
+  - name: sentry
+    description: "Sentry error and incident tracking — incident response monitoring and alerting"
+    command: npx
+    args: ["-y", "mcp-server-sentry"]
+    tags: [SOC2, API]
+    category: monitoring
+    env:
+      SENTRY_AUTH_TOKEN: ""
+    url: "https://github.com/modelcontextprotocol/servers"

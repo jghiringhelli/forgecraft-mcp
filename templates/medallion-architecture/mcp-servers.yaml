@@ -1,0 +1,20 @@
+tag: MEDALLION-ARCHITECTURE
+section: mcp-servers
+servers:
+  - name: postgres
+    description: "PostgreSQL for medallion layer metadata, quality gate results, and lineage tracking"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-postgres"]
+    tags: [MEDALLION-ARCHITECTURE, DATA-PIPELINE]
+    category: database
+    env:
+      POSTGRES_CONNECTION_STRING: ""
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
+
+  - name: filesystem
+    description: "Filesystem access for Bronze/Silver/Gold layer data files and pipeline configs"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem"]
+    tags: [MEDALLION-ARCHITECTURE, DATA-PIPELINE]
+    category: filesystem
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"

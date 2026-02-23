@@ -104,7 +104,7 @@ Install: `claude mcp add forgecraft -- npx -y forgecraft-mcp`
 
 GitHub: https://github.com/jghiringhelli/forgecraft-mcp
 
-Tech: TypeScript, MCP SDK, 111 tests. MIT licensed.
+Tech: TypeScript, MCP SDK, 128 tests. MIT licensed.
 
 **Tips:** Post on a weekday morning US Eastern time (9-11am). Keep it factual.
 

@@ -1,0 +1,10 @@
+tag: ML
+section: mcp-servers
+servers:
+  - name: jupyter
+    description: "Jupyter notebook management — create, execute, and inspect cells"
+    command: npx
+    args: ["-y", "mcp-server-jupyter"]
+    tags: [ML, DATA-PIPELINE]
+    category: ai-ml
+    url: "https://github.com/datalayer/jupyter-mcp-server"

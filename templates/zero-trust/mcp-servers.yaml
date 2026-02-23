@@ -1,0 +1,14 @@
+tag: ZERO-TRUST
+section: mcp-servers
+servers:
+  - name: aws-iam
+    description: "AWS IAM policy analysis and management for zero-trust policy enforcement"
+    command: npx
+    args: ["-y", "mcp-server-aws"]
+    tags: [ZERO-TRUST, INFRA]
+    category: security
+    env:
+      AWS_REGION: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+    url: "https://github.com/modelcontextprotocol/servers"

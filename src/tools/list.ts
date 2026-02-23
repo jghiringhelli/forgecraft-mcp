@@ -95,6 +95,30 @@ const TAG_DESCRIPTIONS: Record<Tag, { description: string; appliesWhen: string }
     description: "Analytics/reporting — event tracking, dashboards, data warehousing.",
     appliesWhen: "Project includes analytics dashboards, reporting, or event tracking.",
   },
+  HIPAA: {
+    description: "HIPAA compliance — PII masking templates, encryption checks, audit logging.",
+    appliesWhen: "Project handles Protected Health Information requiring HIPAA compliance.",
+  },
+  SOC2: {
+    description: "SOC2 compliance — access control validation, change management, incident response.",
+    appliesWhen: "Project requires SOC2 audit readiness (Type I or Type II).",
+  },
+  "DATA-LINEAGE": {
+    description: "Data lineage — enforce 100% field coverage, lineage tracking decorators.",
+    appliesWhen: "Project processes data that requires full field-level lineage tracking.",
+  },
+  "OBSERVABILITY-XRAY": {
+    description: "AWS X-Ray observability — auto-add X-Ray instrumentation to Lambdas.",
+    appliesWhen: "Project runs on AWS Lambda and requires distributed tracing with X-Ray.",
+  },
+  "MEDALLION-ARCHITECTURE": {
+    description: "Medallion architecture — enforce Bronze=immutable, Silver=validated, Gold=aggregated.",
+    appliesWhen: "Project uses a lakehouse/medallion data architecture (Bronze/Silver/Gold).",
+  },
+  "ZERO-TRUST": {
+    description: "Zero-trust security — deny-by-default IAM, explicit allow rules.",
+    appliesWhen: "Project requires zero-trust network/IAM policies with deny-by-default.",
+  },
 };
 
 // ── Handlers ─────────────────────────────────────────────────────────

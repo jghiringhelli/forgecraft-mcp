@@ -1,0 +1,18 @@
+tag: WEB-STATIC
+section: mcp-servers
+servers:
+  - name: chrome-devtools
+    description: "Chrome DevTools integration for debugging, profiling, and network inspection"
+    command: npx
+    args: ["-y", "@anthropic/chrome-devtools-mcp@latest"]
+    tags: [WEB-REACT, WEB-STATIC, ANALYTICS]
+    category: devtools
+    url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/chrome-devtools-mcp"
+
+  - name: playwright
+    description: "Browser automation for E2E testing, screenshots, and web scraping"
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-playwright"]
+    tags: [WEB-REACT, WEB-STATIC]
+    category: testing
+    url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-server-playwright"

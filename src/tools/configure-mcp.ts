@@ -2,13 +2,17 @@
  * configure_mcp tool handler.
  *
  * Generates .claude/settings.json with recommended MCP servers based on tags.
+ * Uses the McpDiscoveryService to load curated servers from YAML templates
+ * and optionally fetch from a remote registry at setup time.
  */
 
 import { z } from "zod";
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ALL_TAGS } from "../shared/types.js";
-import type { Tag, McpServerConfig } from "../shared/types.js";
+import type { Tag, McpServerConfig, McpDiscoveryOptions } from "../shared/types.js";
+import type { McpDiscoveryService } from "../registry/mcp-discovery.js";
+import { DefaultMcpDiscoveryService } from "../registry/mcp-discovery.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -37,46 +41,76 @@ export const configureMcpSchema = z.object({
       "If true, adds permissions.allow entries for all configured MCP servers " +
       "so tool invocations are auto-approved without manual confirmation.",
     ),
+  include_remote: z
+    .boolean()
+    .default(false)
+    .describe(
+      "If true, also queries a remote MCP server registry for additional recommendations. " +
+      "Requires FORGECRAFT_MCP_REGISTRY_URL env var or remote_registry_url parameter.",
+    ),
+  remote_registry_url: z
+    .string()
+    .optional()
+    .describe("Override URL for the remote MCP server registry."),
 });
-
-// ── Recommended Servers per Tag ──────────────────────────────────────
-
-const TAG_SERVERS: Record<string, Record<string, McpServerConfig>> = {
-  UNIVERSAL: {
-    forgecraft: {
-      command: "npx",
-      args: ["-y", "forgecraft-mcp"],
-    },
-    codeseeker: {
-      command: "npx",
-      args: ["-y", "codeseeker"],
-    },
-  },
-};
 
 // ── Handler ──────────────────────────────────────────────────────────
 
+/** Injected discovery service for testing. Defaults to DefaultMcpDiscoveryService. */
+let injectedDiscoveryService: McpDiscoveryService | undefined;
+
+/**
+ * Inject a custom discovery service (for testing).
+ *
+ * @param service - Discovery service to use, or undefined to reset to default
+ */
+export function setDiscoveryService(service: McpDiscoveryService | undefined): void {
+  injectedDiscoveryService = service;
+}
+
+/**
+ * Generate .claude/settings.json with discovered MCP servers for active tags.
+ *
+ * @param args - Validated tool input
+ * @returns MCP tool response with configuration summary
+ */
 export async function configureMcpHandler(
   args: z.infer<typeof configureMcpSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   const tags = args.tags as Tag[];
+  const discovery = injectedDiscoveryService ?? new DefaultMcpDiscoveryService();
 
-  // Collect recommended servers
-  const servers: Record<string, McpServerConfig> = {};
+  // ── Discover servers ─────────────────────────────────────────────
 
-  for (const tag of tags) {
-    const tagServers = TAG_SERVERS[tag];
-    if (tagServers) {
-      Object.assign(servers, tagServers);
+  const discoveryOptions: McpDiscoveryOptions = {
+    includeRemote: args.include_remote,
+    remoteRegistryUrl: args.remote_registry_url,
+  };
+
+  const recommendations = await discovery.discoverServers(tags, discoveryOptions);
+
+  // Convert recommendations to server config map
+  const servers: Record<string, McpServerConfig & { source?: string; description?: string }> = {};
+
+  for (const rec of recommendations) {
+    servers[rec.name] = {
+      command: rec.command,
+      args: rec.args,
+      ...(rec.env ? { env: rec.env } : {}),
+      source: rec.source,
+      description: rec.description,
+    };
+  }
+
+  // Add custom servers (user-provided, highest priority)
+  if (args.custom_servers) {
+    for (const [name, config] of Object.entries(args.custom_servers)) {
+      servers[name] = { ...config, source: "custom" };
     }
   }
 
-  // Add custom servers
-  if (args.custom_servers) {
-    Object.assign(servers, args.custom_servers);
-  }
+  // ── Build settings.json ──────────────────────────────────────────
 
-  // Build settings.json
   const mcpConfig: Record<string, { command: string; args: string[]; env?: Record<string, string> }> = {};
   for (const [name, config] of Object.entries(servers)) {
     mcpConfig[name] = {
@@ -99,7 +133,8 @@ export async function configureMcpHandler(
     settings["permissions"] = { allow: permissionRules };
   }
 
-  // Handle existing settings
+  // ── Handle existing settings ─────────────────────────────────────
+
   const settingsDir = join(args.project_dir, ".claude");
   const settingsPath = join(settingsDir, "settings.json");
 
@@ -132,7 +167,10 @@ export async function configureMcpHandler(
   mkdirSync(settingsDir, { recursive: true });
   writeFileSync(settingsPath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
 
+  // ── Build response ───────────────────────────────────────────────
+
   const serverNames = Object.keys(servers);
+  const bySource = groupBySource(servers);
 
   return {
     content: [
@@ -141,7 +179,10 @@ export async function configureMcpHandler(
         text:
           `MCP configuration written to \`.claude/settings.json\`.\n\n` +
           `**Servers configured (${serverNames.length}):**\n` +
-          serverNames.map((n) => `- \`${n}\`: \`${servers[n]!.command} ${servers[n]!.args.join(" ")}\``).join("\n") +
+          formatServerList(servers) +
+          (bySource["remote"] && bySource["remote"] > 0
+            ? `\n\n📡 ${bySource["remote"]} server(s) discovered from remote registry.`
+            : "") +
           (permissionRules.length > 0
             ? `\n\n**Auto-approved (${permissionRules.length}):**\n` +
               permissionRules.map((r) => `- \`${r}\``).join("\n")
@@ -150,4 +191,41 @@ export async function configureMcpHandler(
       },
     ],
   };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Format the server list for display, grouped by source.
+ *
+ * @param servers - Server config map with source metadata
+ * @returns Markdown-formatted server list
+ */
+function formatServerList(
+  servers: Record<string, McpServerConfig & { source?: string; description?: string }>,
+): string {
+  return Object.entries(servers)
+    .map(([name, config]) => {
+      const sourceLabel = config.source ? ` [${config.source}]` : "";
+      const descLabel = config.description ? ` — ${config.description}` : "";
+      return `- \`${name}\`${sourceLabel}: \`${config.command} ${config.args.join(" ")}\`${descLabel}`;
+    })
+    .join("\n");
+}
+
+/**
+ * Count servers by source.
+ *
+ * @param servers - Server config map with source metadata
+ * @returns Counts per source type
+ */
+function groupBySource(
+  servers: Record<string, { source?: string }>,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const config of Object.values(servers)) {
+    const source = config.source ?? "unknown";
+    counts[source] = (counts[source] ?? 0) + 1;
+  }
+  return counts;
 }

@@ -1,0 +1,10 @@
+tag: STATE-MACHINE
+section: mcp-servers
+servers:
+  - name: sequential-thinking
+    description: "Dynamic, reflective problem-solving through thought sequences — ideal for modeling state transitions"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    tags: [UNIVERSAL, STATE-MACHINE]
+    category: general
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"

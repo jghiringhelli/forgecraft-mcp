@@ -116,7 +116,7 @@ This is the core value. Assembled from curated blocks covering:
 
 Every block is sourced from established engineering literature (Martin, Evans, Wiggins) and adapted for AI-assisted development.
 
-## 18 Tags — Pick What Fits
+## 24 Tags — Pick What Fits
 
 Tags are domain classifiers. ForgeCraft auto-detects them from your code, or you choose manually. Combine freely — blocks merge without conflicts.
 
@@ -140,6 +140,12 @@ Tags are domain classifiers. ForgeCraft auto-detects them from your code, or you
 | `ANALYTICS` | Event tracking, dashboards, data warehousing |
 | `STATE-MACHINE` | Transitions, guards, event-driven workflows |
 | `WEB3` | Smart contracts, gas optimization, wallet security |
+| `HIPAA` | PII masking, encryption checks, audit logging |
+| `SOC2` | Access control, change management, incident response |
+| `DATA-LINEAGE` | 100% field coverage, lineage tracking decorators |
+| `OBSERVABILITY-XRAY` | Auto X-Ray instrumentation for Lambdas |
+| `MEDALLION-ARCHITECTURE` | Bronze=immutable, Silver=validated, Gold=aggregated |
+| `ZERO-TRUST` | Deny-by-default IAM, explicit allow rules |
 
 ## Content Tiers
 
@@ -172,7 +178,7 @@ tier: recommended
 | `convert_existing` | Phased migration plan for legacy code |
 | `add_hook` | Add quality-gate hooks |
 | `add_module` | Scaffold a feature module |
-| `configure_mcp` | Generate `.claude/settings.json` |
+| `configure_mcp` | Discover & configure recommended MCP servers |
 | `get_nfr_template` | NFR sections for tech specs |
 | `list_tags` | Show all available tags |
 | `list_hooks` | Show hooks, filterable by tag |
@@ -233,10 +239,24 @@ templates/your-tag/
 ├── structure.yaml      # Folder structure
 ├── nfr.yaml            # Non-functional requirements
 ├── hooks.yaml          # Quality gate scripts
-└── review.yaml         # Code review checklists
+├── review.yaml         # Code review checklists
+└── mcp-servers.yaml    # Recommended MCP servers for this tag
 ```
 
 PRs welcome. See [`templates/universal/`](templates/universal/) for the format.
+
+### MCP Server Discovery
+
+`configure_mcp` dynamically discovers recommended MCP servers matching your project tags. Servers are curated in `mcp-servers.yaml` per tag — community-contributable via PRs.
+
+Built-in recommendations include Context7 (docs), Playwright (testing), Chrome DevTools (debugging), Stripe (fintech), Docker/K8s (infra), and more across all 24 tags.
+
+Optionally fetch from a remote registry at setup time:
+```yaml
+# In forgecraft.yaml or via tool parameter
+include_remote: true
+remote_registry_url: https://your-org.com/mcp-registry.json
+```
 
 ## Development
 
@@ -245,7 +265,7 @@ git clone https://github.com/jghiringhelli/forgecraft-mcp.git
 cd forgecraft-mcp
 npm install
 npm run build
-npm test   # 111 tests, 9 suites
+npm test   # 128 tests, 10 suites
 ```
 
 ## License

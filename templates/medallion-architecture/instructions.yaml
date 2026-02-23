@@ -1,0 +1,41 @@
+tag: MEDALLION-ARCHITECTURE
+section: instructions
+blocks:
+  - id: bronze-layer
+    tier: recommended
+    title: "Bronze Layer — Immutable Raw Ingestion"
+    content: |
+      ## Bronze Layer — Immutable Raw Ingestion
+
+      - Bronze is the landing zone. Data arrives exactly as received from source systems — no transformations, no filtering, no deduplication.
+      - Store Bronze data in append-only, immutable formats (Parquet, Delta Lake, Iceberg). Never overwrite or delete Bronze records.
+      - Include ingestion metadata on every record: source_system, ingested_at, batch_id, file_origin, raw_checksum.
+      - Partition Bronze tables by ingestion date for efficient reprocessing. Never partition by business keys at this layer.
+      - Implement schema-on-read: Bronze accepts any schema from source. Schema validation happens at the Silver promotion step.
+      - Retain Bronze data indefinitely (or per legal retention policy). Bronze is the recovery point for all downstream reprocessing.
+
+  - id: silver-layer
+    tier: recommended
+    title: "Silver Layer — Validated & Conformed"
+    content: |
+      ## Silver Layer — Validated & Conformed
+
+      - Silver applies data quality rules: type validation, null checks, range constraints, referential integrity, deduplication.
+      - Every record in Silver must pass defined quality gates. Records failing validation are routed to a quarantine table, not dropped.
+      - Conform naming conventions: standardize column names, date formats, currency codes, and enum values across all Silver tables.
+      - Track record lineage: every Silver record links back to its Bronze source via source_record_id and bronze_batch_id.
+      - Apply slowly changing dimension (SCD) Type 2 for reference data: maintain history with effective_from and effective_to timestamps.
+      - Silver tables define explicit schemas enforced on write. Schema changes require a migration plan and backward compatibility check.
+
+  - id: gold-layer
+    tier: recommended
+    title: "Gold Layer — Aggregated & Business-Ready"
+    content: |
+      ## Gold Layer — Aggregated & Business-Ready
+
+      - Gold tables are purpose-built for specific business use cases: dashboards, ML features, API responses, reports.
+      - Apply business logic at the Gold layer: aggregations, joins, calculated fields, business rules, KPI definitions.
+      - Optimize Gold tables for read performance: pre-aggregate, denormalize, partition by access patterns.
+      - Document every Gold table with its business purpose, refresh cadence, source Silver tables, and SLA.
+      - Version Gold table definitions: changes to aggregation logic or business rules are tracked, reviewed, and deployed like code.
+      - Implement data contracts for Gold consumers: define expected schema, update frequency, and quality guarantees.

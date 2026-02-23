@@ -1,0 +1,20 @@
+tag: DATA-LINEAGE
+section: mcp-servers
+servers:
+  - name: postgres
+    description: "PostgreSQL database inspection — query lineage metadata and schema definitions"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-postgres"]
+    tags: [DATA-LINEAGE, DATA-PIPELINE]
+    category: database
+    env:
+      POSTGRES_CONNECTION_STRING: ""
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
+
+  - name: filesystem
+    description: "Filesystem access for lineage definition files and pipeline configurations"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem"]
+    tags: [DATA-LINEAGE, UNIVERSAL]
+    category: filesystem
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"

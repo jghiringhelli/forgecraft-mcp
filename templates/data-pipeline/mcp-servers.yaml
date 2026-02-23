@@ -1,0 +1,12 @@
+tag: DATA-PIPELINE
+section: mcp-servers
+servers:
+  - name: postgres
+    description: "PostgreSQL database inspection, queries, and schema management"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-postgres"]
+    tags: [DATA-PIPELINE, API]
+    category: database
+    env:
+      POSTGRES_CONNECTION_STRING: ""
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"

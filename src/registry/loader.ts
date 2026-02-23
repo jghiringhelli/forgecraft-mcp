@@ -19,6 +19,7 @@ import type {
   StructureTemplate,
   HookTemplate,
   ReviewTemplate,
+  McpServersTemplate,
   ForgeCraftConfig,
 } from "../shared/types.js";
 
@@ -103,6 +104,7 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
   let structure: StructureTemplate | undefined;
   let hooks: HookTemplate[] | undefined;
   let review: ReviewTemplate | undefined;
+  let mcpServers: McpServersTemplate | undefined;
 
   // Load instructions.yaml (formerly claude-md.yaml)
   const instructionsPath = join(tagDir, "instructions.yaml");
@@ -143,7 +145,13 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
     review = loadYamlFile<ReviewTemplate>(reviewPath);
   }
 
-  return { tag, instructions, nfr, structure, hooks, review };
+  // Load mcp-servers.yaml
+  const mcpServersPath = join(tagDir, "mcp-servers.yaml");
+  if (existsSync(mcpServersPath)) {
+    mcpServers = loadYamlFile<McpServersTemplate>(mcpServersPath);
+  }
+
+  return { tag, instructions, nfr, structure, hooks, review, mcpServers };
 }
 
 /**
@@ -190,6 +198,12 @@ function tagDirNameToTag(dirName: string): Tag | null {
     infra: "INFRA",
     mobile: "MOBILE",
     analytics: "ANALYTICS",
+    hipaa: "HIPAA",
+    soc2: "SOC2",
+    "data-lineage": "DATA-LINEAGE",
+    "observability-xray": "OBSERVABILITY-XRAY",
+    "medallion-architecture": "MEDALLION-ARCHITECTURE",
+    "zero-trust": "ZERO-TRUST",
   };
   return mapping[dirName] ?? null;
 }
@@ -282,6 +296,7 @@ export function loadAllTemplatesWithExtras(
         structure: extraSet.structure ?? baseSet.structure,
         hooks: mergeHookTemplates(baseSet.hooks, extraSet.hooks),
         review: mergeReviewTemplates(baseSet.review, extraSet.review),
+        mcpServers: mergeMcpServersTemplates(baseSet.mcpServers, extraSet.mcpServers),
       };
       base.set(tag, merged);
     }
@@ -344,4 +359,18 @@ function mergeReviewTemplates(
   const seenIds = new Set(base.blocks.map((b) => b.id));
   const newBlocks = extra.blocks.filter((b) => !seenIds.has(b.id));
   return { ...base, blocks: [...base.blocks, ...newBlocks] };
+}
+
+/**
+ * Merge two McpServersTemplates, appending non-duplicate servers by name.
+ */
+function mergeMcpServersTemplates(
+  base: McpServersTemplate | undefined,
+  extra: McpServersTemplate | undefined,
+): McpServersTemplate | undefined {
+  if (!extra) return base;
+  if (!base) return extra;
+  const seenNames = new Set(base.servers.map((s) => s.name));
+  const newServers = extra.servers.filter((s) => !seenNames.has(s.name));
+  return { ...base, servers: [...base.servers, ...newServers] };
 }

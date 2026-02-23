@@ -1,0 +1,10 @@
+tag: GAME
+section: mcp-servers
+servers:
+  - name: unity-mcp
+    description: "Unity Editor integration — scene management, asset control, code generation"
+    command: npx
+    args: ["-y", "@anthropic/unity-mcp"]
+    tags: [GAME]
+    category: game-engine
+    url: "https://github.com/CoplayDev/unity-mcp"

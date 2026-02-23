@@ -25,6 +25,12 @@ export const ALL_TAGS = [
   "INFRA",
   "MOBILE",
   "ANALYTICS",
+  "HIPAA",
+  "SOC2",
+  "DATA-LINEAGE",
+  "OBSERVABILITY-XRAY",
+  "MEDALLION-ARCHITECTURE",
+  "ZERO-TRUST",
 ] as const;
 
 export type Tag = (typeof ALL_TAGS)[number];
@@ -319,6 +325,7 @@ export interface TagTemplateSet {
   readonly structure?: StructureTemplate;
   readonly hooks?: HookTemplate[];
   readonly review?: ReviewTemplate;
+  readonly mcpServers?: McpServersTemplate;
   /**
    * @deprecated Use `instructions` instead. Alias kept for backward compatibility.
    */
@@ -337,6 +344,68 @@ export interface McpServerConfig {
   readonly command: string;
   readonly args: string[];
   readonly env?: Record<string, string>;
+}
+
+// ── MCP Server Discovery Types ───────────────────────────────────────
+
+/** Category grouping for MCP server recommendations. */
+export type McpServerCategory =
+  | "scaffolding"
+  | "code-search"
+  | "testing"
+  | "debugging"
+  | "devtools"
+  | "deployment"
+  | "database"
+  | "documentation"
+  | "game-engine"
+  | "ai-ml"
+  | "monitoring"
+  | "general";
+
+/** An MCP server entry in a curated registry YAML file. */
+export interface McpServerEntry {
+  readonly name: string;
+  readonly description: string;
+  readonly command: string;
+  readonly args: string[];
+  readonly env?: Record<string, string>;
+  readonly tags: Tag[];
+  readonly category: McpServerCategory;
+  readonly url?: string;
+}
+
+/** Shape of the mcp-servers.yaml template file. */
+export interface McpServersTemplate {
+  readonly tag: Tag;
+  readonly section: "mcp-servers";
+  readonly servers: McpServerEntry[];
+}
+
+/** Source of a discovered MCP server recommendation. */
+export type McpServerSource = "built-in" | "community" | "remote";
+
+/** A recommended MCP server with discovery metadata. */
+export interface McpServerRecommendation {
+  readonly name: string;
+  readonly description: string;
+  readonly command: string;
+  readonly args: string[];
+  readonly env?: Record<string, string>;
+  readonly relevantTags: Tag[];
+  readonly category: McpServerCategory;
+  readonly url?: string;
+  readonly source: McpServerSource;
+}
+
+/** Options for controlling MCP server discovery behavior. */
+export interface McpDiscoveryOptions {
+  /** Whether to also fetch from a remote registry. Defaults to false. */
+  readonly includeRemote?: boolean;
+  /** Override the default remote registry URL. */
+  readonly remoteRegistryUrl?: string;
+  /** Request timeout in milliseconds for remote fetches. Defaults to 5000. */
+  readonly remoteTimeoutMs?: number;
 }
 
 /** User override configuration from forgecraft.yaml / .forgecraft.json. */

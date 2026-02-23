@@ -1,0 +1,10 @@
+tag: MOBILE
+section: mcp-servers
+servers:
+  - name: android-emulator
+    description: "Android emulator control — screenshots, tap, swipe, and app lifecycle"
+    command: npx
+    args: ["-y", "mcp-server-android"]
+    tags: [MOBILE]
+    category: devtools
+    url: "https://github.com/nicholasgriffintn/android-mcp-server"

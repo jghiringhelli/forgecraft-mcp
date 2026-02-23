@@ -1,0 +1,28 @@
+tag: DATA-LINEAGE
+section: instructions
+blocks:
+  - id: field-coverage
+    tier: recommended
+    title: "100% Field Coverage Enforcement"
+    content: |
+      ## 100% Field Coverage Enforcement
+
+      - Every data field must have a documented origin (source system, table, column) and destination (target system, table, column).
+      - Maintain a field-level lineage registry: no field enters production without a lineage entry. Enforce this in CI.
+      - Track field transformations explicitly: document every rename, type cast, aggregation, join, and filter applied to each field.
+      - Implement automated coverage checks: compare the lineage registry against actual schema definitions. Flag any untracked fields as errors.
+      - Version lineage metadata alongside code: lineage definitions live in the repository, not in external wikis or spreadsheets.
+      - Generate lineage reports per pipeline run: which fields were read, transformed, and written, with row counts and data quality metrics.
+
+  - id: lineage-tracking-decorators
+    tier: recommended
+    title: "Lineage Tracking Decorators & Annotations"
+    content: |
+      ## Lineage Tracking Decorators & Annotations
+
+      - Use decorators or annotations on transformation functions to declare input fields, output fields, and transformation type.
+      - Standardize lineage metadata format: source, transformation, destination, timestamp, pipeline_id, run_id.
+      - Emit lineage events at runtime: every transformation step publishes a lineage event to a centralized lineage store.
+      - Support both code-level lineage (decorators on functions) and config-level lineage (YAML/JSON transformation specs).
+      - Integrate lineage with data quality: when a quality check fails, trace back through lineage to identify the source of bad data.
+      - Visualize lineage graphs: generate dependency diagrams showing field-level flow from source to consumption.
