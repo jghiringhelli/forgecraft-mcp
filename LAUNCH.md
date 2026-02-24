@@ -160,27 +160,55 @@ GitHub: https://github.com/jghiringhelli/forgecraft-mcp
 
 ---
 
-## 6. Other Channels
+## 6. MCP Catalogs & Directories
 
-| Channel | Action | Link |
-|---------|--------|------|
-| **MCP Discord** | Post in #showcase | https://modelcontextprotocol.io/community/communication |
-| **Smithery** | Submit server | https://smithery.ai/ |
-| **Glama.ai** | Listed from awesome-list or submit directly | https://glama.ai/mcp/servers |
-| **awesome-mcp-servers (wong2)** | Open PR to add entry | https://github.com/wong2/awesome-mcp-servers |
-| **awesome-mcp-servers (punkpeye)** | Open PR to add entry | https://github.com/punkpeye/awesome-mcp-servers |
-| **Dev.to** | Write "How I built ForgeCraft" article | https://dev.to/ |
-| **Product Hunt** | Launch post with demo GIF | https://producthunt.com/ |
-| **LinkedIn** | Personal post about the problem/solution | Reaches engineering managers |
+### VS Code MCP Gallery (github.com/mcp)
+VS Code's `@mcp` search in the Extensions view pulls from the GitHub MCP server registry at github.com/mcp, which is a frontend for registry.modelcontextprotocol.io. **No separate submission needed** — being on the registry IS being in the gallery. Users find it by searching `@mcp forgecraft` in VS Code. The default page is sorted by install count; ranking improves with more installs.
+
+**Key:** The `title` field in server.json is what github.com/mcp displays. Ensure server.json has `"title": "ForgeCraft"` and a good description.
+
+### PR to modelcontextprotocol/servers (Community Servers)
+The most-referenced MCP server directory. Submit a PR to add to the Community Servers section.
+
+**Entry (add alphabetically under "F"):**
+```markdown
+• [ForgeCraft](https://github.com/jghiringhelli/forgecraft-mcp) - MCP server that generates production-grade engineering standards (SOLID, testing, architecture, CI/CD) for AI coding assistants — supports Claude, Cursor, Copilot, Windsurf, Cline, and Aider.
+```
+
+**PR title:** `feat: add ForgeCraft MCP server to community list`
+
+### All Distribution Channels
+
+| Channel | Action | Link | Priority |
+|---------|--------|------|----------|
+| **modelcontextprotocol/servers** | PR to Community Servers README | https://github.com/modelcontextprotocol/servers | 🔴 Critical |
+| **GitHub Repo Topics** | Add mcp, mcp-server, model-context-protocol, github-copilot, developer-tools, scaffolding | Repo Settings → Topics | 🔴 Critical |
+| **Smithery** | Submit server | https://smithery.ai/ | 🟠 High |
+| **MCP Discord** | Post in #showcase | https://glama.ai/mcp/discord | 🟠 High |
+| **awesome-mcp-servers (wong2)** | Open PR | https://github.com/wong2/awesome-mcp-servers | 🟠 High |
+| **awesome-mcp-servers (punkpeye)** | Open PR | https://github.com/punkpeye/awesome-mcp-servers | 🟠 High |
+| **mcp.so** | Submit/PR | https://mcp.so/ (github.com/chatmcp/mcp-directory) | 🟡 Medium |
+| **opentools.com** | Direct submission | https://opentools.com/ | 🟡 Medium |
+| **mcpservers.com** | Direct submission | https://mcpservers.com/ | 🟡 Medium |
+| **mkinf.io** | Direct submission | https://mkinf.io/ | 🟡 Medium |
+| **Dev.to** | Write article | https://dev.to/ | 🟡 Medium |
+| **Product Hunt** | Launch post | https://producthunt.com/ | 🟢 Lower |
+| **LinkedIn** | Personal post | Reaches engineering managers | 🟢 Lower |
 
 ### Priority order (highest ROI first):
-1. npm publish
-2. MCP Registry
-3. r/ClaudeAI
-4. Hacker News (Show HN)
-5. MCP Discord #showcase
-6. Smithery
-7. Twitter/X thread
-8. awesome-mcp-servers PRs
-9. Dev.to article
-10. Product Hunt / LinkedIn
+1. ~~npm publish~~ ✅
+2. ~~MCP Registry~~ ✅
+3. Re-publish with updated server.json (title + description)
+4. GitHub repo topics (5 min, immediate SEO)
+5. PR to modelcontextprotocol/servers
+6. r/ClaudeAI
+7. Hacker News (Show HN)
+8. MCP Discord #showcase
+9. Smithery
+10. awesome-mcp-servers PRs (wong2 + punkpeye)
+11. Twitter/X thread
+12. Remaining aggregator submissions
+13. Dev.to article
+14. Product Hunt / LinkedIn
+
+See `docs/distribution-plan.md` for the full plan with step-by-step instructions.

@@ -1,7 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.jghiringhelli/forgecraft",
-  "description": "Production-grade AI assistant instructions with SOLID, testing, and architecture standards.",
+  "title": "ForgeCraft",
+  "description": "MCP server that generates production-grade engineering standards (SOLID, testing pyramids, architecture patterns, CI/CD) for AI coding assistants — automatically tailored to your stack. Supports Claude, Cursor, Copilot, Windsurf, Cline, and Aider.",
   "repository": {
     "url": "https://github.com/jghiringhelli/forgecraft-mcp",
     "source": "github"
@@ -12,6 +13,7 @@
       "registryType": "npm",
       "identifier": "forgecraft-mcp",
       "version": "0.2.0",
+      "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
       }

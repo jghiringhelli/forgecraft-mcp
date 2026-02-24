@@ -1,9 +1,12 @@
 # Status.md
 
-## Last Updated: 2026-02-23
+## Last Updated: 2026-02-24
 ## Session Summary
-Added 6 new domain tags from state project: HIPAA, SOC2, DATA-LINEAGE, OBSERVABILITY-XRAY,
-MEDALLION-ARCHITECTURE, ZERO-TRUST. Now 24 tags with 75 YAML templates total.
+MCP discoverability research & distribution plan. Confirmed ForgeCraft IS on the Official MCP Registry
+(v0.1.0 since Feb 18, v0.2.0 since Feb 19). Discovered that VS Code's `@mcp` gallery at github.com/mcp
+is a registry frontend — no separate submission needed. Updated server.json with `title` field and
+improved description (these are what github.com/mcp displays). Created comprehensive distribution plan
+covering 12+ MCP catalogs and directories. Updated LAUNCH.md with all channels.
 
 ### What Changed
 1. **6 New Tags**: HIPAA (PII masking, encryption, audit logging), SOC2 (access control,
@@ -106,13 +109,19 @@ forgecraft-mcp/
 | | | | |
 
 ## Current Context
-- Working on: Publish preparation complete. All features implemented.
+- Working on: Distribution — getting ForgeCraft listed across MCP catalogs
 - Blocked by: Nothing
 - Decisions pending: None
 - Next steps:
-  1. Publish to npm
-  2. Publish to MCP Registry
-  3. Follow LAUNCH.md distribution plan
+  1. Re-publish to registry with updated server.json (title + description) — bump to v0.2.1
+  2. Add GitHub repo topics: mcp, mcp-server, model-context-protocol, github-copilot, developer-tools
+  3. Submit PR to modelcontextprotocol/servers community list (highest-value action)
+  4. Submit PRs to awesome-mcp-servers (wong2 + punkpeye)
+  5. Submit to Smithery.ai
+  6. Post to r/ClaudeAI, MCP Discord, Hacker News
+  7. Submit to remaining aggregators (mcp.so, opentools.com, mcpservers.com, etc.)
+  8. Add NPM_TOKEN secret to GitHub repo for CI/CD publishing
+  9. See docs/distribution-plan.md for full plan
 
 ## Architecture Decision Log
 | Date | Decision | Rationale | Status |

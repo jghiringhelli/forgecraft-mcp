@@ -25,6 +25,11 @@
     "model-context-protocol",
     "claude",
     "claude-code",
+    "github-copilot",
+    "copilot",
+    "cursor",
+    "windsurf",
+    "ai-coding",
     "scaffolding",
     "project-setup",
     "developer-tools",
@@ -33,8 +38,7 @@
     "solid-principles",
     "testing",
     "architecture",
-    "claude-md",
-    "ai-coding"
+    "claude-md"
   ],
   "author": "JC",
   "license": "MIT",
