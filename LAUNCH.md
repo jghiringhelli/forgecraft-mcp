@@ -185,12 +185,12 @@ The most-referenced MCP server directory. Submit a PR to add to the Community Se
 
 | Channel | Action | Link | Priority |
 |---------|--------|------|----------|
-| **modelcontextprotocol/servers** | PR to Community Servers README | https://github.com/modelcontextprotocol/servers | 🔴 Critical |
-| **GitHub Repo Topics** | Add mcp, mcp-server, model-context-protocol, github-copilot, developer-tools, scaffolding | Repo Settings → Topics | 🔴 Critical |
+| ~~**modelcontextprotocol/servers**~~ | ~~PR~~ List deprecated → MCP Registry is canonical | https://github.com/modelcontextprotocol/servers | ⬛ N/A |
+| ~~**GitHub Repo Topics**~~ | ✅ 14 topics added | Repo Settings → Topics | ✅ Done |
 | **Smithery** | Submit server | https://smithery.ai/ | 🟠 High |
 | **MCP Discord** | Post in #showcase | https://glama.ai/mcp/discord | 🟠 High |
-| **awesome-mcp-servers (wong2)** | Open PR | https://github.com/wong2/awesome-mcp-servers | 🟠 High |
-| **awesome-mcp-servers (punkpeye)** | Open PR | https://github.com/punkpeye/awesome-mcp-servers | 🟠 High |
+| ~~**awesome-mcp-servers (wong2)**~~ | ✅ Submit at mcpservers.org/submit | https://mcpservers.org/submit | 🟠 Manual |
+| ~~**awesome-mcp-servers (punkpeye)**~~ | ✅ PR #2366 submitted | https://github.com/punkpeye/awesome-mcp-servers/pull/2366 | ✅ Done |
 | **mcp.so** | Submit/PR | https://mcp.so/ (github.com/chatmcp/mcp-directory) | 🟡 Medium |
 | **opentools.com** | Direct submission | https://opentools.com/ | 🟡 Medium |
 | **mcpservers.com** | Direct submission | https://mcpservers.com/ | 🟡 Medium |
@@ -200,19 +200,20 @@ The most-referenced MCP server directory. Submit a PR to add to the Community Se
 | **LinkedIn** | Personal post | Reaches engineering managers | 🟢 Lower |
 
 ### Priority order (highest ROI first):
-1. ~~npm publish~~ ✅
-2. ~~MCP Registry~~ ✅
-3. Re-publish with updated server.json (title + description)
-4. GitHub repo topics (5 min, immediate SEO)
-5. PR to modelcontextprotocol/servers
-6. r/ClaudeAI
+1. ~~npm publish~~ ✅ v0.2.1
+2. ~~MCP Registry~~ ✅ v0.2.1 with title + description
+3. ~~Re-publish with updated server.json~~ ✅
+4. ~~GitHub repo topics~~ ✅ 14 topics added
+5. ~~PR to modelcontextprotocol/servers~~ ⬛ Deprecated — MCP Registry is now canonical
+6. ~~r/ClaudeAI~~ ✅ Posted
 7. Hacker News (Show HN)
 8. MCP Discord #showcase
 9. Smithery
-10. awesome-mcp-servers PRs (wong2 + punkpeye)
-11. Twitter/X thread
-12. Remaining aggregator submissions
-13. Dev.to article
-14. Product Hunt / LinkedIn
+10. ~~awesome-mcp-servers (punkpeye)~~ ✅ PR #2366 submitted
+11. awesome-mcp-servers (wong2) → submit at https://mcpservers.org/submit
+12. Twitter/X thread
+13. Remaining aggregator submissions
+14. Dev.to article
+15. Product Hunt / LinkedIn
 
 See `docs/distribution-plan.md` for the full plan with step-by-step instructions.
