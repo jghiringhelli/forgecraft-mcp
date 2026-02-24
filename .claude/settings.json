@@ -5,6 +5,14 @@
       "Write(**)"
     ]
   },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "create_file|write_file|edit_file|replace_string|multi_replace|create_directory",
+        "hook": "bash .claude/hooks/post-edit-commit-reminder.sh"
+      }
+    ]
+  },
   "mcpServers": {
     "context7": {
       "command": "npx",

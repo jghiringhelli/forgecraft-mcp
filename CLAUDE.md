@@ -146,4 +146,4 @@ Before writing any implementation:
 ## Corrections Log
 When I correct your output, record the correction pattern here so you don't repeat it.
 ### Learned Corrections
-- [CC appends corrections here with date and description]
+- [2026-02-23] Commit after each feature completes — never bundle multiple features into one commit. When tests pass and the feature is verified, commit immediately before starting the next feature. The post-edit-commit-reminder hook warns at 15+ uncommitted files.
