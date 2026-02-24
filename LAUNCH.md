@@ -47,35 +47,39 @@ Verify at: https://registry.modelcontextprotocol.io/ (search for `io.github.jghi
 
 **Title:** I built an MCP server that gives AI coding assistants real engineering standards — works with Claude, Cursor, Copilot, Windsurf, Cline & Aider
 
+**Flair:** MCP (on r/ClaudeAI)
+
 **Body:**
 
-AI coding assistants work better with clear engineering standards. But most start with a generic instruction file — no architecture patterns, no testing targets, no domain-specific rules, no quality gates.
+Figured after several projects and progressively abstracting my claude code requests to increasingly leverage the LLM that coding assistants work better with wired-in engineering standards. But they start with a generic instruction file, no architecture patterns, no testing targets, no domain-specific rules nor quality gates. So, it tends to create sneaky mocks, leave TODOs across the code and write complex projects from specs like a monolith.
 
-I built **ForgeCraft** to fix that. It's an MCP server (14 tools) that analyzes your project, auto-detects your stack, and generates production-grade instruction files from 112 curated template blocks:
+I built **ForgeCraft** to fix that using Claude Opus 4.6. It works as an AI assistant bootstrapper for new or existing projects. I used it to refactor a prototype monolith into a proper scalable three tiered web (DB/API/React) with interfaces over a weekend, it took care of creating tests on the existing code and so far the project behaves the same, just faster and a lot easier to maintain. Under the hood it's an MCP server with 14 tools that analyzes projects, auto-detects the stack, and generates production-grade instruction files from over 100 curated template blocks. It is mostly setting up MCP tools, writing hooks, updating the claude.md/rules/whatever files, and creating a status.md file, so it will not modify the project itself. It adds:
 
 - SOLID principles with concrete, enforceable rules
 - Testing pyramid with coverage targets (80%+ enforced)
 - Architecture patterns (hexagonal, clean code, DDD)
 - CI/CD, deployment, and 12-Factor guidance
 - Domain-specific standards (fintech, healthcare, gaming, etc.)
-- Quality-gate hooks that enforce standards pre-commit
+- Quality-gate hooks that enforce standards pre-commit and guides regular commits
 
-**Supports 6 AI assistants:** Claude (CLAUDE.md), Cursor (.cursor/rules/), GitHub Copilot (.github/copilot-instructions.md), Windsurf (.windsurfrules), Cline (.clinerules), Aider (CONVENTIONS.md). Generate for one or all at once.
+Supports 6 AI assistants so far: Claude (CLAUDE.md), Cursor (.cursor/rules/), GitHub Copilot (.github/copilot-instructions.md), Windsurf (.windsurfrules), Cline (.clinerules), Aider (CONVENTIONS.md).
+
+It has 18 domain tags that I intend to grow over time or with community help that you can combine (API + WEB-REACT + FINTECH = merged standards with no conflicts), 3 content tiers so you're not overwhelmed on day one, and an audit tool that scores your project 0-100 against the standards.
+
+Everything is composable YAML templates, not hardcoded — so teams can add their own standards or override defaults.
 
 **Install in one line:**
 ```
 claude mcp add forgecraft -- npx -y forgecraft-mcp
 ```
-Then just tell Claude *"set up this project for production"*.
+Then just tell your assistant *"set up this project for production"* or similar.
 
-It has 18 domain tags you can combine (API + WEB-REACT + FINTECH = merged standards with no conflicts), 3 content tiers so you're not overwhelmed on day one, and an audit tool that scores your project 0-100 against the standards.
-
-Everything is composable YAML templates, not hardcoded — so teams can add their own standards or override defaults.
+I will be adding it to discovery MCP portals soon,
 
 **GitHub:** https://github.com/jghiringhelli/forgecraft-mcp
 **npm:** `forgecraft-mcp`
 
-Open source (MIT). Would love feedback — what engineering standards do you wish your AI assistant enforced?
+Open source (MIT). Would love feedback on utility, enhancements and what new tags or engineering standards I can include.
 
 ---
 
