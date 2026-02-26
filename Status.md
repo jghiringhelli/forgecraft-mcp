@@ -1,22 +1,16 @@
 # Status.md
 
-## Last Updated: 2026-02-24
+## Last Updated: 2026-02-23
 ## Session Summary
-MCP discoverability research & distribution plan. Confirmed ForgeCraft IS on the Official MCP Registry
-(v0.1.0 since Feb 18, v0.2.0 since Feb 19). Discovered that VS Code's `@mcp` gallery at github.com/mcp
-is a registry frontend — no separate submission needed. Updated server.json with `title` field and
-improved description (these are what github.com/mcp displays). Created comprehensive distribution plan
-covering 12+ MCP catalogs and directories. Updated LAUNCH.md with all channels.
+Project entering maintenance mode. v0.2.1 published to npm + MCP Registry. Distribution complete
+across primary channels (npm, MCP Registry, Reddit, HN, MCP Discord, awesome-mcp-servers PRs).
 
-### What Changed
-1. **6 New Tags**: HIPAA (PII masking, encryption, audit logging), SOC2 (access control,
-   change management, incident response), DATA-LINEAGE (field coverage, lineage decorators),
-   OBSERVABILITY-XRAY (X-Ray Lambda instrumentation), MEDALLION-ARCHITECTURE (Bronze/Silver/Gold),
-   ZERO-TRUST (deny-by-default IAM, explicit allow rules).
-2. **12 New YAML Templates**: instructions.yaml + mcp-servers.yaml for each of the 6 new tags.
-3. **Type System**: ALL_TAGS expanded to 24 entries, loader mappings + TAG_DESCRIPTIONS updated.
-4. **Tests**: 128 passing, 10 suites. Updated discovery test to verify all 24 tags return servers.
-5. **README**: Tag table updated with 6 new rows.
+### What Changed (v0.2.x)
+1. **Multi-target AI assistant support**: Claude, Cursor, Copilot, Windsurf, Cline, Aider.
+2. **6 New Tags**: HIPAA, SOC2, DATA-LINEAGE, OBSERVABILITY-XRAY, MEDALLION-ARCHITECTURE, ZERO-TRUST.
+3. **MCP server discovery**: Data-driven YAML registry per tag.
+4. **CI/CD pipeline**: GitHub Actions auto-publishes to npm + MCP Registry on version tags.
+5. **128 tests passing**, 10 suites.
 
 ## Project Structure
 ```
@@ -109,19 +103,14 @@ forgecraft-mcp/
 | | | | |
 
 ## Current Context
-- Working on: Distribution — getting ForgeCraft listed across MCP catalogs
+- Working on: **Maintenance mode** — no active feature work
 - Blocked by: Nothing
 - Decisions pending: None
-- Next steps:
-  1. Re-publish to registry with updated server.json (title + description) — bump to v0.2.1
-  2. Add GitHub repo topics: mcp, mcp-server, model-context-protocol, github-copilot, developer-tools
-  3. Submit PR to modelcontextprotocol/servers community list (highest-value action)
-  4. Submit PRs to awesome-mcp-servers (wong2 + punkpeye)
-  5. Submit to Smithery.ai
-  6. Post to r/ClaudeAI, MCP Discord, Hacker News
-  7. Submit to remaining aggregators (mcp.so, opentools.com, mcpservers.com, etc.)
-  8. Add NPM_TOKEN secret to GitHub repo for CI/CD publishing
-  9. See docs/distribution-plan.md for full plan
+- Next steps (optional, low priority):
+  1. Submit to remaining aggregators (mcp.so, opentools.com, mcpservers.com, mkinf.io)
+  2. Twitter/X thread (copy from LAUNCH.md)
+  3. Dev.to article
+  4. Community-contributed tags/templates via PRs
 
 ## Architecture Decision Log
 | Date | Decision | Rationale | Status |

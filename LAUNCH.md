@@ -187,9 +187,9 @@ The most-referenced MCP server directory. Submit a PR to add to the Community Se
 |---------|--------|------|----------|
 | ~~**modelcontextprotocol/servers**~~ | ~~PR~~ List deprecated → MCP Registry is canonical | https://github.com/modelcontextprotocol/servers | ⬛ N/A |
 | ~~**GitHub Repo Topics**~~ | ✅ 14 topics added | Repo Settings → Topics | ✅ Done |
-| **Smithery** | Submit server | https://smithery.ai/ | 🟠 High |
-| **MCP Discord** | Post in #showcase | https://glama.ai/mcp/discord | 🟠 High |
-| ~~**awesome-mcp-servers (wong2)**~~ | ✅ Submit at mcpservers.org/submit | https://mcpservers.org/submit | 🟠 Manual |
+| **Smithery** | ⬛ Requires remote HTTP transport (stdio not supported) | https://smithery.ai/ | ⬛ N/A |
+| ~~**MCP Discord**~~ | ✅ Posted CodeSeeker + ForgeCraft in #showcase | https://glama.ai/mcp/discord | ✅ Done |
+| ~~**awesome-mcp-servers (wong2)**~~ | ✅ Submitted CodeSeeker + ForgeCraft | https://mcpservers.org/submit | ✅ Done |
 | ~~**awesome-mcp-servers (punkpeye)**~~ | ✅ PR #2366 submitted | https://github.com/punkpeye/awesome-mcp-servers/pull/2366 | ✅ Done |
 | **mcp.so** | Submit/PR | https://mcp.so/ (github.com/chatmcp/mcp-directory) | 🟡 Medium |
 | **opentools.com** | Direct submission | https://opentools.com/ | 🟡 Medium |
@@ -206,9 +206,11 @@ The most-referenced MCP server directory. Submit a PR to add to the Community Se
 4. ~~GitHub repo topics~~ ✅ 14 topics added
 5. ~~PR to modelcontextprotocol/servers~~ ⬛ Deprecated — MCP Registry is now canonical
 6. ~~r/ClaudeAI~~ ✅ Posted
-7. Hacker News (Show HN)
-8. MCP Discord #showcase
-9. Smithery
+7. ~~Hacker News (Show HN)~~ ✅ CodeSeeker posted
+8. ~~MCP Discord #showcase~~ ✅ CodeSeeker + ForgeCraft posted
+9. ~~Smithery~~ ⬛ N/A (requires remote HTTP, not stdio)
+10. ~~NPM_TOKEN secret~~ ✅ Set
+11. ~~mcpservers.org~~ ✅ CodeSeeker + ForgeCraft submitted
 10. ~~awesome-mcp-servers (punkpeye)~~ ✅ PR #2366 submitted
 11. awesome-mcp-servers (wong2) → submit at https://mcpservers.org/submit
 12. Twitter/X thread

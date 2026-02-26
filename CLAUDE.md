@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Shared Cross-Project Resources
+
+**Publishing Playbook**: `../PUBLISHING-PLAYBOOK.md` — Shared across CodeSeeker, ForgeCraft, Conclave, and future projects. Contains distribution channel reference, entry formats, Chocolatey gotchas, version bump checklists, and project status tracker. Consult this before any release or new channel submission.
+
 ## Project Identity
 - **Repo**: github.com/jghiringhelli/forgecraft-mcp
 - **Primary Language**: TypeScript 5.x
