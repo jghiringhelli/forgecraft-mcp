@@ -262,6 +262,20 @@ export interface NfrTemplate {
   readonly blocks: NfrBlock[];
 }
 
+/** A design reference block (DDD, CQRS, GoF patterns) served on demand, not in instruction files. */
+export interface ReferenceBlock {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+}
+
+/** A reference template for a tag. */
+export interface ReferenceTemplate {
+  readonly tag: Tag;
+  readonly section: "reference";
+  readonly blocks: ReferenceBlock[];
+}
+
 /** Hook template definition. */
 export interface HookTemplate {
   readonly name: string;
@@ -326,6 +340,7 @@ export interface TagTemplateSet {
   readonly hooks?: HookTemplate[];
   readonly review?: ReviewTemplate;
   readonly mcpServers?: McpServersTemplate;
+  readonly reference?: ReferenceTemplate;
   /**
    * @deprecated Use `instructions` instead. Alias kept for backward compatibility.
    */

@@ -7,6 +7,7 @@ import { renderClaudeMd, type RenderContext } from "../../src/registry/renderer.
 import { listTagsHandler, listHooksHandler } from "../../src/tools/list.js";
 import { classifyProjectHandler } from "../../src/tools/classify.js";
 import { reviewProjectHandler } from "../../src/tools/review.js";
+import { getDesignReferenceHandler } from "../../src/tools/get-reference.js";
 
 const TEMPLATES_DIR = join(import.meta.dirname, "..", "..", "templates");
 const FIXTURES_DIR = join(import.meta.dirname, "..", "fixtures");
@@ -159,6 +160,33 @@ describe("integration", () => {
       expect(result.content[0]!.text).toContain("Options");
       expect(result.content[0]!.text).toContain("Recommendation");
       expect(result.content[0]!.text).toContain("Confirmation");
+    });
+  });
+
+  describe("get_design_reference tool", () => {
+    it("should return DDD, CQRS, and GoF patterns on demand", async () => {
+      const result = await getDesignReferenceHandler({ tags: ["UNIVERSAL"] });
+
+      const text = result.content[0]!.text;
+      expect(text).toContain("Domain-Driven Design");
+      expect(text).toContain("CQRS");
+      expect(text).toContain("Design Patterns");
+      expect(text).toContain("Patterns:** 3");
+    });
+
+    it("should not include reference patterns in instruction file output", () => {
+      const templates = loadAllTemplates(TEMPLATES_DIR);
+      const composed = composeTemplates(["UNIVERSAL"], templates);
+      const claudeMd = renderClaudeMd(composed.claudeMdBlocks, makeContext());
+
+      // DDD, CQRS, Design Patterns should NOT be in the instruction file
+      expect(claudeMd).not.toContain("Domain-Driven Design (DDD) Essentials");
+      expect(claudeMd).not.toContain("CQRS (Command Query Responsibility Segregation)");
+      expect(claudeMd).not.toContain("Design Patterns — When to Reach for What");
+
+      // But TDD should be in the instruction file
+      expect(claudeMd).toContain("Test-Driven Development (TDD)");
+      expect(claudeMd).toContain("Red-Green-Refactor");
     });
   });
 });

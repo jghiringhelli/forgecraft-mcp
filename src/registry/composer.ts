@@ -15,6 +15,7 @@ import type {
   NfrBlock,
   HookTemplate,
   ReviewBlock,
+  ReferenceBlock,
   ContentTier,
   ForgeCraftConfig,
 } from "../shared/types.js";
@@ -44,6 +45,7 @@ export interface ComposedTemplates {
   readonly nfrBlocks: NfrBlock[];
   readonly hooks: HookTemplate[];
   readonly reviewBlocks: ReviewBlock[];
+  readonly referenceBlocks: ReferenceBlock[];
   /**
    * @deprecated Use `instructionBlocks` instead. Alias for backward compatibility.
    */
@@ -122,12 +124,14 @@ export function composeTemplates(
   const nfrBlocks: NfrBlock[] = [];
   const hooks: HookTemplate[] = [];
   const reviewBlocks: ReviewBlock[] = [];
+  const referenceBlocks: ReferenceBlock[] = [];
 
   const seenBlockIds = new Set<string>();
   const seenPaths = new Set<string>();
   const seenHookNames = new Set<string>();
   const seenNfrIds = new Set<string>();
   const seenReviewIds = new Set<string>();
+  const seenReferenceIds = new Set<string>();
 
   for (const tag of orderedTags) {
     const templateSet = allTemplates.get(tag);
@@ -198,6 +202,16 @@ export function composeTemplates(
         }
       }
     }
+
+    // Compose reference blocks (deduplicate by id — no tier filtering, always available on demand)
+    if (templateSet.reference?.blocks) {
+      for (const block of templateSet.reference.blocks) {
+        if (!seenReferenceIds.has(block.id)) {
+          seenReferenceIds.add(block.id);
+          referenceBlocks.push(block);
+        }
+      }
+    }
   }
 
   logger.info("Templates composed", {
@@ -208,6 +222,7 @@ export function composeTemplates(
     nfrBlocks: nfrBlocks.length,
     hooks: hooks.length,
     reviewBlocks: reviewBlocks.length,
+    referenceBlocks: referenceBlocks.length,
   });
 
   return {
@@ -216,6 +231,7 @@ export function composeTemplates(
     nfrBlocks,
     hooks,
     reviewBlocks,
+    referenceBlocks,
     // Backward-compat alias
     claudeMdBlocks: instructionBlocks,
   };

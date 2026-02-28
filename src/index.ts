@@ -51,6 +51,10 @@ import {
   getNfrTemplateHandler,
 } from "./tools/get-nfr.js";
 import {
+  getDesignReferenceSchema,
+  getDesignReferenceHandler,
+} from "./tools/get-reference.js";
+import {
   convertExistingSchema,
   convertExistingHandler,
 } from "./tools/convert.js";
@@ -149,6 +153,13 @@ async function main(): Promise<void> {
     "Get NFR (Non-Functional Requirement) sections for specific tags.",
     getNfrTemplateSchema.shape,
     getNfrTemplateHandler,
+  );
+
+  server.tool(
+    "get_design_reference",
+    "Get design reference patterns (DDD, CQRS, GoF) on demand. These are NOT included in instruction files to save tokens — request them when you need architectural guidance.",
+    getDesignReferenceSchema.shape,
+    getDesignReferenceHandler,
   );
 
   server.tool(

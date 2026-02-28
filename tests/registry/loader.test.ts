@@ -59,6 +59,20 @@ describe("loader", () => {
       expect(universal.review!.blocks.length).toBeGreaterThan(0);
     });
 
+    it("should load UNIVERSAL reference blocks", () => {
+      const universal = templates.get("UNIVERSAL")!;
+      expect(universal.reference).toBeDefined();
+      expect(universal.reference!.blocks.length).toBe(3);
+    });
+
+    it("should load reference blocks with expected IDs", () => {
+      const universal = templates.get("UNIVERSAL")!;
+      const ids = universal.reference!.blocks.map((b) => b.id);
+      expect(ids).toContain("domain-driven-design");
+      expect(ids).toContain("cqrs-event-patterns");
+      expect(ids).toContain("design-patterns-reference");
+    });
+
     it("should load review blocks with valid dimensions", () => {
       const universal = templates.get("UNIVERSAL")!;
       const validDimensions = ["architecture", "code-quality", "tests", "performance"];

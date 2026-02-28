@@ -10,6 +10,7 @@ import { createLogger } from "../shared/logger/index.js";
 import type {
   InstructionBlock,
   NfrBlock,
+  ReferenceBlock,
   ReviewBlock,
   ReviewDimension,
   Tag,
@@ -120,6 +121,26 @@ function buildCursorFrontmatter(context: RenderContext): string {
  */
 export function renderNfrs(
   blocks: NfrBlock[],
+  context: RenderContext,
+): string {
+  const sections: string[] = [];
+
+  for (const block of blocks) {
+    sections.push(renderTemplate(block.content, context));
+  }
+
+  return sections.join("\n");
+}
+
+/**
+ * Render design reference blocks (DDD, CQRS, GoF patterns) for on-demand retrieval.
+ *
+ * @param blocks - Composed reference blocks
+ * @param context - Project context for variable substitution
+ * @returns Formatted markdown content
+ */
+export function renderReference(
+  blocks: ReferenceBlock[],
   context: RenderContext,
 ): string {
   const sections: string[] = [];

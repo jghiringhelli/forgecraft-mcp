@@ -20,6 +20,7 @@ import type {
   HookTemplate,
   ReviewTemplate,
   McpServersTemplate,
+  ReferenceTemplate,
   ForgeCraftConfig,
 } from "../shared/types.js";
 
@@ -105,6 +106,7 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
   let hooks: HookTemplate[] | undefined;
   let review: ReviewTemplate | undefined;
   let mcpServers: McpServersTemplate | undefined;
+  let reference: ReferenceTemplate | undefined;
 
   // Load instructions.yaml (formerly claude-md.yaml)
   const instructionsPath = join(tagDir, "instructions.yaml");
@@ -151,7 +153,13 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
     mcpServers = loadYamlFile<McpServersTemplate>(mcpServersPath);
   }
 
-  return { tag, instructions, nfr, structure, hooks, review, mcpServers };
+  // Load reference.yaml (on-demand design patterns, not included in instruction files)
+  const referencePath = join(tagDir, "reference.yaml");
+  if (existsSync(referencePath)) {
+    reference = loadYamlFile<ReferenceTemplate>(referencePath);
+  }
+
+  return { tag, instructions, nfr, structure, hooks, review, mcpServers, reference };
 }
 
 /**
@@ -297,6 +305,7 @@ export function loadAllTemplatesWithExtras(
         hooks: mergeHookTemplates(baseSet.hooks, extraSet.hooks),
         review: mergeReviewTemplates(baseSet.review, extraSet.review),
         mcpServers: mergeMcpServersTemplates(baseSet.mcpServers, extraSet.mcpServers),
+        reference: mergeReferenceTemplates(baseSet.reference, extraSet.reference),
       };
       base.set(tag, merged);
     }
@@ -354,6 +363,20 @@ function mergeReviewTemplates(
   base: ReviewTemplate | undefined,
   extra: ReviewTemplate | undefined,
 ): ReviewTemplate | undefined {
+  if (!extra) return base;
+  if (!base) return extra;
+  const seenIds = new Set(base.blocks.map((b) => b.id));
+  const newBlocks = extra.blocks.filter((b) => !seenIds.has(b.id));
+  return { ...base, blocks: [...base.blocks, ...newBlocks] };
+}
+
+/**
+ * Merge two ReferenceTemplates, appending non-duplicate blocks.
+ */
+function mergeReferenceTemplates(
+  base: ReferenceTemplate | undefined,
+  extra: ReferenceTemplate | undefined,
+): ReferenceTemplate | undefined {
   if (!extra) return base;
   if (!base) return extra;
   const seenIds = new Set(base.blocks.map((b) => b.id));

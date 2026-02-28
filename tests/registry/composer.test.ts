@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Tag, TagTemplateSet, ClaudeMdBlock, StructureEntry, NfrBlock, HookTemplate, ReviewBlock, ContentTier } from "../../src/shared/types.js";
+import type { Tag, TagTemplateSet, ClaudeMdBlock, StructureEntry, NfrBlock, HookTemplate, ReviewBlock, ReferenceBlock, ContentTier } from "../../src/shared/types.js";
 import { composeTemplates, type ComposedTemplates } from "../../src/registry/composer.js";
 
 function makeTemplateSet(
@@ -23,6 +23,10 @@ function makeNfr(id: string, title: string = id, tier?: ContentTier): NfrBlock {
 
 function makeHook(name: string): HookTemplate {
   return { name, trigger: "pre-commit", description: `Hook ${name}`, filename: `${name}.sh`, script: `#!/bin/bash\necho ${name}` };
+}
+
+function makeReferenceBlock(id: string, title: string = id): ReferenceBlock {
+  return { id, title, content: `## ${title}\nReference content for ${id}` };
 }
 
 function makeReviewBlock(id: string, dimension: ReviewBlock["dimension"] = "architecture"): ReviewBlock {
@@ -309,6 +313,70 @@ describe("composer", () => {
       });
       expect(result.claudeMdBlocks).toHaveLength(1);
       expect(result.claudeMdBlocks[0]!.id).toBe("a");
+    });
+  });
+
+  describe("reference block composition", () => {
+    it("should compose reference blocks from templates", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        reference: {
+          tag: "UNIVERSAL",
+          section: "reference",
+          blocks: [makeReferenceBlock("ddd"), makeReferenceBlock("cqrs")],
+        },
+      }));
+
+      const result = composeTemplates(["UNIVERSAL"], allTemplates);
+      expect(result.referenceBlocks).toHaveLength(2);
+      expect(result.referenceBlocks.map((b) => b.id)).toEqual(["ddd", "cqrs"]);
+    });
+
+    it("should deduplicate reference blocks by id", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        reference: {
+          tag: "UNIVERSAL",
+          section: "reference",
+          blocks: [makeReferenceBlock("shared")],
+        },
+      }));
+      allTemplates.set("API", makeTemplateSet("API", {
+        reference: {
+          tag: "API",
+          section: "reference",
+          blocks: [makeReferenceBlock("shared"), makeReferenceBlock("api-only")],
+        },
+      }));
+
+      const result = composeTemplates(["UNIVERSAL", "API"], allTemplates);
+      expect(result.referenceBlocks).toHaveLength(2);
+      expect(result.referenceBlocks.map((b) => b.id)).toEqual(["shared", "api-only"]);
+    });
+
+    it("should return empty reference blocks when none exist", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL"));
+
+      const result = composeTemplates(["UNIVERSAL"], allTemplates);
+      expect(result.referenceBlocks).toEqual([]);
+    });
+
+    it("should not tier-filter reference blocks", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        reference: {
+          tag: "UNIVERSAL",
+          section: "reference",
+          blocks: [makeReferenceBlock("ddd")],
+        },
+      }));
+
+      // Even with core tier, reference blocks are always available on demand
+      const result = composeTemplates(["UNIVERSAL"], allTemplates, {
+        config: { tier: "core" },
+      });
+      expect(result.referenceBlocks).toHaveLength(1);
     });
   });
 });
