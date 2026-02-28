@@ -18,9 +18,10 @@ blocks:
     title: "Code Standards"
     content: |
       ## Code Standards
-      - Maximum function/method length: {{max_function_length | default: 50}} lines. If longer, decompose.
-      - Maximum file length: {{max_file_length | default: 300}} lines. If longer, split by responsibility.
+      - Maximum function/method length: {{max_function_length | default: 50}} lines (hook-enforced).
+      - Maximum file length: {{max_file_length | default: 300}} lines (hook-enforced).
       - Maximum function parameters: {{max_function_params | default: 5}}. If more, use a parameter object.
+      - No circular imports — module dependency graph must be acyclic (hook-enforced).
       - Every public function/method must have a docstring/JSDoc with typed params and returns.
       - Delete orphaned code. Do not comment it out. Git has history.
       - Before creating a new utility, search the entire codebase for existing ones.
@@ -196,117 +197,7 @@ blocks:
       - Factories are the natural companion to dependency injection — the DI container
         IS the top-level factory.
 
-  - id: domain-driven-design
-    tier: optional
-    title: "Domain-Driven Design Essentials"
-    content: |
-      ## Domain-Driven Design (DDD) Essentials
-
-      ### Entities vs. Value Objects
-      - **Entity**: has identity (ID) that persists across state changes. Two users with the
-        same name are NOT the same user. Compared by ID.
-      - **Value Object**: defined by its attributes, not identity. Two `Money(100, "USD")` are
-        the same. Immutable. Compared by value.
-      - When in doubt, make it a Value Object — they're simpler and safer.
-
-      ### Eliminate Primitive Obsession
-      - Don't use raw `string` for email, `number` for currency, `string` for phone.
-      - Wrap domain concepts in typed Value Objects: `EmailAddress`, `Money`, `PhoneNumber`.
-      - Value Objects enforce validation at construction — an invalid email can never exist.
-      - This moves validation FROM every call site TO the constructor — DRY + safe.
-
-      ### Aggregates
-      - An aggregate is a cluster of domain objects treated as a single unit for data changes.
-      - One entity is the **aggregate root** — all external access goes through it.
-      - Aggregates enforce invariants: `Order` ensures its `OrderLines` don't exceed the limit.
-      - Reference other aggregates by ID, not by direct object reference.
-
-      ### Bounded Contexts
-      - A bounded context is a boundary within which a domain model has a specific meaning.
-      - The word "Account" means different things in Billing vs. Auth vs. Social.
-      - Each context owns its models, language, and persistence — no shared database tables.
-      - Contexts communicate via well-defined interfaces, events, or an **Anti-Corruption Layer**
-        that translates between contexts.
-
-      ### Domain Events
-      - When something important happens in the domain, publish an event: `OrderPlaced`,
-        `MemberDeactivated`, `PaymentFailed`.
-      - Events decouple modules: the Order module publishes `OrderPlaced`, the Notification
-        module subscribes — neither imports the other.
-      - Events are past-tense named facts. They carry the data needed by subscribers.
-      - In-process event bus for monoliths; message broker (SQS, Kafka, NATS) for distributed.
-
-  - id: cqrs-event-patterns
-    tier: optional
-    title: "CQRS & Event Patterns"
-    content: |
-      ## CQRS & Event-Driven Patterns
-
-      ### CQRS (Command Query Responsibility Segregation)
-      When read and write patterns diverge significantly:
-      - **Command side**: validates, enforces business rules, writes to the canonical store.
-      - **Query side**: reads from optimized read models (denormalized views, search indices).
-      - Start simple: same database, separate service methods. Optimize to separate stores
-        only when read/write scaling demands it.
-      - CQRS is not mandatory everywhere — use it where read/write asymmetry is real.
-
-      ### Event Sourcing (when appropriate)
-      - Store the sequence of events, not just current state.
-      - Useful for: audit trails, temporal queries, debugging, undo/redo.
-      - NOT appropriate for: simple CRUD, low-value data, early-stage features.
-      - If you use event sourcing, you MUST also maintain a read-projection.
-
-      ### Pub/Sub & Message Patterns
-      - **Fire and forget**: publish event, don't wait for subscribers.
-      - **Request/Reply**: send command, wait for response.
-      - In-process: use an event emitter or mediator.
-      - Distributed: use durable message queues with at-least-once delivery.
-
-  - id: design-patterns-reference
-    tier: optional
-    title: "Design Patterns Quick Reference"
-    content: |
-      ## Design Patterns — When to Reach for What
-
-      ### Creational
-      - **Factory Method / Abstract Factory**: Use when instantiation logic is complex or varies by context.
-        Prefer over `new` in business logic — keep constructors for DI only.
-      - **Builder**: Use when constructing objects with many optional parameters. Fluent API preferred.
-      - **Singleton**: Almost never in application code. Use DI to manage lifecycle instead.
-        Acceptable only for: loggers, config singletons in composition root.
-
-      ### Structural
-      - **Adapter**: Wrap third-party APIs to match your port interfaces. Isolates vendor lock-in.
-      - **Facade**: Simplify complex subsystem interactions behind a unified interface.
-        Every module's `index.ts` exports are a facade.
-      - **Decorator**: Add behavior (logging, caching, retry, auth) without modifying the original.
-        Middleware pipelines are decorator chains.
-      - **Proxy**: Lazy loading, access control, or caching in front of expensive resources.
-
-      ### Behavioral
-      - **Strategy**: Extract interchangeable algorithms behind an interface. Inject the right one.
-        Examples: pricing calculators, render strategies, sort algorithms.
-      - **Observer / Pub-Sub**: Decouple event producers from consumers. Use for: domain events,
-        UI state changes, webhook fan-out. See CQRS & Event Patterns section.
-      - **Chain of Responsibility**: Middleware pipelines (Express, Koa). Each handler decides
-        to process or pass to the next. Order matters.
-      - **Command**: Encapsulate actions as objects. Enables: undo/redo, queuing, audit trail.
-
-      ### Enterprise
-      - **Repository**: Encapsulate data access behind a collection-like interface. Defined in the
-        domain layer, implemented in the infrastructure layer as adapters.
-      - **Unit of Work**: Track changes within a transaction boundary. Commit or roll back atomically.
-        Pair with Repository for database operations.
-      - **Saga**: Coordinate multi-step distributed operations. Each step has a compensating action
-        for rollback. Use for: order processing, payment flows, multi-service workflows.
-      - **Outbox**: Write events to a local outbox table in the same transaction as the state change.
-        A separate process reliably publishes them. Guarantees at-least-once event delivery.
-
-      ### Anti-Patterns to Avoid
-      - **God Object**: One class that knows/does everything. Split by responsibility.
-      - **Service Locator**: Global registry looked up at runtime. Use constructor injection instead.
-      - **Anemic Domain Model**: Entities with only getters/setters, logic in services.
-        Push behavior into domain objects.
+      > **Design reference patterns** (DDD, CQRS, GoF) available on demand via `get_design_reference` tool.
 
   - id: twelve-factor-ops
     tier: optional
@@ -415,6 +306,37 @@ blocks:
       - For pure functions with wide input ranges, add property tests (fast-check, Hypothesis, QuickCheck).
       - Define invariants, not examples: "sorting is idempotent", "encode then decode = identity".
       - Property tests complement, not replace, example-based tests.
+
+  - id: tdd-methodology
+    tier: core
+    title: "Test-Driven Development"
+    content: |
+      ## Test-Driven Development (TDD)
+
+      ### Red-Green-Refactor — The Only Cycle
+      1. **RED**: Write a failing test that describes the desired behavior. Run it. It MUST fail.
+         If it passes, the test is wrong — it's not testing what you think.
+      2. **GREEN**: Write the minimum code to make the test pass. No more.
+      3. **REFACTOR**: Clean up while all tests stay green. No new behavior in this step.
+      Repeat. Every feature, every function, every bug fix follows this cycle.
+
+      ### Tests Are Specifications, Not Confirmations
+      - Write tests against **expected behavior**, never against current implementation.
+      - A test that passes on broken code is worse than no test — it provides false confidence.
+      - Never weaken an assertion to match what the code currently does. If the code disagrees
+        with the spec, the code is wrong.
+      - Never write a test suite after the fact that just "locks in" existing behavior without
+        verifying it's correct.
+
+      ### Bug Fix Protocol
+      - **Every bug fix starts with a failing test** that reproduces the bug.
+      - The test must fail before the fix and pass after. No exceptions.
+      - If you can't write a reproducing test, you don't understand the bug well enough to fix it.
+
+      ### One Behavior Per Test
+      - Each test verifies exactly one behavior or rule.
+      - A test with multiple unrelated assertions is testing multiple things — split it.
+      - Test name = the specification: `rejects_expired_tokens`, not `test_auth`.
 
   - id: data-guardrails
     tier: core
