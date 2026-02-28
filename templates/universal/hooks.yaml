@@ -182,6 +182,69 @@ hooks:
       fi
       echo "🔍 Production quality scan passed"
 
+  - name: function-length
+    trigger: pre-commit
+    description: "Warn when staged functions exceed the configured maximum line count"
+    filename: pre-commit-function-length.sh
+    script: |
+      #!/bin/bash
+      MAX_LENGTH={{max_function_length | default: 50}}
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | grep -vE '(\.test\.|\.spec\.|__tests__|tests/)')
+      if [ -z "$SOURCE_FILES" ]; then exit 0; fi
+      WARNINGS=0
+      for file in $SOURCE_FILES; do
+        # Heuristic: find function/method declarations and count lines to next declaration or closing brace
+        awk -v max="$MAX_LENGTH" -v fname="$file" '
+          /^[[:space:]]*(export )?(async )?(function |const [a-zA-Z]+ = (async )?\(|[a-zA-Z]+\(.*\) \{|[a-zA-Z]+\(.*\): )/ {
+            if (start > 0 && NR - start > max) {
+              printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
+              warnings++
+            }
+            start = NR
+          }
+          END {
+            if (start > 0 && NR - start > max) {
+              printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
+              warnings++
+            }
+          }
+        ' "$file"
+        WARNINGS=$((WARNINGS + $?))
+      done
+      # Warning only — does not block commit since bash heuristics aren't perfect
+      exit 0
+
+  - name: import-cycle-detector
+    trigger: pre-commit
+    description: "Detect circular import dependencies in TypeScript and Python projects"
+    filename: pre-commit-import-cycles.sh
+    script: |
+      #!/bin/bash
+      echo "🔄 Checking for circular imports..."
+      if [ -f "tsconfig.json" ]; then
+        if command -v npx &> /dev/null; then
+          RESULT=$(npx --yes madge --circular --extensions ts src/ 2>&1)
+          if echo "$RESULT" | grep -q "Found.*circular"; then
+            echo "❌ Circular imports detected in TypeScript:"
+            echo "$RESULT"
+            exit 1
+          fi
+          echo "  ✅ No circular imports (TypeScript)"
+        fi
+      fi
+      if [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+        if command -v lint-imports &> /dev/null; then
+          lint-imports 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ Circular imports detected in Python"
+            exit 1
+          fi
+          echo "  ✅ No circular imports (Python)"
+        fi
+      fi
+      echo "🔄 Import cycle check passed"
+
   - name: code-review
     trigger: pre-commit
     description: "AI assistant reviews diff against project standards"
