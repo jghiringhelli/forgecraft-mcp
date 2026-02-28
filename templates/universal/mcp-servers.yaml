@@ -24,3 +24,11 @@ servers:
     tags: [UNIVERSAL]
     category: general
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"
+
+  - name: spec-workflow
+    description: "Spec-driven TDD workflow with structured requirements, design docs, and red-green-refactor quality gates"
+    command: npx
+    args: ["-y", "spec-workflow-mcp"]
+    tags: [UNIVERSAL]
+    category: testing
+    url: "https://github.com/Pimzino/spec-workflow-mcp"
