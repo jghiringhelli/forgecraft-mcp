@@ -13,6 +13,7 @@ import type { Tag, OutputTarget } from "../shared/types.js";
 import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
+import { detectLanguage } from "../analyzers/language-detector.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -62,9 +63,10 @@ export async function generateInstructionsHandler(
     config: userConfig ?? undefined,
   });
 
+  const detectedLang = args.project_dir ? detectLanguage(args.project_dir) : "typescript";
   const context = {
     projectName: args.project_name,
-    language: "typescript" as const,
+    language: detectedLang,
     tags,
   };
 

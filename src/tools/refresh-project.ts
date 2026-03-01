@@ -17,6 +17,7 @@ import { checkCompleteness } from "../analyzers/completeness.js";
 import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
+import { detectLanguage } from "../analyzers/language-detector.js";
 import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("tools/refresh-project");
@@ -127,7 +128,7 @@ export async function refreshProjectHandler(
   const outputTargets = (args.output_targets ?? updatedConfig.outputTargets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
   const context = {
     projectName: updatedConfig.projectName ?? inferProjectName(projectDir),
-    language: "typescript" as const,
+    language: detectLanguage(projectDir),
     tags: updatedTags,
   };
 

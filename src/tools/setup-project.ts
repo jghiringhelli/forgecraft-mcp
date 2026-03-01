@@ -17,6 +17,7 @@ import { checkCompleteness } from "../analyzers/completeness.js";
 import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
+import { detectLanguage } from "../analyzers/language-detector.js";
 import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("tools/setup-project");
@@ -113,7 +114,7 @@ export async function setupProjectHandler(
   writeFileSync(configPath, configYaml, "utf-8");
 
   // ── Step 8: Generate instruction files for all targets ─────────
-  const context = { projectName, language: "typescript" as const, tags: finalTags };
+  const context = { projectName, language: detectLanguage(projectDir), tags: finalTags };
   const filesWritten: string[] = [];
 
   for (const target of outputTargets) {
