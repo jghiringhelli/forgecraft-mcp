@@ -7,6 +7,7 @@ servers:
     args: ["-y", "@anthropic/chrome-devtools-mcp@latest"]
     tags: [WEB-REACT, WEB-STATIC, ANALYTICS]
     category: devtools
+    tier: recommended
     url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/chrome-devtools-mcp"
 
   - name: playwright
@@ -15,4 +16,5 @@ servers:
     args: ["-y", "@anthropic/mcp-server-playwright"]
     tags: [WEB-REACT, WEB-STATIC]
     category: testing
+    tier: recommended
     url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-server-playwright"

@@ -287,5 +287,6 @@ function entryToRecommendation(
     category: entry.category,
     url: entry.url,
     source,
+    tier: entry.tier,
   };
 }

@@ -7,6 +7,7 @@ servers:
     args: ["-y", "@anthropic/mcp-server-postman"]
     tags: [API]
     category: testing
+    tier: recommended
     url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-server-postman"
     env:
       POSTMAN_API_KEY: ""

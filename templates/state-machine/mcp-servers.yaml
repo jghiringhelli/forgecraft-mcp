@@ -7,4 +7,5 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
     tags: [UNIVERSAL, STATE-MACHINE]
     category: general
+    tier: optional
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"

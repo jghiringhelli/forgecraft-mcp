@@ -7,6 +7,7 @@ servers:
     args: ["-y", "forgecraft-mcp"]
     tags: [UNIVERSAL]
     category: scaffolding
+    tier: core
     url: "https://github.com/jghiringhelli/forgecraft-mcp"
 
   - name: context7
@@ -15,6 +16,7 @@ servers:
     args: ["-y", "@upstash/context7-mcp@latest"]
     tags: [UNIVERSAL]
     category: documentation
+    tier: recommended
     url: "https://github.com/upstash/context7"
 
   - name: sequential-thinking
@@ -23,6 +25,7 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-sequential-thinking"]
     tags: [UNIVERSAL]
     category: general
+    tier: optional
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking"
 
   - name: spec-workflow
@@ -31,4 +34,5 @@ servers:
     args: ["-y", "spec-workflow-mcp"]
     tags: [UNIVERSAL]
     category: testing
+    tier: optional
     url: "https://github.com/Pimzino/spec-workflow-mcp"

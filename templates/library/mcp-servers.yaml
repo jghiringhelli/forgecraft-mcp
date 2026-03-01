@@ -7,6 +7,7 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/"]
     tags: [CLI, LIBRARY]
     category: general
+    tier: recommended
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
 
   - name: npm-search
@@ -15,4 +16,5 @@ servers:
     args: ["-y", "mcp-server-npm-search"]
     tags: [LIBRARY]
     category: documentation
+    tier: optional
     url: "https://github.com/nicholasgriffintn/npm-search-mcp-server"

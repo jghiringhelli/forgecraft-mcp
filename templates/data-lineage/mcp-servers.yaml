@@ -7,6 +7,7 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-postgres"]
     tags: [DATA-LINEAGE, DATA-PIPELINE]
     category: database
+    tier: recommended
     env:
       POSTGRES_CONNECTION_STRING: ""
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"
@@ -17,4 +18,5 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-filesystem"]
     tags: [DATA-LINEAGE, UNIVERSAL]
     category: filesystem
+    tier: optional
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"

@@ -7,4 +7,5 @@ servers:
     args: ["-y", "mcp-server-jupyter"]
     tags: [ML, DATA-PIPELINE]
     category: ai-ml
+    tier: recommended
     url: "https://github.com/datalayer/jupyter-mcp-server"

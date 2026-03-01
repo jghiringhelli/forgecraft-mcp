@@ -7,4 +7,5 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/"]
     tags: [CLI, LIBRARY]
     category: general
+    tier: recommended
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"

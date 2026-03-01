@@ -7,4 +7,5 @@ servers:
     args: ["-y", "@anthropic/unity-mcp"]
     tags: [GAME]
     category: game-engine
+    tier: recommended
     url: "https://github.com/CoplayDev/unity-mcp"

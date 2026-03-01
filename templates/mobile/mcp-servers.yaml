@@ -7,4 +7,5 @@ servers:
     args: ["-y", "mcp-server-android"]
     tags: [MOBILE]
     category: devtools
+    tier: recommended
     url: "https://github.com/nicholasgriffintn/android-mcp-server"

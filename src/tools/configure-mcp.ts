@@ -10,7 +10,7 @@ import { z } from "zod";
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ALL_TAGS } from "../shared/types.js";
-import type { Tag, McpServerConfig, McpDiscoveryOptions } from "../shared/types.js";
+import type { Tag, McpServerConfig, McpDiscoveryOptions, McpServerRecommendation } from "../shared/types.js";
 import type { McpDiscoveryService } from "../registry/mcp-discovery.js";
 import { DefaultMcpDiscoveryService } from "../registry/mcp-discovery.js";
 
@@ -52,6 +52,15 @@ export const configureMcpSchema = z.object({
     .string()
     .optional()
     .describe("Override URL for the remote MCP server registry."),
+  max_servers: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe(
+      "Maximum number of MCP servers to configure. " +
+      "When exceeded, filters by tier priority (core > recommended > optional).",
+    ),
 });
 
 // ── Handler ──────────────────────────────────────────────────────────
@@ -87,7 +96,12 @@ export async function configureMcpHandler(
     remoteRegistryUrl: args.remote_registry_url,
   };
 
-  const recommendations = await discovery.discoverServers(tags, discoveryOptions);
+  let recommendations = await discovery.discoverServers(tags, discoveryOptions);
+
+  // Apply max_servers limit with tier-based priority filtering
+  if (args.max_servers && recommendations.length > args.max_servers) {
+    recommendations = filterByTierPriority(recommendations, args.max_servers);
+  }
 
   // Convert recommendations to server config map
   const servers: Record<string, McpServerConfig & { source?: string; description?: string }> = {};
@@ -187,6 +201,9 @@ export async function configureMcpHandler(
             ? `\n\n**Auto-approved (${permissionRules.length}):**\n` +
               permissionRules.map((r) => `- \`${r}\``).join("\n")
             : "") +
+          (serverNames.length > 5
+            ? `\n\n💡 **Token note:** ${serverNames.length} servers add ~${serverNames.length * 500} tokens to context per conversation. Use \`max_servers\` to limit if needed.`
+            : "") +
           `\n\n⚠️ Restart required to pick up MCP server changes.`,
       },
     ],
@@ -211,6 +228,34 @@ function formatServerList(
       return `- \`${name}\`${sourceLabel}: \`${config.command} ${config.args.join(" ")}\`${descLabel}`;
     })
     .join("\n");
+}
+
+/** Tier priority for sorting (lower = higher priority). */
+const TIER_PRIORITY: Record<string, number> = {
+  core: 0,
+  recommended: 1,
+  optional: 2,
+};
+
+/**
+ * Filter recommendations by tier priority, keeping up to maxCount servers.
+ * Core servers are kept first, then recommended, then optional.
+ *
+ * @param recommendations - Full list of discovered servers
+ * @param maxCount - Maximum number of servers to keep
+ * @returns Filtered list sorted by tier priority
+ */
+function filterByTierPriority(
+  recommendations: McpServerRecommendation[],
+  maxCount: number,
+): McpServerRecommendation[] {
+  return [...recommendations]
+    .sort((a, b) => {
+      const aTier = TIER_PRIORITY[a.tier ?? "recommended"] ?? 1;
+      const bTier = TIER_PRIORITY[b.tier ?? "recommended"] ?? 1;
+      return aTier - bTier;
+    })
+    .slice(0, maxCount);
 }
 
 /**

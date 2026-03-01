@@ -7,6 +7,7 @@ servers:
     args: ["-y", "mcp-server-cloudwatch"]
     tags: [OBSERVABILITY-XRAY, INFRA]
     category: monitoring
+    tier: recommended
     env:
       AWS_REGION: ""
       AWS_ACCESS_KEY_ID: ""

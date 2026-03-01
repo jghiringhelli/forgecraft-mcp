@@ -7,4 +7,5 @@ servers:
     args: ["-y", "@anthropic/chrome-devtools-mcp@latest"]
     tags: [WEB-REACT, WEB-STATIC, ANALYTICS]
     category: devtools
+    tier: recommended
     url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/chrome-devtools-mcp"

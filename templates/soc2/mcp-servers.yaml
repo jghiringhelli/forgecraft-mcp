@@ -7,6 +7,7 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-github"]
     tags: [SOC2, UNIVERSAL]
     category: version-control
+    tier: recommended
     env:
       GITHUB_PERSONAL_ACCESS_TOKEN: ""
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/github"
@@ -17,6 +18,7 @@ servers:
     args: ["-y", "mcp-server-sentry"]
     tags: [SOC2, API]
     category: monitoring
+    tier: optional
     env:
       SENTRY_AUTH_TOKEN: ""
     url: "https://github.com/modelcontextprotocol/servers"

@@ -7,6 +7,7 @@ servers:
     args: ["-y", "@modelcontextprotocol/server-postgres"]
     tags: [DATA-PIPELINE, API, HEALTHCARE]
     category: database
+    tier: recommended
     env:
       POSTGRES_CONNECTION_STRING: ""
     url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"

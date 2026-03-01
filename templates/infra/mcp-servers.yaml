@@ -7,6 +7,7 @@ servers:
     args: ["-y", "mcp-server-docker"]
     tags: [INFRA]
     category: deployment
+    tier: recommended
     url: "https://github.com/ckreiling/mcp-server-docker"
 
   - name: kubernetes
@@ -15,4 +16,5 @@ servers:
     args: ["-y", "mcp-server-kubernetes"]
     tags: [INFRA]
     category: deployment
+    tier: optional
     url: "https://github.com/strowk/mcp-k8s-go"

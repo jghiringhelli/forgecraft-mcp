@@ -7,6 +7,7 @@ servers:
     args: ["-y", "@stripe/mcp-server"]
     tags: [FINTECH]
     category: general
+    tier: recommended
     env:
       STRIPE_SECRET_KEY: ""
     url: "https://github.com/stripe/agent-toolkit"

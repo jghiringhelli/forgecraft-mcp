@@ -388,6 +388,8 @@ export interface McpServerEntry {
   readonly tags: Tag[];
   readonly category: McpServerCategory;
   readonly url?: string;
+  /** Content tier for token budget control. Defaults to "recommended" if omitted. */
+  readonly tier?: ContentTier;
 }
 
 /** Shape of the mcp-servers.yaml template file. */
@@ -411,6 +413,8 @@ export interface McpServerRecommendation {
   readonly category: McpServerCategory;
   readonly url?: string;
   readonly source: McpServerSource;
+  /** Content tier for token budget control. Defaults to "recommended" if omitted. */
+  readonly tier?: ContentTier;
 }
 
 /** Options for controlling MCP server discovery behavior. */

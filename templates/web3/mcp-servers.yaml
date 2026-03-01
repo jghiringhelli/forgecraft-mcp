@@ -7,4 +7,5 @@ servers:
     args: ["-y", "mcp-server-solidity"]
     tags: [WEB3]
     category: devtools
+    tier: recommended
     url: "https://github.com/AIMONGmbH/solidity-mcp-server"
