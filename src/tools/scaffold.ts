@@ -2,10 +2,11 @@
  * scaffold_project tool handler.
  *
  * Generates full project structure from classified tags.
+ * Skips existing files by default to avoid overwriting user content.
  */
 
 import { z } from "zod";
-import { mkdirSync, writeFileSync, chmodSync } from "node:fs";
+import { mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { ALL_TAGS, ALL_OUTPUT_TARGETS, OUTPUT_TARGET_CONFIGS, DEFAULT_OUTPUT_TARGET } from "../shared/types.js";
 import type { Tag, ScaffoldResult, OutputTarget } from "../shared/types.js";
@@ -17,6 +18,7 @@ import {
   renderPrdSkeleton,
   renderTechSpecSkeleton,
 } from "../registry/renderer.js";
+import { writeFileIfMissing, checkGitSafety } from "../shared/filesystem.js";
 import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("tools/scaffold");
@@ -42,6 +44,10 @@ export const scaffoldProjectSchema = z.object({
     .boolean()
     .default(false)
     .describe("If true, return the plan without writing files."),
+  force: z
+    .boolean()
+    .default(false)
+    .describe("If true, overwrite existing files. Default: skip files that already exist."),
   output_targets: z
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .default(["claude"])
@@ -61,6 +67,7 @@ export async function scaffoldProjectHandler(
     tags,
     projectDir: args.project_dir,
     dryRun: args.dry_run,
+    force: args.force,
   });
 
   // Load and compose templates (respects forgecraft.yaml config if present)
@@ -79,8 +86,6 @@ export async function scaffoldProjectHandler(
     tags,
   };
 
-  const filesCreated: string[] = [];
-
   // Render content
   const outputTargets = (args.output_targets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
   const statusMdContent = renderStatusMd(context);
@@ -90,6 +95,22 @@ export async function scaffoldProjectHandler(
   if (args.dry_run) {
     const plan = buildDryRunPlan(composed, tags);
     return { content: [{ type: "text", text: plan }] };
+  }
+
+  // Check git safety
+  const gitWarning = checkGitSafety(args.project_dir);
+
+  const filesCreated: string[] = [];
+  const filesSkipped: string[] = [];
+
+  /** Track a safe write result. */
+  function trackWrite(relativePath: string, filePath: string, content: string): void {
+    const result = writeFileIfMissing(filePath, content, args.force);
+    if (result === "skipped") {
+      filesSkipped.push(relativePath);
+    } else {
+      filesCreated.push(relativePath);
+    }
   }
 
   // Create directories from structure entries
@@ -109,27 +130,24 @@ export async function scaffoldProjectHandler(
       ? join(args.project_dir, targetConfig.directory, targetConfig.filename)
       : join(args.project_dir, targetConfig.filename);
     mkdirSync(dirname(outputPath), { recursive: true });
-    writeFileSafe(outputPath, content);
-    filesCreated.push(targetConfig.directory ? `${targetConfig.directory}/${targetConfig.filename}` : targetConfig.filename);
+    const relativePath = targetConfig.directory ? `${targetConfig.directory}/${targetConfig.filename}` : targetConfig.filename;
+    trackWrite(relativePath, outputPath, content);
   }
 
   // Write Status.md
-  writeFileSafe(join(args.project_dir, "Status.md"), statusMdContent);
-  filesCreated.push("Status.md");
+  trackWrite("Status.md", join(args.project_dir, "Status.md"), statusMdContent);
 
   // Write docs
   mkdirSync(join(args.project_dir, "docs"), { recursive: true });
-  writeFileSafe(join(args.project_dir, "docs", "PRD.md"), prdContent);
-  filesCreated.push("docs/PRD.md");
-  writeFileSafe(join(args.project_dir, "docs", "TechSpec.md"), techSpecContent);
-  filesCreated.push("docs/TechSpec.md");
+  trackWrite("docs/PRD.md", join(args.project_dir, "docs", "PRD.md"), prdContent);
+  trackWrite("docs/TechSpec.md", join(args.project_dir, "docs", "TechSpec.md"), techSpecContent);
 
   // Write .env.example
-  writeFileSafe(
+  trackWrite(
+    ".env.example",
     join(args.project_dir, ".env.example"),
     "NODE_ENV=development\nLOG_LEVEL=info\n",
   );
-  filesCreated.push(".env.example");
 
   // Write hooks
   const hooksDir = join(args.project_dir, ".claude", "hooks");
@@ -137,22 +155,20 @@ export async function scaffoldProjectHandler(
 
   for (const hook of composed.hooks) {
     const hookPath = join(hooksDir, hook.filename);
-    writeFileSafe(hookPath, hook.script);
+    trackWrite(`.claude/hooks/${hook.filename}`, hookPath, hook.script);
     try {
       chmodSync(hookPath, 0o755);
     } catch {
       // chmod may fail on Windows, that's OK
     }
-    filesCreated.push(`.claude/hooks/${hook.filename}`);
   }
 
-  // Write .gitignore if not present
-  const gitignorePath = join(args.project_dir, ".gitignore");
-  writeFileSafe(
-    gitignorePath,
+  // Write .gitignore
+  trackWrite(
+    ".gitignore",
+    join(args.project_dir, ".gitignore"),
     "node_modules/\ndist/\n.env\ncoverage/\n*.log\n",
   );
-  filesCreated.push(".gitignore");
 
   const result: ScaffoldResult = {
     filesCreated,
@@ -170,21 +186,25 @@ export async function scaffoldProjectHandler(
   let text = `# Project Scaffolded Successfully\n\n`;
   text += `**Tags:** ${tags.map((t) => `[${t}]`).join(" ")}\n`;
   text += `**Files Created:** ${filesCreated.length}\n\n`;
+
+  if (gitWarning) {
+    text += `\n> ⚠️ **Git Warning:** ${gitWarning}\n\n`;
+  }
+
   text += `## Created Files\n`;
   text += filesCreated.map((f) => `- \`${f}\``).join("\n");
+
+  if (filesSkipped.length > 0) {
+    text += `\n\n## Skipped (already exist)\n`;
+    text += filesSkipped.map((f) => `- \`${f}\``).join("\n");
+    text += `\n\n_Use \`force=true\` to overwrite existing files._`;
+  }
+
   text += `\n\n## Next Steps\n`;
   text += result.nextSteps.map((s, i) => `${i + 1}. ${s}`).join("\n");
   text += `\n\n⚠️ **Restart may be required** to pick up instruction files and hooks.`;
 
   return { content: [{ type: "text", text }] };
-}
-
-/**
- * Write a file, creating parent directories as needed.
- */
-function writeFileSafe(filePath: string, content: string): void {
-  mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(filePath, content, "utf-8");
 }
 
 /**
