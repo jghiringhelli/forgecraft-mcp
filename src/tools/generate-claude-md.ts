@@ -14,6 +14,7 @@ import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loade
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
+import { detectProjectContext } from "../analyzers/project-context.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -64,11 +65,9 @@ export async function generateInstructionsHandler(
   });
 
   const detectedLang = args.project_dir ? detectLanguage(args.project_dir) : "typescript";
-  const context = {
-    projectName: args.project_name,
-    language: detectedLang,
-    tags,
-  };
+  const context = args.project_dir
+    ? detectProjectContext(args.project_dir, args.project_name, detectedLang, tags)
+    : { projectName: args.project_name, language: detectedLang, tags };
 
   const filesWritten: string[] = [];
   const targetSummaries: string[] = [];

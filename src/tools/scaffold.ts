@@ -19,6 +19,7 @@ import {
   renderTechSpecSkeleton,
 } from "../registry/renderer.js";
 import { writeFileIfMissing, checkGitSafety } from "../shared/filesystem.js";
+import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("tools/scaffold");
@@ -80,11 +81,7 @@ export async function scaffoldProjectHandler(
     config: userConfig ?? undefined,
   });
 
-  const context = {
-    projectName: args.project_name,
-    language: args.language,
-    tags,
-  };
+  const context = detectProjectContext(args.project_dir, args.project_name, args.language, tags);
 
   // Render content
   const outputTargets = (args.output_targets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];

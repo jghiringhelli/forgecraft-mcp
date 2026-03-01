@@ -18,6 +18,7 @@ import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loade
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
+import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("tools/refresh-project");
@@ -126,11 +127,12 @@ export async function refreshProjectHandler(
 
   // Regenerate instruction files for all targets
   const outputTargets = (args.output_targets ?? updatedConfig.outputTargets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
-  const context = {
-    projectName: updatedConfig.projectName ?? inferProjectName(projectDir),
-    language: detectLanguage(projectDir),
-    tags: updatedTags,
-  };
+  const context = detectProjectContext(
+    projectDir,
+    updatedConfig.projectName ?? inferProjectName(projectDir),
+    detectLanguage(projectDir),
+    updatedTags,
+  );
 
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];

@@ -18,6 +18,7 @@ import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loade
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
+import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("tools/setup-project");
@@ -114,7 +115,7 @@ export async function setupProjectHandler(
   writeFileSync(configPath, configYaml, "utf-8");
 
   // ── Step 8: Generate instruction files for all targets ─────────
-  const context = { projectName, language: detectLanguage(projectDir), tags: finalTags };
+  const context = detectProjectContext(projectDir, projectName, detectLanguage(projectDir), finalTags, args.description);
   const filesWritten: string[] = [];
 
   for (const target of outputTargets) {
