@@ -349,14 +349,60 @@ export function renderTechSpecSkeleton(context: RenderContext): string {
 }
 
 /**
+ * Process conditional blocks in template content.
+ *
+ * Supports `{{#if CONDITION}}...{{/if}}` where CONDITION is evaluated
+ * against the render context. Special synthetic variables:
+ * - `language_is_typescript` → true when context.language === "typescript"
+ * - `language_is_python` → true when context.language === "python"
+ *
+ * Truthy conditions keep content; falsy conditions strip the block.
+ *
+ * @param template - Raw template string with conditionals
+ * @param context - Render context for condition evaluation
+ * @returns Template with conditionals resolved
+ */
+function processConditionals(
+  template: string,
+  context: RenderContext,
+): string {
+  return template.replace(
+    /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
+    (_match, condition: string, content: string) => {
+      const value = resolveCondition(condition, context);
+      return value ? content : "";
+    },
+  );
+}
+
+/**
+ * Resolve a conditional variable to a boolean value.
+ */
+function resolveCondition(name: string, context: RenderContext): boolean {
+  // Synthetic language conditionals
+  if (name === "language_is_typescript") {
+    return context.language === "typescript";
+  }
+  if (name === "language_is_python") {
+    return context.language === "python";
+  }
+
+  // General context lookup (truthy check)
+  const value = resolveVariable(name, context);
+  return value !== undefined && value !== null && value !== "" && value !== false;
+}
+
+/**
  * Render a template string by substituting {{variable}} placeholders.
- * Supports {{variable | default: value}} syntax.
+ * Supports {{variable | default: value}} syntax and {{#if}}...{{/if}} conditionals.
  */
 export function renderTemplate(
   template: string,
   context: RenderContext,
 ): string {
-  return template.replace(
+  // Process conditionals first, then variable substitution
+  const withConditionals = processConditionals(template, context);
+  return withConditionals.replace(
     /\{\{(\s*[\w.]+\s*(?:\|\s*default:\s*[^}]+)?)\}\}/g,
     (_match, expression: string) => {
       const parts = expression.split("|").map((p) => p.trim());

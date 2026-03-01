@@ -22,7 +22,7 @@ blocks:
       - Maximum file length: {{max_file_length | default: 300}} lines (hook-enforced).
       - Maximum function parameters: {{max_function_params | default: 5}}. If more, use a parameter object.
       - No circular imports — module dependency graph must be acyclic (hook-enforced).
-      - Every public function/method must have a docstring/JSDoc with typed params and returns.
+      - Every public function/method must have {{#if language_is_typescript}}a JSDoc comment{{/if}}{{#if language_is_python}}a docstring (Google or NumPy style){{/if}} with typed params and returns.
       - Delete orphaned code. Do not comment it out. Git has history.
       - Before creating a new utility, search the entire codebase for existing ones.
       - Reuse existing patterns — check shared modules before writing new.
@@ -82,7 +82,7 @@ blocks:
       ### Modular from Day One
       - Feature-based modules over layer-based. Each feature owns its models, service, repository, routes.
       - Module dependency graph must be acyclic.
-      - Every module has a clear public API via __init__.py / index.ts exports.
+      - Every module has a clear public API via {{#if language_is_typescript}}index.ts{{/if}}{{#if language_is_python}}__init__.py{{/if}} exports.
 
   - id: layered-architecture
     tier: recommended
@@ -125,7 +125,7 @@ blocks:
 
       ### Data Transfer Objects (DTOs)
       - Use DTOs at layer boundaries — never pass domain entities to/from the API layer.
-      - **Request DTOs**: validated at the API boundary (Zod schema → typed object).
+      - **Request DTOs**: validated at the API boundary ({{#if language_is_typescript}}Zod schema{{/if}}{{#if language_is_python}}Pydantic model{{/if}} → typed object).
       - **Response DTOs**: shaped for the consumer, not mirroring the domain model.
       - **Domain ↔ Persistence mapping**: repositories map between domain entities and DB rows/documents.
       - DTOs are plain data objects — no methods, no behavior, no framework decorators.
@@ -179,8 +179,9 @@ blocks:
       - Instead: `order.getShippingCity()` or pass the needed data directly.
 
       ### Immutability by Default
-      - Use `const` over `let`. Use `readonly` on properties and parameters.
-      - Prefer `ReadonlyArray<T>`, `Readonly<T>`, `ReadonlyMap`, `ReadonlySet`.
+      {{#if language_is_typescript}}- Use `const` over `let`. Use `readonly` on properties and parameters.
+      - Prefer `ReadonlyArray<T>`, `Readonly<T>`, `ReadonlyMap`, `ReadonlySet`.{{/if}}{{#if language_is_python}}- Use `Final` for constants. Use `frozen=True` on dataclasses.
+      - Prefer `tuple` over `list` for immutable sequences. Use `MappingProxyType` for immutable dicts.{{/if}}
       - When you need to "modify" data, create a new copy with the change.
       - Mutable state is the #1 source of bugs. Restrict it to the smallest possible scope.
 

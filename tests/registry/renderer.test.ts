@@ -65,6 +65,56 @@ describe("renderer", () => {
       const result = renderTemplate("{{ projectName }}", makeContext());
       expect(result).toBe("TestProject");
     });
+
+    it("should strip typescript block when language is python", () => {
+      const template = "before {{#if language_is_typescript}}TS content{{/if}} after";
+      const result = renderTemplate(template, makeContext({ language: "python" }));
+      expect(result).toBe("before  after");
+    });
+
+    it("should preserve typescript block when language is typescript", () => {
+      const template = "before {{#if language_is_typescript}}TS content{{/if}} after";
+      const result = renderTemplate(template, makeContext({ language: "typescript" }));
+      expect(result).toBe("before TS content after");
+    });
+
+    it("should strip python block when language is typescript", () => {
+      const template = "{{#if language_is_python}}Python only{{/if}}";
+      const result = renderTemplate(template, makeContext({ language: "typescript" }));
+      expect(result).toBe("");
+    });
+
+    it("should preserve python block when language is python", () => {
+      const template = "{{#if language_is_python}}Python only{{/if}}";
+      const result = renderTemplate(template, makeContext({ language: "python" }));
+      expect(result).toBe("Python only");
+    });
+
+    it("should handle multiline content in conditional blocks", () => {
+      const template = `Rules:
+{{#if language_is_typescript}}- Use const over let.
+- Use readonly on properties.{{/if}}
+{{#if language_is_python}}- Use Final for constants.
+- Use frozen dataclasses.{{/if}}
+Done.`;
+      const result = renderTemplate(template, makeContext({ language: "python" }));
+      expect(result).toContain("Use Final for constants");
+      expect(result).toContain("frozen dataclasses");
+      expect(result).not.toContain("const over let");
+      expect(result).not.toContain("readonly");
+    });
+
+    it("should handle multiple conditional blocks in same template", () => {
+      const template = "{{#if language_is_typescript}}TS{{/if}} and {{#if language_is_python}}PY{{/if}}";
+      const result = renderTemplate(template, makeContext({ language: "typescript" }));
+      expect(result).toBe("TS and ");
+    });
+
+    it("should leave non-conditional content untouched", () => {
+      const template = "No conditionals here, just {{projectName}}";
+      const result = renderTemplate(template, makeContext());
+      expect(result).toBe("No conditionals here, just TestProject");
+    });
   });
 
   describe("renderClaudeMd", () => {

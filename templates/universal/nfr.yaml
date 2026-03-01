@@ -177,7 +177,7 @@ blocks:
       ### Code Quality Metrics
       - Cyclomatic complexity: flag functions > 10, block > 15.
       - Dead code detection.
-      - Documentation coverage: all public APIs have docstrings/JSDoc.
+      - Documentation coverage: all public APIs have {{#if language_is_typescript}}JSDoc{{/if}}{{#if language_is_python}}docstrings{{/if}}.
 
       ### Technical Debt Tracking
       - Tech debt items logged in Status.md.

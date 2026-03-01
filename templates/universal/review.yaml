@@ -10,7 +10,7 @@ blocks:
       Focus on component boundaries, dependency flow, and failure modes.
     checklist:
       - id: component-boundaries
-        description: "Component boundaries are well-defined with clear public APIs (index.ts exports)."
+        description: "Component boundaries are well-defined with clear public APIs (module exports)."
         severity: critical
       - id: dependency-graph
         description: "Dependency graph is acyclic. No circular imports between modules."
@@ -85,7 +85,7 @@ blocks:
         description: "No long method chains through objects (a.b().c().d()). Objects expose only the information their callers need."
         severity: nice-to-have
       - id: immutability
-        description: "const over let, readonly on properties. Mutable state restricted to smallest possible scope."
+        description: "Immutable by default — prefer constants and frozen structures. Mutable state restricted to smallest possible scope."
         severity: important
       - id: pure-functions
         description: "Domain logic, validation, and transformations are pure (same input → same output, no side effects). Side effects pushed to adapters."

@@ -80,7 +80,7 @@ blocks:
       ### Structural
       - **Adapter**: Wrap third-party APIs to match your port interfaces. Isolates vendor lock-in.
       - **Facade**: Simplify complex subsystem interactions behind a unified interface.
-        Every module's `index.ts` exports are a facade.
+        Every module's public exports are a facade.
       - **Decorator**: Add behavior (logging, caching, retry, auth) without modifying the original.
         Middleware pipelines are decorator chains.
       - **Proxy**: Lazy loading, access control, or caching in front of expensive resources.
