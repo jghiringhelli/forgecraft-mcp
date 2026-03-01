@@ -69,7 +69,7 @@ describe("package-json analyzer", () => {
       rmSync(dir, { recursive: true });
     });
 
-    it("should detect MCP SDK as API", () => {
+    it("should not detect MCP SDK as API", () => {
       const dir = createFixtureProject("mcp-server", {
         dependencies: { "@modelcontextprotocol/sdk": "^1.0.0" },
       });
@@ -77,7 +77,38 @@ describe("package-json analyzer", () => {
       const results = analyzeProject(dir);
       const apiDetection = results.find((d) => d.tag === "API");
 
-      expect(apiDetection).toBeDefined();
+      // MCP SDK is not an API server indicator — removed from API patterns
+      expect(apiDetection).toBeUndefined();
+
+      rmSync(dir, { recursive: true });
+    });
+
+    it("should not detect INFRA from Dockerfile alone", () => {
+      const dir = join(FIXTURES_DIR, "docker-only");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "Dockerfile"), "FROM node:18\n");
+
+      const results = analyzeProject(dir);
+      const infraDetection = results.find((d) => d.tag === "INFRA");
+
+      // Docker alone has confidence 0.45, below the 0.6 threshold
+      if (infraDetection) {
+        expect(infraDetection.confidence).toBeLessThan(0.6);
+      }
+
+      rmSync(dir, { recursive: true });
+    });
+
+    it("should not detect API from bare pyproject.toml", () => {
+      const dir = join(FIXTURES_DIR, "bare-python");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "pyproject.toml"), '[project]\nname = "my-tool"\n');
+
+      const results = analyzeProject(dir);
+      const apiDetection = results.find((d) => d.tag === "API");
+
+      // pyproject.toml alone should not trigger API — no web framework inside
+      expect(apiDetection).toBeUndefined();
 
       rmSync(dir, { recursive: true });
     });

@@ -29,7 +29,6 @@ const DEPENDENCY_PATTERNS: Array<{
   { packages: ["next"], tag: "WEB-REACT", evidence: "next.js in dependencies" },
   { packages: ["@remix-run/react"], tag: "WEB-REACT", evidence: "remix in dependencies" },
   { packages: ["express", "fastify", "koa", "hapi", "nestjs"], tag: "API", evidence: "HTTP framework in dependencies" },
-  { packages: ["@modelcontextprotocol/sdk"], tag: "API", evidence: "MCP SDK in dependencies" },
   { packages: ["ethers", "web3", "viem", "@solana/web3.js"], tag: "WEB3", evidence: "blockchain library in dependencies" },
   { packages: ["socket.io", "ws", "pusher"], tag: "REALTIME", evidence: "WebSocket library in dependencies" },
   { packages: ["xstate", "robot3"], tag: "STATE-MACHINE", evidence: "state machine library in dependencies" },
@@ -40,17 +39,19 @@ const DEPENDENCY_PATTERNS: Array<{
   { packages: ["terraform-cdk", "pulumi", "@aws-cdk"], tag: "INFRA", evidence: "IaC library in dependencies" },
 ];
 
-/** File patterns that indicate tags. */
+/** File patterns that indicate tags. Optional confidence overrides the default 0.7. */
 const FILE_PATTERNS: Array<{
   files: string[];
   tag: Tag;
   evidence: string;
+  confidence?: number;
 }> = [
   { files: ["next.config.js", "next.config.mjs", "next.config.ts"], tag: "WEB-REACT", evidence: "next.config found" },
   { files: ["tsconfig.json"], tag: "LIBRARY", evidence: "TypeScript project" },
-  { files: ["pyproject.toml", "setup.py", "setup.cfg"], tag: "API", evidence: "Python project config found" },
   { files: [".solhint.json", "hardhat.config.ts", "foundry.toml"], tag: "WEB3", evidence: "smart contract tooling found" },
-  { files: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml"], tag: "INFRA", evidence: "Docker config found" },
+  // Docker alone is insufficient for INFRA — set below 0.6 threshold.
+  // IaC deps (terraform-cdk, pulumi, @aws-cdk) in DEPENDENCY_PATTERNS correctly trigger INFRA at 0.6+.
+  { files: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml"], tag: "INFRA", evidence: "Docker config found", confidence: 0.45 },
 ];
 
 /**
@@ -143,7 +144,7 @@ function analyzeFilePresence(projectDir: string): Detection[] {
     if (found.length > 0) {
       detections.push({
         tag: pattern.tag,
-        confidence: 0.7,
+        confidence: pattern.confidence ?? 0.7,
         evidence: [pattern.evidence, `found: ${found.join(", ")}`],
       });
     }
