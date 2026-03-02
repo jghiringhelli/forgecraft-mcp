@@ -363,7 +363,7 @@ function buildSetupOutput(
     text += `- ${f} — created\n`;
   }
   if (filesWritten.length === 0) {
-    text += `- (instruction files preserved — use generate_instructions with merge_with_existing to update)\n`;
+    text += `- (instruction files preserved — use forgecraft action='generate' with merge=true to update)\n`;
   }
   text += "\n";
 
@@ -382,13 +382,13 @@ function buildSetupOutput(
   const steps: string[] = [];
 
   if (!analysis.hasHooks) {
-    steps.push("Run `scaffold_project` to generate folder structure and hooks");
+    steps.push("Run `forgecraft` with action='scaffold' to generate folder structure and hooks");
   }
   if (analysis.completenessGaps.includes("prd_exists")) {
     steps.push("Create docs/PRD.md with your project requirements");
   }
   steps.push("Adjust forgecraft.yaml to add/exclude specific content blocks");
-  steps.push("Use `refresh_project` later if project scope changes");
+  steps.push("Use `forgecraft` with action='refresh' later if project scope changes");
   steps.push("Add more output targets in forgecraft.yaml (cursor, copilot, windsurf, cline, aider)");
 
   if (tier === "core") {

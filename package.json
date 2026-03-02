@@ -1,6 +1,6 @@
 {
   "name": "forgecraft-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "mcpName": "io.github.jghiringhelli/forgecraft",
   "description": "MCP server that gives Claude Code production-grade engineering standards — SOLID, testing, architecture, CI/CD — automatically tailored to your stack",
   "type": "module",

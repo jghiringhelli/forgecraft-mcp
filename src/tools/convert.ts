@@ -84,7 +84,7 @@ export async function convertExistingHandler(
     text += "\n\n";
   }
 
-  text += `---\n_Run \`scaffold_project\` with dry_run=true to preview what would be generated._`;
+  text += `---\n_Run \`forgecraft\` with action='scaffold' and dry_run=true to preview what would be generated._`;
 
   return { content: [{ type: "text", text }] };
 }
@@ -109,7 +109,7 @@ function buildMigrationPlan(
   // Phase 1: Foundation (always first)
   const foundationSteps: string[] = [];
   if (missingChecks.has("instruction_file_exists")) {
-    foundationSteps.push("Generate instruction files with `generate_instructions`");
+    foundationSteps.push("Generate instruction files with `forgecraft` action='generate'");
   }
   if (missingChecks.has("status_md_exists")) {
     foundationSteps.push("Create Status.md for session continuity");
@@ -130,7 +130,7 @@ function buildMigrationPlan(
   // Phase 2: Quality Gates
   const qualitySteps: string[] = [];
   if (missingChecks.has("hooks_installed")) {
-    qualitySteps.push("Install quality gate hooks with `scaffold_project` or `add_hook`");
+    qualitySteps.push("Install quality gate hooks with `forgecraft` action='scaffold' or action='add_hook'");
   }
   qualitySteps.push("Configure .gitignore for build artifacts and secrets");
   qualitySteps.push("Set up CI pipeline if not present");
@@ -177,7 +177,7 @@ function buildMigrationPlan(
     docSteps.push("Create docs/PRD.md documenting requirements");
   }
   if (missingChecks.has("tech_spec_exists")) {
-    docSteps.push("Create docs/TechSpec.md with `get_nfr_template` for NFR sections");
+    docSteps.push("Create docs/TechSpec.md with `forgecraft` action='get_reference' resource='nfr' for NFR sections");
   }
   if (missingChecks.has("shared_modules")) {
     docSteps.push("Create shared modules (config, errors, logging) in src/shared/");

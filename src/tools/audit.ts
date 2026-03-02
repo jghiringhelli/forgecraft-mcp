@@ -117,7 +117,7 @@ function generateRecommendations(
 
   if (failingChecks.has("instruction_file_exists")) {
     recommendations.push(
-      "Run `generate_instructions` to create instruction files for your AI assistant.",
+      "Run `forgecraft` with action='generate' to create instruction files for your AI assistant.",
     );
   }
 
@@ -129,7 +129,7 @@ function generateRecommendations(
 
   if (failingChecks.has("hooks_installed")) {
     recommendations.push(
-      "Run `scaffold_project` or `add_hook` to install quality gate hooks.",
+      "Run `forgecraft` with action='scaffold' or action='add_hook' to install quality gate hooks.",
     );
   }
 
