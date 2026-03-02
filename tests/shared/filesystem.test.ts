@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { writeFileIfMissing, checkGitSafety } from "../../src/shared/filesystem.js";
+import { writeFileIfMissing, checkGitSafety, mergeInstructionFiles, writeInstructionFileWithMerge } from "../../src/shared/filesystem.js";
 
 describe("filesystem", () => {
   let tempDir: string;
@@ -81,6 +81,64 @@ describe("filesystem", () => {
       const result = checkGitSafety(tempDir);
       expect(result).not.toBeNull();
       expect(result).toContain("uncommitted change");
+    });
+  });
+
+  describe("mergeInstructionFiles", () => {
+    it("should return generated content when no custom sections exist", () => {
+      const existing = "## Code Standards\nOld content";
+      const generated = "## Code Standards\nNew content";
+      const result = mergeInstructionFiles(existing, generated);
+      expect(result).toBe(generated);
+    });
+
+    it("should preserve custom sections not in generated output", () => {
+      const existing = "## Code Standards\nGenerated content\n\n## My Custom Rules\nDo not use var.\nAlways use strict mode.";
+      const generated = "## Code Standards\nUpdated generated content";
+      const result = mergeInstructionFiles(existing, generated);
+      expect(result).toContain("Updated generated content");
+      expect(result).toContain("## My Custom Rules");
+      expect(result).toContain("Do not use var.");
+      expect(result).toContain("Always use strict mode.");
+    });
+
+    it("should preserve multiple custom sections", () => {
+      const existing = "## Generated\nContent\n\n## My Preferences\nPrefs\n\n## Team Conventions\nConventions";
+      const generated = "## Generated\nNew content";
+      const result = mergeInstructionFiles(existing, generated);
+      expect(result).toContain("## My Preferences");
+      expect(result).toContain("## Team Conventions");
+    });
+
+    it("should not duplicate sections that exist in both", () => {
+      const existing = "## Code Standards\nOld\n\n## Testing\nOld tests";
+      const generated = "## Code Standards\nNew\n\n## Testing\nNew tests";
+      const result = mergeInstructionFiles(existing, generated);
+      expect(result).toBe(generated);
+    });
+  });
+
+  describe("writeInstructionFileWithMerge", () => {
+    it("should create new file when none exists", () => {
+      const filePath = join(tempDir, "CLAUDE.md");
+      writeInstructionFileWithMerge(filePath, "## Standards\nContent");
+      expect(readFileSync(filePath, "utf-8")).toBe("## Standards\nContent");
+    });
+
+    it("should preserve custom sections when file exists", () => {
+      const filePath = join(tempDir, "CLAUDE.md");
+      writeFileSync(filePath, "## Standards\nOld\n\n## My Custom\nKeep this");
+      writeInstructionFileWithMerge(filePath, "## Standards\nNew");
+      const result = readFileSync(filePath, "utf-8");
+      expect(result).toContain("## Standards\nNew");
+      expect(result).toContain("## My Custom");
+      expect(result).toContain("Keep this");
+    });
+
+    it("should create parent directories", () => {
+      const filePath = join(tempDir, "a", "b", "CLAUDE.md");
+      writeInstructionFileWithMerge(filePath, "content");
+      expect(existsSync(filePath)).toBe(true);
     });
   });
 });

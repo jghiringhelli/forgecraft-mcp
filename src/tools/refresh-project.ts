@@ -7,8 +7,8 @@
  */
 
 import { z } from "zod";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import yaml from "js-yaml";
 import { ALL_TAGS, CONTENT_TIERS, ALL_OUTPUT_TARGETS, OUTPUT_TARGET_CONFIGS, DEFAULT_OUTPUT_TARGET } from "../shared/types.js";
 import type { Tag, ContentTier, ForgeCraftConfig, OutputTarget } from "../shared/types.js";
@@ -17,6 +17,7 @@ import { checkCompleteness } from "../analyzers/completeness.js";
 import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
+import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
@@ -140,8 +141,7 @@ export async function refreshProjectHandler(
     const outputPath = targetConfig.directory
       ? join(projectDir, targetConfig.directory, targetConfig.filename)
       : join(projectDir, targetConfig.filename);
-    mkdirSync(dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, content, "utf-8");
+    writeInstructionFileWithMerge(outputPath, content);
   }
 
   return {
@@ -324,7 +324,7 @@ function buildPreviewOutput(
   // Block delta
   text += `## Content Impact\n`;
   text += `- Instruction blocks: ${drift.blockCountDelta.before} → ${drift.blockCountDelta.after}\n`;
-  text += `- Total available: ${composed.instructionBlocks.length} blocks, ${composed.nfrBlocks.length} NFRs, ${composed.hooks.length} hooks\n\n`;
+  text += `- Total available: ${composed.instructionBlocks.length} blocks, ${composed.nfrBlocks.length} NFRs, ${composed.hooks.length} hooks, ${composed.skills.length} skills\n\n`;
 
   // Gaps
   if (drift.completenessGaps.length > 0) {
