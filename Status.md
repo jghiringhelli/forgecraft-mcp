@@ -13,6 +13,8 @@ reduced to a single sentinel tool (~200 tokens vs ~1,500). 229 tests passing.
 4. **New `tests/cli.test.ts`**: 15 tests covering routing, list, audit fallback, and sentinel handler.
 5. **Version bumped to 0.5.0** across `package.json` and `server.json`.
 6. **Phase 4 docs**: README fully rewritten CLI-first; stale MCP API references (`setup_project`, `configure_mcp` tool name, `forgecraft action='generate'`) replaced with CLI commands throughout.
+7. **Sentinel QoL**: All three sentinel branches now instruct Claude to ask the user before running recommended commands.
+8. **Output text fixes**: Stale `action='...'` references in `audit.ts` and `convert.ts` output replaced with CLI commands.
 
 ## Project Structure
 ```
