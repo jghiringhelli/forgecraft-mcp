@@ -41,24 +41,30 @@ export async function sentinelHandler(
     lines.push(
       "## Project has no engineering standards configured.",
       "",
-      "Run the following command to auto-detect your stack and generate CLAUDE.md, hooks, and skills:",
+      "Recommended command:",
       `  npx forgecraft-mcp setup ${project_dir}`,
+      "",
+      "This will auto-detect your stack and generate CLAUDE.md, hooks, and skills.",
       "",
       "Options:",
       "  --tags UNIVERSAL API        Override auto-detected tags",
       "  --tier core|recommended     Content depth (default: recommended)",
       "  --targets claude cursor     Additional AI assistant targets",
       "  --dry-run                   Preview without writing files",
+      "",
+      "> **Ask the user** if they'd like you to run this command, or if they prefer to run it themselves.",
     );
   } else if (hasConfig && !hasHooks) {
     lines.push(
       "## Project has forgecraft.yaml but is missing hooks and skills.",
       "",
-      "Regenerate the project structure:",
+      "Recommended command:",
       `  npx forgecraft-mcp scaffold ${project_dir}`,
       "",
-      "Or refresh to re-sync everything:",
+      "Or to re-sync everything:",
       `  npx forgecraft-mcp refresh ${project_dir} --apply`,
+      "",
+      "> **Ask the user** which command they'd like to run, or if they prefer to run it themselves.",
     );
   } else {
     const configStatus = hasConfig ? "forgecraft.yaml ✓" : "no forgecraft.yaml";
@@ -68,14 +74,12 @@ export async function sentinelHandler(
     lines.push(
       `## Project status: ${configStatus} | ${mdStatus} | ${hooksStatus}`,
       "",
-      "To re-sync instruction files after project changes:",
-      `  npx forgecraft-mcp refresh ${project_dir} --apply`,
-      "",
-      "To audit against configured standards:",
-      `  npx forgecraft-mcp audit ${project_dir}`,
-      "",
-      "To add new output targets (cursor, copilot, windsurf):",
+      "Available commands:",
+      `  npx forgecraft-mcp refresh ${project_dir} --apply     (re-sync after project changes)`,
+      `  npx forgecraft-mcp audit ${project_dir}               (score compliance 0-100)`,
       `  npx forgecraft-mcp refresh ${project_dir} --apply --targets claude cursor copilot`,
+      "",
+      "> **Ask the user** which command they'd like to run, or if they prefer to run it themselves.",
     );
   }
 
