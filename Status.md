@@ -1,16 +1,18 @@
 # Status.md
 
-## Last Updated: 2026-02-23
+## Last Updated: 2026-03-02
 ## Session Summary
-Project entering maintenance mode. v0.2.1 published to npm + MCP Registry. Distribution complete
-across primary channels (npm, MCP Registry, Reddit, HN, MCP Discord, awesome-mcp-servers PRs).
+v0.5.0: CLI-first refactor per `docs/CLI-MODE-PROPOSAL.md`. All operations
+moved to subcommands (`npx forgecraft-mcp setup|refresh|audit|...`). MCP server
+reduced to a single sentinel tool (~200 tokens vs ~1,500). 229 tests passing.
 
-### What Changed (v0.2.x)
-1. **Multi-target AI assistant support**: Claude, Cursor, Copilot, Windsurf, Cline, Aider.
-2. **6 New Tags**: HIPAA, SOC2, DATA-LINEAGE, OBSERVABILITY-XRAY, MEDALLION-ARCHITECTURE, ZERO-TRUST.
-3. **MCP server discovery**: Data-driven YAML registry per tag.
-4. **CI/CD pipeline**: GitHub Actions auto-publishes to npm + MCP Registry on version tags.
-5. **128 tests passing**, 10 suites.
+### What Changed (v0.5.0)
+1. **New `src/cli.ts`**: Full CLI dispatcher — 11 subcommands, argv parser (no deps), tag fallback from `forgecraft.yaml`.
+2. **New `src/tools/sentinel.ts`**: Minimal MCP tool replacing the 2-tool suite. Diagnoses project state, recommends CLI commands.
+3. **Refactored `src/index.ts`**: Dual-mode entry point — CLI mode if subcommands given, MCP server otherwise. Single sentinel tool registered.
+4. **New `tests/cli.test.ts`**: 15 tests covering routing, list, audit fallback, and sentinel handler.
+5. **Version bumped to 0.5.0** across `package.json` and `server.json`.
+6. **Phase 4 docs**: README fully rewritten CLI-first; stale MCP API references (`setup_project`, `configure_mcp` tool name, `forgecraft action='generate'`) replaced with CLI commands throughout.
 
 ## Project Structure
 ```
@@ -70,10 +72,12 @@ forgecraft-mcp/
 ## Feature Tracker
 | Feature | Status | Notes |
 |---------|--------|-------|
-| MCP server entry point | ✅ Complete | 14 tools registered |
+| MCP server entry point | ✅ Complete | Dual-mode: CLI or MCP server |
 | Shared modules (config/errors/logger/types) | ✅ Complete | ContentTier, ForgeCraftConfig expanded |
 | Template registry (loader/composer/renderer) | ✅ Complete | Tier filtering, community dirs |
 | YAML templates (63 files, 18 tags) | ✅ Complete | All blocks have tier metadata + mcp-servers |
+| CLI mode (`src/cli.ts`) | ✅ Complete | **NEW** — 11 subcommands, no extra deps |
+| Sentinel MCP tool | ✅ Complete | **NEW** — 1 tool, ~200 tokens, diagnose+recommend |
 | Tool: list_tags / list_hooks | ✅ Complete | |
 | Tool: classify_project | ✅ Complete | |
 | Tool: scaffold_project | ✅ Complete | Config-aware (forgecraft.yaml) |
@@ -85,11 +89,11 @@ forgecraft-mcp/
 | Tool: get_nfr_template | ✅ Complete | |
 | Tool: convert_existing | ✅ Complete | |
 | Tool: review_project | ✅ Complete | 4-dimension review checklists |
-| Tool: setup_project | ✅ Complete | **NEW** — unified setup flow |
-| Tool: refresh_project | ✅ Complete | **NEW** — drift detection |
+| Tool: setup_project | ✅ Complete | Unified setup flow |
+| Tool: refresh_project | ✅ Complete | Drift detection |
 | Analyzers | ✅ Complete | package-json, folder, anti-pattern, completeness |
 | Hook scripts (8 universal + 2 react) | ✅ Complete | |
-| Unit tests | ✅ Complete | 128 passing |
+| Unit tests | ✅ Complete | 229 passing (16 suites) |
 | Integration tests | ✅ Complete | smoke + tools |
 
 ## Known Bugs
@@ -103,14 +107,13 @@ forgecraft-mcp/
 | | | | |
 
 ## Current Context
-- Working on: **Maintenance mode** — no active feature work
+- Working on: **v0.5.0 complete** — CLI-first refactor
 - Blocked by: Nothing
 - Decisions pending: None
-- Next steps (optional, low priority):
-  1. Submit to remaining aggregators (mcp.so, opentools.com, mcpservers.com, mkinf.io)
-  2. Twitter/X thread (copy from LAUNCH.md)
-  3. Dev.to article
-  4. Community-contributed tags/templates via PRs
+- Next steps:
+  1. Publish v0.5.0 to npm (`npm publish`)
+  2. Update npm/MCP Registry descriptions to highlight CLI usage
+  3. Update README.md with CLI command reference
 
 ## Architecture Decision Log
 | Date | Decision | Rationale | Status |
@@ -128,4 +131,5 @@ forgecraft-mcp/
 | 2026-02-18 | forgecraft.yaml config file | Project-level config for tags, tier, include/exclude, community dirs. YAML for easy merge & community contributions | Active |
 | 2026-02-18 | setup_project + refresh_project tools | Unified entry point and drift detection. Replaces manual classify→scaffold flow | Active |
 | 2026-02-18 | Community template directories | loadAllTemplatesWithExtras merges external YAML dirs. Enables npm community packs | Active |
+| 2026-03-02 | CLI-first + sentinel MCP | Moves all work to CLI subcommands. MCP server reduced to 1 sentinel tool (~200 tokens). Per CLI-MODE-PROPOSAL.md. | Active |
 | 2026-02-20 | MCP server discovery service | Data-driven YAML registry + optional remote fetch. Replaces hardcoded TAG_SERVERS | Active |

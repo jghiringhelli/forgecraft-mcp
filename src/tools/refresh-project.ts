@@ -278,7 +278,8 @@ function buildNoConfigOutput(projectDir: string): string {
   return (
     `# No Configuration Found\n\n` +
     `No forgecraft.yaml or .forgecraft.json found in \`${projectDir}\`.\n\n` +
-    `Run \`setup_project\` first to initialize your project configuration.\n`
+    `Run setup first to initialize your project configuration:\n` +
+    `  npx forgecraft-mcp setup ${projectDir}\n`
   );
 }
 
@@ -333,7 +334,7 @@ function buildPreviewOutput(
     text += "\n\n";
   }
 
-  text += `_Run again with apply=true to write changes._`;
+  text += `_Run with --apply to write changes: \`npx forgecraft-mcp refresh <project_dir> --apply\`_`;
   return text;
 }
 
@@ -369,6 +370,8 @@ function buildAppliedOutput(
   text += `## Updated Config\n`;
   text += `\`\`\`yaml\n${configYaml}\`\`\`\n\n`;
 
+  text += `> **Tip:** Remove ForgeCraft from your MCP servers to save tokens (setup is done).\n`;
+  text += `> Re-add it when needed: \`claude mcp add forgecraft -- npx -y forgecraft-mcp\`\n\n`;
   text += `⚠️ **Restart required** to pick up CLAUDE.md changes.`;
   return text;
 }

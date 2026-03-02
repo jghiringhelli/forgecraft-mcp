@@ -17,14 +17,10 @@ AI coding assistants work better with clear engineering standards. Most start wi
 **Supports:** Claude (CLAUDE.md) · Cursor (.cursor/rules/) · GitHub Copilot (.github/copilot-instructions.md) · Windsurf (.windsurfrules) · Cline (.clinerules) · Aider (CONVENTIONS.md)
 
 ```bash
-claude mcp add forgecraft -- npx -y forgecraft-mcp
+npx forgecraft-mcp setup .
 ```
 
-Then tell Claude:
-
-> "Set up this project for production"
-
-Done. Your AI assistant now has tailored instruction files with SOLID principles, testing standards, architecture patterns, CI/CD guidance, and quality-gate hooks — all matched to your stack.
+That's it. ForgeCraft scans your project, auto-detects your stack, and generates tailored instruction files in seconds.
 
 ## `claude init` vs ForgeCraft
 
@@ -39,54 +35,35 @@ Done. Your AI assistant now has tailored instruction files with SOLID principles
 | **Quality gates** | None | Pre-commit hooks that enforce standards |
 | **CI/CD** | None | Pipeline stages, environments, deploy guidance |
 | **Session continuity** | None | `Status.md` + `forgecraft.yaml` persist context |
-| **Drift detection** | None | `refresh_project` detects scope changes |
-| **Compliance scoring** | None | `audit_project` scores 0-100 |
+| **Drift detection** | None | `refresh` detects scope changes |
+| **Compliance scoring** | None | `audit` scores 0-100 |
 
 ## How It Works
 
+```bash
+# First-time setup — auto-detects your stack
+npx forgecraft-mcp setup .
+
+# → scans your code → detects [API] + [WEB-REACT]
+# → creates forgecraft.yaml
+# → generates CLAUDE.md, .cursor/rules/, etc.
+# → adds quality-gate hooks
+# → done
 ```
-You: "Set up this project for production"
 
-Claude calls setup_project → scans your code → detects [API] + [WEB-REACT]
-                           → creates forgecraft.yaml
-                           → generates instruction files for your AI assistant(s)
-                           → adds quality-gate hooks
-                           → done
-```
+ForgeCraft is a **setup-time CLI tool**. Run it once to configure your project, then remove it — it has no runtime footprint.
 
-ForgeCraft is an [MCP server](https://modelcontextprotocol.io/) — it gives Claude 14 specialized tools. Claude picks the right ones automatically. You just describe what you want in plain English.
-
-> **Already ran `claude init`?** ForgeCraft's `generate_instructions` can merge with your existing CLAUDE.md (`merge_with_existing: true`), keeping your custom sections while adding production standards.
-
-## Install
-
-**One line. Takes 10 seconds.**
+optional: add the MCP sentinel to let your AI assistant diagnose and recommend commands:
 
 ```bash
 claude mcp add forgecraft -- npx -y forgecraft-mcp
 ```
 
-Restart Claude Code. That's it.
-
-<details>
-<summary>Alternative: manual config</summary>
-
-Add to `.claude/settings.json`:
-```json
-{
-  "mcpServers": {
-    "forgecraft": {
-      "command": "npx",
-      "args": ["-y", "forgecraft-mcp"]
-    }
-  }
-}
-```
-</details>
+The sentinel is a single lightweight tool (~200 tokens) that checks your project state and tells your AI what CLI command to run next. [Remove it](#mcp-sentinel) after initial setup to save tokens.
 
 ## What You Get
 
-After `setup_project`, your project has:
+After `npx forgecraft-mcp setup`, your project has:
 
 ```
 your-project/
@@ -164,24 +141,74 @@ tags: [UNIVERSAL, API]
 tier: recommended
 ```
 
-## All 14 Tools
+## CLI Commands
 
-| Tool | Purpose |
-|------|---------|
-| `setup_project` | **Start here.** Analyze → classify → configure → generate. |
-| `refresh_project` | Re-scan after changes. Detects new tags, updates config. |
-| `classify_project` | Analyze code to suggest tags |
-| `scaffold_project` | Generate full project structure |
-| `generate_instructions` | Create instruction files for any AI assistant |
-| `audit_project` | Score compliance (0-100). Run in CI. |
-| `review_project` | Structured review checklist |
-| `convert_existing` | Phased migration plan for legacy code |
-| `add_hook` | Add quality-gate hooks |
-| `add_module` | Scaffold a feature module |
-| `configure_mcp` | Discover & configure recommended MCP servers |
-| `get_nfr_template` | NFR sections for tech specs |
-| `list_tags` | Show all available tags |
-| `list_hooks` | Show hooks, filterable by tag |
+```bash
+npx forgecraft-mcp <command> [dir] [flags]
+```
+
+| Command | Purpose |
+|---------|--------|
+| `setup <dir>` | **Start here.** Analyze → auto-detect stack → generate instruction files + hooks |
+| `refresh <dir>` | Re-scan after project changes. Detects new tags, shows before/after diff. |
+| `refresh <dir> --apply` | Apply the refresh (default is preview-only) |
+| `audit <dir>` | Score compliance (0-100). Reads tags from `forgecraft.yaml`. |
+| `scaffold <dir> --tags ...` | Generate full folder structure + instruction files |
+| `review [dir] --tags ...` | Structured code review checklist (4 dimensions) |
+| `list tags` | Show all 24 available tags |
+| `list hooks --tags ...` | Show quality-gate hooks for given tags |
+| `list skills --tags ...` | Show skill files for given tags |
+| `classify [dir]` | Analyze code to suggest tags |
+| `generate <dir>` | Regenerate instruction files only |
+| `convert <dir>` | Phased migration plan for legacy code |
+| `add-hook <name> <dir>` | Add a quality-gate hook |
+| `add-module <name> <dir>` | Scaffold a feature module |
+
+### Common flags
+
+```
+--tags UNIVERSAL API     Project classification tags (or read from forgecraft.yaml)
+--tier core|recommended  Content depth (default: recommended)
+--targets claude cursor  AI assistant targets (default: claude)
+--dry-run                Preview without writing files
+--apply                  Apply changes (for refresh)
+--language typescript    typescript | python (default: typescript)
+--scope focused          comprehensive | focused (for review)
+```
+
+## MCP Sentinel
+
+Optionally add the ForgeCraft MCP sentinel to let your AI assistant diagnose your project and suggest the right CLI command:
+
+```bash
+claude mcp add forgecraft -- npx -y forgecraft-mcp
+```
+
+The sentinel is a **single minimal tool** (~200 tokens per request, vs ~1,500 for a full MCP tool suite). It checks whether `forgecraft.yaml`, `CLAUDE.md`, and `.claude/hooks` exist, then returns targeted CLI commands to run.
+
+**Recommended workflow:**
+1. Add the sentinel temporarily
+2. Let Claude run `npx forgecraft-mcp setup .`
+3. Remove the sentinel: `claude mcp remove forgecraft`
+4. Re-add it when you need to refresh or audit
+
+<details>
+<summary>Manual MCP config</summary>
+
+Add to `.claude/settings.json`:
+```json
+{
+  "mcpServers": {
+    "forgecraft": {
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    }
+  }
+}
+```
+</details>
+
+> **Already ran `claude init`?** Use `npx forgecraft-mcp generate . --merge` to merge with your existing CLAUDE.md, keeping your custom sections while adding production standards.
 
 ## Configuration
 
@@ -227,7 +254,14 @@ Score: 72/100  Grade: C
 
 ### Refresh (project scope changed?)
 
-Tell Claude *"refresh this project"* — it re-scans, suggests new tags, shows before/after impact, and updates everything on approval.
+```bash
+npx forgecraft-mcp refresh . --apply
+```
+
+Or in preview mode first (default):
+```bash
+npx forgecraft-mcp refresh .   # shows before/after diff without writing
+```
 
 ## Contributing
 
@@ -247,7 +281,7 @@ PRs welcome. See [`templates/universal/`](templates/universal/) for the format.
 
 ### MCP Server Discovery
 
-`configure_mcp` dynamically discovers recommended MCP servers matching your project tags. Servers are curated in `mcp-servers.yaml` per tag — community-contributable via PRs.
+`npx forgecraft-mcp configure-mcp` dynamically discovers recommended MCP servers matching your project tags. Servers are curated in `mcp-servers.yaml` per tag — community-contributable via PRs.
 
 Built-in recommendations include Context7 (docs), Playwright (testing), Chrome DevTools (debugging), Stripe (fintech), Docker/K8s (infra), and more across all 24 tags.
 
@@ -265,7 +299,7 @@ git clone https://github.com/jghiringhelli/forgecraft-mcp.git
 cd forgecraft-mcp
 npm install
 npm run build
-npm test   # 128 tests, 10 suites
+npm test   # 229 tests, 16 suites
 ```
 
 ## License

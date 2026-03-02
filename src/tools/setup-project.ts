@@ -363,7 +363,7 @@ function buildSetupOutput(
     text += `- ${f} — created\n`;
   }
   if (filesWritten.length === 0) {
-    text += `- (instruction files preserved — use forgecraft action='generate' with merge=true to update)\n`;
+    text += `- (instruction files preserved — run \`npx forgecraft-mcp generate . --merge\` to update)\n`;
   }
   text += "\n";
 
@@ -382,20 +382,22 @@ function buildSetupOutput(
   const steps: string[] = [];
 
   if (!analysis.hasHooks) {
-    steps.push("Run `forgecraft` with action='scaffold' to generate folder structure and hooks");
+    steps.push("Run `npx forgecraft-mcp scaffold .` to generate folder structure and hooks");
   }
   if (analysis.completenessGaps.includes("prd_exists")) {
     steps.push("Create docs/PRD.md with your project requirements");
   }
-  steps.push("Adjust forgecraft.yaml to add/exclude specific content blocks");
-  steps.push("Use `forgecraft` with action='refresh' later if project scope changes");
-  steps.push("Add more output targets in forgecraft.yaml (cursor, copilot, windsurf, cline, aider)");
+  steps.push("Adjust forgecraft.yaml to fine-tune tags, tier, or include/exclude specific blocks");
+  steps.push("Run `npx forgecraft-mcp refresh . --apply` later if project scope changes");
+  steps.push("Add more output targets: `npx forgecraft-mcp refresh . --apply --targets claude cursor copilot`");
 
   if (tier === "core") {
-    steps.push("Upgrade tier to 'recommended' when ready for more patterns: edit forgecraft.yaml");
+    steps.push("Upgrade tier when ready: edit forgecraft.yaml and run `npx forgecraft-mcp refresh . --apply`");
   }
 
   text += steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
+  text += `\n\n> **Setup complete** — consider removing ForgeCraft from your MCP servers to save tokens.\n`;
+  text += `> Re-add it when you need to refresh or audit: \`claude mcp add forgecraft -- npx -y forgecraft-mcp\``;
   text += `\n\n⚠️ **Restart may be required** to pick up instruction file changes.`;
 
   return text;

@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.jghiringhelli/forgecraft",
   "title": "ForgeCraft",
-  "description": "Generate production-grade engineering standards for AI coding assistants, tailored to your stack.",
+  "description": "Setup-time tool for engineering standards. Diagnoses project state and recommends CLI commands. Remove after setup to save tokens.",
   "repository": {
     "url": "https://github.com/jghiringhelli/forgecraft-mcp",
     "source": "github"
   },
-  "version": "0.4.0",
+  "version": "0.5.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "forgecraft-mcp",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
