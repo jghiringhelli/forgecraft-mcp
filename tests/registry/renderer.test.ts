@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   renderTemplate,
   renderClaudeMd,
+  renderSkill,
   renderNfrs,
   renderStatusMd,
   renderPrdSkeleton,
@@ -201,6 +202,32 @@ Done.`;
     it("should show TBD when no framework", () => {
       const result = renderTechSpecSkeleton(makeContext());
       expect(result).toContain("[TBD]");
+    });
+  });
+
+  describe("renderSkill", () => {
+    it("should substitute variables in skill content", () => {
+      const content = "# Review {{projectName}}\nRun tests for {{language}} project.";
+      const result = renderSkill(content, makeContext());
+      expect(result).toBe("# Review TestProject\nRun tests for typescript project.");
+    });
+
+    it("should handle conditionals in skill content", () => {
+      const content = "{{#if language_is_typescript}}npm test{{/if}}{{#if language_is_python}}pytest{{/if}}";
+      const result = renderSkill(content, makeContext({ language: "python" }));
+      expect(result).toBe("pytest");
+    });
+
+    it("should preserve content without variables unchanged", () => {
+      const content = "# Static Skill\nNo variables here.";
+      const result = renderSkill(content, makeContext());
+      expect(result).toBe(content);
+    });
+
+    it("should use default values for missing variables", () => {
+      const content = "Threshold: {{threshold | default: 80}}%";
+      const result = renderSkill(content, makeContext());
+      expect(result).toBe("Threshold: 80%");
     });
   });
 });

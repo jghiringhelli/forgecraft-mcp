@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Tag, TagTemplateSet, ClaudeMdBlock, StructureEntry, NfrBlock, HookTemplate, ReviewBlock, ReferenceBlock, ContentTier } from "../../src/shared/types.js";
+import type { Tag, TagTemplateSet, ClaudeMdBlock, StructureEntry, NfrBlock, HookTemplate, SkillTemplate, ReviewBlock, ReferenceBlock, ContentTier } from "../../src/shared/types.js";
 import { composeTemplates, type ComposedTemplates } from "../../src/registry/composer.js";
 
 function makeTemplateSet(
@@ -23,6 +23,10 @@ function makeNfr(id: string, title: string = id, tier?: ContentTier): NfrBlock {
 
 function makeHook(name: string): HookTemplate {
   return { name, trigger: "pre-commit", description: `Hook ${name}`, filename: `${name}.sh`, script: `#!/bin/bash\necho ${name}` };
+}
+
+function makeSkill(id: string, tier?: ContentTier): SkillTemplate {
+  return { id, name: `Skill ${id}`, filename: `${id}.md`, description: `Description for ${id}`, content: `# ${id}\nSkill content`, ...(tier ? { tier } : {}) };
 }
 
 function makeReferenceBlock(id: string, title: string = id): ReferenceBlock {
@@ -377,6 +381,98 @@ describe("composer", () => {
         config: { tier: "core" },
       });
       expect(result.referenceBlocks).toHaveLength(1);
+    });
+  });
+
+  describe("skill composition", () => {
+    it("should compose skills from a single tag", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        skills: [makeSkill("review-code"), makeSkill("run-tests")],
+      }));
+
+      const result = composeTemplates(["UNIVERSAL"], allTemplates);
+      expect(result.skills).toHaveLength(2);
+      expect(result.skills.map((s) => s.id)).toEqual(["review-code", "run-tests"]);
+    });
+
+    it("should deduplicate skills by id across tags", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        skills: [makeSkill("review-code"), makeSkill("run-tests")],
+      }));
+      allTemplates.set("API", makeTemplateSet("API", {
+        skills: [makeSkill("review-code"), makeSkill("api-test")],
+      }));
+
+      const result = composeTemplates(["UNIVERSAL", "API"], allTemplates);
+      expect(result.skills).toHaveLength(3);
+      expect(result.skills.map((s) => s.id)).toEqual(["review-code", "run-tests", "api-test"]);
+    });
+
+    it("should tier-filter skills", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        skills: [
+          makeSkill("core-skill", "core"),
+          makeSkill("rec-skill", "recommended"),
+          makeSkill("opt-skill", "optional"),
+        ],
+      }));
+
+      const coreResult = composeTemplates(["UNIVERSAL"], allTemplates, {
+        config: { tier: "core" },
+      });
+      expect(coreResult.skills).toHaveLength(1);
+      expect(coreResult.skills[0]!.id).toBe("core-skill");
+
+      const recResult = composeTemplates(["UNIVERSAL"], allTemplates, {
+        config: { tier: "recommended" },
+      });
+      expect(recResult.skills).toHaveLength(2);
+      expect(recResult.skills.map((s) => s.id)).toEqual(["core-skill", "rec-skill"]);
+
+      const optResult = composeTemplates(["UNIVERSAL"], allTemplates, {
+        config: { tier: "optional" },
+      });
+      expect(optResult.skills).toHaveLength(3);
+    });
+
+    it("should treat skills without tier as core", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        skills: [makeSkill("no-tier-skill")],
+      }));
+
+      const result = composeTemplates(["UNIVERSAL"], allTemplates, {
+        config: { tier: "core" },
+      });
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0]!.id).toBe("no-tier-skill");
+    });
+
+    it("should respect include/exclude for skills", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL", {
+        skills: [
+          makeSkill("keep-me", "core"),
+          makeSkill("drop-me", "core"),
+        ],
+      }));
+
+      const result = composeTemplates(["UNIVERSAL"], allTemplates, {
+        config: { tier: "optional", exclude: ["drop-me"] },
+      });
+      expect(result.skills).toHaveLength(1);
+      expect(result.skills[0]!.id).toBe("keep-me");
+    });
+
+    it("should return empty skills when no templates have skills", () => {
+      const allTemplates = new Map<Tag, TagTemplateSet>();
+      allTemplates.set("UNIVERSAL", makeTemplateSet("UNIVERSAL"));
+
+      const result = composeTemplates(["UNIVERSAL"], allTemplates);
+      expect(result.skills).toEqual([]);
     });
   });
 });

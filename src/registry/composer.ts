@@ -14,6 +14,7 @@ import type {
   StructureEntry,
   NfrBlock,
   HookTemplate,
+  SkillTemplate,
   ReviewBlock,
   ReferenceBlock,
   ContentTier,
@@ -44,6 +45,7 @@ export interface ComposedTemplates {
   readonly structureEntries: StructureEntry[];
   readonly nfrBlocks: NfrBlock[];
   readonly hooks: HookTemplate[];
+  readonly skills: SkillTemplate[];
   readonly reviewBlocks: ReviewBlock[];
   readonly referenceBlocks: ReferenceBlock[];
   /**
@@ -123,12 +125,14 @@ export function composeTemplates(
   const structureEntries: StructureEntry[] = [];
   const nfrBlocks: NfrBlock[] = [];
   const hooks: HookTemplate[] = [];
+  const skills: SkillTemplate[] = [];
   const reviewBlocks: ReviewBlock[] = [];
   const referenceBlocks: ReferenceBlock[] = [];
 
   const seenBlockIds = new Set<string>();
   const seenPaths = new Set<string>();
   const seenHookNames = new Set<string>();
+  const seenSkillIds = new Set<string>();
   const seenNfrIds = new Set<string>();
   const seenReviewIds = new Set<string>();
   const seenReferenceIds = new Set<string>();
@@ -189,6 +193,20 @@ export function composeTemplates(
       }
     }
 
+    // Compose skills (deduplicate by id, filter by tier)
+    if (templateSet.skills) {
+      for (const skill of templateSet.skills) {
+        if (
+          !seenSkillIds.has(skill.id) &&
+          isTierAllowed(skill.tier, allowedTiers) &&
+          isBlockAllowed(skill.id, includeList, excludeList)
+        ) {
+          seenSkillIds.add(skill.id);
+          skills.push(skill);
+        }
+      }
+    }
+
     // Compose review blocks (deduplicate by id, filter by tier)
     if (templateSet.review?.blocks) {
       for (const block of templateSet.review.blocks) {
@@ -221,6 +239,7 @@ export function composeTemplates(
     structureEntries: structureEntries.length,
     nfrBlocks: nfrBlocks.length,
     hooks: hooks.length,
+    skills: skills.length,
     reviewBlocks: reviewBlocks.length,
     referenceBlocks: referenceBlocks.length,
   });
@@ -230,6 +249,7 @@ export function composeTemplates(
     structureEntries,
     nfrBlocks,
     hooks,
+    skills,
     reviewBlocks,
     referenceBlocks,
     // Backward-compat alias

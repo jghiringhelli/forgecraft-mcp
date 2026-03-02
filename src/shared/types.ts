@@ -285,6 +285,39 @@ export interface HookTemplate {
   readonly script: string;
 }
 
+/** Skill template — a reusable Claude Code custom command (.claude/commands/*.md). */
+export interface SkillTemplate {
+  /** Unique identifier for deduplication across tags. */
+  readonly id: string;
+  /** Human-readable name shown in skill listings. */
+  readonly name: string;
+  /** Filename without .md extension — becomes .claude/commands/{filename}.md. */
+  readonly filename: string;
+  /** Brief description of what the skill does. */
+  readonly description: string;
+  /** Markdown content of the skill prompt. Supports {{vars}} and $ARGUMENTS. */
+  readonly content: string;
+  /** Content tier for filtering. Skills are tier-filtered (unlike hooks). */
+  readonly tier?: ContentTier;
+}
+
+/** Information about an available skill for listing. */
+export interface SkillInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly tag: Tag;
+  readonly filename: string;
+  readonly description: string;
+  readonly tier?: ContentTier;
+}
+
+/** Shape of the skills.yaml template file. */
+export interface SkillsTemplate {
+  readonly tag: Tag;
+  readonly section: "skills";
+  readonly skills: SkillTemplate[];
+}
+
 /** Review dimension (section) within a review template. */
 export type ReviewDimension =
   | "architecture"
@@ -338,6 +371,7 @@ export interface TagTemplateSet {
   readonly nfr?: NfrTemplate;
   readonly structure?: StructureTemplate;
   readonly hooks?: HookTemplate[];
+  readonly skills?: SkillTemplate[];
   readonly review?: ReviewTemplate;
   readonly mcpServers?: McpServersTemplate;
   readonly reference?: ReferenceTemplate;

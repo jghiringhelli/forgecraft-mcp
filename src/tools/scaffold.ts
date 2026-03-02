@@ -14,6 +14,7 @@ import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loade
 import { composeTemplates } from "../registry/composer.js";
 import {
   renderInstructionFile,
+  renderSkill,
   renderStatusMd,
   renderPrdSkeleton,
   renderTechSpecSkeleton,
@@ -160,6 +161,18 @@ export async function scaffoldProjectHandler(
     }
   }
 
+  // Write skills (Claude Code custom commands)
+  if (composed.skills.length > 0) {
+    const commandsDir = join(args.project_dir, ".claude", "commands");
+    mkdirSync(commandsDir, { recursive: true });
+
+    for (const skill of composed.skills) {
+      const skillContent = renderSkill(skill.content, context);
+      const skillPath = join(commandsDir, skill.filename);
+      trackWrite(`.claude/commands/${skill.filename}`, skillPath, skillContent);
+    }
+  }
+
   // Write .gitignore
   trackWrite(
     ".gitignore",
@@ -230,6 +243,13 @@ function buildDryRunPlan(
   text += composed.hooks
     .map((h) => `- \`${h.filename}\` (${h.trigger}) — ${h.description}`)
     .join("\n");
+
+  if (composed.skills.length > 0) {
+    text += `\n\n## Skills to Install (${composed.skills.length})\n`;
+    text += composed.skills
+      .map((s) => `- \`/project:${s.filename.replace(".md", "")}\` — ${s.description}`)
+      .join("\n");
+  }
 
   text += `\n\n_Run again with dry_run=false to write files._`;
   return text;

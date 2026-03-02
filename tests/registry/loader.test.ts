@@ -108,6 +108,30 @@ describe("loader", () => {
         }
       }
     });
+
+    it("should load skills when skills.yaml exists for a tag", () => {
+      // Skills are optional — check that loading doesn't break for tags without them
+      for (const [_tag, templateSet] of templates) {
+        if (templateSet.skills) {
+          expect(templateSet.skills.length).toBeGreaterThan(0);
+          for (const skill of templateSet.skills) {
+            expect(skill.id).toBeDefined();
+            expect(skill.name).toBeDefined();
+            expect(skill.filename).toBeDefined();
+            expect(skill.content).toBeDefined();
+          }
+        }
+      }
+    });
+
+    it("should have unique skill IDs within a template", () => {
+      for (const [_tag, templateSet] of templates) {
+        if (templateSet.skills) {
+          const ids = templateSet.skills.map((s) => s.id);
+          expect(new Set(ids).size).toBe(ids.length);
+        }
+      }
+    });
   });
 
   describe("loadUserOverrides", () => {

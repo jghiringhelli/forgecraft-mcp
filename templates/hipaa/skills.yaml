@@ -1,0 +1,39 @@
+tag: HIPAA
+section: skills
+skills:
+  - id: hipaa-compliance-check
+    name: HIPAA Compliance Check
+    filename: hipaa-compliance-check.md
+    description: "Verify HIPAA technical safeguard compliance"
+    tier: core
+    content: |
+      Check the project for HIPAA technical safeguard compliance.
+
+      Verify each requirement:
+
+      **Access Controls (§164.312(a))**:
+      - [ ] Unique user identification — every user has a unique ID
+      - [ ] Emergency access procedure — documented break-glass process
+      - [ ] Automatic logoff — session timeout configured
+      - [ ] Encryption/decryption — PHI encrypted at rest
+
+      **Audit Controls (§164.312(b))**:
+      - [ ] Audit logging enabled for all PHI access
+      - [ ] Logs include: who, what, when, where (IP)
+      - [ ] Logs are tamper-evident (append-only, signed, or immutable storage)
+      - [ ] Log retention meets minimum period (6 years)
+
+      **Integrity Controls (§164.312(c))**:
+      - [ ] Data validation on PHI fields
+      - [ ] Checksums or signatures for data integrity verification
+
+      **Transmission Security (§164.312(e))**:
+      - [ ] TLS 1.2+ enforced for all PHI transmission
+      - [ ] No PHI in URL parameters
+      - [ ] Encryption for PHI in message queues or event streams
+
+      For each gap, report:
+      - **Requirement**: HIPAA section reference
+      - **Status**: COMPLIANT | GAP | PARTIAL
+      - **Finding**: what's missing
+      - **Remediation**: specific implementation steps

@@ -18,6 +18,7 @@ import type {
   NfrTemplate,
   StructureTemplate,
   HookTemplate,
+  SkillTemplate,
   ReviewTemplate,
   McpServersTemplate,
   ReferenceTemplate,
@@ -31,6 +32,13 @@ interface HooksYamlFile {
   tag: string;
   section: "hooks";
   hooks: HookTemplate[];
+}
+
+/** Parsed skills YAML file structure. */
+interface SkillsYamlFile {
+  tag: string;
+  section: "skills";
+  skills: SkillTemplate[];
 }
 
 /**
@@ -104,6 +112,7 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
   let nfr: NfrTemplate | undefined;
   let structure: StructureTemplate | undefined;
   let hooks: HookTemplate[] | undefined;
+  let skills: SkillTemplate[] | undefined;
   let review: ReviewTemplate | undefined;
   let mcpServers: McpServersTemplate | undefined;
   let reference: ReferenceTemplate | undefined;
@@ -141,6 +150,13 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
     hooks = hooksFile.hooks;
   }
 
+  // Load skills.yaml
+  const skillsPath = join(tagDir, "skills.yaml");
+  if (existsSync(skillsPath)) {
+    const skillsFile = loadYamlFile<SkillsYamlFile>(skillsPath);
+    skills = skillsFile.skills;
+  }
+
   // Load review.yaml
   const reviewPath = join(tagDir, "review.yaml");
   if (existsSync(reviewPath)) {
@@ -159,7 +175,7 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
     reference = loadYamlFile<ReferenceTemplate>(referencePath);
   }
 
-  return { tag, instructions, nfr, structure, hooks, review, mcpServers, reference };
+  return { tag, instructions, nfr, structure, hooks, skills, review, mcpServers, reference };
 }
 
 /**
@@ -303,6 +319,7 @@ export function loadAllTemplatesWithExtras(
         nfr: mergeNfrTemplates(baseSet.nfr, extraSet.nfr),
         structure: extraSet.structure ?? baseSet.structure,
         hooks: mergeHookTemplates(baseSet.hooks, extraSet.hooks),
+        skills: mergeSkillTemplates(baseSet.skills, extraSet.skills),
         review: mergeReviewTemplates(baseSet.review, extraSet.review),
         mcpServers: mergeMcpServersTemplates(baseSet.mcpServers, extraSet.mcpServers),
         reference: mergeReferenceTemplates(baseSet.reference, extraSet.reference),
@@ -354,6 +371,20 @@ function mergeHookTemplates(
   const seenNames = new Set(base.map((h) => h.name));
   const newHooks = extra.filter((h) => !seenNames.has(h.name));
   return [...base, ...newHooks];
+}
+
+/**
+ * Merge two skill template arrays, appending non-duplicate skills by id.
+ */
+function mergeSkillTemplates(
+  base: SkillTemplate[] | undefined,
+  extra: SkillTemplate[] | undefined,
+): SkillTemplate[] | undefined {
+  if (!extra) return base;
+  if (!base) return extra;
+  const seenIds = new Set(base.map((s) => s.id));
+  const newSkills = extra.filter((s) => !seenIds.has(s.id));
+  return [...base, ...newSkills];
 }
 
 /**

@@ -1,12 +1,12 @@
 /**
- * list_tags / list_hooks tool handlers.
+ * list_tags / list_hooks / list_skills tool handlers.
  *
- * Discovery tools for Claude Code to understand available tags and hooks.
+ * Discovery tools for Claude Code to understand available tags, hooks, and skills.
  */
 
 import { z } from "zod";
 import { ALL_TAGS } from "../shared/types.js";
-import type { Tag, TagInfo, HookInfo } from "../shared/types.js";
+import type { Tag, TagInfo, HookInfo, SkillInfo } from "../shared/types.js";
 import { loadAllTemplates } from "../registry/loader.js";
 
 // ── Schemas ──────────────────────────────────────────────────────────
@@ -18,6 +18,13 @@ export const listHooksSchema = z.object({
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
     .optional()
     .describe("Filter hooks to specific tags. Omit to list all hooks."),
+});
+
+export const listSkillsSchema = z.object({
+  tags: z
+    .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
+    .optional()
+    .describe("Filter skills to specific tags. Omit to list all skills."),
 });
 
 // ── Tag Descriptions ─────────────────────────────────────────────────
@@ -199,6 +206,59 @@ export async function listHooksHandler(
       {
         type: "text",
         text: `# Available Hooks (${hooks.length})\n\n${formatted}`,
+      },
+    ],
+  };
+}
+
+/**
+ * List all available skills (Claude Code custom commands), optionally filtered by tags.
+ */
+export async function listSkillsHandler(
+  args: z.infer<typeof listSkillsSchema>,
+): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+  const templateSets = await loadAllTemplates();
+
+  const skills: SkillInfo[] = [];
+  for (const [_tag, templateSet] of templateSets) {
+    if (args.tags && !args.tags.includes(templateSet.tag)) {
+      continue;
+    }
+
+    if (templateSet.skills) {
+      for (const skill of templateSet.skills) {
+        skills.push({
+          id: skill.id,
+          name: skill.name,
+          tag: templateSet.tag,
+          filename: skill.filename,
+          description: skill.description,
+          tier: skill.tier,
+        });
+      }
+    }
+  }
+
+  if (skills.length === 0) {
+    return {
+      content: [
+        { type: "text", text: "No skills found for the specified tags." },
+      ],
+    };
+  }
+
+  const formatted = skills
+    .map(
+      (s) =>
+        `- **${s.name}** [${s.tag}] ${s.tier ? `(${s.tier})` : ""}\n  ${s.description}\n  Command: \`/project:${s.filename.replace(".md", "")}\``,
+    )
+    .join("\n\n");
+
+  return {
+    content: [
+      {
+        type: "text",
+        text: `# Available Skills (${skills.length})\n\n${formatted}`,
       },
     ],
   };

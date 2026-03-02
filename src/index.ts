@@ -17,6 +17,8 @@ import {
   listTagsHandler,
   listHooksSchema,
   listHooksHandler,
+  listSkillsSchema,
+  listSkillsHandler,
 } from "./tools/list.js";
 import {
   classifyProjectSchema,
@@ -100,6 +102,13 @@ async function main(): Promise<void> {
   );
 
   server.tool(
+    "list_skills",
+    "List available skills (Claude Code custom commands), optionally filtered by tags. Skills are reusable workflow prompts installed to .claude/commands/ and invoked via /project:<name>.",
+    listSkillsSchema.shape,
+    listSkillsHandler,
+  );
+
+  server.tool(
     "classify_project",
     "Analyze a project directory and/or description to suggest classification tags.",
     classifyProjectSchema.shape,
@@ -108,7 +117,7 @@ async function main(): Promise<void> {
 
   server.tool(
     "scaffold_project",
-    "Generate full project structure (instruction files, Status.md, hooks, folders) from tags. Supports multiple AI assistant targets.",
+    "Generate full project structure (instruction files, Status.md, hooks, skills, folders) from tags. Supports multiple AI assistant targets.",
     scaffoldProjectSchema.shape,
     scaffoldProjectHandler,
   );

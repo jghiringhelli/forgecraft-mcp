@@ -309,6 +309,7 @@ function buildDryRunOutput(
   text += `- Structure entries: ${composed.structureEntries.length}\n`;
   text += `- NFR sections: ${composed.nfrBlocks.length}\n`;
   text += `- Hooks: ${composed.hooks.length}\n`;
+  text += `- Skills: ${composed.skills.length}\n`;
   text += `- Review checklist blocks: ${composed.reviewBlocks.length}\n`;
   text += `- Output targets: ${outputTargets.map((t) => OUTPUT_TARGET_CONFIGS[t].displayName).join(", ")}\n\n`;
 
@@ -370,6 +371,7 @@ function buildSetupOutput(
   text += `- ${composed.instructionBlocks.length} instruction blocks applied\n`;
   text += `- ${composed.nfrBlocks.length} NFR sections available\n`;
   text += `- ${composed.hooks.length} hooks available\n`;
+  text += `- ${composed.skills.length} skills available\n`;
   text += `- ${composed.reviewBlocks.length} review checklist blocks available\n\n`;
 
   text += `## Config (forgecraft.yaml)\n`;

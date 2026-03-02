@@ -1,0 +1,54 @@
+tag: API
+section: skills
+skills:
+  - id: api-test-endpoint
+    name: Test API Endpoint
+    filename: api-test-endpoint.md
+    description: "Test an API endpoint with various scenarios"
+    tier: core
+    content: |
+      Test the API endpoint specified in $ARGUMENTS.
+
+      Steps:
+      1. Find the route handler and read the implementation
+      2. Identify the request schema (params, query, body)
+      3. Run these test scenarios:
+         - **Happy path**: valid request with expected response
+         - **Validation**: missing required fields, wrong types, boundary values
+         - **Auth**: unauthenticated, wrong role, expired token (if applicable)
+         - **Edge cases**: empty body, large payload, special characters
+      4. For each scenario, report:
+         - Request: method, path, headers, body
+         - Expected: status code, response shape
+         - Actual: what happened
+         - Verdict: PASS / FAIL
+
+      Use `curl` or the project's test framework. If tests don't exist for this endpoint, offer to create them.
+
+  - id: api-add-endpoint
+    name: Add API Endpoint
+    filename: api-add-endpoint.md
+    description: "Scaffold a new API endpoint following project patterns"
+    tier: recommended
+    content: |
+      Create a new API endpoint. $ARGUMENTS should describe the endpoint (e.g., "POST /api/users - create a user").
+
+      Steps:
+      1. Identify existing endpoint patterns in the project:
+         - Router file structure
+         - Validation approach (Zod, Joi, class-validator, etc.)
+         - Response format conventions
+         - Error handling patterns
+         - Middleware chain
+      2. Create the endpoint following discovered patterns:
+         - Route handler (thin — delegates to service layer)
+         - Input validation schema
+         - Service method with business logic
+         - Error handling with appropriate HTTP status codes
+      3. Add tests:
+         - Happy path test
+         - Validation error test
+         - At least one edge case
+      4. Update any route index/registry if the project uses one
+
+      Follow existing patterns exactly. Do not introduce new patterns or libraries.

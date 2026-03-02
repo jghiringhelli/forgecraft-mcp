@@ -1,0 +1,106 @@
+tag: UNIVERSAL
+section: skills
+skills:
+  - id: code-review
+    name: Code Review
+    filename: code-review.md
+    description: "Structured code review with checklist and severity ratings"
+    tier: core
+    content: |
+      Review the code changes in this project. For each file changed:
+
+      1. **Read** the file and understand the context
+      2. **Check** against these criteria:
+         - Correctness: Does the logic do what it claims?
+         - Security: Any injection, auth bypass, or data leak risks?
+         - Performance: Any N+1 queries, unbounded loops, or memory leaks?
+         - Readability: Are names intention-revealing? Is complexity justified?
+         - Tests: Are edge cases covered? Can tests fail?
+
+      3. **Output** findings in this format:
+         - **File**: path/to/file
+         - **Line**: number
+         - **Severity**: CRITICAL | IMPORTANT | SUGGESTION
+         - **Issue**: description
+         - **Fix**: recommended change
+
+      If $ARGUMENTS is provided, focus the review on those specific files or concerns.
+      Otherwise, review all staged or recently changed files (use `git diff --name-only`).
+
+  - id: run-tests
+    name: Run Tests
+    filename: run-tests.md
+    description: "Run test suite and analyze failures"
+    tier: core
+    content: |
+      Run the project's test suite and analyze the results.
+
+      Steps:
+      {{#if language_is_typescript}}
+      1. Run `npm test` or `npx vitest run`
+      2. If tests fail, read the failing test files and the source code they test
+      3. Identify root cause — is it a test bug or a source bug?
+      4. Propose a fix with explanation
+      {{/if}}
+      {{#if language_is_python}}
+      1. Run `pytest -v` or `python -m pytest`
+      2. If tests fail, read the failing test files and the source code they test
+      3. Identify root cause — is it a test bug or a source bug?
+      4. Propose a fix with explanation
+      {{/if}}
+
+      If $ARGUMENTS is provided, run only matching tests (e.g., a specific file or pattern).
+
+      Always report:
+      - Total tests: passed / failed / skipped
+      - Coverage summary if available
+      - Any flaky test patterns detected
+
+  - id: debug-error
+    name: Debug Error
+    filename: debug-error.md
+    description: "Investigate and fix an error from logs or stack trace"
+    tier: recommended
+    content: |
+      Debug the following error. $ARGUMENTS should contain the error message or stack trace.
+
+      Investigation steps:
+      1. Parse the error message and stack trace
+      2. Identify the source file and line number
+      3. Read the relevant source code
+      4. Trace the data flow backward to find the root cause
+      5. Check for similar patterns elsewhere in the codebase
+      6. Propose a fix with:
+         - **Root cause**: why this happened
+         - **Fix**: the code change
+         - **Prevention**: how to prevent recurrence (test, type guard, validation)
+
+      Do NOT guess. Read the actual code before proposing solutions.
+
+  - id: refactor-file
+    name: Refactor File
+    filename: refactor-file.md
+    description: "Refactor a file following SOLID principles and project conventions"
+    tier: recommended
+    content: |
+      Refactor the file specified in $ARGUMENTS following project conventions.
+
+      Analysis steps:
+      1. Read the file completely
+      2. Check against SOLID principles:
+         - **S**: Does each function/class have one responsibility?
+         - **O**: Can behavior be extended without modifying existing code?
+         - **L**: Are subtypes substitutable?
+         - **I**: Are interfaces focused?
+         - **D**: Are dependencies injected?
+      3. Check project conventions:
+         - Max function length: 50 lines
+         - Max file length: 300 lines
+         - Max parameters: 5 (use parameter object if more)
+         - Intention-revealing names, no abbreviations
+      4. Propose changes grouped by priority:
+         - MUST: Violations of project standards
+         - SHOULD: Improvements to readability/maintainability
+         - COULD: Optional enhancements
+
+      Make changes incrementally. Run tests after each change to verify nothing breaks.

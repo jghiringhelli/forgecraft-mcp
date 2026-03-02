@@ -152,6 +152,21 @@ export function renderReference(
   return sections.join("\n");
 }
 
+/**
+ * Render a skill template's content with project-specific variable substitution.
+ * Skills are written as individual `.md` files in `.claude/commands/`.
+ *
+ * @param content - Raw skill content with {{variable}} placeholders
+ * @param context - Project context for variable substitution
+ * @returns Rendered skill content ready to write to file
+ */
+export function renderSkill(
+  content: string,
+  context: RenderContext,
+): string {
+  return renderTemplate(content, context);
+}
+
 /** Dimension display order for review output. */
 const DIMENSION_ORDER: readonly ReviewDimension[] = [
   "architecture",
