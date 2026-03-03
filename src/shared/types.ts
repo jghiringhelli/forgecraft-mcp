@@ -493,4 +493,10 @@ export interface ForgeCraftConfig {
   readonly disabledHooks?: string[];
   /** Additional tags beyond auto-detected ones. */
   readonly additionalTags?: Tag[];
+  /**
+   * When true, apply compact post-processing to all generated instruction files:
+   * strips explanatory tail clauses from bullet points and deduplicates identical lines.
+   * Reduces token count by ~20-40%. Recommended for projects with 3+ tags.
+   */
+  readonly compact?: boolean;
 }

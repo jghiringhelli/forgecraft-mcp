@@ -12,7 +12,7 @@
 
 ---
 
-AI coding assistants work better with clear engineering standards. Most start with a generic instruction file — ForgeCraft replaces that with production-grade standards: SOLID principles, testing pyramids, architecture patterns, CI/CD pipelines, domain-specific rules, and quality-gate hooks — all composed from 112 curated template blocks matched to your actual stack.
+AI coding assistants work better with clear engineering standards. Most start with a generic instruction file — ForgeCraft replaces that with production-grade standards: SOLID principles, testing pyramids, architecture patterns, CI/CD pipelines, domain-specific rules, and quality-gate hooks — all composed from 116 curated template blocks matched to your actual stack.
 
 **Supports:** Claude (CLAUDE.md) · Cursor (.cursor/rules/) · GitHub Copilot (.github/copilot-instructions.md) · Windsurf (.windsurfrules) · Cline (.clinerules) · Aider (CONVENTIONS.md)
 
@@ -112,7 +112,7 @@ Tags are domain classifiers. ForgeCraft auto-detects them from your code, or you
 | `HEALTHCARE` | HIPAA, PHI handling, audit logs, encryption |
 | `MOBILE` | React Native/Flutter, offline-first, native APIs |
 | `REALTIME` | WebSockets, presence, conflict resolution |
-| `GAME` | Game loop, ECS, physics, rendering pipeline |
+| `GAME` | Game loop, ECS, Phaser 3, PixiJS, Three.js/WebGL, performance budgets |
 | `SOCIAL` | Feeds, connections, messaging, moderation |
 | `ANALYTICS` | Event tracking, dashboards, data warehousing |
 | `STATE-MACHINE` | Transitions, guards, event-driven workflows |
@@ -171,6 +171,7 @@ npx forgecraft-mcp <command> [dir] [flags]
 --tier core|recommended  Content depth (default: recommended)
 --targets claude cursor  AI assistant targets (default: claude)
 --dry-run                Preview without writing files
+--compact                Strip explanatory bullet tails and deduplicate lines (~20-40% smaller output)
 --apply                  Apply changes (for refresh)
 --language typescript    typescript | python (default: typescript)
 --scope focused          comprehensive | focused (for review)
@@ -220,6 +221,7 @@ projectName: my-api
 tags: [UNIVERSAL, API, FINTECH]
 tier: recommended
 outputTargets: [claude, cursor, copilot]  # Generate for multiple assistants
+compact: true                             # Slim output (~20-40% fewer tokens)
 
 exclude:
   - cqrs-event-patterns    # Don't need this yet
@@ -299,7 +301,7 @@ git clone https://github.com/jghiringhelli/forgecraft-mcp.git
 cd forgecraft-mcp
 npm install
 npm run build
-npm test   # 229 tests, 16 suites
+npm test   # 237 tests, 16 suites
 ```
 
 ## License

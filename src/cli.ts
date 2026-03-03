@@ -217,6 +217,7 @@ async function cmdGenerate(pos: string[], flags: Flags): Promise<void> {
     project_name: str(flags, "name") ?? "My Project",
     output_targets: (arr(flags, "targets") as OutputTarget[] | undefined) ?? ["claude"],
     merge_with_existing: bool(flags, "merge", true),
+    compact: bool(flags, "compact", false),
   });
   printResult(result);
 }
@@ -304,6 +305,7 @@ FLAGS (vary by command)
   --language <lang>      typescript | python (default: typescript)
   --scope <scope>        comprehensive | focused (for review)
   --force                Overwrite existing files
+  --compact              Strip explanatory bullet tails and deduplicate lines (~20-40% smaller output)
   --tag <tag>            Single tag filter (for add-hook)
 `);
 }

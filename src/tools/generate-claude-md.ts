@@ -13,7 +13,7 @@ import { ALL_TAGS, ALL_OUTPUT_TARGETS, OUTPUT_TARGET_CONFIGS, DEFAULT_OUTPUT_TAR
 import type { Tag, OutputTarget } from "../shared/types.js";
 import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
-import { renderInstructionFile } from "../registry/renderer.js";
+import { renderInstructionFile, type RenderOptions } from "../registry/renderer.js";
 import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
@@ -41,6 +41,10 @@ export const generateInstructionsSchema = z.object({
     .boolean()
     .default(true)
     .describe("If true, merge with existing instruction files instead of replacing. Preserves custom sections added by the user. Default: true."),
+  compact: z
+    .boolean()
+    .default(false)
+    .describe("Strip explanatory tail clauses from bullet points and deduplicate identical lines. Reduces token count by ~20-40%. Recommended for projects with 3+ tags."),
 });
 
 /** @deprecated Use generateInstructionsSchema instead. */
@@ -71,12 +75,15 @@ export async function generateInstructionsHandler(
     ? detectProjectContext(args.project_dir, args.project_name, detectedLang, tags)
     : { projectName: args.project_name, language: detectedLang, tags };
 
+  const compact = args.compact ?? userConfig?.compact ?? false;
+  const renderOpts: RenderOptions = { compact };
+
   const filesWritten: string[] = [];
   const targetSummaries: string[] = [];
 
   for (const target of targets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const content = renderInstructionFile(composed.instructionBlocks, context, target);
+    const content = renderInstructionFile(composed.instructionBlocks, context, target, renderOpts);
 
     // Write to disk if project_dir provided
     if (args.project_dir) {
@@ -109,7 +116,7 @@ export async function generateInstructionsHandler(
   }
 
   // Return content for first target only (when no project_dir)
-  const content = renderInstructionFile(composed.instructionBlocks, context, targets[0]!);
+  const content = renderInstructionFile(composed.instructionBlocks, context, targets[0]!, renderOpts);
   return {
     content: [
       {

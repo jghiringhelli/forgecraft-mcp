@@ -7,6 +7,7 @@ import {
   renderStatusMd,
   renderPrdSkeleton,
   renderTechSpecSkeleton,
+  compactifyContent,
   type RenderContext,
 } from "../../src/registry/renderer.js";
 import type { ClaudeMdBlock, NfrBlock } from "../../src/shared/types.js";
@@ -228,6 +229,56 @@ Done.`;
       const content = "Threshold: {{threshold | default: 80}}%";
       const result = renderSkill(content, makeContext());
       expect(result).toBe("Threshold: 80%");
+    });
+  });
+
+  describe("compactifyContent", () => {
+    it("strips . This explanatory tail from bullet points", () => {
+      const input = "- Use a fixed timestep. This ensures deterministic simulation.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Use a fixed timestep.");
+    });
+
+    it("strips . It tail from bullet points", () => {
+      const input = "- Cache textures. It prevents redundant GPU uploads.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Cache textures.");
+    });
+
+    it("strips . Because tail from bullet points", () => {
+      const input = "- Pool bullets. Because allocating per-frame causes GC pauses.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Pool bullets.");
+    });
+
+    it("leaves bullets without explanatory tails unchanged", () => {
+      const input = "- Never tie game logic to requestAnimationFrame directly.";
+      const result = compactifyContent(input);
+      expect(result).toBe(input);
+    });
+
+    it("leaves non-bullet lines unchanged", () => {
+      const input = "## Section Title\n\nSome paragraph. This is not a bullet.";
+      const result = compactifyContent(input);
+      expect(result).toBe(input);
+    });
+
+    it("deduplicates identical bullet lines across the content", () => {
+      const input = "- Use dependency injection.\n- Separate concerns.\n- Use dependency injection.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Use dependency injection.\n- Separate concerns.");
+    });
+
+    it("compresses 3+ consecutive blank lines to 2", () => {
+      const input = "Line A\n\n\n\nLine B";
+      const result = compactifyContent(input);
+      expect(result).toBe("Line A\n\nLine B");
+    });
+
+    it("handles content with no bullets gracefully", () => {
+      const input = "# Title\n\nParagraph text.";
+      const result = compactifyContent(input);
+      expect(result).toBe(input);
     });
   });
 });

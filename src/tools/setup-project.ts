@@ -129,7 +129,7 @@ export async function setupProjectHandler(
       continue;
     }
 
-    const content = renderInstructionFile(composed.instructionBlocks, context, target);
+    const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: config.compact });
     mkdirSync(dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, content, "utf-8");
     filesWritten.push(`${targetConfig.directory ? targetConfig.directory + "/" : ""}${targetConfig.filename}`);

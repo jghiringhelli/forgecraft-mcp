@@ -137,7 +137,7 @@ export async function refreshProjectHandler(
 
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const content = renderInstructionFile(composed.instructionBlocks, context, target);
+    const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: updatedConfig.compact });
     const outputPath = targetConfig.directory
       ? join(projectDir, targetConfig.directory, targetConfig.filename)
       : join(projectDir, targetConfig.filename);

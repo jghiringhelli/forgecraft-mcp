@@ -40,3 +40,116 @@ blocks:
       - Support input buffering: queue player inputs for a short window (2-5 frames) so that slightly early inputs still register. This dramatically improves perceived responsiveness.
       - Handle input device hotplugging gracefully. Detect controller connect/disconnect events and update the UI prompts (keyboard glyphs vs. gamepad glyphs) accordingly.
       - Implement an input replay/recording system for debugging and automated testing. Serialize input streams with frame timestamps for deterministic playback.
+
+  - id: phaser3-setup
+    tier: recommended
+    title: "Phaser 3 Project Setup"
+    content: |
+      ## Phaser 3 Project Setup
+
+      ### Bootstrap
+      - Initialize Phaser with an explicit `GameConfig`: set `type: Phaser.AUTO` so Phaser chooses WebGL then falls back to Canvas. Declare `width`, `height`, `scale.mode`, `physics`, and an explicit `scene` array.
+      - Use Vite (or Webpack 5) as the bundler. Configure asset handling for textures, audio, and tilemaps via `assetsDir` and `publicDir` so raw files remain accessible during development without being inlined.
+      - Enable `pixelArt: true` and `antialias: false` for pixel-art games to prevent bilinear blurring. Use `roundPixels: true` to snap sprites to whole pixels.
+
+      ### Scene Architecture
+      - Divide the game into discrete Scenes: `BootScene` (config/registry), `PreloadScene` (asset loading), `MenuScene`, `GameScene`, `UIScene` (HUD overlay), `PauseScene`, `GameOverScene`.
+      - Run the HUD as a parallel Scene (`this.scene.launch('UIScene')`) so it renders on top without being destroyed when the game scene restarts.
+      - Avoid god-object Scenes. Extract game logic into plain TypeScript systems/services injected via the Phaser registry (`this.registry.set('myService', instance)`).
+      - Use Phaser's `EventEmitter` (`this.events`) for intra-scene communication. Use `this.game.events` for cross-scene messaging. Never let scenes reference each other's instances directly.
+
+      ### Physics
+      - Prefer Arcade Physics for simple axis-aligned collision. Use Matter.js integration only when complex polygon shapes are required — it has a significant overhead.
+      - Define physics bodies on `create()`, not inside `update()`. Destroying and re-creating bodies every frame is expensive.
+      - Use `setCollideWorldBounds(true)` and `setMaxVelocity()` to prevent tunneling and runaway acceleration.
+
+      ### Asset Pipeline
+      - Use `this.load.atlas()` for sprite sheets; minimise the number of texture atlases to 1–2 per scene to keep GPU texture switches low.
+      - Pack atlases with TexturePacker or Shoebox. Export as JSON (Array or Hash format compatible with Phaser 3).
+      - Audio: load both `.ogg` and `.mp3` variants; Phaser picks the supported format at runtime. Use `this.sound.add()` and pool frequently played SFX.
+
+  - id: pixijs-setup
+    tier: recommended
+    title: "PixiJS Project Setup"
+    content: |
+      ## PixiJS Project Setup
+
+      ### Renderer Initialization
+      - Use `Application.init()` (PixiJS v8 async API) with an explicit config: `{ width, height, backgroundColor, antialias, resolution: window.devicePixelRatio }`. Append `app.canvas` to the DOM rather than using auto-append to keep layout control.
+      - For pixel art, set `antialias: false` and `SCALE_MODE.NEAREST` via `TextureStyle.defaultOptions.scaleMode`.
+      - Prefer `ResizePlugin` with `resizeTo: window` for full-viewport games. For fixed-resolution games, scale a `Container` root and letterbox.
+
+      ### Scene Graph
+      - Structure the display list as layered containers: `worldContainer` (tiles + entities), `fxContainer` (particles, lights), `uiContainer` (HUD, menus). Add all three to `app.stage` in order.
+      - Wrap game entities in typed display-object classes that extend `Container`. Avoid putting game logic directly in display objects — use a separate system that operates on them.
+      - Use `Container.sortableChildren = true` and manage `zIndex` only where needed. Unnecessary sorting is expensive.
+
+      ### Rendering Performance
+      - Batch identical sprites by sharing a `Texture` or `SpriteSheet`. PixiJS auto-batches draw calls when textures are identical — atlas packing is essential.
+      - Use `ParticleContainer` for large sprite populations (e.g., bullets, sparks). It bypasses the general-purpose display-object pipeline for maximum throughput.
+      - Use `RenderTexture` for expensive static backgrounds and composited UI panels — render once, display as a sprite each frame.
+      - Profile with the PixiJS DevTools browser extension. Watch `drawCalls` per frame — target < 50 for smooth 60 FPS on mid-range mobile.
+
+      ### Asset Loading
+      - Centralise all asset definitions in a manifest (`assets.ts`) and load via `Assets.loadBundle()`. Use bundles to scope assets per scene and unload on scene exit.
+      - Use `Assets.backgroundLoadBundle()` to stream assets while showing a menu. Avoid blocking the main thread during level transitions.
+
+  - id: threejs-webgl-setup
+    tier: recommended
+    title: "Three.js / WebGL Setup"
+    content: |
+      ## Three.js / WebGL Setup
+
+      ### Renderer & Scene Bootstrap
+      - Create a single `WebGLRenderer` with `{ antialias: true, powerPreference: 'high-performance' }`. Reuse it across scenes — creating multiple renderers leaks GPU contexts (browser limit is typically 8–16).
+      - Set `renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))` to cap resolution on high-DPI displays and avoid bandwidth-bound scenarios.
+      - Enable shadow maps only when needed: `renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap`. Limit shadow-casting lights to 1–2 per scene.
+      - Use `renderer.setAnimationLoop(tick)` for the render loop — it integrates with XR and handles tab visibility correctly, unlike a manual `requestAnimationFrame`.
+
+      ### Scene & Camera
+      - Keep one active `Scene` object per game level. On level transition, dispose all geometries, materials, and textures in the outgoing scene before replacing it.
+      - Use `PerspectiveCamera` for 3D games. Tune `near`/`far` clipping planes tightly — a near/far ratio > 10,000 causes z-fighting. A ratio of 1/1000 is a safe starting-point.
+      - For 2.5D or UI overlays, maintain a separate orthographic camera and render pass.
+
+      ### Geometry & Material Management
+      - Reuse `Geometry` and `Material` instances across `Mesh` objects via `instancedMesh` when drawing > 100 identical objects. `InstancedMesh` reduces draw calls from N to 1.
+      - Dispose resources explicitly: `geometry.dispose()`, `material.dispose()`, `texture.dispose()`. Three.js does not garbage-collect GPU resources automatically.
+      - Use `GLTFLoader` for 3D assets. Compress assets with `gltf-transform` using Draco (geometry) and KTX2/Basis (textures) — typically 70–90% smaller than raw GLTF.
+      - Share a single `TextureLoader` (or `LoadingManager`) across the app. Cache loaded textures in a `Map<string, THREE.Texture>` keyed by URL.
+
+      ### Lighting & Post-Processing
+      - Prefer baked lightmaps for static environments to eliminate costly real-time light calculations.
+      - Use `@react-three/postprocessing` (r3f) or `three/examples/jsm/postprocessing/EffectComposer` for bloom, SSAO, and tonemapping. Chain passes on a single composer to minimize render targets.
+      - HDR environment maps via `RGBELoader` + `PMREMGenerator` provide physically accurate image-based lighting at low runtime cost.
+
+      ### Raw Canvas / WebGL (No Framework)
+      - When authoring raw WebGL, manage shader programs as ES module string literals compiled once and cached in a `Map<string, WebGLProgram>`.
+      - Use Vertex Array Objects (VAOs) to encapsulate buffer bindings. Bind the VAO at draw time, not per-attribute setup.
+      - Use `ANGLE_instanced_arrays` (WebGL 1) or native instancing (WebGL 2) for repeated geometry.
+      - Consider `wgpu`/WebGPU for new projects targeting modern browsers — it exposes compute shaders and reduces CPU-side overhead significantly.
+
+  - id: web-game-performance
+    tier: recommended
+    title: "Web Game Performance"
+    content: |
+      ## Web Game Performance
+
+      ### JavaScript Thread Budget
+      - Target < 6ms of JavaScript CPU time per 16ms frame. Profile with Chrome DevTools Performance panel. The flame chart pinpoints expensive `update()` call stacks.
+      - Move physics calculations, pathfinding, and procedural generation to a Web Worker. Communicate via `postMessage` with `SharedArrayBuffer` or `Transferable` objects to avoid serialisation overhead.
+      - Avoid per-frame allocations: object pools for bullets, particles, and audio nodes. GC pauses at inopportune moments cause visible stutter.
+
+      ### Memory
+      - Audit GPU memory with `WEBGL_debug_renderer_info` + `getParameter`. GPU memory exhaustion silently degrades performance before crashing.
+      - Unload atlas textures on scene exit. GL textures live on the GPU until explicitly deleted — `gl.deleteTexture(tex)` or the framework's `.destroy()` / `.dispose()` equivalents.
+      - Set a target: < 256 MB JS heap for mobile web games. Use `performance.measureUserAgentSpecificMemory()` in development to track heap growth.
+
+      ### Asset Delivery
+      - Serve assets from a CDN with immutable cache headers (`Cache-Control: public, max-age=31536000, immutable`) using content-hashed filenames.
+      - Use the Compression Streams API or serve assets pre-compressed (Brotli > gzip). Atlas textures in KTX2 format (Basis Universal) reduce GPU upload time and GPU memory by 4–8× over PNG.
+      - Prefetch assets for the next level during gameplay idle periods with `fetch()` + `Cache API` rather than embedding loading screens in critical path.
+
+      ### Mobile Web
+      - Test on real mid-range Android (Snapdragon 665 class) — not just desktop Chrome DevTools emulation. GPU drivers differ significantly.
+      - Reduce canvas resolution on low-power devices: detect `navigator.hardwareConcurrency < 4` or battery level via Battery API as a proxy for device capability.
+      - Touch input: use `pointer` events (`pointerdown`, `pointermove`, `pointerup`) instead of separate mouse/touch event handlers. Add `touch-action: none` to the canvas CSS to prevent scroll hijacking.

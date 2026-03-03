@@ -123,7 +123,7 @@ export async function scaffoldProjectHandler(
   // Write instruction files for all output targets
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const content = renderInstructionFile(composed.instructionBlocks, context, target);
+    const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: userConfig?.compact });
     const outputPath = targetConfig.directory
       ? join(args.project_dir, targetConfig.directory, targetConfig.filename)
       : join(args.project_dir, targetConfig.filename);

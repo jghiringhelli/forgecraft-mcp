@@ -112,6 +112,10 @@ export const forgecraftSchema = z.object({
     .boolean()
     .optional()
     .describe("Merge with existing instruction files. Used by: generate. Default: true."),
+  compact: z
+    .boolean()
+    .optional()
+    .describe("Strip explanatory tail clauses and deduplicate bullet lines (~20-40% smaller output). Used by: generate, scaffold, refresh."),
   scope: z
     .enum(["comprehensive", "focused"])
     .optional()
@@ -222,6 +226,7 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
         project_name: args.project_name ?? "My Project",
         output_targets: args.output_targets ?? ["claude"],
         merge_with_existing: args.merge ?? true,
+        compact: args.compact ?? false,
       });
 
     case "audit":

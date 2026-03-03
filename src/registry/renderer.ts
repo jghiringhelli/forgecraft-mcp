@@ -15,7 +15,6 @@ import type {
   ReviewDimension,
   Tag,
   OutputTarget,
-  OutputTargetConfig,
 } from "../shared/types.js";
 import {
   OUTPUT_TARGET_CONFIGS,
@@ -36,6 +35,16 @@ export interface RenderContext {
   readonly [key: string]: unknown;
 }
 
+/** Options for instruction file rendering. */
+export interface RenderOptions {
+  /**
+   * Strip explanatory tail clauses from bullet points and deduplicate identical
+   * lines, reducing token count by ~20-40% at the cost of some explanatory prose.
+   * Recommended for projects with 3+ tags. Defaults to false.
+   */
+  readonly compact?: boolean;
+}
+
 /**
  * Render an instruction file from composed blocks and project context.
  * Supports all output targets (Claude, Cursor, Copilot, Windsurf, Cline, Aider).
@@ -43,15 +52,17 @@ export interface RenderContext {
  * @param blocks - Composed instruction blocks
  * @param context - Project context for variable substitution
  * @param target - Output target (defaults to "claude")
+ * @param options - Rendering options (compact mode, etc.)
  * @returns Full instruction file content as a string
  */
 export function renderInstructionFile(
   blocks: InstructionBlock[],
   context: RenderContext,
   target: OutputTarget = DEFAULT_OUTPUT_TARGET,
+  options: RenderOptions = {},
 ): string {
   const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-  const header = buildHeader(context, targetConfig);
+  const header = buildHeader(context);
   const sections: string[] = [];
 
   // Cursor .mdc files use frontmatter
@@ -67,7 +78,39 @@ export function renderInstructionFile(
     sections.push(rendered);
   }
 
-  return sections.join("\n");
+  const assembled = sections.join("\n");
+  return options.compact ? compactifyContent(assembled) : assembled;
+}
+
+/** Patterns that introduce explanatory clauses in bullet point lines. */
+const EXPLANATORY_TAIL_RE = /\.\s+(?:This|It\b|Because|These|They|Note:)\b.*$/;
+
+/**
+ * Compact post-processor for instruction file content.
+ *
+ * Strips explanatory tail clauses from bullet lines
+ * (e.g. ". This ensures X", ". Because Y", ". It prevents Z"),
+ * deduplicates identical bullet lines across the full document,
+ * and compresses excessive blank lines.
+ *
+ * Reduces token count by ~20–40% depending on tag mix.
+ *
+ * @param content - Full rendered instruction file content
+ * @returns Compacted content
+ */
+export function compactifyContent(content: string): string {
+  const seenBullets = new Set<string>();
+  const lines = content
+    .split("\n")
+    .map((line) => {
+      if (!line.startsWith("- ")) return line;
+      const stripped = line.replace(EXPLANATORY_TAIL_RE, ".");
+      if (seenBullets.has(stripped)) return null;
+      seenBullets.add(stripped);
+      return stripped;
+    })
+    .filter((line): line is string => line !== null);
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
 /**
@@ -82,25 +125,13 @@ export function renderClaudeMd(
 
 /**
  * Build the ForgeCraft metadata header for the instruction file.
- * Adapts messaging based on the output target.
+ * Intentionally minimal — a single comment line so it does not consume
+ * the AI assistant's context window.
  */
-function buildHeader(context: RenderContext, targetConfig: OutputTargetConfig): string {
+function buildHeader(context: RenderContext): string {
   const date = new Date().toISOString().split("T")[0];
-  const tagList = context.tags.map((t) => `\`${t}\``).join(", ");
-  return (
-    `<!-- ForgeCraft managed | ${date} | target: ${targetConfig.target} -->\n` +
-    `> **This project is managed by [ForgeCraft](https://github.com/jghiringhelli/forgecraft-mcp).** Generated for ${targetConfig.displayName}.\n` +
-    `> Tags: ${tagList}\n` +
-    `>\n` +
-    `> Available commands:\n` +
-    `> - \`setup_project\` — re-run full setup (detects tags, generates instruction files)\n` +
-    `> - \`refresh_project\` — detect drift, update tags/tier after project scope changes\n` +
-    `> - \`audit_project\` — score compliance, find gaps\n` +
-    `> - \`review_project\` — structured code review checklist\n` +
-    `> - \`scaffold_project\` — generate folders, hooks, docs skeletons\n` +
-    `>\n` +
-    `> Config: \`forgecraft.yaml\` | Tier system: core → recommended → optional\n`
-  );
+  const tagList = context.tags.join(", ");
+  return `<!-- ForgeCraft | ${date} | tags: ${tagList} | npx forgecraft-mcp refresh . to update -->\n`;
 }
 
 /**
