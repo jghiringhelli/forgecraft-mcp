@@ -2,7 +2,7 @@
 
 ## Last Updated: 2026-03-02
 ## Session Summary
-v0.5.1: GAME tag expanded with Phaser 3, PixiJS, Three.js/WebGL content. Compact renderer mode added. Header slimmed. 237 tests passing.
+v0.5.1: GAME tag expanded with Phaser 3, PixiJS, Three.js/WebGL content. Compact renderer mode added. Header slimmed. 237 tests passing. Published to npm + MCP Registry.
 
 ### What Changed (v0.5.1)
 1. **GAME tag — web game frameworks**: Added 4 instruction blocks (`phaser3-setup`, `pixijs-setup`, `threejs-webgl-setup`, `web-game-performance`), new `structure.yaml`, `nfr.yaml`, `review.yaml`, and 3 additional MCP servers (Playwright, Puppeteer, Filesystem) to `mcp-servers.yaml`.
@@ -10,6 +10,7 @@ v0.5.1: GAME tag expanded with Phaser 3, PixiJS, Three.js/WebGL content. Compact
 3. **Slim header**: The 12-line ForgeCraft blockquote header (with stale MCP tool names) replaced by a single 1-line HTML comment.
 4. **`ForgeCraftConfig.compact`**: New field persisted in `forgecraft.yaml`. Flows automatically through `setup`, `refresh`, and `scaffold` generation paths.
 5. **8 new tests** for `compactifyContent` in renderer test suite.
+6. **Published**: npm (`forgecraft-mcp@0.5.1`) + MCP Registry (`io.github.jghiringhelli/forgecraft` v0.5.1) + GitHub tag `v0.5.1`.
 
 ### Previous (v0.5.0)
 1. **New `src/cli.ts`**: Full CLI dispatcher — 11 subcommands, argv parser (no deps), tag fallback from `forgecraft.yaml`.
