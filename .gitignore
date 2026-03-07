@@ -10,3 +10,16 @@ coverage/
 Thumbs.db
 .mcpregistry_*
 mcp-publisher*
+
+# Temp / draft / working files (blocked by pre-commit-no-temp-files hook)
+*.tmp
+*.bak
+*.swp
+*draft*
+*unofficial*
+*wip-*
+*.dump
+*.heap
+*.cpuprofile
+junit*.xml
+test-results.*

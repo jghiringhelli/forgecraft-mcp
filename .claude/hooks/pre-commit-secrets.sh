@@ -1,5 +1,4 @@
 #!/bin/bash
-# Scan for accidentally committed secrets
 PATTERNS=(
   'AKIA[0-9A-Z]{16}'
   'password\s*=\s*["\x27][^"\x27]+'

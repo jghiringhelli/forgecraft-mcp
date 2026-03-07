@@ -6,6 +6,12 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "run_in_terminal",
+        "hook": "bash .claude/hooks/pre-exec-safety.sh"
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "create_file|write_file|edit_file|replace_string|multi_replace|create_directory",

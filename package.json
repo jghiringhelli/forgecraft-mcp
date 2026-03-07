@@ -17,6 +17,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/",
     "clean": "rimraf dist",
+    "prepare": "bash scripts/setup-hooks.sh",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [
@@ -66,6 +67,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.4",
+    "@vitest/coverage-v8": "^3.2.4",
     "rimraf": "^6.0.1",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"

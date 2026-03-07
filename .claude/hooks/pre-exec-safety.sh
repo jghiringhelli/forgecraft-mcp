@@ -1,5 +1,4 @@
 #!/bin/bash
-# Block destructive commands
 DANGEROUS_PATTERNS=(
   "rm -rf /"
   "DROP DATABASE"
