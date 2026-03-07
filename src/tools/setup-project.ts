@@ -7,8 +7,8 @@
  */
 
 import { z } from "zod";
-import { existsSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import yaml from "js-yaml";
 import { ALL_TAGS, CONTENT_TIERS, ALL_OUTPUT_TARGETS, OUTPUT_TARGET_CONFIGS, DEFAULT_OUTPUT_TARGET } from "../shared/types.js";
 import type { Tag, ContentTier, ForgeCraftConfig, OutputTarget } from "../shared/types.js";
@@ -17,6 +17,7 @@ import { checkCompleteness } from "../analyzers/completeness.js";
 import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
+import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
@@ -116,7 +117,7 @@ export async function setupProjectHandler(
 
   // ── Step 8: Generate instruction files for all targets ─────────
   const context = detectProjectContext(projectDir, projectName, detectLanguage(projectDir), finalTags, args.description);
-  const filesWritten: string[] = [];
+  const filesWritten: Array<{ path: string; action: "created" | "merged" }> = [];
 
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
@@ -124,15 +125,11 @@ export async function setupProjectHandler(
       ? join(projectDir, targetConfig.directory, targetConfig.filename)
       : join(projectDir, targetConfig.filename);
 
-    if (existsSync(outputPath)) {
-      // Preserve existing instruction files
-      continue;
-    }
-
+    const existed = existsSync(outputPath);
     const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: config.compact });
-    mkdirSync(dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, content, "utf-8");
-    filesWritten.push(`${targetConfig.directory ? targetConfig.directory + "/" : ""}${targetConfig.filename}`);
+    writeInstructionFileWithMerge(outputPath, content);
+    const displayPath = `${targetConfig.directory ? targetConfig.directory + "/" : ""}${targetConfig.filename}`;
+    filesWritten.push({ path: displayPath, action: existed ? "merged" : "created" });
   }
 
   const output = buildSetupOutput(analysis, finalTags, composed, configYaml, tier, filesWritten, outputTargets);
@@ -349,7 +346,7 @@ function buildSetupOutput(
   composed: ReturnType<typeof composeTemplates>,
   configYaml: string,
   tier: ContentTier,
-  filesWritten: string[],
+  filesWritten: Array<{ path: string; action: "created" | "merged" }>,
   outputTargets: OutputTarget[],
 ): string {
   let text = `# Project Setup Complete\n\n`;
@@ -358,12 +355,9 @@ function buildSetupOutput(
   text += `**Targets:** ${outputTargets.map((t) => OUTPUT_TARGET_CONFIGS[t].displayName).join(", ")}\n\n`;
 
   text += `## Files Written\n`;
-  text += `- forgecraft.yaml — project configuration\n`;
+  text += `- forgecraft.yaml — updated\n`;
   for (const f of filesWritten) {
-    text += `- ${f} — created\n`;
-  }
-  if (filesWritten.length === 0) {
-    text += `- (instruction files preserved — run \`npx forgecraft-mcp generate . --merge\` to update)\n`;
+    text += `- ${f.path} — ${f.action}\n`;
   }
   text += "\n";
 

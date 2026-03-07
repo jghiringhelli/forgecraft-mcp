@@ -85,18 +85,32 @@ describe("filesystem", () => {
   });
 
   describe("mergeInstructionFiles", () => {
-    it("should return generated content when no custom sections exist", () => {
-      const existing = "## Code Standards\nOld content";
-      const generated = "## Code Standards\nNew content";
+    it("preserves_existing_content_for_matching_sections", () => {
+      const existing = "## Code Standards\nHandwritten content";
+      const generated = "## Code Standards\nTemplate prose";
       const result = mergeInstructionFiles(existing, generated);
-      expect(result).toBe(generated);
+      expect(result).toContain("Handwritten content");
+      expect(result).not.toContain("Template prose");
     });
 
-    it("should preserve custom sections not in generated output", () => {
-      const existing = "## Code Standards\nGenerated content\n\n## My Custom Rules\nDo not use var.\nAlways use strict mode.";
-      const generated = "## Code Standards\nUpdated generated content";
+    it("appends_new_sections_from_generated_not_in_existing", () => {
+      const existing = "## Code Standards\nHandwritten content";
+      const generated = "## Code Standards\nTemplate prose\n\n## New Section\nBrand new content";
       const result = mergeInstructionFiles(existing, generated);
-      expect(result).toContain("Updated generated content");
+      expect(result).toContain("Handwritten content");
+      expect(result).toContain("## New Section");
+      expect(result).toContain("Brand new content");
+      expect(result).not.toContain("Template prose");
+    });
+
+    it("preserves_custom_sections_not_in_generated_output", () => {
+      const existing = "## Code Standards\nHandwritten standards\n\n## My Custom Rules\nDo not use var.\nAlways use strict mode.";
+      const generated = "## Code Standards\nTemplate prose";
+      const result = mergeInstructionFiles(existing, generated);
+      // Existing section wins over template prose
+      expect(result).toContain("Handwritten standards");
+      expect(result).not.toContain("Template prose");
+      // Custom-only section preserved
       expect(result).toContain("## My Custom Rules");
       expect(result).toContain("Do not use var.");
       expect(result).toContain("Always use strict mode.");
@@ -110,11 +124,14 @@ describe("filesystem", () => {
       expect(result).toContain("## Team Conventions");
     });
 
-    it("should not duplicate sections that exist in both", () => {
-      const existing = "## Code Standards\nOld\n\n## Testing\nOld tests";
-      const generated = "## Code Standards\nNew\n\n## Testing\nNew tests";
+    it("existing_wins_when_sections_present_in_both", () => {
+      const existing = "## Code Standards\nHandwritten\n\n## Testing\nHandwritten tests";
+      const generated = "## Code Standards\nTemplate\n\n## Testing\nTemplate tests";
       const result = mergeInstructionFiles(existing, generated);
-      expect(result).toBe(generated);
+      expect(result).toContain("Handwritten");
+      expect(result).toContain("Handwritten tests");
+      expect(result).not.toContain("Template\n");
+      expect(result).not.toContain("Template tests");
     });
   });
 
@@ -125,14 +142,21 @@ describe("filesystem", () => {
       expect(readFileSync(filePath, "utf-8")).toBe("## Standards\nContent");
     });
 
-    it("should preserve custom sections when file exists", () => {
+    it("preserves_existing_content_and_appends_new_generated_sections", () => {
       const filePath = join(tempDir, "CLAUDE.md");
-      writeFileSync(filePath, "## Standards\nOld\n\n## My Custom\nKeep this");
-      writeInstructionFileWithMerge(filePath, "## Standards\nNew");
+      writeFileSync(filePath, "## Standards\nHandwritten\n\n## My Custom\nKeep this");
+      // Generated has updated Standards (should NOT overwrite) and a new section
+      writeInstructionFileWithMerge(filePath, "## Standards\nTemplate\n\n## New Section\nNewly added");
       const result = readFileSync(filePath, "utf-8");
-      expect(result).toContain("## Standards\nNew");
+      // Existing content wins
+      expect(result).toContain("Handwritten");
+      expect(result).not.toContain("Template");
+      // Custom section preserved
       expect(result).toContain("## My Custom");
       expect(result).toContain("Keep this");
+      // New generated section appended
+      expect(result).toContain("## New Section");
+      expect(result).toContain("Newly added");
     });
 
     it("should create parent directories", () => {

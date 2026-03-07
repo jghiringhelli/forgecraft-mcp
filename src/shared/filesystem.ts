@@ -73,59 +73,86 @@ export function checkGitSafety(projectDir: string): string | null {
 }
 
 /**
- * Merge a generated instruction file with an existing one.
- * Preserves any custom sections (## or ###) from the existing file
- * that are not present in the generated output.
+ * Block represents a single header + body pair parsed from a Markdown file.
+ * The preamble (content before the first header) uses an empty string as header.
+ */
+type Block = { header: string; body: string };
+
+/**
+ * Parse a Markdown file into sequential Block objects.
+ * Each `## ` or `### ` heading starts a new block.
  *
- * @param existing - Current file content with possible user-added sections
- * @param generated - Newly generated content from ForgeCraft
- * @returns Merged content with custom sections appended
+ * @param text - Raw Markdown content
+ * @returns Ordered array of blocks
+ */
+function parseBlocks(text: string): Block[] {
+  const blocks: Block[] = [];
+  const lines = text.split("\n");
+  let header = "";
+  const bodyLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("## ") || line.startsWith("### ")) {
+      blocks.push({ header, body: bodyLines.join("\n") });
+      header = line.trim();
+      bodyLines.length = 0;
+    } else {
+      bodyLines.push(line);
+    }
+  }
+  blocks.push({ header, body: bodyLines.join("\n") });
+  return blocks;
+}
+
+/**
+ * Merge a generated instruction file with an existing one.
+ *
+ * **Merge direction**: the existing file always wins.
+ * - All sections present in the existing file are kept as-is.
+ * - Sections present only in the generated output (genuinely new additions)
+ *   are appended at the end.
+ * - Sections present only in the existing file (user-written custom content)
+ *   are preserved unchanged.
+ *
+ * This ensures a handwritten CLAUDE.md is never overwritten by template prose.
+ *
+ * @param existing - Current file content (user-owned, takes priority)
+ * @param generated - Newly generated content from ForgeCraft (provides new sections only)
+ * @returns Merged content where existing always wins
  */
 export function mergeInstructionFiles(
   existing: string,
   generated: string,
 ): string {
-  const existingLines = existing.split("\n");
-  const generatedLines = generated.split("\n");
+  const existingBlocks = parseBlocks(existing);
+  const generatedBlocks = parseBlocks(generated);
 
-  const generatedHeaders = new Set(
-    generatedLines
-      .filter((l) => l.startsWith("## ") || l.startsWith("### "))
-      .map((l) => l.trim()),
+  const existingHeaders = new Set(existingBlocks.map((b) => b.header));
+
+  // Start from the full existing content
+  const parts: string[] = existingBlocks.map((b) =>
+    b.header ? `${b.header}\n${b.body}`.trimEnd() : b.body.trimEnd(),
   );
 
-  const customSections: string[] = [];
-  let inCustomSection = false;
-  let currentSection: string[] = [];
+  // Append only sections that are genuinely new (not present in existing)
+  const newSections = generatedBlocks.filter(
+    (b) => b.header !== "" && !existingHeaders.has(b.header),
+  );
 
-  for (const line of existingLines) {
-    if (line.startsWith("## ") || line.startsWith("### ")) {
-      if (inCustomSection && currentSection.length > 0) {
-        customSections.push(currentSection.join("\n"));
-      }
-      inCustomSection = !generatedHeaders.has(line.trim());
-      currentSection = inCustomSection ? [line] : [];
-    } else if (inCustomSection) {
-      currentSection.push(line);
+  if (newSections.length > 0) {
+    logger.info("Adding new sections from template during merge", {
+      sectionCount: newSections.length,
+      headers: newSections.map((s) => s.header),
+    });
+    for (const section of newSections) {
+      parts.push(`${section.header}\n${section.body}`.trimEnd());
     }
   }
 
-  if (inCustomSection && currentSection.length > 0) {
-    customSections.push(currentSection.join("\n"));
-  }
-
-  if (customSections.length > 0) {
-    logger.info("Preserving custom sections during merge", {
-      sectionCount: customSections.length,
-    });
-    return (
-      generated +
-      "\n\n<!-- Custom Sections (preserved from previous file) -->\n\n" +
-      customSections.join("\n\n")
-    );
-  }
-
-  return generated;
+  return parts
+    .filter((p) => p.trim().length > 0)
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n");
 }
 
 /**
