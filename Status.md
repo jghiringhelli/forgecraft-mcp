@@ -1,14 +1,17 @@
 # Status.md
 
-## Last Updated: 2026-03-07 (Session 3)
+## Last Updated: 2026-03-08 (Session 4)
 
 ## Session Summary
-- Implemented Generative Specification methodology (ADR-0001): `src/core/`, `src/artifacts/`, `src/validators/`
-- Fixed `mergeInstructionFiles()` merge direction — existing content now wins over template prose
-- Updated 4 filesystem tests to reflect the new semantics; added 57 new genspec tests
-- Restored compact CLAUDE.md (85 lines) after `generate_instructions` overwrote it
-- Fixed `setup_project` skip-vs-merge inconsistency (merged into dist)
-- Total: 295 tests passing, 0 TypeScript errors, clean build
+- Added domain Playbook system: tag-specific, multi-phase, ordered agent workflow templates
+- New types: `PlaybookStep`, `PlaybookPhase`, `PlaybookTemplate` in `src/shared/types.ts`
+- `loader.ts` and `composer.ts` extended to load and collect playbooks
+- New handler: `src/tools/get-playbook.ts` — renders playbooks with phase filter support
+- Wired into `get_reference` dispatch in `forgecraft-router.ts` (`resource: "playbook"`)
+- `templates/fintech/playbook.yaml` — 6-phase quant model pipeline (formula research → simulation → handoff)
+- `templates/game/playbook.yaml` — 5-phase game sim + art pipeline (mechanics → headless sim → art gen)
+- 12 new tests in `tests/tools/get-playbook.test.ts`
+- Total: 307 tests passing, 0 TypeScript errors, clean build
 
 ## Feature Tracker
 | Feature | Status | Branch | Notes |
@@ -21,6 +24,7 @@
 | Spec validators | ✅ Done | main | validateSpecs, checkComposition |
 | Genspec tests | ✅ Done | main | 57 new tests |
 | mergeInstructionFiles fix | ✅ Done | main | Existing content wins |
+| Domain Playbook system | ✅ Done | main | FINTECH (6 phases) + GAME (5 phases); on-demand via get_reference |
 
 ## Known Bugs
 | ID | Description | Severity | Status |
