@@ -22,6 +22,7 @@ import type {
   ReviewTemplate,
   McpServersTemplate,
   ReferenceTemplate,
+  PlaybookTemplate,
   ForgeCraftConfig,
 } from "../shared/types.js";
 
@@ -116,6 +117,7 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
   let review: ReviewTemplate | undefined;
   let mcpServers: McpServersTemplate | undefined;
   let reference: ReferenceTemplate | undefined;
+  let playbook: PlaybookTemplate | undefined;
 
   // Load instructions.yaml (formerly claude-md.yaml)
   const instructionsPath = join(tagDir, "instructions.yaml");
@@ -175,7 +177,13 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
     reference = loadYamlFile<ReferenceTemplate>(referencePath);
   }
 
-  return { tag, instructions, nfr, structure, hooks, skills, review, mcpServers, reference };
+  // Load playbook.yaml (on-demand expert workflow sequences, not included in instruction files)
+  const playbookPath = join(tagDir, "playbook.yaml");
+  if (existsSync(playbookPath)) {
+    playbook = loadYamlFile<PlaybookTemplate>(playbookPath);
+  }
+
+  return { tag, instructions, nfr, structure, hooks, skills, review, mcpServers, reference, playbook };
 }
 
 /**

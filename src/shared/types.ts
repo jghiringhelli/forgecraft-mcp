@@ -364,6 +364,64 @@ export interface ReviewDimensionOutput {
   readonly checklist: ReviewChecklistItem[];
 }
 
+// ── Playbook Types ──────────────────────────────────────────────────
+
+/**
+ * A single step inside a playbook phase.
+ *
+ * Each step is one agent action: a command to run, a question to research,
+ * a diagram to produce, etc. Steps are ordered and may carry expected outputs
+ * so the agent knows what "done" looks like before proceeding.
+ */
+export interface PlaybookStep {
+  /** Short unique label within the phase (e.g., "research-formulas"). */
+  readonly id: string;
+  /** One-line instruction for the agent. Imperative mood. */
+  readonly instruction: string;
+  /** What the agent should produce before continuing to the next step. */
+  readonly expected_output?: string;
+  /** Agent tool(s) best suited for this step (informational). */
+  readonly tools?: string[];
+  /** Content tier — omit = core, always run. */
+  readonly tier?: ContentTier;
+}
+
+/**
+ * A phase groups a set of related steps under a named stage.
+ *
+ * Phases are sequential — the agent completes all steps in phase N before
+ * starting phase N+1.
+ */
+export interface PlaybookPhase {
+  /** Short identifier, e.g. "model-research" or "balance-simulation". */
+  readonly id: string;
+  /** Human-readable heading for the phase. */
+  readonly title: string;
+  /** One-sentence rationale: why this phase exists. */
+  readonly rationale: string;
+  /** Ordered steps within this phase. */
+  readonly steps: PlaybookStep[];
+}
+
+/**
+ * A playbook is a tag-specific, ordered sequence of agent phases
+ * that encode domain expert workflow knowledge.
+ *
+ * Playbooks are **on-demand** (like reference.yaml) — they are never
+ * emitted into instruction files automatically. They are fetched
+ * explicitly via `get_reference { resource: "playbook" }`.
+ */
+export interface PlaybookTemplate {
+  readonly tag: Tag;
+  readonly section: "playbook";
+  /** Short title for the playbook (shown in listings). */
+  readonly title: string;
+  /** One-paragraph description of when and why to run this playbook. */
+  readonly description: string;
+  /** Ordered phases that constitute this playbook. */
+  readonly phases: PlaybookPhase[];
+}
+
 /** Complete template set for a tag. */
 export interface TagTemplateSet {
   readonly tag: Tag;
@@ -375,6 +433,7 @@ export interface TagTemplateSet {
   readonly review?: ReviewTemplate;
   readonly mcpServers?: McpServersTemplate;
   readonly reference?: ReferenceTemplate;
+  readonly playbook?: PlaybookTemplate;
   /**
    * @deprecated Use `instructions` instead. Alias kept for backward compatibility.
    */

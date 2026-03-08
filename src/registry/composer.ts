@@ -17,6 +17,7 @@ import type {
   SkillTemplate,
   ReviewBlock,
   ReferenceBlock,
+  PlaybookTemplate,
   ContentTier,
   ForgeCraftConfig,
 } from "../shared/types.js";
@@ -48,6 +49,8 @@ export interface ComposedTemplates {
   readonly skills: SkillTemplate[];
   readonly reviewBlocks: ReviewBlock[];
   readonly referenceBlocks: ReferenceBlock[];
+  /** Playbooks for each active tag that has one. On-demand expert workflow sequences. */
+  readonly playbooks: PlaybookTemplate[];
   /**
    * @deprecated Use `instructionBlocks` instead. Alias for backward compatibility.
    */
@@ -128,6 +131,7 @@ export function composeTemplates(
   const skills: SkillTemplate[] = [];
   const reviewBlocks: ReviewBlock[] = [];
   const referenceBlocks: ReferenceBlock[] = [];
+  const playbooks: PlaybookTemplate[] = [];
 
   const seenBlockIds = new Set<string>();
   const seenPaths = new Set<string>();
@@ -230,6 +234,11 @@ export function composeTemplates(
         }
       }
     }
+
+    // Collect playbooks (one per tag, on-demand — no deduplication needed)
+    if (templateSet.playbook) {
+      playbooks.push(templateSet.playbook);
+    }
   }
 
   logger.info("Templates composed", {
@@ -242,6 +251,7 @@ export function composeTemplates(
     skills: skills.length,
     reviewBlocks: reviewBlocks.length,
     referenceBlocks: referenceBlocks.length,
+    playbooks: playbooks.length,
   });
 
   return {
@@ -252,6 +262,7 @@ export function composeTemplates(
     skills,
     reviewBlocks,
     referenceBlocks,
+    playbooks,
     // Backward-compat alias
     claudeMdBlocks: instructionBlocks,
   };

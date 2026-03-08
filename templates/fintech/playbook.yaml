@@ -1,0 +1,210 @@
+tag: FINTECH
+section: playbook
+title: "Quantitative Model Development Pipeline"
+description: >
+  A structured, agent-driven pipeline for building production-grade financial models.
+  Covers formula research and selection, state-machine design, parametrization,
+  heuristic search with pruning, and simulation with insight distillation.
+  Run this playbook before writing any pricing, risk, or execution model code.
+
+phases:
+
+  - id: formula-research
+    title: "Formula Research & Selection"
+    rationale: >
+      The agent must survey the domain literature first — using web search, arxiv,
+      and internal docs — before choosing a model. Committing to the wrong formula
+      is the most expensive mistake in quant work.
+    steps:
+      - id: enumerate-candidates
+        instruction: >
+          Search academic and industry sources for all formulas/models relevant
+          to the problem domain (e.g., pricing, risk, signal generation).
+          Produce a candidate list with: name, formula notation, assumptions, and original source.
+        expected_output: "Markdown table: Name | Formula | Key Assumptions | Source"
+        tools: ["web_search", "fetch_webpage"]
+
+      - id: evaluate-candidates
+        instruction: >
+          Score each candidate on: mathematical tractability, data requirements,
+          known failure modes, computational cost, and regulatory acceptability.
+          Eliminate candidates that fail hard constraints (e.g., negative price assumption).
+        expected_output: "Scored comparison table; candidates ranked with pass/fail on hard constraints"
+        tools: ["web_search"]
+
+      - id: select-and-justify
+        instruction: >
+          Select the winning formula. Write a one-page justification covering:
+          why it beats alternatives, what it assumes, and what conditions would
+          invalidate it. This becomes ADR content.
+        expected_output: "ADR draft with title, status=Proposed, context, decision, consequences"
+
+  - id: state-machine-design
+    title: "State Machine Design"
+    rationale: >
+      Financial workflows (order lifecycle, position states, settlement stages)
+      are inherently state machines. Formalising them before code prevents
+      impossible state transitions, race conditions, and audit gaps.
+    steps:
+      - id: enumerate-states
+        instruction: >
+          List every possible state for the entity (e.g., order: NEW, PENDING, PARTIALLY_FILLED,
+          FILLED, CANCELLED, REJECTED, EXPIRED). For each state, describe: what it means,
+          who/what causes entry, and what invariants must hold while in this state.
+        expected_output: "States table: State | Entry Condition | Invariants | Exit Triggers"
+
+      - id: enumerate-transitions
+        instruction: >
+          For each state, enumerate all valid transitions and the events/guards that trigger them.
+          Mark transitions that require idempotency guarantees or external settlement confirmation.
+        expected_output: "Transition table: From | Event | Guard | To | Side Effects"
+
+      - id: draw-diagram
+        instruction: >
+          Generate a Mermaid stateDiagram-v2 diagram from the state and transition tables.
+          Include notes on parallel states or guard conditions where relevant.
+        expected_output: "Mermaid stateDiagram-v2 code block that compiles without errors"
+        tools: ["run_in_terminal"]
+
+      - id: validate-completeness
+        instruction: >
+          Verify the diagram satisfies: (1) no dead-end states except terminal ones,
+          (2) every state reachable from the initial state, (3) every external event handled.
+          Flag any gaps.
+        expected_output: "Completeness checklist: pass/fail per criterion; gaps listed"
+
+  - id: parametrization
+    title: "Model Parametrization"
+    rationale: >
+      Hard-coded constants are a maintenance liability and a back-test overfitting risk.
+      Every numeric knob must be named, typed, range-validated, and externally configurable.
+    steps:
+      - id: extract-parameters
+        instruction: >
+          From the selected formula and state machine, extract every numeric constant
+          or threshold. For each: name it, specify its type (rate, multiplier, count,
+          duration), its valid range, and its economic meaning.
+        expected_output: "Parameter registry table: Name | Type | Valid Range | Default | Meaning"
+
+      - id: design-config-schema
+        instruction: >
+          Define a Zod (or Pydantic) schema for the full parameter set.
+          Include range validators, cross-parameter constraints (e.g., stop_loss < take_profit),
+          and environment-specific override docs.
+        expected_output: "Schema source file with all validators and inline JSDoc"
+
+      - id: sensitivity-matrix
+        instruction: >
+          For each parameter, estimate first-order sensitivity: how much does the model
+          output change for a ±10% change in the parameter? Identify the top 3 most
+          sensitive parameters — these need the tightest validation and monitoring.
+        expected_output: "Sensitivity table: Parameter | Δ+10% impact | Δ-10% impact | Risk rank"
+
+  - id: heuristic-search
+    title: "Heuristic Search with Pruning"
+    rationale: >
+      Exhaustive grid search over parameter space is computationally prohibitive.
+      Structured heuristic search (Bayesian optimisation, evolutionary algorithms,
+      or domain-guided hill climbing) with aggressive pruning finds good solutions
+      orders of magnitude faster.
+    steps:
+      - id: define-objective
+        instruction: >
+          Define the objective function: what scalar metric are we optimising?
+          (Sharpe ratio, max drawdown %, expected profit per unit risk, etc.)
+          Document: formula, units, whether higher or lower is better, and any
+          multi-objective tradeoff weights.
+        expected_output: "Objective function definition with formula, direction, and tradeoff weights"
+
+      - id: select-search-strategy
+        instruction: >
+          Choose a search strategy appropriate to parameter count and evaluation cost:
+          - ≤5 params, cheap eval → exhaustive grid or random search
+          - ≤15 params → Bayesian optimisation (optuna, hyperopt)
+          - >15 params or expensive eval → evolutionary (CMA-ES, NSGA-II)
+          Justify the choice and configure the initial seed and budget.
+        expected_output: "Strategy selection with justification and search budget (eval count)"
+
+      - id: implement-pruning
+        instruction: >
+          Implement pruning callbacks that abort parameter sets early if:
+          (1) intermediate metrics fall below a floor threshold,
+          (2) required constraints are violated (e.g., max drawdown breached before run ends).
+          Log all pruned candidates with their termination reason.
+        expected_output: "Pruning callback code + test showing early termination fires correctly"
+        tools: ["run_in_terminal"]
+
+      - id: run-search
+        instruction: >
+          Execute the heuristic search. Checkpoint results every N evaluations.
+          Produce: top-10 parameter sets by objective score, pruning rate, and
+          the marginal gain curve (how much did adding more evaluations help?).
+        expected_output: "Search results: top-10 table, pruning rate %, convergence plot data"
+        tools: ["run_in_terminal"]
+
+  - id: simulation-and-distillation
+    title: "Simulation & Insight Distillation"
+    rationale: >
+      Optimised parameters must be stress-tested against edge cases and adverse scenarios
+      before deployment. Simulations should produce compact, decision-relevant summaries —
+      not raw data dumps.
+    steps:
+      - id: define-scenarios
+        instruction: >
+          Define the simulation scenario set: at minimum, include (1) historical base case,
+          (2) fat-tail / crisis scenario (2008, 2020-03, etc.), (3) low-liquidity scenario,
+          (4) mean-reversion failure scenario. Add domain-specific stress scenarios.
+        expected_output: "Scenario catalogue: Name | Description | Key parameter overrides"
+
+      - id: run-simulations
+        instruction: >
+          Run Monte Carlo or historical replay simulations for each scenario using the
+          top-3 parameter sets from the search phase. Use at least 10,000 paths where
+          stochastic. Record: P&L distribution, max drawdown, Sharpe, Sortino, hit rate,
+          and worst consecutive loss streak.
+        expected_output: "Per-scenario stats table for each of the top-3 parameter sets"
+        tools: ["run_in_terminal"]
+
+      - id: distill-insights
+        instruction: >
+          From simulation results, extract the 5–7 most important insights.
+          For each: state the insight in one sentence, the evidence from the data,
+          and the actionable implication for deployment (e.g., reduce position size in
+          low-liquidity regimes). Discard raw data; keep only insights.
+        expected_output: "Insight list: Insight | Evidence | Deployment Implication"
+
+      - id: define-guardrails
+        instruction: >
+          From the simulation results, define production guardrails as concrete,
+          machine-checkable conditions: circuit breakers (halt if drawdown > X%),
+          position size limits per regime, and anomaly alerts (volume spike, spread widening).
+          These become config values in the parameter schema.
+        expected_output: "Guardrails config additions + monitoring alert definitions"
+
+  - id: implementation-handoff
+    title: "Implementation Handoff"
+    rationale: >
+      All upstream artefacts (ADR, schema, state machine, guardrails) must be in place
+      before a line of production code is written. This phase locks the specification.
+    steps:
+      - id: finalize-adr
+        instruction: >
+          Promote the ADR draft from Proposed → Accepted. Add a summary of the
+          simulation results that confirms the decision. Record the parameter set
+          selected for deployment.
+        expected_output: "docs/adrs/NNNN-<model-name>.md with Status: Accepted"
+
+      - id: write-acceptance-tests
+        instruction: >
+          Translate the simulation guardrails and state machine transitions into
+          acceptance tests. These must pass before any code is merged to main.
+          Tests should use the production Zod/Pydantic schema for inputs.
+        expected_output: "Test file with at minimum: 1 test per state transition + 1 per guardrail"
+        tools: ["run_in_terminal"]
+
+      - id: checklist-sign-off
+        instruction: >
+          Verify all items are complete: ADR accepted, schema merged, state machine
+          diagram committed, acceptance tests green, simulation results committed to
+          docs/simulations/. Only then is implementation cleared to start.
+        expected_output: "Sign-off checklist: all items checked"

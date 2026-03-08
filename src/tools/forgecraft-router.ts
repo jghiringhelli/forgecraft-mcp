@@ -23,6 +23,7 @@ import { addModuleHandler } from "./add-module.js";
 import { configureMcpHandler } from "./configure-mcp.js";
 import { getNfrTemplateHandler } from "./get-nfr.js";
 import { getDesignReferenceHandler } from "./get-reference.js";
+import { getPlaybookHandler } from "./get-playbook.js";
 import { convertExistingHandler } from "./convert.js";
 import { reviewProjectHandler } from "./review.js";
 import { refreshProjectHandler } from "./refresh-project.js";
@@ -47,7 +48,7 @@ const ACTIONS = [
 type Action = (typeof ACTIONS)[number];
 
 const LIST_RESOURCES = ["tags", "hooks", "skills"] as const;
-const REFERENCE_RESOURCES = ["nfr", "design_patterns"] as const;
+const REFERENCE_RESOURCES = ["nfr", "design_patterns", "playbook"] as const;
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export const forgecraftSchema = z.object({
       "Operation to perform: refresh (re-sync project), scaffold (generate structure), " +
       "generate (instruction files only), audit (check standards), review (code review checklist), " +
       "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
-      "configure_mcp, get_reference (design patterns/NFR), convert (migration plan).",
+      "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan).",
     ),
   project_dir: z
     .string()
@@ -314,9 +315,11 @@ async function dispatchGetReference(args: ForgecraftArgs): Promise<ToolResult> {
       return getNfrTemplateHandler({ tags });
     case "design_patterns":
       return getDesignReferenceHandler({ tags });
+    case "playbook":
+      return getPlaybookHandler({ tags, phase: args.name });
     default:
       return errorResult(
-        `Invalid resource '${resource}' for get_reference action. Use: nfr or design_patterns.`,
+        `Invalid resource '${resource}' for get_reference action. Use: nfr, design_patterns, or playbook.`,
       );
   }
 }
