@@ -398,3 +398,76 @@ blocks:
       When I correct your output, record the correction pattern here so you don't repeat it.
       ### Learned Corrections
       - [AI assistant appends corrections here with date and description]
+
+  - id: test-taxonomy
+    tier: recommended
+    title: "Test Taxonomy"
+    content: |
+      ## Testing Architecture
+
+      ### Test Types by Scope and Purpose
+      Listed from fastest/most-isolated to slowest/most-integrated:
+
+      | Type | Description | Tooling |
+      |---|---|---|
+      | **Unit — Solitary** | Single unit; mock all collaborators. | Jest, Vitest, pytest |
+      | **Unit — Sociable** | Single unit; allow fast non-I/O collaborators (no mocking real logic). | Jest, Vitest, pytest |
+      | **Integration — Narrow (DB)** | Exercise one layer against a real local DB; no external services. | Testcontainers, SQLite, in-process Postgres |
+      | **Integration — Service** | Service + stubs for external deps via WireMock or equivalent. | WireMock, Wiremock-rs, msw |
+      | **Contract / Consumer-Driven (CDC)** | Consumer writes pact file; provider verifies. Prevents API breakage without full E2E infra. | Pact, Spring Cloud Contract |
+      | **API / Subcutaneous** | HTTP or WebSocket layer below the UI; tests the full request-response cycle without browser. | Supertest, Playwright APIRequestContext, httpx |
+      | **Acceptance / BDD** | Given-When-Then; orthogonal to pyramid — level is a performance choice, not semantic. | Cucumber, behave, should-style assertions |
+      | **E2E** | Full user flows in a real browser. Keep minimal — expensive and brittle. Reserve for highest-value journeys. | Playwright, Cypress |
+      | **Visual Regression** | Pixel-diff baseline + LLM visual analysis for judgment-requiring defects. | Percy, Chromatic, Playwright snapshots |
+      | **Smoke** | Deployed environment only. Strictly happy-path. Binary pass/fail deploy gate. | Playwright, custom health check suite |
+      | **Regression** | Discipline: full suite green before merge. Not a test type — a required gate. | All layers |
+      | **Security — SAST** | Static analysis at commit: code pattern scanning and dep vulnerability scanning. | Semgrep, SonarQube, ESLint security plugins, npm audit, Snyk |
+      | **Security — DAST** | Dynamic analysis at staging: automated attack surface probing. | OWASP ZAP, Burp Suite |
+      | **Security — Penetration** | Adversarial session at release candidate gate; OWASP Top 10 coverage. | Manual + OWASP ZAP, Burp Suite |
+      | **Mutation** | Tests the tests: injects code mutations and verifies the suite catches them. Tracked at PR; required above threshold at RC. | Stryker (JS), PIT (Java), mutmut (Python) |
+      | **Property-Based / Fuzz** | Auto-generates input space against stated invariants. Fuzzing is the adversarial variant. | fast-check (JS), Hypothesis (Python) |
+      | **Accessibility / a11y** | WCAG 2.1 AA. Automated at PR; full manual audit at RC. | axe-core, Playwright @axe-core, Lighthouse |
+      | **Performance: Load / Stress / Soak** | At staging. Required before production on systems with SLAs. | k6, Locust, Gatling |
+      | **Chaos / Resilience** | Random fault injection against deployed environment; named resilience contracts. | Toxiproxy, ChaosMesh, custom fault injection |
+      | **Exploratory** | Manual, session-based, scheduled. Charter-driven. Findings become regression tests. | Manual + session notes |
+
+      ### Variant Coverage Dimensions
+      For each test scope, the following input/condition variants are required:
+
+      - **Happy path** — nominal, valid inputs. Necessary but never sufficient.
+      - **Sad / Negative path** — correct rejection of invalid input or sequences.
+      - **Edge case / BVA** — boundary values: max, min, empty, null, type coercions.
+      - **Corner case** — intersection of two or more simultaneous edge conditions. Requires explicit enumeration.
+      - **State transition** — valid and invalid state machine transitions. Requires a state diagram as prerequisite.
+      - **Equivalence partitioning** — one representative from each equivalence class. Reduces test count without reducing coverage.
+      - **Error path** — infrastructure/dependency failure: timeout, 500, DB refused, queue full — conditions the user did not cause.
+      - **Security / Adversarial input** — SQL injection, XSS, path traversal, oversized payloads, malformed tokens. Required at every layer touching user-supplied data.
+      - **Random / Monkey** — unstructured random input. Subsumed by property-based layer.
+
+      **Variant coverage matrix** (✓ = required, ~ = structural constraint, — = not applicable):
+
+      | Variant | Unit | Integration | Contract | API | E2E | Smoke | Chaos |
+      |---|---|---|---|---|---|---|---|
+      | Happy path | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+      | Sad / Negative | ✓ | ✓ | ✓ | ✓ | ~ | ~ happy-path only | — |
+      | Edge / BVA | ✓ | ✓ | — | ✓ | — | — | — |
+      | Corner case | ✓ | — | — | ✓ | — | — | — |
+      | State transition | ✓ | ✓ | — | ✓ | ✓ | — | — |
+      | Equivalence partition | ✓ | — | — | ✓ | — | — | — |
+      | Error path | ✓ | ✓ | — | ✓ | — | — | ✓ |
+      | Security / Adversarial | — | — | — | ✓ | — | — | ~ always adversarial |
+      | Random / Monkey | via property-based | — | — | — | — | — | ✓ |
+
+      ### Test Pipeline Mapping
+      Each trigger gate accumulates the prior gates. A gate may not be skipped.
+
+      | Trigger | Gate Contents | Target Duration |
+      |---|---|---|
+      | **File save** | Unit only | ~seconds |
+      | **git commit / push** | Unit + integration + SAST + dependency scan + lint + regression gate | ~2–5 min |
+      | **Pull request** | All prior + contract + API/subcutaneous + E2E (core flows) + acceptance + visual regression + a11y (automated) + property-based | ~10–20 min |
+      | **Deploy to staging** | Smoke → DAST → performance baseline → chaos/resilience | ~45–60 min |
+      | **Release candidate** | All layers blocking + penetration test + full a11y audit + mutation score gate + compatibility matrix | Per schedule |
+      | **Production deploy** | Canary deploy + synthetic monitoring + A/B if applicable | Continuous |
+
+      > Mutation score gate: minimum 70% at PR, 80% at RC on changed code. Stryker/mutmut reports block promotion below threshold.

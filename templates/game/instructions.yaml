@@ -153,3 +153,57 @@ blocks:
       - Test on real mid-range Android (Snapdragon 665 class) — not just desktop Chrome DevTools emulation. GPU drivers differ significantly.
       - Reduce canvas resolution on low-power devices: detect `navigator.hardwareConcurrency < 4` or battery level via Battery API as a proxy for device capability.
       - Touch input: use `pointer` events (`pointerdown`, `pointermove`, `pointerup`) instead of separate mouse/touch event handlers. Add `touch-action: none` to the canvas CSS to prevent scroll hijacking.
+
+  - id: game-testing
+    tier: recommended
+    title: "Game & Interactive Testing Patterns"
+    content: |
+      ## Game & Interactive Testing Patterns
+
+      ### Expose-Store-to-Window (E2E Layer)
+      In the test environment, expose the application state store to `window`:
+      ```typescript
+      if (import.meta.env.TEST) window.__STORE__ = store;
+      ```
+      The Playwright driver then asserts not only what renders but what the application believes is true — the store's internal state. Catches failures that render correctly but corrupt state silently. Required on all game and real-time UI projects.
+
+      ### Vertical Chain Test Pattern
+      A single UI action triggers Playwright, which sequentially queries:
+      1. Service layer response (API or game service object)
+      2. Store / state manager internal state
+      3. Affected database records or in-memory structures
+      4. Rendered UI output
+
+      This is not a unit test and not a flow test — it is a chain verification. One trigger, observed at every boundary it crosses. Specify in CLAUDE.md which critical flows (combat resolution, save/load, transaction) receive this treatment.
+
+      ### Generative Asset Quality Gates — Visual
+      When visual assets are produced by AI pipelines, assert before bundle inclusion:
+
+      | Check | Mechanism | Default Threshold |
+      |---|---|---|
+      | **Geometric orientation** | PCA on sprite silhouette pixels; extract principal axis angle from vertical | ≤ 15° |
+      | **Pixel coverage ratio** | Sprite fills acceptable proportion of bounding box | ≥ 0.40 |
+      | **Symmetry** | Pixel-level left/right half similarity after horizontal flip; normalized 0–1 | ≥ 0.80 |
+      | **Background cleanliness** | Non-background pixel ratio in border region | ≤ 0.30 |
+      | **Color palette compliance** | Generated asset matches scene-defined palette range (histogram comparison) | Per spec |
+      | **Alpha mask correctness** | No opaque pixels in defined transparent zones | Zero violations |
+      | **Dimension compliance** | Output matches required sprite sheet grid dimensions exactly | ± 0 px |
+
+      Assets failing any gate trigger regeneration (up to N retries). Accepted assets are logged to a preservation list so re-runs skip them. Rejection thresholds must be stated in the spec, not left implicit.
+
+      ### Generative Asset Quality Gates — Audio
+      When audio assets are produced by AI models, assert before bundle inclusion:
+
+      | Check | Mechanism |
+      |---|---|
+      | **Loudness normalization** | LUFS target compliance (e.g., -14 LUFS for game audio); measured with ffmpeg-normalize or pyloudnorm |
+      | **Frequency profile** | No asset competes with dialogue in 2–4 kHz presence range unless specified |
+      | **Tempo consistency** | BPM within ± tolerance for scene-matched music; measured with librosa or essentia |
+      | **Silence detection** | Leading/trailing silence below threshold; catches generation artifacts |
+      | **Duration compliance** | Generated clip matches required length ± tolerance |
+      | **Clipping detection** | No samples at 0 dBFS unless intentionally distorted |
+
+      ### MCP-Mediated Visual / Scene Inspection
+      For projects with an MCP server exposing instrumented game state: add a test layer where a language model is given a scene description and acceptance criteria, loads the live state through the MCP interface, and reports whether the scene satisfies them.
+
+      This is not a replacement for the structured suite — it closes the gap between what a pixel diff catches and what a brief human review would flag. Schedule as a pre-release gate, not a per-commit trigger. Document the scene invariants and acceptance criteria in the spec before implementing the gate.

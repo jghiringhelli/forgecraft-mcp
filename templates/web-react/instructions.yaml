@@ -108,3 +108,26 @@ blocks:
       - Static assets served from CDN with immutable cache headers (content-hashed filenames).
       - HTML entry point: short cache (5 min) or stale-while-revalidate.
       - Use edge middleware for: redirects, A/B testing, geo-routing, auth checks (avoid full round-trip).
+
+  - id: web-react-testing
+    tier: recommended
+    title: "React-Specific Testing Patterns"
+    content: |
+      ## React-Specific Testing Patterns
+
+      ### Component-Level Visual Regression
+      - Run every Storybook story through Chromatic or Percy on each PR.
+      - Stories are the visual spec. A story without at least one state variant per meaningful prop combination is incomplete.
+      - Snapshot diff threshold: 0% pixel change for exact-match surfaces; configure per-story for components with intentional animation or dynamic content.
+
+      ### Interaction Testing (Testing Library)
+      - Use `@testing-library/user-event` over `fireEvent`. It simulates real browser input sequences (focus, keydown, keyup, input, change) rather than synthetic events.
+      - Test behavior, not implementation: assert what the user sees, not which internal functions were called.
+      - Never assert on component internals — class names, internal state, refs — unless they are the public contract.
+      - `getByRole` and `getByLabelText` are the correct primary queries. `getByTestId` is the last resort.
+
+      ### Accessibility at Component Level
+      - Run `axe-core` in every Storybook story via `@storybook/addon-a11y`. Violations block story acceptance.
+      - Run `axe` at the page level in Playwright E2E suite on every route.
+      - Add `aria-label`, `aria-describedby`, and `role` to every interactive component that is not a native HTML element. Accessibility is not a feature — it is a correctness criterion.
+      - Keyboard navigation: every interactive element must be reachable and operable via keyboard alone. Test tab order in E2E suite for critical flows.

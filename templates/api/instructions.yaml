@@ -79,6 +79,37 @@ blocks:
       - Database connection pooling configured per environment (dev: 5, staging: 20, prod: 50+).
       - Migrations run automatically on deploy (pre-deploy hook or init container). Never manually.
 
+  - id: api-testing
+    tier: recommended
+    title: "API-Specific Testing Requirements"
+    content: |
+      ## API-Specific Testing Requirements
+
+      ### Contract / Consumer-Driven Contract (CDC) — Mandatory
+      CDC is not optional for API projects. The consumer writes the pact file; the provider verifies it in CI before deployment. API breakage that passes all provider-side tests but fails consumers is the exact class of defect CDC prevents.
+      - Use Pact or Spring Cloud Contract.
+      - Pact broker (self-hosted or pactflow.io) stores pact files and verification results.
+      - Provider verification runs in CI on every build — a failed verification blocks deployment.
+      - CDC covers request schema, response schema, status codes, and error shapes. It does not cover load or security — those are separate gates.
+
+      ### API / Subcutaneous Tests as Primary Integration Layer
+      The subcutaneous layer (HTTP requests to a running server with real DB and stubbed external deps) is the primary integration verification surface for API projects. Unit tests verify logic; subcutaneous tests verify contracts.
+      - Use Supertest (Node) or httpx/pytest (Python) against a locally started server instance.
+      - Stub external services with WireMock, msw, or responses (Python). Never call real external APIs in CI.
+      - Every public endpoint has a subcutaneous test for: 200 happy path, 4xx validation rejection, 401/403 auth enforcement, and at least one edge case.
+
+      ### DAST at Staging — Mandatory
+      Dynamic application security testing is required before every production promotion. OWASP ZAP minimum.
+      - Run ZAP active scan against the staging environment as a post-deploy CI step.
+      - Define an acceptable risk threshold in the spec: which finding severities are blocking (High = always blocking; Medium/Low = tracked, not blocking by default).
+      - ZAP scan configuration committed to the repo (`zap-config.yaml`). Not a one-off manual step.
+
+      ### Rate Limiting and Throttling in Integration Layer
+      - Rate limit behavior must be covered in the subcutaneous integration suite, not just documented.
+      - Test: normal traffic (no throttle), burst traffic (trigger rate limit, receive 429), retry-after header present and correct.
+      - Test quota exhaustion and quota reset behavior for API-key-based limits.
+
+
       ### Scaling
       - Horizontal scaling by default. No in-memory session state — use Redis or DB.
       - Auto-scaling rules based on CPU + request queue depth, not just CPU alone.

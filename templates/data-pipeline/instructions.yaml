@@ -40,3 +40,45 @@ blocks:
       - Log structured events (JSON) for every stage: start, success, failure, retry, and skip. Include record counts, duration, and error details.
       - Design for exactly-once semantics where possible using upserts (INSERT ... ON CONFLICT UPDATE) or deduplication keys in the target store.
       - Maintain a pipeline runbook that documents failure modes, recovery steps, and escalation contacts. Review and update it quarterly.
+
+  - id: data-pipeline-testing
+    tier: recommended
+    title: "Data Pipeline Testing Requirements"
+    content: |
+      ## Data Pipeline Testing Requirements
+
+      ### Data Quality Assertions at Every Stage
+      Assert at each pipeline boundary — after extraction, after transformation, before loading:
+      - **Row count** — within expected range or ± % of prior run baseline.
+      - **Null rate** — per column, against stated threshold (e.g., `customer_id` must never be null).
+      - **Schema compliance** — column names, types, nullable flags match the declared schema.
+      - **Referential integrity** — foreign key values exist in the referenced table.
+      - **Distribution checks** — value ranges and cardinality within expected bounds. Alert on sudden shifts (> 20% deviation from trailing 7-day average).
+      Use Great Expectations, dbt tests, or equivalent. Assertions are first-class artifacts — committed, versioned, and enforced in CI.
+
+      ### Idempotency Tests
+      Re-running the pipeline with the same input must produce identical output with no side effects. Test explicitly:
+      - Run pipeline N once; capture output row count and checksum.
+      - Run pipeline N again with the same source data.
+      - Assert: output row count and checksum are identical; no duplicates in target; no reprocessed records in dead-letter queue.
+      Idempotency is a contract, not an assumption. If a stage is not idempotent by design, that decision requires an ADR.
+
+      ### Backfill Correctness Tests
+      Historical data processed against current transformation logic must produce correct results:
+      - Define a fixed historical fixture (date range, known input, known output).
+      - Run current pipeline logic against the fixture.
+      - Assert output matches expected historical output.
+      Any change to transformation logic that causes a backfill regression is a breaking change requiring an ADR.
+
+      ### Dead-Letter Queue Draining Tests
+      Malformed records must be handled — not silently dropped and not blocking the pipeline:
+      - Inject a record that violates the schema; assert it routes to the dead-letter table/queue.
+      - Inject a record that passes schema but fails a business rule; assert correct routing.
+      - Assert the DLQ record contains: original payload, validation error, run ID, timestamp.
+      - Test DLQ drain procedure: records can be corrected, resubmitted, and processed successfully.
+
+      ### Volume / Scale Tests at Staging
+      Unit-scale fixtures are insufficient for pipeline correctness. Run at representative data volume:
+      - At staging: use a realistic data volume (minimum 10% of production record count, or a known large-batch scenario).
+      - Assert: completion within SLA window; no memory exhaustion; partition output correct.
+      - Document the scale test fixture size and the SLA threshold in the spec.
