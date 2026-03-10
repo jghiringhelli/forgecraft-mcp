@@ -126,6 +126,33 @@ blocks:
       - Never assert on component internals — class names, internal state, refs — unless they are the public contract.
       - `getByRole` and `getByLabelText` are the correct primary queries. `getByTestId` is the last resort.
 
+      ### Expose-Store-to-Window (Playwright / E2E Layer)
+      For React applications with a shared state store (Redux, Zustand, Context-based stores), expose
+      the store to `window` in the test environment:
+      ```typescript
+      // In store initialization
+      if (process.env.NODE_ENV === 'test' || import.meta.env.VITEST) {
+        (window as any).__store = store;
+      }
+      ```
+      Playwright tests can then assert both what the screen renders AND what the application's store
+      believes is true — independently. This catches the failure class where UI renders correctly but
+      internal state is corrupted: optimistic updates that corrupt on failure, form state that looks
+      submitted but is not saved, filters that render active but have no effect on query state.
+
+      ### Vertical Chain Test (Critical Flows)
+      For flows that cross more than one architectural boundary (UI → service → persistence), write
+      one Playwright test that follows the full chain:
+      1. User action (click, form submit)
+      2. Intercept or query the API layer response (`page.waitForResponse`)
+      3. Assert store state via `window.__store`
+      4. Assert rendered UI outcome
+      5. If the flow persists data: assert the database or backend state via a test API endpoint
+
+      This is not a unit test and not a happy-path flow test. It is a chain verification — one trigger,
+      every boundary inspected. Specify in the architectural constitution which flows receive this
+      treatment. Minimum: authentication flow, primary write operation, and any multi-step wizard.
+
       ### Accessibility at Component Level
       - Run `axe-core` in every Storybook story via `@storybook/addon-a11y`. Violations block story acceptance.
       - Run `axe` at the page level in Playwright E2E suite on every route.

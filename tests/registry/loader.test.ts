@@ -75,7 +75,7 @@ describe("loader", () => {
 
     it("should load review blocks with valid dimensions", () => {
       const universal = templates.get("UNIVERSAL")!;
-      const validDimensions = ["architecture", "code-quality", "tests", "performance"];
+      const validDimensions = ["architecture", "code-quality", "tests", "performance", "artifact-completeness"];
       for (const block of universal.review!.blocks) {
         expect(validDimensions).toContain(block.dimension);
         expect(block.checklist.length).toBeGreaterThan(0);

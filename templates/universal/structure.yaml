@@ -50,3 +50,15 @@ entries:
   - path: tests/integration
     type: directory
     description: "Integration tests"
+  - path: docs/adr
+    type: directory
+    description: "Architecture Decision Records — ADR-NNNN-short-title.md format"
+  - path: docs/diagrams
+    type: directory
+    description: "C4, sequence, state machine, and flow diagrams (PlantUML, Mermaid)"
+  - path: docs/use-cases
+    type: directory
+    description: "Precise use cases: actor, precondition, trigger, main flow, postcondition, acceptance criteria"
+  - path: specs
+    type: directory
+    description: "Platform-independent behavioral specs, session prompts, and generative asset acceptance criteria"

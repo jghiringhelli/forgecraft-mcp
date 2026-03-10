@@ -162,3 +162,43 @@ blocks:
       - id: environment-parity
         description: "Staging mirrors production: same provider, same DB engine, same services. No 'works on staging' surprises."
         severity: important
+
+  - id: artifact-completeness-review
+    tier: recommended
+    dimension: artifact-completeness
+    title: "Generative Specification Artifact Completeness"
+    description: |
+      Verify the project's generative specification grammar is complete. An absent artifact
+      is a specification gap — not documentation debt. Each item below is a production rule
+      that AI agents rely on for correct, constrained output.
+    checklist:
+      - id: architectural-constitution
+        description: "CLAUDE.md / AGENTS.md / .cursor/rules / copilot-instructions exists, is non-trivial (>50 lines), contains layered architecture description, naming conventions per layer, and at least one explicit forbidden pattern."
+        severity: critical
+      - id: adr-directory
+        description: "docs/adr/ (or docs/adrs/) exists with at least one ADR per non-obvious architectural decision. Each ADR has status, context, decision, alternatives, and consequences."
+        severity: critical
+      - id: status-file
+        description: "Status.md exists at repo root and was updated in the most recent session. Contains: completed work, current state, open questions, and next steps."
+        severity: critical
+      - id: naming-conventions
+        description: "Architectural constitution contains explicit, layer-scoped naming vocabulary. At least repository, service, and controller layers are covered. No layer uses verbs from another layer."
+        severity: important
+      - id: schema-definitions
+        description: "All DB schemas, API contracts, and inter-service event schemas are formally stated (Prisma schema, Zod schemas, OpenAPI, AsyncAPI, or equivalent). No implicit contracts."
+        severity: important
+      - id: structural-diagrams
+        description: "At least one C4 or equivalent structural diagram exists in docs/diagrams/ or rendered in a markdown file. Sequence diagrams exist for all flows crossing more than two service boundaries."
+        severity: important
+      - id: use-cases
+        description: "Critical user flows have formal use cases with precondition, trigger, main flow, and postcondition. Each use case has machine-checkable acceptance criteria."
+        severity: nice-to-have
+      - id: commit-discipline
+        description: "Git log follows conventional commits (feat|fix|refactor|docs|test|chore). Last 10 commits are atomic, scoped, and meaningful. No 'WIP', 'fix', or 'update' messages."
+        severity: important
+      - id: living-documentation
+        description: "API reference, schema docs, or component catalog is generated from code artifacts (OpenAPI, TypeDoc, Storybook), not manually authored. Documentation is derived, not maintained separately."
+        severity: nice-to-have
+      - id: wrong-spec-risk
+        description: "Architectural constitution has been revised through commit history (not written once and untouched). At least one ADR records a change to a prior architectural decision."
+        severity: nice-to-have
