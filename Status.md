@@ -1,8 +1,38 @@
 # Status.md
 
-## Last Updated: 2026-03-09 (Session 5)
+## Last Updated: 2026-03-10 (Session 6)
 
 ## Session Summary
+Full GS methodology materialized as first-class template content, derived from white paper spec v1.0 (March 2026).
+
+**Commit**: `f7c54fa` — feat(templates): expand UNIVERSAL/WEB-REACT with full GS methodology
+
+**New blocks in `templates/universal/instructions.yaml`** (14 → 22 instruction blocks):
+- `artifact-grammar` (core): §6 taxonomy — 15 artifact types, linguistic analog, function, six-property self-test checklist
+- `naming-as-grammar` (core): layer-scoped naming vocabulary table, technique transport via naming
+- `adr-protocol` (core): ADR format, when-to-write rules, session protocol, immutability + supersession
+- `use-case-triple-derivation` (recommended): use case → implementation contract + acceptance test + user docs; diagnostic rule
+- `living-documentation` (recommended): derived-not-maintained doctrine, tooling table, polyglot note
+- `agentic-self-refinement` (recommended): generate→evaluate→adjust loop, domain application table, wrong-history anti-pattern
+- `wrong-specification-risk` (recommended): mitigations, diagnostic signs
+- `gs-test-techniques` (recommended): adversarial posture, expose-store-to-window, vertical chain test, mutation adversarial audit, multimodal quality gates (visual PCA + LUFS audio), MCP-mediated inspection
+
+**`templates/universal/review.yaml`** (4 → 5 review blocks):
+- `artifact-completeness` review dimension: 10-item checklist (constitutional completeness, ADRs, Status.md, naming, schemas, diagrams, use cases, commit discipline, living docs, wrong-spec indicator)
+
+**`templates/universal/structure.yaml`** (15 → 19 structure entries):
+- Added: `docs/diagrams/`, `docs/use-cases/`, `specs/`, explicit `docs/adr/` with naming note
+
+**`templates/web-react/instructions.yaml`**:
+- Added `expose-store-to-window` and `vertical-chain-test` blocks to `web-react-testing`
+- Game template already had these from Session 5
+
+**Test fix**: `tests/registry/loader.test.ts` — `validDimensions` extended with `'artifact-completeness'`
+
+**Composition**: UNIVERSAL 14→22 instruction blocks, 4→5 review blocks, 15→19 structure entries
+**Tests**: 307/307 passing, 0 TypeScript errors
+
+## Previous Session (Session 5)
 - Added comprehensive test taxonomy blocks to 6 tag templates (UNIVERSAL + GAME, WEB-REACT, API, DATA-PIPELINE, ML)
 - UNIVERSAL `test-taxonomy` block: 19-type test classification table, variant coverage matrix, pipeline mapping table
 - GAME `game-testing` block: expose-store-to-window, vertical chain pattern, generative asset quality gates (visual + audio), MCP-mediated scene inspection
@@ -12,7 +42,6 @@
 - ML `ml-testing` block: data distribution, model regression, inference latency, adversarial inputs, bias/fairness assertions
 - Total: 307 tests passing, 0 TypeScript errors, clean build
 
-## Previous Session (Session 4)
 - Added domain Playbook system: tag-specific, multi-phase, ordered agent workflow templates
 - New types: `PlaybookStep`, `PlaybookPhase`, `PlaybookTemplate` in `src/shared/types.ts`
 - `loader.ts` and `composer.ts` extended to load and collect playbooks
