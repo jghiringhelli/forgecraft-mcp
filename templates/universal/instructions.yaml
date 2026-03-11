@@ -339,6 +339,83 @@ blocks:
       - A test with multiple unrelated assertions is testing multiple things — split it.
       - Test name = the specification: `rejects_expired_tokens`, not `test_auth`.
 
+  - id: tdd-enforcement
+    tier: core
+    title: "TDD Enforcement — Forbidden Patterns and Gate Protocol"
+    content: |
+      ## TDD Enforcement — Forbidden Patterns and Gate Protocol
+
+      Instructions describe a process. Gates enforce it. This block defines what is
+      structurally prohibited, what output is required at each gate, and how the
+      commit sequence makes the TDD cycle auditable.
+
+      ### Forbidden Patterns (non-negotiable)
+      The following are architecture violations, not style preferences:
+      - **NEVER write an implementation file before running and showing a failing test.**
+        Stating that "the test would fail" is not equivalent to running it. Run it.
+      - **NEVER write tests after implementation** except for bug fix reproduction tests on
+        pre-existing code not yet covered. Even then: write the test, show it fails, fix,
+        show it passes.
+      - **NEVER weaken an assertion** to make a test pass. If the assertion disagrees with
+        the output, the implementation is wrong.
+      - **NEVER skip the refactor phase** because "the code is clean enough." The refactor
+        phase exists to enforce separation of concerns under green. Skipping it is a
+        commitment not to separate concerns in that increment.
+      - **NEVER commit a `feat:` or `fix:` with no corresponding `test:` commit** preceding
+        it in the same branch. The test commit is the audit trail that the red phase occurred.
+
+      ### The Session Gate Protocol
+      TDD across a multi-step session requires explicit checkpoints the AI reports and the
+      human can verify. At each gate, the AI must output the actual test runner output,
+      not a summary of what it expects.
+
+      ```
+      ┌─────────────────────────────────────────────────────┐
+      │  PHASE 1: RED                                       │
+      │  Action:  Write test for the specified behavior     │
+      │  Gate:    Run test — paste full failure output      │
+      │  Block:   Cannot proceed until failure is shown     │
+      │  Commit:  test(scope): [RED] describe behavior      │
+      └───────────────────┬─────────────────────────────────┘
+                          │ failure confirmed
+      ┌───────────────────▼─────────────────────────────────┐
+      │  PHASE 2: GREEN                                     │
+      │  Action:  Write minimum implementation              │
+      │  Gate:    Run test — paste full passing output      │
+      │  Block:   Cannot proceed until passing is shown     │
+      │  Commit:  feat(scope): implement to satisfy test    │
+      └───────────────────┬─────────────────────────────────┘
+                          │ green confirmed
+      ┌───────────────────▼─────────────────────────────────┐
+      │  PHASE 3: REFACTOR                                  │
+      │  Action:  Improve structure, not behavior           │
+      │  Gate:    Run full suite — paste summary output     │
+      │  Block:   Cannot commit if any test regresses       │
+      │  Commit:  refactor(scope): clean without behavior   │
+      └─────────────────────────────────────────────────────┘
+      ```
+
+      ### Commit Sequence as Audit Trail
+      The git log for any feature must be readable as:
+      ```
+      test(cart): [RED] add test for removing last item empties cart
+      feat(cart): remove last item empties cart
+      refactor(cart): extract empty-check to CartState predicate
+      ```
+      This sequence is auditable. An AI that wrote the `feat:` commit without the preceding
+      `test:` commit either skipped the red phase entirely or conflated it with implementation.
+      The commit hook `pre-commit-tdd-check.sh` detects the second pattern before it lands.
+
+      ### Why Instructions Alone Are Not Sufficient
+      A language model generating in a single context window experiences no time delay between
+      writing a test and writing an implementation that passes it. The RED phase is structurally
+      collapsed. The gates above exist precisely to make the phases non-simultaneous:
+      - The test commit must happen before the implementation can be written.
+      - The failure output must be produced (by running the code) before the game state is known.
+      - The model cannot "know" the failure output without actually running the test,
+        because the failure messages are not in the training distribution for this specific code.
+      These gates transform TDD from a discipline into a constraint.
+
   - id: data-guardrails
     tier: core
     title: "Data Guardrails"

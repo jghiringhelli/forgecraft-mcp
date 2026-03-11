@@ -12,7 +12,9 @@
 #   4. pre-commit-branch-check   — no direct commits to main/master
 #   5. pre-commit-format         — auto-format staged TS/JS files
 #   6. pre-commit-compile        — TypeScript compilation check
-#   7. pre-commit-test           — run test suite with coverage gate
+#   7. pre-commit-tdd-check      — TDD RED gate: test-only commits must fail;
+#                                  warn on implementation commits without tests
+#   8. pre-commit-test           — run test suite with coverage gate
 # ──────────────────────────────────────────────────────────────────────
 
 set -e
@@ -60,6 +62,7 @@ run_hook "pre-commit-prod-quality.sh"
 run_hook "pre-commit-branch-check.sh"
 run_hook "pre-commit-format.sh"
 run_hook "pre-commit-compile.sh"
+run_hook "pre-commit-tdd-check.sh"
 run_hook "pre-commit-test.sh"
 
 exit 0
