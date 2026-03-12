@@ -20,6 +20,7 @@ import { generateInstructionsHandler } from "./tools/generate-claude-md.js";
 import { convertExistingHandler } from "./tools/convert.js";
 import { addHookHandler } from "./tools/add-hook.js";
 import { addModuleHandler } from "./tools/add-module.js";
+import { verifyHandler } from "./tools/verify.js";
 
 // ── Arg Parsing ──────────────────────────────────────────────────────
 
@@ -252,6 +253,20 @@ async function cmdAddHook(pos: string[], flags: Flags): Promise<void> {
   printResult(result);
 }
 
+async function cmdVerify(pos: string[], flags: Flags): Promise<void> {
+  const projectDir = resolve(pos[0] ?? ".");
+  const result = await verifyHandler({
+    project_dir: projectDir,
+    test_command: str(flags, "test-cmd"),
+    timeout_ms: flags["timeout"] ? parseInt(str(flags, "timeout") ?? "120000", 10) : 120_000,
+    pass_threshold: flags["threshold"] ? parseInt(str(flags, "threshold") ?? "10", 10) : 10,
+  });
+  printResult(result);
+  // Mirror test-suite exit code so CI pipelines detect failure
+  const text = result.content[0]?.text ?? "";
+  if (text.includes("FAIL")) process.exit(1);
+}
+
 async function cmdAddModule(pos: string[], flags: Flags): Promise<void> {
   const moduleName = pos[0];
   const projectDir = resolve(pos[1] ?? ".");
@@ -290,6 +305,7 @@ COMMANDS
   convert <dir>          Generate migration plan
   add-hook <name> <dir>  Install a quality-gate hook
   add-module <name> <dir> Scaffold a feature module
+  verify  [dir]          Run tests + score §4.3 GS properties + report layer violations
 
 FLAGS (vary by command)
   --tags <tags...>       Project classification tags (or read from forgecraft.yaml)
@@ -304,6 +320,9 @@ FLAGS (vary by command)
   --no-anti-patterns     Skip anti-pattern scanning (for audit)
   --language <lang>      typescript | python (default: typescript)
   --scope <scope>        comprehensive | focused (for review)
+  --test-cmd <cmd>       Test command override for verify (default: npm test)
+  --timeout <ms>         Test suite timeout in milliseconds (default: 120000)
+  --threshold <n>        Minimum GS score out of 12 for pass (default: 10)
   --force                Overwrite existing files
   --compact              Strip explanatory bullet tails and deduplicate lines (~20-40% smaller output)
   --tag <tag>            Single tag filter (for add-hook)
@@ -345,6 +364,7 @@ export async function runCli(argv: string[]): Promise<boolean> {
       case "convert":  await cmdConvert(positional, flags); break;
       case "add-hook": await cmdAddHook(positional, flags); break;
       case "add-module": await cmdAddModule(positional, flags); break;
+      case "verify":   await cmdVerify(positional, flags); break;
       default:
         console.error(`Unknown command: ${command}`);
         showHelp();

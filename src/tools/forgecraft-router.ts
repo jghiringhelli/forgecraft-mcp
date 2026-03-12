@@ -27,6 +27,7 @@ import { getPlaybookHandler } from "./get-playbook.js";
 import { convertExistingHandler } from "./convert.js";
 import { reviewProjectHandler } from "./review.js";
 import { refreshProjectHandler } from "./refresh-project.js";
+import { verifyHandler } from "./verify.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ const ACTIONS = [
   "configure_mcp",
   "get_reference",
   "convert",
+  "verify",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -59,12 +61,13 @@ export const forgecraftSchema = z.object({
       "Operation to perform: refresh (re-sync project), scaffold (generate structure), " +
       "generate (instruction files only), audit (check standards), review (code review checklist), " +
       "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
-      "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan).",
+      "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
+      "verify (run tests + score §4.3 GS properties + report layer violations).",
     ),
   project_dir: z
     .string()
     .optional()
-    .describe("Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert. Optional for: classify."),
+    .describe("Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify. Optional for: classify."),
   tags: z
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
     .optional()
@@ -169,6 +172,23 @@ export const forgecraftSchema = z.object({
     .positive()
     .optional()
     .describe("Max MCP servers to configure. Used by: configure_mcp."),
+  test_command: z
+    .string()
+    .optional()
+    .describe("Test command override. Used by: verify. Default: npm test."),
+  timeout_ms: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe("Test suite timeout in ms. Used by: verify. Default: 120000."),
+  pass_threshold: z
+    .number()
+    .int()
+    .min(0)
+    .max(12)
+    .optional()
+    .describe("Minimum §4.3 GS score (0–12) required for overall pass. Used by: verify. Default: 10."),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -274,6 +294,14 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
         tags: requireParam(args.tags, "tags", "convert"),
         project_dir: requireParam(args.project_dir, "project_dir", "convert"),
         scan_depth: args.scan_depth ?? "quick",
+      });
+
+    case "verify":
+      return verifyHandler({
+        project_dir: requireParam(args.project_dir, "project_dir", "verify"),
+        test_command: args.test_command,
+        timeout_ms: args.timeout_ms ?? 120_000,
+        pass_threshold: args.pass_threshold ?? 10,
       });
 
     default:
