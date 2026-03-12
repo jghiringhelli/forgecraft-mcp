@@ -1,8 +1,29 @@
 # Status.md
 
-## Last Updated: 2026-03-12 (Session 12)
+## Last Updated: 2026-03-12 (Session 13)
 
-## Session Summary
+## Session 13 Summary
+Pre-commit coverage gate added to enforce 80% threshold on every src/ commit.
+
+**Commit**: `1e83399` (feat(hooks): add pre-commit coverage gate enforcing 80% line threshold)
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `.claude/hooks/pre-commit-coverage.sh` | NEW — coverage gate; skips non-src/ commits; runs `vitest --coverage`; exits 1 on threshold miss |
+| `.claude/hooks/pre-commit-test.sh` | MODIFIED — defers to coverage hook when src/ staged (prevents double test run) |
+| `.git/hooks/pre-commit` | MODIFIED — added `run_hook "pre-commit-coverage.sh"` as step 9 |
+| `templates/universal/hooks.yaml` | MODIFIED — test-coverage entry updated; new coverage-gate entry with `{{coverage_minimum | default: 80}}` var |
+| `scripts/setup-hooks.sh` | MODIFIED — comment updated; coverage hook added to generated `.git/hooks/pre-commit` |
+
+**Hook chain design**:
+- `pre-commit-test.sh` skips when `src/` files staged → no double run
+- `pre-commit-coverage.sh` skips entirely when no `src/` staged → fast for docs/config/test-only commits
+- Template variable `coverage_minimum` (default 80) makes threshold configurable per project
+
+---
+
+## Session 12 Summary
 Test coverage brought from 66.37% → 80.45% lines (threshold: 80%).
 
 **Commit**: `a4e8e5f` (test(coverage): add missing tool + shared tests to reach 80% threshold)
@@ -38,6 +59,8 @@ Test coverage brought from 66.37% → 80.45% lines (threshold: 80%).
 
 **Pending from user request**:
 - [ ] Receive GS theory documents (user will paste — not yet received)
+- [ ] Cross-check ForgeCraft tooling against GS theory
+- [ ] Run GS AI vs Plain AI experiment on RealWorld dataset
 - [ ] Cross-check ForgeCraft tooling against GS theory
 - [ ] Run GS AI vs Plain AI experiment on RealWorld dataset
 
