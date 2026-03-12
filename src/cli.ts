@@ -21,6 +21,7 @@ import { convertExistingHandler } from "./tools/convert.js";
 import { addHookHandler } from "./tools/add-hook.js";
 import { addModuleHandler } from "./tools/add-module.js";
 import { verifyHandler } from "./tools/verify.js";
+import { adviceHandler } from "./tools/advice.js";
 
 // ── Arg Parsing ──────────────────────────────────────────────────────
 
@@ -126,13 +127,32 @@ async function cmdSetup(pos: string[], flags: Flags): Promise<void> {
 
 async function cmdRefresh(pos: string[], flags: Flags): Promise<void> {
   const projectDir = resolve(pos[0] ?? ".");
+  const checkMode = bool(flags, "check", false);
   const result = await refreshProjectHandler({
     project_dir: projectDir,
-    apply: bool(flags, "apply", false),
+    apply: checkMode ? false : bool(flags, "apply", false),
     tier: str(flags, "tier") as ContentTier | undefined,
     add_tags: arr(flags, "add-tags") as Tag[] | undefined,
     remove_tags: arr(flags, "remove-tags") as Tag[] | undefined,
     output_targets: arr(flags, "targets") as OutputTarget[] | undefined,
+  });
+  printResult(result);
+  if (checkMode) {
+    const text = result.content[0]?.text ?? "";
+    const driftDetected =
+      text.includes("New Tags Detected") ||
+      text.includes("Tags No Longer Detected") ||
+      text.includes("Tier Change");
+    if (driftDetected) process.exit(1);
+  }
+}
+
+async function cmdAdvice(pos: string[], flags: Flags): Promise<void> {
+  const projectDir = pos[0] ? resolve(pos[0]) : undefined;
+  const tags = arr(flags, "tags") as Tag[] | undefined ?? resolveTagsFromConfig(projectDir ?? ".", undefined);
+  const result = await adviceHandler({
+    project_dir: projectDir,
+    tags,
   });
   printResult(result);
 }
@@ -305,8 +325,7 @@ COMMANDS
   convert <dir>          Generate migration plan
   add-hook <name> <dir>  Install a quality-gate hook
   add-module <name> <dir> Scaffold a feature module
-  verify  [dir]          Run tests + score §4.3 GS properties + report layer violations
-
+  verify  [dir]          Run tests + score §4.3 GS properties + report layer violations  advice  [dir]          Quality cycle checklist + tool stack + example configs for your tags
 FLAGS (vary by command)
   --tags <tags...>       Project classification tags (or read from forgecraft.yaml)
   --tier <tier>          Content depth: core | recommended | optional
@@ -326,6 +345,7 @@ FLAGS (vary by command)
   --force                Overwrite existing files
   --compact              Strip explanatory bullet tails and deduplicate lines (~20-40% smaller output)
   --tag <tag>            Single tag filter (for add-hook)
+  --check                Drift-check mode for refresh: exit 1 if tag/tier drift detected (CI gate)
 `);
 }
 
@@ -365,6 +385,7 @@ export async function runCli(argv: string[]): Promise<boolean> {
       case "add-hook": await cmdAddHook(positional, flags); break;
       case "add-module": await cmdAddModule(positional, flags); break;
       case "verify":   await cmdVerify(positional, flags); break;
+      case "advice":   await cmdAdvice(positional, flags); break;
       default:
         console.error(`Unknown command: ${command}`);
         showHelp();

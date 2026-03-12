@@ -71,3 +71,45 @@ blocks:
       - Hashed assets (JS, CSS, images): `Cache-Control: public, max-age=31536000, immutable`.
         Filename changes on content change — cache forever.
       - Invalidate CDN cache on deploy (automatic on Netlify/Vercel/CF Pages; manual on CloudFront).
+
+  - id: web-static-smoke-testing
+    tier: recommended
+    title: "Static Site Smoke Testing (Post-Deploy)"
+    content: |
+      ## Static Site Smoke Testing
+
+      ### Required: Playwright Full Browser
+      Tag all smoke tests `@smoke` for isolated execution:
+      ```
+      npx playwright test --config playwright.smoke.config.ts --grep @smoke
+      ```
+
+      Minimum smoke suite:
+      - **Key pages load**: home + primary section pages render, no console errors, title present
+      - **No broken assets**: no 404 network requests (images, JS, CSS)
+      - **404 handling**: non-existent path returns 404, custom error page renders (not browser default)
+      - **HTTPS redirect**: `http://` redirects to `https://` (if applicable)
+
+      ```typescript
+      // tests/smoke/site.smoke.ts
+      import { test, expect } from '@playwright/test';
+
+      const KEY_PAGES = ['/', '/about', '/contact'];
+
+      for (const path of KEY_PAGES) {
+        test(`@smoke ${path} loads without broken assets`, async ({ page }) => {
+          const failed: string[] = [];
+          page.on('requestfailed', r => failed.push(r.url()));
+          page.on('response', r => { if (r.status() === 404) failed.push(r.url()); });
+          await page.goto(path);
+          await expect(page).toHaveTitle(/.+/);
+          expect(failed).toHaveLength(0);
+        });
+      }
+
+      test('@smoke 404 renders custom page', async ({ page }) => {
+        const res = await page.goto('/this-path-does-not-exist-smoke-xyz');
+        expect(res?.status()).toBe(404);
+        await expect(page.locator('body')).not.toBeEmpty();
+      });
+      ```

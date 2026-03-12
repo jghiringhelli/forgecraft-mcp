@@ -14,7 +14,9 @@ import { resolve, join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { scoreGsProperties, findDirectDbCallsInRoutes, findMissingTestFiles } from "../analyzers/gs-scorer.js";
-import type { VerifyResult, GsPropertyScore } from "../shared/types.js";
+import { analyzeProject } from "../analyzers/package-json.js";
+import { loadUserOverrides } from "../registry/loader.js";
+import type { VerifyResult, GsPropertyScore, Tag } from "../shared/types.js";
 
 // ── Schema ─────────────────────────────────────────────────────────────
 
@@ -87,7 +89,51 @@ export async function verifyHandler(
     overallPass,
   };
 
-  return { content: [{ type: "text", text: formatReport(result, args.pass_threshold) }] };
+  const report = formatReport(result, args.pass_threshold);
+  const driftWarning = detectTagDrift(projectDir);
+  const text = driftWarning ? `${report}\n\n${driftWarning}` : report;
+  return { content: [{ type: "text", text }] };
+}
+
+// ── Drift Detection ───────────────────────────────────────────────────
+
+/**
+ * Check whether the project has gained new detectable tags since forgecraft.yaml
+ * was last written. Non-blocking — returns a warning string if drift found, else null.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Warning markdown section, or null if no drift
+ */
+function detectTagDrift(projectDir: string): string | null {
+  const config = loadUserOverrides(projectDir);
+  if (!config?.tags || config.tags.length === 0) return null;
+
+  const storedTags = new Set<string>(config.tags);
+  let detections: Array<{ tag: string; confidence: number; evidence: string[] }>;
+  try {
+    detections = analyzeProject(projectDir);
+  } catch {
+    return null; // non-blocking: if analysis fails, skip drift check
+  }
+
+  const newTags = detections
+    .filter(d => d.confidence >= 0.8 && !storedTags.has(d.tag))
+    .map(d => `- \`${d.tag as Tag}\` (${Math.round(d.confidence * 100)}% confidence) — ${d.evidence.slice(0, 3).join(", ")}`);
+
+  if (newTags.length === 0) return null;
+
+  return [
+    "---",
+    "## \u26a0\ufe0f  Tag Drift Detected",
+    "",
+    "The following tags were detected in the project but are missing from `forgecraft.yaml`:",
+    "",
+    ...newTags,
+    "",
+    `Run \`npx forgecraft-mcp refresh ${projectDir} --apply\` to update your configuration.`,
+    "",
+    "_This warning is non-blocking. GS scores above reflect the currently configured tags._",
+  ].join("\n");
 }
 
 // ── Test Runner ────────────────────────────────────────────────────────

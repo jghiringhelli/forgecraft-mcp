@@ -158,3 +158,50 @@ blocks:
       - Run `axe` at the page level in Playwright E2E suite on every route.
       - Add `aria-label`, `aria-describedby`, and `role` to every interactive component that is not a native HTML element. Accessibility is not a feature — it is a correctness criterion.
       - Keyboard navigation: every interactive element must be reachable and operable via keyboard alone. Test tab order in E2E suite for critical flows.
+
+  - id: web-react-smoke-testing
+    tier: recommended
+    title: "React App Smoke Testing (Post-Deploy)"
+    content: |
+      ## React App Smoke Testing
+
+      ### Required: Playwright Full Browser
+      Tag all smoke tests `@smoke` for isolated execution:
+      ```
+      npx playwright test --config playwright.smoke.config.ts --grep @smoke
+      ```
+
+      Minimum smoke suite for every React app:
+      - **Page loads**: all key routes render, document title present, no console errors
+      - **Auth wall**: protected route redirects unauthenticated user to login page
+      - **Core journey**: primary user action (sign-in or key feature) completes end-to-end
+      - **a11y baseline**: no critical axe violations on the landing route
+
+      ```typescript
+      // tests/smoke/app.smoke.ts
+      import { test, expect } from '@playwright/test';
+      import AxeBuilder from '@axe-core/playwright';
+
+      test('@smoke home page loads without errors', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+        await page.goto('/');
+        expect(await page.title()).not.toBe('');
+        expect(errors.filter(e => !e.includes('DevTools'))).toHaveLength(0);
+      });
+
+      test('@smoke protected route redirects unauthenticated', async ({ page }) => {
+        await page.goto('/dashboard');
+        await expect(page).toHaveURL(/login/);
+      });
+
+      test('@smoke no critical a11y violations on home', async ({ page }) => {
+        await page.goto('/');
+        const results = await new AxeBuilder({ page }).analyze();
+        const critical = results.violations.filter(v => v.impact === 'critical');
+        expect(critical).toHaveLength(0);
+      });
+      ```
+
+      Use `retries: 1` in smoke config — one retry before calling a failure. Smoke failure
+      means the deploy is broken, not the test.

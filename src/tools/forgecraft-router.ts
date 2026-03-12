@@ -28,6 +28,7 @@ import { convertExistingHandler } from "./convert.js";
 import { reviewProjectHandler } from "./review.js";
 import { refreshProjectHandler } from "./refresh-project.js";
 import { verifyHandler } from "./verify.js";
+import { adviceHandler } from "./advice.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ const ACTIONS = [
   "get_reference",
   "convert",
   "verify",
+  "advice",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -62,12 +64,13 @@ export const forgecraftSchema = z.object({
       "generate (instruction files only), audit (check standards), review (code review checklist), " +
       "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
       "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
-      "verify (run tests + score §4.3 GS properties + report layer violations).",
+      "verify (run tests + score §4.3 GS properties + report layer violations), " +
+      "advice (quality cycle checklist + tool stack + example configs for your tags).",
     ),
   project_dir: z
     .string()
     .optional()
-    .describe("Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify. Optional for: classify."),
+    .describe("Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify. Optional for: classify, advice."),
   tags: z
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
     .optional()
@@ -302,6 +305,12 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
         test_command: args.test_command,
         timeout_ms: args.timeout_ms ?? 120_000,
         pass_threshold: args.pass_threshold ?? 10,
+      });
+
+    case "advice":
+      return adviceHandler({
+        project_dir: args.project_dir,
+        tags: args.tags as string[] | undefined,
       });
 
     default:

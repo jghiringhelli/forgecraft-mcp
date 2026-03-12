@@ -207,3 +207,83 @@ blocks:
       For projects with an MCP server exposing instrumented game state: add a test layer where a language model is given a scene description and acceptance criteria, loads the live state through the MCP interface, and reports whether the scene satisfies them.
 
       This is not a replacement for the structured suite — it closes the gap between what a pixel diff catches and what a brief human review would flag. Schedule as a pre-release gate, not a per-commit trigger. Document the scene invariants and acceptance criteria in the spec before implementing the gate.
+
+  - id: game-smoke-testing
+    tier: recommended
+    title: "Game Smoke Testing (Three-Tier)"
+    content: |
+      ## Game Smoke Testing
+
+      ### Tier 1 — Headless Unit (Pre-Commit, No Browser)
+      Pure game logic with no renderer dependency:
+      - **State machines**: all valid transitions, all invalid-transition rejections
+      - **Physics / collision**: core formulas, edge cases (zero velocity, exact boundary contact)
+      - **Scoring and economy**: accumulation, overflow bounds, negative prevention
+      - **Save / load**: round-trip serialization of game state loses no data
+
+      Tools: Vitest / Jest / pytest. Fast — runs pre-commit.
+
+      ### Tier 2 — Browser Smoke (Post-Deploy, Playwright)
+      Confirms the game bootstraps correctly in a real browser:
+
+      ```typescript
+      // tests/smoke/game.smoke.ts
+      import { test, expect } from '@playwright/test';
+
+      test('@smoke canvas is visible and sized', async ({ page }) => {
+        await page.goto('/');
+        const canvas = page.locator('canvas');
+        await expect(canvas).toBeVisible({ timeout: 10_000 });
+        const box = await canvas.boundingBox();
+        expect(box?.width).toBeGreaterThan(0);
+        expect(box?.height).toBeGreaterThan(0);
+      });
+
+      test('@smoke no JS errors during game init', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('pageerror', e => errors.push(e.message));
+        await page.goto('/');
+        await page.waitForTimeout(3_000); // allow game boot
+        expect(errors).toHaveLength(0);
+      });
+
+      test('@smoke WebGL context created', async ({ page }) => {
+        await page.goto('/');
+        const hasWebGL = await page.evaluate(() =>
+          !!document.querySelector('canvas')?.getContext('webgl2') ||
+          !!document.querySelector('canvas')?.getContext('webgl')
+        );
+        expect(hasWebGL).toBe(true);
+      });
+      ```
+
+      ### Tier 3 — Performance Smoke (FPS Floor, Playwright + CDP)
+      Assert minimum sustained frame rate after game warms up:
+
+      ```typescript
+      // tests/smoke/game-perf.smoke.ts
+      import { test, expect, chromium } from '@playwright/test';
+
+      const FPS_FLOOR = Number(process.env['GAME_SMOKE_FPS_FLOOR'] ?? '30');
+
+      test('@smoke FPS above floor after 5s', async () => {
+        const browser = await chromium.launch();
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+
+        await page.goto('/');
+        await page.waitForTimeout(5_000); // warm-up
+        const { metrics } = await cdp.send('Performance.getMetrics');
+        const frames = metrics.find(m => m.name === 'Frames');
+        const duration = metrics.find(m => m.name === 'TaskDuration');
+        if (frames && duration && duration.value > 0) {
+          const fps = frames.value / duration.value;
+          expect(fps).toBeGreaterThanOrEqual(FPS_FLOOR);
+        }
+        await browser.close();
+      });
+      ```
+
+      The FPS floor (default 30) must be declared in `spec.md` under Performance Requirements.
+      In CI, use `--use-gl=swiftshader` for consistent software-rendering results across agents.

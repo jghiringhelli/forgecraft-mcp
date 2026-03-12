@@ -114,3 +114,70 @@ blocks:
       - Horizontal scaling by default. No in-memory session state — use Redis or DB.
       - Auto-scaling rules based on CPU + request queue depth, not just CPU alone.
       - Database read replicas for read-heavy workloads. Connection pooler (PgBouncer) in front of Postgres.
+
+  - id: api-smoke-testing
+    tier: recommended
+    title: "API Smoke Testing (Post-Deploy)"
+    content: |
+      ## API Smoke Testing
+
+      ### Required: Playwright APIRequestContext (no browser overhead)
+      Tag all smoke tests `@smoke` for isolated execution:
+      ```
+      npx playwright test --config playwright.smoke.config.ts --grep @smoke
+      ```
+
+      Minimum smoke suite for every API:
+      - **Health check**: `GET /health` → 200, body includes `status: ok` and `version`
+      - **Auth**: primary login endpoint with valid credentials → token returned
+      - **Primary read**: one representative `GET` → 200, response envelope validates
+      - **Primary write**: one representative `POST` → 2xx, verify with follow-up `GET`
+      - **404 shape**: non-existent resource → 404, error envelope matches spec contract
+
+      ```typescript
+      // tests/smoke/api.smoke.ts
+      import { test, expect } from '@playwright/test';
+
+      test('@smoke health check', async ({ request }) => {
+        const res = await request.get('/health');
+        expect(res.ok()).toBeTruthy();
+        const body = await res.json();
+        expect(body).toMatchObject({ status: 'ok' });
+      });
+
+      test('@smoke auth returns token', async ({ request }) => {
+        const res = await request.post('/api/v1/auth/login', {
+          data: {
+            email: process.env['SMOKE_USER'],
+            password: process.env['SMOKE_PASSWORD'],
+          },
+        });
+        expect(res.status()).toBe(200);
+        const body = await res.json();
+        expect(typeof body.token ?? body.data?.token).toBe('string');
+      });
+      ```
+
+      ```typescript
+      // playwright.smoke.config.ts
+      import { defineConfig } from '@playwright/test';
+      export default defineConfig({
+        use: { baseURL: process.env['PLAYWRIGHT_BASE_URL'] ?? 'http://localhost:3000' },
+        testMatch: '**/*.smoke.ts',
+        retries: 1,
+        timeout: 10_000,
+      });
+      ```
+
+      Smoke tests run against the **deployed staging URL** only (`PLAYWRIGHT_BASE_URL` env var).
+      They never run against localhost in CI — that is the integration suite's job.
+
+      CI integration (post-deploy step):
+      ```yaml
+      - name: Smoke Tests
+        run: npx playwright test --config playwright.smoke.config.ts
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ env.STAGING_URL }}
+          SMOKE_USER: ${{ secrets.SMOKE_USER }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
+      ```

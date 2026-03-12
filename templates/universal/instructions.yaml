@@ -461,12 +461,24 @@ blocks:
       ## Feature Completion Protocol
       After implementing any feature (new or changed):
 
-      ### 1. Verify
+      ### 1. Verify (local, pre-commit)
       Run: `npx forgecraft-mcp verify .`
       (Or `npm test` + manual HTTP check if forgecraft is not installed.)
       A feature is not done until verify passes. Do not proceed to docs if it fails.
 
-      ### 2. Doc Sync Cascade
+      ### 2. Commit
+      One commit. Code and docs together. Only after verify passes and docs are in sync.
+      `feat(scope): <description>` — the commit message describes the feature, not the docs update.
+
+      ### 3. Deploy to Staging + Smoke Gate
+      After the CI pipeline deploys to staging, run the smoke suite:
+      ```
+      npx playwright test --config playwright.smoke.config.ts --grep @smoke
+      ```
+      If smoke fails: **revert the deploy**. Do not proceed to production and do not cascade docs
+      for a feature that is broken in the deployed environment.
+
+      ### 4. Doc Sync Cascade
       Update the following in order — skip any that do not exist in this project:
       1. **spec.md** — update the relevant feature section (APIs, behavior, contract changes)
       2. **docs/adrs/** — add an ADR if a new architectural decision was made
@@ -477,10 +489,6 @@ blocks:
       5. **docs/TechSpec.md** — update module list, API reference, or technology choice sections
       6. **docs/use-cases.md** — update or add use cases if new actor interactions were introduced
       7. **Status.md** — always update: what changed, current state, next steps
-
-      ### 3. Commit
-      One commit. Code and docs together. Only after verify passes and docs are in sync.
-      `feat(scope): <description>` — the commit message describes the feature, not the docs update.
 
   - id: mcp-tooling
     tier: recommended
