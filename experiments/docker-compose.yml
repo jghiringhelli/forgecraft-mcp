@@ -1,0 +1,49 @@
+# PostgreSQL for GS Experiment
+# Separate databases per condition to avoid cross-contamination.
+#
+# Usage:
+#   docker compose up -d
+#   docker compose down -v   # wipe all data between runs
+#
+# Connection strings:
+#   Control:   postgresql://conduit:conduit@localhost:5433/conduit_control
+#   Treatment: postgresql://conduit:conduit@localhost:5434/conduit_treatment
+
+services:
+  postgres-control:
+    image: postgres:16-alpine
+    container_name: conduit-control
+    environment:
+      POSTGRES_DB:       conduit_control
+      POSTGRES_USER:     conduit
+      POSTGRES_PASSWORD: conduit
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_control:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduit -d conduit_control"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-treatment:
+    image: postgres:16-alpine
+    container_name: conduit-treatment
+    environment:
+      POSTGRES_DB:       conduit_treatment
+      POSTGRES_USER:     conduit
+      POSTGRES_PASSWORD: conduit
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_treatment:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduit -d conduit_treatment"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg_control:
+  pg_treatment:

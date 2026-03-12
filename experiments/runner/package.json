@@ -5,10 +5,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "run:control":    "tsx run-experiment.ts --condition control",
-    "run:treatment":  "tsx run-experiment.ts --condition treatment",
-    "evaluate":       "tsx evaluate.ts",
-    "audit":          "tsx audit.ts --condition control && tsx audit.ts --condition treatment"
+    "run:control":         "tsx run-experiment.ts --condition control",
+    "run:treatment":       "tsx run-experiment.ts --condition treatment",
+    "materialize:control": "tsx materialize.ts --condition control",
+    "materialize:treatment": "tsx materialize.ts --condition treatment",
+    "test:control":        "tsx run-tests.ts --condition control",
+    "test:treatment":      "tsx run-tests.ts --condition treatment",
+    "evaluate":            "tsx evaluate.ts",
+    "audit":               "tsx audit.ts --condition control && tsx audit.ts --condition treatment"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0"
