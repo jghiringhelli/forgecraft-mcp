@@ -14,7 +14,8 @@
 #   6. pre-commit-compile        — TypeScript compilation check
 #   7. pre-commit-tdd-check      — TDD RED gate: test-only commits must fail;
 #                                  warn on implementation commits without tests
-#   8. pre-commit-test           — run test suite with coverage gate
+#   8. pre-commit-test           — run bare tests (skips when src/ staged; see #9)
+#   9. pre-commit-coverage       — run tests + enforce coverage thresholds (src/ only)
 # ──────────────────────────────────────────────────────────────────────
 
 set -e
@@ -64,6 +65,7 @@ run_hook "pre-commit-format.sh"
 run_hook "pre-commit-compile.sh"
 run_hook "pre-commit-tdd-check.sh"
 run_hook "pre-commit-test.sh"
+run_hook "pre-commit-coverage.sh"
 
 exit 0
 EOF
