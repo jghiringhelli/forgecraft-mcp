@@ -269,18 +269,32 @@ Before writing code for any new feature or significant change:
 
 ## Verification Protocol
 Before marking any feature complete or making a commit:
-1. Run the test suite: `npm test` — must pass with no regressions
-2. Start the server and verify the feature works at the HTTP layer
-3. If a Playwright spec exists for this surface, run it
-4. Read any failing screenshots visually and issue fix prompts until passing
-5. Only then commit
 
-This is a hard gate. A feature is not done until all five steps pass.
+```
+npx forgecraft-mcp verify .
+```
+
+`verify` runs the test suite, scores all six §4.3 GS properties (0–2 each, max 12), detects direct
+database calls in route handlers (Bounded violations), and lists source files with no test counterpart.
+
+A feature is not done until `verify` returns **PASS** (score ≥ 10/12 and tests green).
+Any `FAIL` output must be resolved before committing.
 
 ## Feature Completion Protocol
-After all 5 Verification Protocol steps pass:
+After `verify` returns PASS:
 
-### Doc Sync Cascade
+### 1. Commit
+One commit. Code only at this stage.
+`feat(scope): <description>` — the message describes the feature.
+
+### 2. Deploy to Staging + Smoke Gate
+After CI deploys to staging, run the API smoke suite:
+```
+npx playwright test --config playwright.smoke.config.ts --grep @smoke
+```
+If smoke fails: revert the deploy. Do not cascade docs for a broken deployment.
+
+### 3. Doc Sync Cascade
 Update the following in order — skip any that do not yet exist:
 1. **docs/spec.md** — update the changed endpoint/behavior section
 2. **docs/adrs/** — add an ADR if a new architectural decision was made (auth strategy, error shape, etc.)
@@ -290,9 +304,56 @@ Update the following in order — skip any that do not yet exist:
 6. **docs/use-cases.md** — update if a new actor interaction was introduced
 7. **Status.md** — always: what was implemented, what's next, any open decisions
 
-### Commit
-One commit. Code and docs together.
-`feat(scope): <description>` — the message describes the feature, not the docs update.
+## API Smoke Testing
+This project's smoke suite uses `Playwright APIRequestContext` — no browser overhead.
+Tag all smoke tests `@smoke` for isolated execution.
+
+Minimum suite for the RealWorld API:
+- `GET /api/healthcheck` (if present) or `GET /api/tags` → 200, valid JSON
+- `POST /api/users/login` with valid credentials → token returned
+- `GET /api/articles` (public list) → 200, `{articles: [], articlesCount: 0}` shape
+- `POST /api/articles` with auth → 201, article created
+- `GET /api/articles/:slug` on non-existent → 404, `{errors: {...}}` shape
+
+```typescript
+// tests/smoke/api.smoke.ts
+import { test, expect } from '@playwright/test';
+
+test('@smoke public endpoints respond', async ({ request }) => {
+  const res = await request.get('/api/tags');
+  expect(res.ok()).toBeTruthy();
+  const body = await res.json();
+  expect(body).toHaveProperty('tags');
+});
+
+test('@smoke auth returns token', async ({ request }) => {
+  const res = await request.post('/api/users/login', {
+    data: {
+      user: {
+        email: process.env['SMOKE_USER'],
+        password: process.env['SMOKE_PASSWORD'],
+      },
+    },
+  });
+  expect(res.status()).toBe(200);
+  const body = await res.json();
+  expect(typeof body?.user?.token).toBe('string');
+});
+```
+
+```typescript
+// playwright.smoke.config.ts
+import { defineConfig } from '@playwright/test';
+export default defineConfig({
+  use: { baseURL: process.env['PLAYWRIGHT_BASE_URL'] ?? 'http://localhost:3000' },
+  testMatch: '**/*.smoke.ts',
+  retries: 1,
+  timeout: 10_000,
+});
+```
+
+Smoke tests run against the deployed staging URL only (`PLAYWRIGHT_BASE_URL` env var).
+They never run against localhost in CI.
 
 ## Commit Protocol
 - Conventional commits: feat|fix|refactor|docs|test|chore(scope): description

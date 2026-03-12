@@ -466,9 +466,9 @@ blocks:
       (Or `npm test` + manual HTTP check if forgecraft is not installed.)
       A feature is not done until verify passes. Do not proceed to docs if it fails.
 
-      ### 2. Commit
-      One commit. Code and docs together. Only after verify passes and docs are in sync.
-      `feat(scope): <description>` — the commit message describes the feature, not the docs update.
+      ### 2. Commit (code only)
+      Commit after `verify` passes. This triggers CI and the staging deploy pipeline.
+      `feat(scope): <description>` — describes the feature, not the docs update.
 
       ### 3. Deploy to Staging + Smoke Gate
       After the CI pipeline deploys to staging, run the smoke suite:
