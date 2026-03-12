@@ -11,22 +11,40 @@ import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("analyzers/language-detector");
 
-/** Languages supported by ForgeCraft template rendering. */
-export type SupportedLanguage = "typescript" | "python";
+/** All languages ForgeCraft can recognise. */
+export type SupportedLanguage =
+  | "typescript"
+  | "python"
+  | "go"
+  | "rust"
+  | "java"
+  | "ruby"
+  | "csharp"
+  | "unknown";
 
-/** File indicators for each language. */
-const PYTHON_INDICATORS = [
-  "pyproject.toml",
-  "setup.py",
-  "setup.cfg",
-  "requirements.txt",
-  "Pipfile",
-] as const;
+/** File/dir indicators keyed by language (checked from project root). */
+const LANGUAGE_INDICATORS: Record<SupportedLanguage, readonly string[]> = {
+  typescript: ["tsconfig.json", "package.json"],
+  python:     ["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"],
+  go:         ["go.mod", "go.sum"],
+  rust:       ["Cargo.toml", "Cargo.lock"],
+  java:       ["pom.xml", "build.gradle", "build.gradle.kts", "gradlew"],
+  ruby:       ["Gemfile", "Gemfile.lock", ".ruby-version"],
+  csharp:     [".csproj", ".sln"],
+  unknown:    [],
+};
 
-const TYPESCRIPT_INDICATORS = [
-  "tsconfig.json",
-  "package.json",
-] as const;
+/** Source file extensions keyed by language — used as tiebreaker and for LOC counting. */
+export const LANGUAGE_EXTENSIONS: Record<SupportedLanguage, readonly string[]> = {
+  typescript: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+  python:     [".py"],
+  go:         [".go"],
+  rust:       [".rs"],
+  java:       [".java", ".kt", ".kts"],
+  ruby:       [".rb"],
+  csharp:     [".cs"],
+  unknown:    [],
+};
 
 /**
  * Detect the primary language of a project from filesystem indicators.
@@ -36,75 +54,72 @@ const TYPESCRIPT_INDICATORS = [
  * @returns Detected language
  */
 export function detectLanguage(projectDir: string): SupportedLanguage {
-  const hasPython = PYTHON_INDICATORS.some((f) =>
-    existsSync(join(projectDir, f)),
-  );
-  const hasTypeScript = TYPESCRIPT_INDICATORS.some((f) =>
-    existsSync(join(projectDir, f)),
+  const RANKED: SupportedLanguage[] = [
+    "go", "rust", "java", "ruby", "csharp", "python", "typescript",
+  ];
+
+  const matches = RANKED.filter((lang) =>
+    LANGUAGE_INDICATORS[lang].some((f) => {
+      // .csproj and .sln may appear anywhere in root; glob not needed here
+      if (f.startsWith(".")) {
+        try {
+          return readdirSync(projectDir).some((e) => String(e).endsWith(f));
+        } catch { return false; }
+      }
+      return existsSync(join(projectDir, f));
+    }),
   );
 
-  // Clear signal: only one language present
-  if (hasPython && !hasTypeScript) {
-    logger.info("Detected Python project", { projectDir });
-    return "python";
-  }
-
-  if (hasTypeScript && !hasPython) {
-    logger.info("Detected TypeScript project", { projectDir });
+  if (matches.length === 0) {
+    logger.info("No language indicators found, defaulting to typescript", { projectDir });
     return "typescript";
   }
 
-  // Both present (monorepo or mixed): count source files in src/
-  if (hasPython && hasTypeScript) {
-    const language = countSourceFiles(projectDir);
-    logger.info("Mixed project, detected by file count", {
-      projectDir,
-      language,
-    });
-    return language;
+  if (matches.length === 1) {
+    logger.info("Detected language", { projectDir, language: matches[0] });
+    return matches[0]!;
   }
 
-  // No indicators found — default to TypeScript
-  logger.info("No language indicators found, defaulting to typescript", {
-    projectDir,
-  });
-  return "typescript";
+  // Multiple matches (e.g. mixed monorepo) — tiebreak by source file count
+  const winner = countSourceFilesByLanguage(projectDir, matches);
+  logger.info("Mixed project — tiebroken by source file count", { projectDir, language: winner });
+  return winner;
 }
 
 /**
- * Count source files in src/ to determine majority language.
- * Shallow scan only (max 100 entries) to keep it fast.
+ * Count source files in src/ to tiebreak between multiple detected languages.
+ * Shallow scan only (max 200 entries) to keep it fast.
  */
-function countSourceFiles(projectDir: string): SupportedLanguage {
+function countSourceFilesByLanguage(
+  projectDir: string,
+  candidates: SupportedLanguage[],
+): SupportedLanguage {
   const srcDir = join(projectDir, "src");
-
-  if (!existsSync(srcDir)) {
-    return "typescript";
-  }
+  const scanDir = existsSync(srcDir) ? srcDir : projectDir;
 
   try {
-    const entries = readdirSync(srcDir, { recursive: false });
-    const limited = entries.slice(0, 100);
+    const entries = readdirSync(scanDir, { recursive: false }).slice(0, 200);
+    const counts = Object.fromEntries(candidates.map((l) => [l, 0])) as Record<string, number>;
 
-    let pyCount = 0;
-    let tsCount = 0;
-
-    for (const entry of limited) {
+    for (const entry of entries) {
       const name = String(entry);
-      if (name.endsWith(".py")) {
-        pyCount++;
-      } else if (
-        name.endsWith(".ts") ||
-        name.endsWith(".tsx") ||
-        name.endsWith(".js") ||
-        name.endsWith(".jsx")
-      ) {
-        tsCount++;
+      for (const lang of candidates) {
+        if (LANGUAGE_EXTENSIONS[lang].some((ext) => name.endsWith(ext))) {
+          counts[lang]++;
+          break;
+        }
       }
     }
 
-    return pyCount > tsCount ? "python" : "typescript";
+    // Strict `>` so TypeScript (last in RANKED) wins on ties — keeps legacy default.
+    const winner = candidates.reduce((a, b) => (counts[a]! > counts[b]! ? a : b));
+    return winner;
   } catch {
-    return "typescript";
+    return candidates[0]!;
   }
+}
+
+/** @deprecated Use `detectLanguage` — this is for backward-compatibility only. */
+export function countSourceFiles(projectDir: string): SupportedLanguage {
+  return countSourceFilesByLanguage(projectDir, ["typescript", "python"]);
 }
