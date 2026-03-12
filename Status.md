@@ -1,6 +1,32 @@
 # Status.md
 
-## Last Updated: 2026-03-12 (Session 13)
+## Last Updated: 2026-03-12 (Session 14)
+
+## Session 14 Summary
+Two spec documents written against the GS theory review: tooling cross-check and experiment execution protocol.
+
+**Commits**: pending (docs only — no src/ changes; coverage gate skips)
+
+**Files added**:
+| File | Purpose |
+|------|---------|
+| `docs/gs-tooling-crosscheck.md` | Systematic gap analysis: ForgeCraft current enforcement vs. full GS theory requirements. Covers all 13 artifact types, 6 properties, 4 cascade procedures, and practitioner manual new content. Produces prioritized P1–P4 backlog. |
+| `docs/gs-experiment-execution.md` | Step-by-step protocol for running the RealWorld controlled experiment: pre-run checklist, treatment artifact verification, control and treatment session procedures, objective metrics collection, blind auditor assessment, results population, and post-results ForgeCraft + white paper update actions. |
+
+**Key findings from cross-check** (see `docs/gs-tooling-crosscheck.md` §5 for full backlog):
+- **P1 — Corrections Log + Techniques Subsection**: Add both to UNIVERSAL CLAUDE.md template. Low effort, closes a real gap the practitioner manual introduced.
+- **P1 — `check_cascade` tool**: Derivability gate — checks that all five initialization steps have output before implementation begins. Currently absent; ForgeCraft can generate a CLAUDE.md for a project with no functional spec.
+- **P1 — `generate_session_prompt` tool**: Bound prompt generation from roadmap item + artifact context. The missing link between spec cascade and individual session execution.
+- **P2 — ADR generation tool**: Triggered by decision event; minimum format; no content currently generated (only directory scaffold).
+- **P2 — Mutation testing hook**: `add_hook stryker / mutmut` — the adversarial audit of AI-generated test suites is documented but not wired.
+
+**Pending items resolved**:
+- [x] GS tooling cross-check spec written
+- [x] GS AI vs Plain AI experiment execution spec written
+- [ ] GS theory documents — user will paste (not yet received)
+- [ ] Run experiment (control + treatment conditions) per `docs/gs-experiment-execution.md`
+
+---
 
 ## Session 13 Summary
 Pre-commit coverage gate added to enforce 80% threshold on every src/ commit.
