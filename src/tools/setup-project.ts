@@ -255,6 +255,8 @@ function buildConfig(
     projectName: existing?.projectName ?? projectName,
     tags: tags,
     tier,
+    // compact on by default — reduces token usage ~20-40% without loss of content
+    compact: existing?.compact ?? true,
     templateDirs: existing?.templateDirs,
     include: existing?.include,
     exclude: existing?.exclude,

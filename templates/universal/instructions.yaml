@@ -437,6 +437,51 @@ blocks:
       - Commit BEFORE any risky refactor. Tag stable states.
       - Update Status.md at the end of every session.
 
+  - id: clarification-protocol
+    tier: core
+    title: "Clarification Protocol"
+    content: |
+      ## Clarification Protocol
+      Before writing code for any new feature or significant change:
+      - If the request implies architectural trade-offs that are not explicit, **ask one targeted
+        question** before proceeding. Do not silently choose an architecture.
+      - If the domain model is ambiguous (cardinality, ownership, event ordering, shared state),
+        state your assumption and ask for confirmation before implementing.
+      - If the request has two or more meaningfully different interpretations, present the options
+        briefly and ask — do not guess and hide the choice.
+      - Do NOT ask about mechanical details (naming conventions, file placement, test structure) —
+        apply the conventions already in this document without asking.
+      - Maximum one clarification round. If told "use your judgment," proceed with the most
+        conservative interpretation and record the assumption in a code comment or new ADR.
+
+  - id: feature-completion-protocol
+    tier: recommended
+    title: "Feature Completion Protocol"
+    content: |
+      ## Feature Completion Protocol
+      After implementing any feature (new or changed):
+
+      ### 1. Verify
+      Run: `npx forgecraft-mcp verify .`
+      (Or `npm test` + manual HTTP check if forgecraft is not installed.)
+      A feature is not done until verify passes. Do not proceed to docs if it fails.
+
+      ### 2. Doc Sync Cascade
+      Update the following in order — skip any that do not exist in this project:
+      1. **spec.md** — update the relevant feature section (APIs, behavior, contract changes)
+      2. **docs/adrs/** — add an ADR if a new architectural decision was made
+      3. **docs/diagrams/c4-*.md** — update container or component diagrams if a new module
+         or external dependency was added
+      4. **Mermaid diagrams** (inline in TechSpec.md or standalone .mermaid files) — update
+         sequence/flow diagrams for the changed surface
+      5. **docs/TechSpec.md** — update module list, API reference, or technology choice sections
+      6. **docs/use-cases.md** — update or add use cases if new actor interactions were introduced
+      7. **Status.md** — always update: what changed, current state, next steps
+
+      ### 3. Commit
+      One commit. Code and docs together. Only after verify passes and docs are in sync.
+      `feat(scope): <description>` — the commit message describes the feature, not the docs update.
+
   - id: mcp-tooling
     tier: recommended
     title: "MCP-Powered Tooling"

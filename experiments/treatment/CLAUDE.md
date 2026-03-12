@@ -254,6 +254,19 @@ Prefer stubs and fakes over mocks. Tests that mock everything test nothing.
 - State exact row counts, column sets, and filters for every data operation.
 - If data is too large for in-memory, say so — don't silently downsample.
 
+## Clarification Protocol
+Before writing code for any new feature or significant change:
+- If the request implies architectural trade-offs that are not explicit, **ask one targeted
+  question** before proceeding. Do not silently choose an architecture.
+- If the domain model is ambiguous (cardinality, ownership, event ordering, shared state),
+  state your assumption and ask for confirmation before implementing.
+- If the request has two or more meaningfully different interpretations, present the options
+  briefly and ask — do not guess and hide the choice.
+- Do NOT ask about mechanical details (naming conventions, file placement, test structure) —
+  apply the conventions already in this document without asking.
+- Maximum one clarification round. If told "use your judgment," proceed with the most
+  conservative interpretation and record the assumption in a code comment or new ADR.
+
 ## Verification Protocol
 Before marking any feature complete or making a commit:
 1. Run the test suite: `npm test` — must pass with no regressions
@@ -263,6 +276,23 @@ Before marking any feature complete or making a commit:
 5. Only then commit
 
 This is a hard gate. A feature is not done until all five steps pass.
+
+## Feature Completion Protocol
+After all 5 Verification Protocol steps pass:
+
+### Doc Sync Cascade
+Update the following in order — skip any that do not yet exist:
+1. **docs/spec.md** — update the changed endpoint/behavior section
+2. **docs/adrs/** — add an ADR if a new architectural decision was made (auth strategy, error shape, etc.)
+3. **docs/diagrams/c4-*.md** — update if a new module or external dependency was added
+4. **docs/diagrams/*.mermaid** or inline mermaid in TechSpec.md — update sequence diagrams for the changed surface
+5. **docs/TechSpec.md** — update module list or API reference if the surface changed
+6. **docs/use-cases.md** — update if a new actor interaction was introduced
+7. **Status.md** — always: what was implemented, what's next, any open decisions
+
+### Commit
+One commit. Code and docs together.
+`feat(scope): <description>` — the message describes the feature, not the docs update.
 
 ## Commit Protocol
 - Conventional commits: feat|fix|refactor|docs|test|chore(scope): description
