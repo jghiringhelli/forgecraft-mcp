@@ -28,7 +28,28 @@ export ANTHROPIC_MODEL=claude-opus-4-5
 
 Two separate databases are used — one per condition — to prevent any cross-contamination.
 
-### Option A — Docker Compose (local)
+### Option A — Rancher (local, default)
+
+Rancher is running locally on the default port. Just create the two databases:
+
+```bash
+# Create both databases (run once)
+psql -h localhost -U postgres -c "CREATE DATABASE conduit_control;"
+psql -h localhost -U postgres -c "CREATE DATABASE conduit_treatment;"
+psql -h localhost -U postgres -c "CREATE USER conduit WITH PASSWORD 'conduit';"
+psql -h localhost -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE conduit_control TO conduit;"
+psql -h localhost -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE conduit_treatment TO conduit;"
+```
+
+The scripts will default to `localhost:5432` with user `conduit` if no env vars are set.
+To override credentials:
+
+```bash
+export DATABASE_URL_CONTROL=postgresql://conduit:conduit@localhost:5432/conduit_control
+export DATABASE_URL_TREATMENT=postgresql://conduit:conduit@localhost:5432/conduit_treatment
+```
+
+### Option B — Docker Compose (isolated, no Rancher required)
 
 ```bash
 cd experiments/
@@ -37,18 +58,6 @@ docker compose up -d
 export DATABASE_URL_CONTROL=postgresql://conduit:conduit@localhost:5433/conduit_control
 export DATABASE_URL_TREATMENT=postgresql://conduit:conduit@localhost:5434/conduit_treatment
 ```
-
-### Option B — Rancher / external Kubernetes PostgreSQL
-
-Create two databases on your cluster, then export their connection strings:
-
-```bash
-export DATABASE_URL_CONTROL=postgresql://user:pass@rancher-host:5432/conduit_control
-export DATABASE_URL_TREATMENT=postgresql://user:pass@rancher-host:5432/conduit_treatment
-```
-
-The databases just need to exist and be reachable — `run-tests.ts` runs `prisma migrate reset`
-which creates all tables from the schema.
 
 ---
 

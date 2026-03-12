@@ -26,7 +26,7 @@
  *   npx tsx run-tests.ts --condition control --materialize
  */
 
-import { execSync, spawnSync } from "child_process";
+import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -68,10 +68,10 @@ function resolveDbUrl(condition: string): string {
 
   if (!url) {
     const dockerUrl = condition === "control"
-      ? "postgresql://conduit:conduit@localhost:5433/conduit_control"
-      : "postgresql://conduit:conduit@localhost:5434/conduit_treatment";
+      ? "postgresql://conduit:conduit@localhost:5432/conduit_control"
+      : "postgresql://conduit:conduit@localhost:5432/conduit_treatment";
 
-    console.warn(`  [WARN] ${envKey} not set — trying docker-compose default: ${dockerUrl}`);
+    console.warn(`  [WARN] ${envKey} not set — trying Rancher local default: ${dockerUrl}`);
     return dockerUrl;
   }
   return url;
