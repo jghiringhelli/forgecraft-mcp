@@ -296,13 +296,15 @@ If smoke fails: revert the deploy. Do not cascade docs for a broken deployment.
 
 ### 3. Doc Sync Cascade
 Update the following in order — skip any that do not yet exist:
-1. **docs/spec.md** — update the changed endpoint/behavior section
-2. **docs/adrs/** — add an ADR if a new architectural decision was made (auth strategy, error shape, etc.)
-3. **docs/diagrams/c4-*.md** — update if a new module or external dependency was added
-4. **docs/diagrams/*.mermaid** or inline mermaid in TechSpec.md — update sequence diagrams for the changed surface
-5. **docs/TechSpec.md** — update module list or API reference if the surface changed
+1. **docs/TechSpec.md** — mark implemented endpoint rows `✓✓`, add any new modules to the module table, record new packages in the dependencies table
+2. **docs/roadmap.md** — mark the milestone status as complete, fill in its `verify score` cell
+3. **docs/adrs/** — add an ADR if a new architectural decision was made (auth strategy, error shape, layer rule, etc.)
+4. **docs/diagrams/c4-*.md** — update if a new module or external dependency was added
+5. **docs/diagrams/sequences.md** — update sequence diagrams for the changed surface
 6. **docs/use-cases.md** — update if a new actor interaction was introduced
 7. **Status.md** — always: what was implemented, what's next, any open decisions
+
+> The RealWorld spec (`../REALWORLD_API_SPEC.md`) is canonical and immutable — do not edit it.
 
 ## API Smoke Testing
 This project's smoke suite uses `Playwright APIRequestContext` — no browser overhead.
