@@ -29,6 +29,7 @@ import { reviewProjectHandler } from "./review.js";
 import { refreshProjectHandler } from "./refresh-project.js";
 import { verifyHandler } from "./verify.js";
 import { adviceHandler } from "./advice.js";
+import { metricsHandler } from "./metrics.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ const ACTIONS = [
   "convert",
   "verify",
   "advice",
+  "metrics",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -65,12 +67,13 @@ export const forgecraftSchema = z.object({
       "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
       "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
       "verify (run tests + score §4.3 GS properties + report layer violations), " +
-      "advice (quality cycle checklist + tool stack + example configs for your tags).",
+      "advice (quality cycle checklist + tool stack + example configs for your tags), " +
+      "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation).",
     ),
   project_dir: z
     .string()
     .optional()
-    .describe("Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify. Optional for: classify, advice."),
+    .describe("Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify, metrics. Optional for: classify, advice."),
   tags: z
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
     .optional()
@@ -192,6 +195,14 @@ export const forgecraftSchema = z.object({
     .max(12)
     .optional()
     .describe("Minimum §4.3 GS score (0–12) required for overall pass. Used by: verify. Default: 10."),
+  include_mutation: z
+    .boolean()
+    .optional()
+    .describe("Run Stryker mutation testing (slow, opt-in). Used by: metrics. Default: false."),
+  coverage_dir: z
+    .string()
+    .optional()
+    .describe("Path to existing coverage report directory. Used by: metrics. Defaults to coverage/ relative to project_dir."),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -311,6 +322,13 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
       return adviceHandler({
         project_dir: args.project_dir,
         tags: args.tags as string[] | undefined,
+      });
+
+    case "metrics":
+      return metricsHandler({
+        project_dir: requireParam(args.project_dir, "project_dir", "metrics"),
+        include_mutation: args.include_mutation ?? false,
+        coverage_dir: args.coverage_dir,
       });
 
     default:

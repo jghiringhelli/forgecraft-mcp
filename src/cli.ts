@@ -22,6 +22,7 @@ import { addHookHandler } from "./tools/add-hook.js";
 import { addModuleHandler } from "./tools/add-module.js";
 import { verifyHandler } from "./tools/verify.js";
 import { adviceHandler } from "./tools/advice.js";
+import { metricsHandler } from "./tools/metrics.js";
 
 // ── Arg Parsing ──────────────────────────────────────────────────────
 
@@ -153,6 +154,16 @@ async function cmdAdvice(pos: string[], flags: Flags): Promise<void> {
   const result = await adviceHandler({
     project_dir: projectDir,
     tags,
+  });
+  printResult(result);
+}
+
+async function cmdMetrics(pos: string[], flags: Flags): Promise<void> {
+  const projectDir = resolve(pos[0] ?? ".");
+  const result = await metricsHandler({
+    project_dir: projectDir,
+    include_mutation: bool(flags, "mutation", false),
+    coverage_dir: str(flags, "coverage-dir"),
   });
   printResult(result);
 }
@@ -325,7 +336,9 @@ COMMANDS
   convert <dir>          Generate migration plan
   add-hook <name> <dir>  Install a quality-gate hook
   add-module <name> <dir> Scaffold a feature module
-  verify  [dir]          Run tests + score §4.3 GS properties + report layer violations  advice  [dir]          Quality cycle checklist + tool stack + example configs for your tags
+  verify  [dir]          Run tests + score §4.3 GS properties + report layer violations
+  advice  [dir]          Quality cycle checklist + tool stack + example configs for your tags
+  metrics [dir]          External quality report: LOC, coverage, layer violations, dead code, complexity
 FLAGS (vary by command)
   --tags <tags...>       Project classification tags (or read from forgecraft.yaml)
   --tier <tier>          Content depth: core | recommended | optional
@@ -342,6 +355,8 @@ FLAGS (vary by command)
   --test-cmd <cmd>       Test command override for verify (default: npm test)
   --timeout <ms>         Test suite timeout in milliseconds (default: 120000)
   --threshold <n>        Minimum GS score out of 12 for pass (default: 10)
+  --mutation             Run Stryker mutation testing (slow, opt-in; used by metrics)
+  --coverage-dir <path>  Path to existing coverage report directory (used by metrics)
   --force                Overwrite existing files
   --compact              Strip explanatory bullet tails and deduplicate lines (~20-40% smaller output)
   --tag <tag>            Single tag filter (for add-hook)
@@ -386,6 +401,7 @@ export async function runCli(argv: string[]): Promise<boolean> {
       case "add-module": await cmdAddModule(positional, flags); break;
       case "verify":   await cmdVerify(positional, flags); break;
       case "advice":   await cmdAdvice(positional, flags); break;
+      case "metrics":  await cmdMetrics(positional, flags); break;
       default:
         console.error(`Unknown command: ${command}`);
         showHelp();
