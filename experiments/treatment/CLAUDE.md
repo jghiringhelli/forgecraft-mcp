@@ -14,11 +14,11 @@
 > Config: `forgecraft.yaml` | Tier system: core → recommended → optional
 
 ## Project Identity
-- **Repo**: {{repo_url}}
-- **Primary Language**: typescript
-- **Framework**: {{framework}}
-- **Domain**: {{domain}}
-- **Sensitive Data**: {{sensitive_data}}
+- **Repo**: github.com/jghiringhelli/forgecraft-mcp (experiment: `experiments/treatment/output/`)
+- **Primary Language**: TypeScript 5 · Node 18+
+- **Framework**: Express 4 + Prisma 5 + PostgreSQL
+- **Domain**: RealWorld Conduit API — blogging platform backend (GS experiment treatment condition)
+- **Sensitive Data**: JWT secrets, bcrypt password hashes — never log, never hardcode
 - **Project Tags**: `[UNIVERSAL]` `[API]`
 
 ## Code Standards
@@ -253,6 +253,16 @@ Prefer stubs and fakes over mocks. Tests that mock everything test nothing.
 - NEVER make simplifying assumptions about distributions, scales, or schemas.
 - State exact row counts, column sets, and filters for every data operation.
 - If data is too large for in-memory, say so — don't silently downsample.
+
+## Verification Protocol
+Before marking any feature complete or making a commit:
+1. Run the test suite: `npm test` — must pass with no regressions
+2. Start the server and verify the feature works at the HTTP layer
+3. If a Playwright spec exists for this surface, run it
+4. Read any failing screenshots visually and issue fix prompts until passing
+5. Only then commit
+
+This is a hard gate. A feature is not done until all five steps pass.
 
 ## Commit Protocol
 - Conventional commits: feat|fix|refactor|docs|test|chore(scope): description

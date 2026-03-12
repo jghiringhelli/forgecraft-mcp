@@ -6,3 +6,7 @@ Implement user profiles:
 - DELETE /api/profiles/:username/follow (auth required)
 
 Write tests for all three endpoints.
+
+---
+**Before committing:** run the Verification Protocol (see CLAUDE.md § Verification Protocol).
+All 5 steps must pass. Do not commit a partial green state.

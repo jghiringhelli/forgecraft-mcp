@@ -13,3 +13,7 @@ Implement articles:
 Note: GET /api/articles and GET /api/articles/feed do NOT return the `body` field in list responses (performance spec change from 2024-08-16).
 
 Write tests for all endpoints including authorization checks, pagination, and filtering.
+
+---
+**Before committing:** run the Verification Protocol (see CLAUDE.md § Verification Protocol).
+All 5 steps must pass. Do not commit a partial green state.
