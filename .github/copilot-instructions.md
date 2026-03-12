@@ -1,7 +1,7 @@
-# CLAUDE.md
+# Copilot Instructions
 
-<!-- ForgeCraft managed | 2026-03-12 | target: claude -->
-> **This project is managed by [ForgeCraft](https://github.com/jghiringhelli/forgecraft-mcp).** Generated for Claude Code.
+<!-- ForgeCraft managed | 2026-03-12 | target: copilot -->
+> **This project is managed by [ForgeCraft](https://github.com/jghiringhelli/forgecraft-mcp).** Generated for GitHub Copilot.
 > Tags: `UNIVERSAL`, `LIBRARY`, `CLI`, `API`
 >
 > Available commands:
