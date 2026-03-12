@@ -529,6 +529,20 @@ blocks:
       ### Learned Corrections
       - [AI assistant appends corrections here with date and description]
 
+  - id: techniques-registry
+    tier: core
+    title: "Techniques"
+    content: |
+      ## Techniques
+      Named techniques, algorithms, and domain frameworks active in this project.
+      Each name activates the AI's full training on that technique — no explanation needed.
+      A technique named here is available at the full depth of the model's training on it.
+      ### Active Techniques
+      <!-- Add project-specific techniques below.
+           Examples: RAPTOR indexing · BM25+vector hybrid with RRF fusion ·
+           PCA geometric validation · deontic modal logic · CQRS · Saga pattern -->
+      - [Add named techniques here]
+
   - id: test-taxonomy
     tier: recommended
     title: "Test Taxonomy"

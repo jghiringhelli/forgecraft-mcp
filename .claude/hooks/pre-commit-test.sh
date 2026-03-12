@@ -1,20 +1,31 @@
 #!/bin/bash
 COVERAGE_MIN=80
 
-# If src/ files are staged the coverage hook (pre-commit-coverage.sh) will run
-# the full test + coverage pass. Skip the bare test run here to avoid executing
-# 471 tests twice on the same commit.
+# Collect staged files once.
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Determine what kinds of files are staged.
 SRC_STAGED=0
+CODE_STAGED=0
 while IFS= read -r file; do
   if echo "$file" | grep -qE '^src/'; then
     SRC_STAGED=1
-    break
+    CODE_STAGED=1
+  elif echo "$file" | grep -qE '^tests?/'; then
+    CODE_STAGED=1
   fi
 done <<< "$STAGED"
 
+# If src/ is staged the coverage-gate hook runs the full test + coverage pass.
+# Skip the bare run here to avoid running 471 tests twice on the same commit.
 if [ "$SRC_STAGED" -eq 1 ]; then
   echo "🧪 src/ files staged — tests will run via coverage gate, skipping bare run."
+  exit 0
+fi
+
+# If no code files at all are staged (docs-only, config-only, etc.) skip the run.
+if [ "$CODE_STAGED" -eq 0 ]; then
+  echo "🧪 No code files staged — skipping test run."
   exit 0
 fi
 

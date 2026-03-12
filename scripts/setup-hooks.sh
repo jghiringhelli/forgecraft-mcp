@@ -14,7 +14,7 @@
 #   6. pre-commit-compile        — TypeScript compilation check
 #   7. pre-commit-tdd-check      — TDD RED gate: test-only commits must fail;
 #                                  warn on implementation commits without tests
-#   8. pre-commit-test           — run bare tests (skips when src/ staged; see #9)
+#   8. pre-commit-test           — run bare tests (skips docs/config-only commits and when src/ staged; see #9)
 #   9. pre-commit-coverage       — run tests + enforce coverage thresholds (src/ only)
 # ──────────────────────────────────────────────────────────────────────
 

@@ -163,25 +163,37 @@ hooks:
 
   - name: test-coverage
     trigger: pre-commit
-    description: "Run tests (no coverage) for non-src commits; defer to coverage-gate when src/ is staged"
+    description: "Run tests for test-only commits; skip for docs/config-only commits; defer to coverage-gate when src/ staged"
     filename: pre-commit-test.sh
     script: |
       #!/bin/bash
       COVERAGE_MIN={{coverage_minimum | default: 80}}
 
-      # If src/ files are staged the coverage-gate hook runs tests + coverage.
-      # Skip the bare test run here to avoid executing the full suite twice.
+      # Collect staged files once.
       STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+      # Determine what kinds of files are staged.
       SRC_STAGED=0
+      CODE_STAGED=0
       while IFS= read -r file; do
         if echo "$file" | grep -qE '^src/'; then
           SRC_STAGED=1
-          break
+          CODE_STAGED=1
+        elif echo "$file" | grep -qE '^tests?/'; then
+          CODE_STAGED=1
         fi
       done <<< "$STAGED"
 
+      # If src/ is staged the coverage-gate hook runs the full test + coverage pass.
+      # Skip the bare run here to avoid running the full suite twice.
       if [ "$SRC_STAGED" -eq 1 ]; then
         echo "🧪 src/ files staged — tests will run via coverage gate, skipping bare run."
+        exit 0
+      fi
+
+      # If no code files at all are staged (docs-only, config-only, etc.) skip the run.
+      if [ "$CODE_STAGED" -eq 0 ]; then
+        echo "🧪 No code files staged — skipping test run."
         exit 0
       fi
 

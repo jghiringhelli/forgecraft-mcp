@@ -30,6 +30,8 @@ import { refreshProjectHandler } from "./refresh-project.js";
 import { verifyHandler } from "./verify.js";
 import { adviceHandler } from "./advice.js";
 import { metricsHandler } from "./metrics.js";
+import { checkCascadeHandler } from "./check-cascade.js";
+import { generateSessionPromptHandler } from "./generate-session-prompt.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -49,6 +51,8 @@ const ACTIONS = [
   "verify",
   "advice",
   "metrics",
+  "check_cascade",
+  "generate_session_prompt",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -68,7 +72,9 @@ export const forgecraftSchema = z.object({
       "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
       "verify (run tests + score §4.3 GS properties + report layer violations), " +
       "advice (quality cycle checklist + tool stack + example configs for your tags), " +
-      "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation).",
+      "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation), " +
+      "check_cascade (derivability gate: verify all 5 GS init cascade steps are complete before implementation begins), " +
+      "generate_session_prompt (produce a bound, self-contained session prompt for a single roadmap item).",
     ),
   project_dir: z
     .string()
@@ -203,6 +209,22 @@ export const forgecraftSchema = z.object({
     .string()
     .optional()
     .describe("Path to existing coverage report directory. Used by: metrics. Defaults to coverage/ relative to project_dir."),
+  item_description: z
+    .string()
+    .optional()
+    .describe("Roadmap item description for this session. Used by: generate_session_prompt. Should include actor, behavior, and postcondition."),
+  acceptance_criteria: z
+    .array(z.string())
+    .optional()
+    .describe("Checkable acceptance criteria. Used by: generate_session_prompt. If omitted, defaults are generated."),
+  scope_note: z
+    .string()
+    .optional()
+    .describe("Explicit out-of-scope statement — what this session must NOT touch. Used by: generate_session_prompt."),
+  session_type: z
+    .enum(["feature", "fix", "refactor", "test", "docs", "chore"])
+    .optional()
+    .describe("Conventional commit type for session output. Used by: generate_session_prompt. Default: feature."),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -329,6 +351,20 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
         project_dir: requireParam(args.project_dir, "project_dir", "metrics"),
         include_mutation: args.include_mutation ?? false,
         coverage_dir: args.coverage_dir,
+      });
+
+    case "check_cascade":
+      return checkCascadeHandler({
+        project_dir: requireParam(args.project_dir, "project_dir", "check_cascade"),
+      });
+
+    case "generate_session_prompt":
+      return generateSessionPromptHandler({
+        project_dir: requireParam(args.project_dir, "project_dir", "generate_session_prompt"),
+        item_description: requireParam(args.item_description, "item_description", "generate_session_prompt"),
+        acceptance_criteria: args.acceptance_criteria,
+        scope_note: args.scope_note,
+        session_type: args.session_type ?? "feature",
       });
 
     default:
