@@ -3,28 +3,48 @@
 ## Last Updated: 2026-03-12 (Session 14)
 
 ## Session 14 Summary
-Two spec documents written against the GS theory review: tooling cross-check and experiment execution protocol.
+Read GS theory documents; executed P1 backlog from `docs/gs-tooling-crosscheck.md`; fixed docs-only pre-commit hook bug.
 
-**Commits**: pending (docs only — no src/ changes; coverage gate skips)
+**Commit**: `b1d07a7` (feat(gs): implement P1 GS backlog items from crosscheck analysis)
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `templates/universal/instructions.yaml` | Added `techniques-registry` block (tier:core) — stub for named project techniques per Practitioner Protocol §2 |
+| `.claude/hooks/pre-commit-test.sh` | Fixed docs-only skip: added `CODE_STAGED` flag; skips when neither `src/` nor `tests/` staged |
+| `templates/universal/hooks.yaml` | Same docs-only skip logic added to test-coverage hook template entry |
+| `scripts/setup-hooks.sh` | Comment updated for hook #8 |
+| `src/tools/check-cascade.ts` | NEW — `check_cascade` tool: 5-step GS init cascade derivability gate |
+| `src/tools/generate-session-prompt.ts` | NEW — `generate_session_prompt` tool: bound session prompt from roadmap item + artifacts |
+| `src/tools/forgecraft-router.ts` | Registered both new tools (imports + ACTIONS + schema + switch cases) |
+| `tests/tools/check-cascade.test.ts` | NEW — 18 unit tests for check_cascade |
+| `tests/tools/generate-session-prompt.test.ts` | NEW — 19 unit tests for generate_session_prompt |
+| `tests/shared/barrels.test.ts` | Removed stray `foo` identifier (pre-existing parse error) |
+
+**P1 backlog status** (from `docs/gs-tooling-crosscheck.md`):
+- [x] P1a: corrections-log block already tier:core (confirmed, no change needed)
+- [x] P1b: `techniques-registry` block added to UNIVERSAL template
+- [x] P1c: `check_cascade` tool — 5 cascade steps, PASS/FAIL/WARN per step, 18 tests
+- [x] P1d: `generate_session_prompt` tool — context load + TDD gate + close ritual, 19 tests
+
+**Tests**: 510/510 passing. Coverage maintained ≥ 80%.
+
+**Next steps (P2 backlog)**:
+- [ ] `generate_adr` tool — triggered by decision event; minimum ADR format
+- [ ] `add_hook stryker` / `add_hook mutmut` — mutation testing hook
+- [ ] `start_session` / `end_session` ritual enforcement tools
+- [ ] Run GS AI vs Plain AI experiment per `docs/gs-experiment-execution.md`
+
+---
+
+## Session 14 (earlier) — GS Spec Documents
+Two spec documents written against the GS theory review.
 
 **Files added**:
 | File | Purpose |
 |------|---------|
-| `docs/gs-tooling-crosscheck.md` | Systematic gap analysis: ForgeCraft current enforcement vs. full GS theory requirements. Covers all 13 artifact types, 6 properties, 4 cascade procedures, and practitioner manual new content. Produces prioritized P1–P4 backlog. |
-| `docs/gs-experiment-execution.md` | Step-by-step protocol for running the RealWorld controlled experiment: pre-run checklist, treatment artifact verification, control and treatment session procedures, objective metrics collection, blind auditor assessment, results population, and post-results ForgeCraft + white paper update actions. |
-
-**Key findings from cross-check** (see `docs/gs-tooling-crosscheck.md` §5 for full backlog):
-- **P1 — Corrections Log + Techniques Subsection**: Add both to UNIVERSAL CLAUDE.md template. Low effort, closes a real gap the practitioner manual introduced.
-- **P1 — `check_cascade` tool**: Derivability gate — checks that all five initialization steps have output before implementation begins. Currently absent; ForgeCraft can generate a CLAUDE.md for a project with no functional spec.
-- **P1 — `generate_session_prompt` tool**: Bound prompt generation from roadmap item + artifact context. The missing link between spec cascade and individual session execution.
-- **P2 — ADR generation tool**: Triggered by decision event; minimum format; no content currently generated (only directory scaffold).
-- **P2 — Mutation testing hook**: `add_hook stryker / mutmut` — the adversarial audit of AI-generated test suites is documented but not wired.
-
-**Pending items resolved**:
-- [x] GS tooling cross-check spec written
-- [x] GS AI vs Plain AI experiment execution spec written
-- [ ] GS theory documents — user will paste (not yet received)
-- [ ] Run experiment (control + treatment conditions) per `docs/gs-experiment-execution.md`
+| `docs/gs-tooling-crosscheck.md` | Systematic gap analysis: ForgeCraft vs. full GS theory. Covers 13 artifact types, 6 properties, 4 cascade procedures. Produces P1–P4 backlog. |
+| `docs/gs-experiment-execution.md` | Step-by-step protocol for RealWorld controlled experiment: pre-run checklist, treatment verification, session procedures, metrics collection. |
 
 ---
 
