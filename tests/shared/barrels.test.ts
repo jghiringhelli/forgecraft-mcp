@@ -58,3 +58,4 @@ describe("src/core barrel exports", () => {
     expect(mod).toBeDefined();
   });
 });
+foo
