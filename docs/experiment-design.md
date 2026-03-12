@@ -41,7 +41,7 @@ The hypothesis, stated falsifiably: **Treatment output will score higher than co
 **What the agent receives:**
 - The RealWorld API spec (OpenAPI/markdown, the external ground truth)
 - A brief problem statement (see §5.1)
-- The implementation prompts (identical to treatment, see §6)
+- The implementation prompts (aligned in feature content with treatment — see §6 for differences)
 
 **What the agent does NOT receive:**
 - Any CLAUDE.md or architectural guidance
@@ -59,7 +59,7 @@ The hypothesis, stated falsifiably: **Treatment output will score higher than co
 - Same RealWorld API spec
 - Same problem statement
 - **ForgeCraft-generated artifact cascade** (see §4)
-- Same implementation prompts (identical wording, identical order)
+- Same implementation prompts (aligned feature content — see §6 for documented differences in test timing and commit gate)
 
 **What the agent does NOT receive:**
 - The GS paper (the artifact cascade is the specification; the paper is not injected into context)
@@ -105,6 +105,53 @@ Tags applied: `[UNIVERSAL]`, `[API]`
 
 ForgeCraft templates are **not modified** for this experiment. Any template change that would benefit this experiment but not the general case is prohibited. The treatment's structural advantage must come from applying existing ForgeCraft capabilities correctly, not from tuning the tool to the benchmark.
 
+### 4.4 GS Aspects Coverage Matrix
+
+This table documents which GS artifacts and practices each condition receives. Since GS was designed to produce exactly the structural properties being measured, the treatment's scores on Self-describing, Defended, and Auditable are expected advantages by construction — not evidence of AI improvement. The **key signal** is whether GS also produces downstream code-quality gains (Bounded, Verifiable, Composable, layer violations, naming) that were not directly specified in any individual prompt.
+
+| GS Aspect | Control | Treatment | Notes |
+|---|---|---|---|
+| **Architecture** | | | |
+| Architectural constitution (CLAUDE.md) | ❌ | ✅ ForgeCraft `setup_project` | Single source of truth for conventions, layers, standards |
+| Layered architecture (Ports & Adapters) | ❌ | ✅ CLAUDE.md §Layered Architecture | Route → Service → Repository hierarchy, NO cross-layer imports |
+| SOLID principles | ❌ | ✅ CLAUDE.md §SOLID | All 5 principles with examples |
+| Interfaces-first development | ❌ | ✅ CLAUDE.md §Interfaces First | Contract before implementation |
+| Dependency injection | ❌ | ✅ CLAUDE.md §Dependency Injection | Services injected, no global singletons |
+| Guard clauses / early return | ❌ | ✅ CLAUDE.md §Guard Clauses | Nesting-reduction pattern with examples |
+| Immutability by default | ❌ | ✅ CLAUDE.md §Immutability | `const`, `readonly`, `ReadonlyArray<T>` |
+| **Domain Decisions** | | | |
+| Architecture Decision Records (ADRs) | ❌ | ✅ 4 ADRs pre-written | Stack, auth strategy, layers, error handling |
+| C4 context diagram | ❌ | ✅ docs/diagrams/c4-context.md | System boundary + external actors |
+| C4 container diagram | ❌ | ✅ docs/diagrams/c4-container.md | Internal topology |
+| Domain model diagram | ❌ | ✅ docs/diagrams/domain-model.md | Entity relationships |
+| Use cases | ❌ | ✅ docs/use-cases.md | Actor/precondition/postcondition for all 5 feature areas |
+| **Implementation Standards** | | | |
+| Error hierarchy spec | ❌ | ✅ CLAUDE.md §Error Handling | Custom exception classes, fail fast, no bare throws |
+| Naming conventions | ❌ | ✅ CLAUDE.md §Code Standards | Intention-revealing names, no abbreviations |
+| Max function/file length | ❌ | ✅ CLAUDE.md §Code Standards | 50 lines/fn, 300 lines/file |
+| Zero hardcoded values | ❌ | ✅ CLAUDE.md §Zero Hardcoded Values | All config via env vars |
+| **Schema & Data** | | | |
+| Database schema (pre-defined) | ❌ | ✅ prisma/schema.prisma | All entities, relations, indexes specified up front |
+| Non-functional requirements | ❌ | ✅ docs/nfr.md | Performance, security, scalability targets |
+| TechSpec | ❌ | ✅ docs/TechSpec.md | API contracts, data flow, endpoint listing |
+| **Testing** | | | |
+| Test architecture spec | ❌ | ✅ docs/test-architecture.md | Pyramid: unit/integration/e2e, 80% line coverage gate |
+| Test instructions placement | ⚠️ Prompt 07 — single pass after all features | ✅ Inline in each feature prompt | Timing difference is intentional — see §6 amendment note |
+| Coverage threshold enforcement | ❌ | ✅ pre-commit-test.sh hook | Gate enforced on every commit |
+| **Process Enforcement** | | | |
+| Pre-commit hooks | ❌ | ✅ .claude/hooks/ (3 hooks) | Test gate, secrets scanner, code quality |
+| Verification Protocol at commit | ❌ | ✅ Appended to each treatment prompt | 5-step gate: compile → lint → test → layer check → commit |
+| **Process Documentation** | | | |
+| Status.md | ❌ | ✅ Pre-created | Session state tracking |
+| Conventional commits | ❌ not enforced | ✅ CLAUDE.md + hooks | Machine-parseable history |
+| MCP intelligence config | ❌ | ✅ .claude/settings.json | CodeSeeker + domain analysis tools |
+| **Common Ground** | | | |
+| RealWorld API spec | ✅ Same | ✅ Same | External ground truth, identical for both |
+| Feature prompts (01–06 implementation) | ✅ Same content | ✅ Same content | Identical feature requirements, different test timing |
+| Test instruction (volume) | ✅ One prompt (07) | ✅ Inline each prompt | Both conditions receive equivalent test instruction — different integration |
+
+**Disclaimer — Circular Metrics:** GS was designed to optimize Self-describing (via CLAUDE.md), Defended (via hooks), and Auditable (via ADRs and conventional commits). Treatment advantages on these three properties are expected by design and are not informative about whether GS improves general AI code quality. The experiment's non-trivial claims are about the **downstream** properties: Bounded (layer discipline), Verifiable (test quality), Composable (interface use), layer violations, and naming signal.
+
 ---
 
 ## 5. Problem Statements
@@ -147,9 +194,15 @@ Requirements:
 
 ---
 
-## 6. Implementation Prompts (Identical for Both Conditions)
+## 6. Implementation Prompts
 
-Issued in order after the problem statement. Each prompt is self-contained; the agent must implement the described feature and write tests for it before proceeding.
+Issued in order after the problem statement.
+
+**Amendment (2026-03-12, pre-implementation):** Control prompts 01–05 do not include test instructions. A dedicated test prompt (07) is issued after all features are implemented, simulating the common practitioner pattern of build-then-test. Treatment prompts retain inline test instructions in each feature prompt. This difference was introduced to produce a more realistic control baseline — a developer without GS context would typically not write tests per-feature unless explicitly architected to do so. Both conditions receive equivalent total test instruction; the variable is integration vs. deferred.
+
+A second intentional difference: each treatment prompt appends "Before committing: run the Verification Protocol (CLAUDE.md §Verification Protocol)." This is part of the treatment's GS commit discipline and is not a feature instruction.
+
+Identical across both conditions: feature requirements, endpoint list, error format spec, and the hardening prompt (06). Each prompt is self-contained; the agent commits after completing each.
 
 **Prompt 1 — Authentication**
 ```
@@ -307,7 +360,7 @@ These limitations are honest and consistent with §8.8 of the paper. This is a f
 ## 9. Anti-Overfit Controls
 
 1. ForgeCraft template files are **version-locked to the commit immediately preceding this design document**. No template changes between design commit and results commit.
-2. Implementation prompts are identical for both conditions (§6 above). Word-for-word identical.
+2. Implementation prompts have identical feature requirements for both conditions (§6 above). Two intentional differences exist and are documented pre-implementation: (a) test timing — control defers tests to prompt 07, treatment writes inline; (b) commit gate — treatment appends the Verification Protocol to each prompt, control does not. Both differences are pre-registered in §6.
 3. The auditor scoring rubric (§7.2) is derived from the paper's §4.3, not from the expected outputs.
 4. If any ForgeCraft improvements are made based on benchmark study, they must be genuinely universal (benefit all `[API]` projects) and documented as a separate commit with rationale before the experiment runs.
 
@@ -328,6 +381,7 @@ experiments/
       04-comments.md
       05-tags.md
       06-integration.md
+      07-tests.md         ← control only: single comprehensive test prompt
     output/                    ← Generated code (populated after run)
     evaluation/
       scores.md                ← Auditor scores (populated after run)

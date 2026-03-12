@@ -7,4 +7,3 @@ Implement user authentication:
 - PUT /api/user (update user, auth required)
 
 Include input validation, JWT token generation/verification, and password hashing.
-Write unit tests for auth logic and integration tests for all four endpoints.

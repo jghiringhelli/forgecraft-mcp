@@ -11,5 +11,3 @@ Implement articles:
 - DELETE /api/articles/:slug/favorite (auth required)
 
 Note: GET /api/articles and GET /api/articles/feed do NOT return the `body` field in list responses (performance spec change from 2024-08-16).
-
-Write tests for all endpoints including authorization checks, pagination, and filtering.
