@@ -1,32 +1,35 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 17)
+## Last Updated: 2026-03-13 (Session 18)
 
-## Session 17 Summary
-Version 1.0.0 release preparation. Wrote CHANGELOG.md tracing v0.1→v1.0.0. Rewrote
-README opening narrative with GS framing (architectural drift problem, ForgeCraft as
-the methodology's toolchain). Expanded MCP Sentinel section with the "practices what
-it preaches" design-principle narrative. Updated test count (237→610). Bumped version
-to 1.0.0 in package.json and index.ts. Confirmed §16 already exists in the Practitioner
-Protocol manual (Context Loading Strategy, lines ~470-500) — P-001 is complete.
+## Session 18 Summary
+GS self-experiment launch. Both arms running concurrently (background terminals).
 
-**Commit**: pending
+**Experiments running as of 09:00am March 13, 2026:**
+- Control:  `session aa8e00eb` — claude-sonnet-4-5, expert-prompt condition (7 prompts)
+- Treatment: `session a60fa69c` — claude-sonnet-4-5, full GS artifact cascade (6 prompts)
 
-**Version**: 0.5.1 → **1.0.0**
+**Setup changes made this session:**
+- `experiments/control/README.md` — rewritten: expert-grade prompting (tech stack, layered arch rules, error format, test naming, 80% coverage target)
+- `experiments/control/prompts/01-auth.md` → `05-tags.md` — enhanced from bare endpoint lists to fully-specified prompts with test requirements per feature
+- `experiments/control/prompts/07-tests.md` — rewritten as coverage-gate consolidation pass (tests now inline per feature, 07 hardens)
+- `experiments/treatment/README.md` — fixed `.husky/` → `.claude/hooks/`
+- `experiments/README.md` — removed false "word-for-word identical" claim; added deliberate asymmetry table
+- `docs/experiment-design.md` — Amendment A documenting control enhancement rationale
+- `experiments/RESULTS.md` — expanded to 11-section analysis template with timing, coverage, qualitative analysis, falsification check, limitations
 
-**Files changed**:
-| File | Change |
-|------|--------|
-| `CHANGELOG.md` | NEW — full version history v0.1.0 → v1.0.0 |
-| `README.md` | Opening rewritten with GS/drift narrative; MCP Sentinel expanded with design-principle explanation; test count 237→610 |
-| `package.json` | version: 0.5.1 → 1.0.0 |
-| `src/index.ts` | McpServer version: 0.5.0 → 1.0.0 |
-| `DEVELOPMENT_PROMPTS.md` | P-001 closed — §16 confirmed already exists in manual |
+**Early timing signal** (both on prompt 1, auth/setup):
+- Control: 85.4s
+- Treatment: 54.1s
+- Delta: −31.3s (−37%) for prompt 1 — treatment had pre-built schema + ADRs, resolved decisions without re-deriving them
 
-## Remaining Pre-1.0.0 Gates
-- [ ] Experiment results (April 10, Solera) — `experiments/RESULTS.md`
-- [ ] §16 confirmation: exists in manual at lines ~470-500 ✅ (P-001 done)
-- [ ] npm publish `forgecraft-mcp@1.0.0`
+**Next steps (once both runs complete ~90min from start):**
+1. Run `npx tsx runner/evaluate.ts` — objective metrics on both conditions
+2. Run `npx tsx runner/audit.ts --condition control` then `--condition treatment` — blind GS property scoring
+3. Run `npx tsx runner/materialize.ts` then `npx tsx runner/run-tests.ts` for real coverage numbers
+4. Fill `experiments/RESULTS.md` from all three data sources
+5. Commit results + update CHANGELOG §7.7
+
 
 ## Session 16 Summary
 Filled three coverage/test gaps identified at end of Session 15. Added unit tests for

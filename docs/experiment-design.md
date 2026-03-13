@@ -8,6 +8,22 @@
 
 ---
 
+## Amendment A — Control Prompt Enhancement (2026-03-13)
+
+**Filed prior to run execution, commit `7661e62`.**
+
+The original §3.1 specified control receives "no mention of layers, SOLID, TDD, or clean architecture." After review, this was revised before running either condition to represent a more rigorous null hypothesis:
+
+**Original control:** Bare endpoint lists (feature-request style). No tech stack, no testing guidance, no architectural direction.
+
+**Amended control:** Expert-grade prompts that specify: tech stack (TypeScript strict, Express 4, Prisma 5, Jest), error format (`{"errors": {"body": [...]}}`), testing requirements (tests per feature, 80% coverage target, behavior-naming rules), code quality standards (no magic numbers, env vars for config, 50-line function limit). Layered architecture (route → service → repository) IS included as this represents standard senior-engineer practice, not GS-specific methodology.
+
+**Rationale:** Testing GS against a strawman (bare prompts) produces a trivially confirmable result that says nothing about GS vs. skilled practitioners. Testing GS against "the best achievable outcome without GS artifacts" answers the practical question users care about: *does the artifact cascade add value on top of good prompts?* This is a harder test and produces more credible results.
+
+**Implication for scoring:** Properties that GS artifact cascade add beyond what expert prompts already provide (pre-defined schema → Bounded precision, pre-commit hooks → Defended score, ADRs → Auditable score) remain expected treatment advantages. Properties that expert prompts partially achieve (Bounded from layer guidance, Verifiable from inline test requirements) will show smaller delta, which is the honest finding.
+
+---
+
 ## 1. Research Question
 
 Does a full Generative Specification artifact cascade (CLAUDE.md, ADRs, C4 diagrams, use cases, schema definitions, commit hooks, test architecture, MCP config) produce structurally superior output compared to baseline "raw prompts only" conditions, when both are given identical implementation instructions?
