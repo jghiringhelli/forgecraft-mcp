@@ -125,3 +125,71 @@ five guidance blocks exist in `reference.yaml` with `topic: guidance`. The route
 - [ ] No guidance block IDs appear in `composed.instructionBlocks` when running `composeTemplates(["UNIVERSAL"], ...)`
 
 **Commit message:** test(get-reference): add integration tests for guidance resource
+
+---
+
+## P-004 — White Paper: Record Treatment-v3 Results + Prescriptive-at-All-Levels Findings
+
+**Specification references:**
+- Load `experiments/white-paper/conclusions.md` (§9 — Static Quality Checks, §9.4a)
+- Load `experiments/white-paper/conditions.md` (per-condition condition profiles)
+- Load `experiments/white-paper/data.md` (quantitative results table)
+- Load `experiments/treatment-v3/README.md` (hypothesis, delta from v2, artifact cascade)
+- Load `experiments/treatment-v3/evaluation/` (audit scores, metrics — post-run)
+- Load `templates/universal/instructions.yaml` lines 1-150 (dependency-registry + language-stack-constraints blocks)
+
+**Precondition:**
+Treatment-v3 experiment has completed:
+- `experiments/treatment-v3/output/project/` exists with generated code
+- `experiments/treatment-v3/evaluation/` has `audit-report.json` and `metrics.md`
+- `npm audit --audit-level=high` has been run on `experiments/treatment-v3/output/project/`
+- GS audit score is available (expected: 12/12 or close given artifact cascade matches v2)
+
+**Background — what treatment-v3 tested:**
+Treatment-v2 achieved 12/12 GS score but had 9 HIGH CVEs (the highest of all conditions).
+Root cause: `bcrypt` → native dep CVE chain + `@typescript-eslint@^6` → old minimatch CVE.
+Neither the GS rubric nor the CLAUDE.md had any mechanism forcing dependency auditing.
+
+Treatment-v3 added, as GS artifacts prescribed in the CLAUDE.md:
+1. `docs/approved-packages.md` — AI-maintained approved-package registry, emitted in P1
+2. `dependency-registry` block prescribing: audit-before-add, update registry after every add, commit gate on HIGH/CRITICAL, zero-tolerance without named ADR
+3. Pre-commit hook updated: `npm audit --audit-level=high` gate added
+4. CI pipeline: `npm audit --audit-level=high` as required step
+5. Seed defaults: `argon2` explicitly preferred over `bcrypt` with rationale; `@typescript-eslint@^8` explicitly specified
+
+**Scope:**
+- ADD §10 "Treatment-v3: Prescriptive Dependency Governance" to `conclusions.md`
+  Subsections:
+  - §10.1 — Hypothesis and treatment delta (from treatment-v2)
+  - §10.2 — Results: GS audit score, npm audit HIGH count, does `docs/approved-packages.md` exist in output?
+  - §10.3 — Did the AI choose argon2 or bcrypt?
+  - §10.4 — Cross-condition comparison table (add treatment-v3 column)
+  - §10.5 — Finding: Does prescriptive GS + explicit seed defaults eliminate the CVE problem?
+  - §10.6 — Limit: This tests one AI, one run. Hypothesis is directional, not proved by N=1.
+
+- UPDATE `conditions.md` — add treatment-v3 condition profile
+
+- UPDATE `data.md` — add treatment-v3 column to the quantitative results table
+
+- UPDATE §9.4a cross-condition table in `conclusions.md` — add treatment-v3 row for tsc/eslint/npm audit
+
+- UPDATE §9.6 "Recommended Runner Extensions" — note that evaluator should check for `docs/approved-packages.md` presence and `argon2 vs bcrypt` selection as new metrics in future runs
+
+- ADD to `conclusions.md` a brief "Prescriptive at All Levels" synthesis paragraph:
+  GS prescriptiveness must extend to dependency governance, not just architecture. The experiment shows that structural quality (layers, interfaces, tests) and dependency security are fully orthogonal — high GS scores do not imply low CVE counts unless the spec explicitly prescribes dependency auditing. Treatment-v3 tests whether making the AI the owner of a living approved-package registry closes this gap.
+
+**Acceptance criteria:**
+- [ ] `conclusions.md` has §10 with all 6 subsections
+- [ ] treatment-v3 npm audit HIGH count reported (expected: 0)
+- [ ] Whether `docs/approved-packages.md` was emitted in P1 is recorded (yes/no + what packages it listed)
+- [ ] Whether AI chose argon2 or bcrypt is explicitly reported
+- [ ] `data.md` updated with treatment-v3 column
+- [ ] `conditions.md` updated with treatment-v3 profile
+- [ ] No claim of statistical significance — N=1 run, directional finding only
+
+**Architecture constraints:**
+- White paper register: principled, concise, practitioner-oriented — not implementation docs
+- Do NOT modify §1–§9 findings. Additive only.
+- If treatment-v3 did NOT eliminate CVEs (unexpected), record that faithfully and diagnose why the prescription was insufficient
+
+**Commit message:** docs(white-paper): add §10 treatment-v3 dependency-registry results + prescriptive-at-all-levels synthesis
