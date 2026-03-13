@@ -1,6 +1,61 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 18)
+## Last Updated: 2026-03-13 (Session 19)
+
+## Session 19 Summary
+Experiment measurement complete. All data collected. RESULTS.md filled.
+
+### Final Experiment Results
+
+**GS Audit Scores (blind, adversarial):**
+- Control: 8/12 (Self-D=2, Bounded=2, Verifiable=2, Defended=0, Auditable=1, Composable=1)
+- Treatment: 9/12 (Self-D=2, Bounded=2, Verifiable=2, Defended=0, Auditable=1, Composable=2)
+- Delta: +1 on Composable only (interface-based DI with composition root)
+
+**Real Coverage (Jest + PostgreSQL):**
+- Control: 34.12% lines, 52/186 tests pass, 5/14 suites pass
+- Treatment: 27.63% lines, 33/33 tests pass, 4/10 suites compile (TS error in auth.service.ts)
+
+**Timing:**
+- Control: 772.1s total, 7 prompts, avg 110s/prompt
+- Treatment: 799.9s total, 6 prompts, avg 133s/prompt
+
+**Static metrics:**
+- Control: 4070 LoC, 141 it()-calls, 0 layer violations
+- Treatment: 4597 LoC (+13%), 143 it()-calls, 0 layer violations
+
+### Changes This Session
+- `experiments/RESULTS.md` — fully filled (§1-§11 all populated with measured data)
+- `experiments/runner/run-tests.ts` — multiple fixes:
+  - `removeCoverageThreshold()` strips threshold from jest configs so coverage-summary.json always written
+  - `--coverageThreshold="{}"` CLI override
+  - `coverageReporters: json-summary` injection handles both "key missing" and "key present" cases
+  - `verbose: true` → `verbose: true,` comma fix
+- `experiments/runner/audit.ts` — model arg parsing bug fixed
+- `experiments/runner/materialize.ts` — Strategy 2 block extraction (markdown headings)
+- `experiments/control/output/project/` — fully materialized (48 source files committed)
+- `experiments/treatment/output/project/` — fully materialized (57 source files committed)
+- `experiments/control/output/project/prisma/migrations/` — 6-model schema, migration applied
+- `experiments/treatment/output/project/prisma/migrations/` — initial migration created and applied
+- Both `evaluation/metrics.md` — real Jest coverage appended
+- `experiments/failed-runs/README.md` — full disclosure of 3 failed runs
+
+### MCP Configuration
+- ForgeCraft MCP removed from `~/.claude/settings.json` (global)
+- Added to `forgecraft-mcp/.claude/settings.json` (project-local only)
+
+### Pre-registration Status
+- Design committed: `bd2c05b`
+- Control amendment: `7661e62`  
+- Clean control run: `650a9f59` (7 prompts, 772.1s)
+- Clean treatment run: `eb7ae491` (6 prompts, 799.9s)
+
+### Next Steps
+1. White paper §7 writeup using findings from `experiments/RESULTS.md`
+2. Consider second run replication if feasible (current is n=1 — single run)
+3. Coverage hallucination finding (both models stated 90%+ coverage; real was 27-34%) — notable standalone contribution independent of GS evaluation
+
+
 
 ## Session 18 Summary
 GS self-experiment launch. Both arms running concurrently (background terminals).
