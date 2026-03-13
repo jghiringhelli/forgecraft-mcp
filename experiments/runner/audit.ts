@@ -237,8 +237,8 @@ async function main(): Promise<void> {
   const modelIdx  = args.indexOf("--model");
   const model     = modelIdx !== -1 ? args[modelIdx + 1] : (process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-4-5");
 
-  if (!condition || !["control", "treatment"].includes(condition)) {
-    console.error("Usage: npx tsx audit.ts --condition control|treatment [--model MODEL] [--dry-run]");
+  if (!condition || !["naive", "control", "treatment"].includes(condition)) {
+    console.error("Usage: npx tsx audit.ts --condition naive|control|treatment [--model MODEL] [--dry-run]");
     process.exit(2);
   }
 

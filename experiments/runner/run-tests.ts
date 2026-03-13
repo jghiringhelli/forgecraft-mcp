@@ -43,9 +43,9 @@ function parseArgs(): { condition: string; materialize: boolean; skipMigrate: bo
   const flagIdx   = args.indexOf("--condition");
   const condition = flagIdx !== -1 ? args[flagIdx + 1] : undefined;
 
-  if (!condition || !["control", "treatment"].includes(condition)) {
+  if (!condition || !["naive", "control", "treatment"].includes(condition)) {
     console.error(
-      "Usage: npx tsx run-tests.ts --condition control|treatment [--materialize] [--skip-migrate]"
+      "Usage: npx tsx run-tests.ts --condition naive|control|treatment [--materialize] [--skip-migrate]"
     );
     process.exit(2);
   }
@@ -62,14 +62,18 @@ function parseArgs(): { condition: string; materialize: boolean; skipMigrate: bo
 function resolveDbUrl(condition: string): string {
   const envKey = condition === "control"
     ? "DATABASE_URL_CONTROL"
-    : "DATABASE_URL_TREATMENT";
+    : condition === "treatment"
+    ? "DATABASE_URL_TREATMENT"
+    : "DATABASE_URL_NAIVE";
 
   const url = process.env[envKey] ?? process.env["DATABASE_URL"];
 
   if (!url) {
     const dockerUrl = condition === "control"
       ? "postgresql://conduit:conduit@localhost:5433/conduit_control"
-      : "postgresql://conduit:conduit@localhost:5435/conduit_treatment";
+      : condition === "treatment"
+      ? "postgresql://conduit:conduit@localhost:5435/conduit_treatment"
+      : "postgresql://conduit:conduit@localhost:5437/conduit_naive";
 
     console.warn(`  [WARN] ${envKey} not set — trying Docker default: ${dockerUrl}`);
     return dockerUrl;
@@ -330,6 +334,23 @@ async function main(): Promise<void> {
   };
 
   // Step 1: npm install (include pino-pretty to avoid logger transport failures)
+  // Also inject test dependencies if the model forgot them (common in naive condition)
+  const pkgPath = path.join(projectDir, "package.json");
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
+    const devDeps = (pkg["devDependencies"] ?? {}) as Record<string, string>;
+    const devChanged = !devDeps["jest"] || !devDeps["ts-jest"] || !devDeps["supertest"];
+    if (devChanged) {
+      console.log("  [INFO] Injecting missing test dependencies into package.json");
+      devDeps["jest"]             ??= "^29.7.0";
+      devDeps["ts-jest"]          ??= "^29.1.5";
+      devDeps["@types/jest"]      ??= "^29.5.12";
+      devDeps["supertest"]        ??= "^7.0.0";
+      devDeps["@types/supertest"] ??= "^6.0.2";
+      pkg["devDependencies"] = devDeps;
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+    }
+  }
   const install = run("npm install --save-dev pino-pretty", projectDir, {}, "npm install");
   if (install.exitCode !== 0) {
     console.error("npm install failed.");

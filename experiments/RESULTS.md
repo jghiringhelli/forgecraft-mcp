@@ -345,3 +345,127 @@ The following were added to `templates/universal/instructions.yaml`, `CLAUDE.md`
 3. **Commit Protocol**: "mutation score gate (Stryker on changed modules)" added to required pass conditions
 
 *The experiment thus fulfills its own recommendation: it revealed the need for mutation testing AND the first application of the new mutation gate was on the experiment's own generated code.*
+
+---
+
+## §13 Naive Condition Results (Post-Experiment Baseline)
+
+*Run date: March 13, 2026. Added after the primary experiment to establish an unstructured baseline.*
+*Condition design: minimal prompts averaging 3 lines each with no GS artifacts, no schema pre-definition, no architectural guidance.*
+
+### §13.1 GS Property Scores
+
+*Scored by blind Claude session. Same auditor prompt as §1.*
+
+| Property | Naive | Control | Treatment |
+|---|---|---|---|
+| **1. Self-Describing** | 0/2 | 2/2 | 2/2 |
+| **2. Bounded** | 2/2 | 2/2 | 2/2 |
+| **3. Verifiable** | 2/2 | 2/2 | 2/2 |
+| **4. Defended** | 0/2 | 0/2 | 0/2 |
+| **5. Auditable** | 0/2 | 1/2 | 1/2 |
+| **6. Composable** | 1/2 | 1/2 | 2/2 |
+| **Total (0–12)** | **5/12** | **8/12** | **9/12** |
+
+**Naive score notes:**
+- *Self-Describing (0/2)*: No README, no architecture docs, no ADRs. Contrast: control/treatment both had `docs/IMPLEMENTATION_SUMMARY.md` and similar.
+- *Bounded (2/2)*: Surprising ceiling score. Despite sparse prompting, the model applied a clean route → controller → service → Prisma pattern.
+- *Verifiable (2/2)*: The auditor scored test structure/naming, not runnability. Tests reference `"should reject update by non-author"` (behavior-focused). Auditor scored based on what was present in test *code* — it could not know the suite fails to compile. See §13.3 for real coverage.
+- *Defended (0/2)*: No hooks, no CI — same floor as both structured conditions. GS template improvement added post-experiment (#2 per §12: "Emit, Don't Reference").
+- *Auditable (0/2)*: No conventional commits guidance, no ADRs, no Status.md. Treatment scored 1/2 only because ADRs were referenced; naive didn't even reference them.
+- *Composable (1/2)*: `const prisma = new PrismaClient()` repeated in every service file. No interfaces. Partial credit for service layer extraction.
+
+### §13.2 Objective Metrics
+
+| Metric | Naive | Control | Treatment |
+|---|---|---|---|
+| `it`/`test` call count (static) | 57 | 141 | 143 |
+| Estimated LoC | 2,575 | 4,070 | 4,597 |
+| Layer violations (prisma.* in routes) | 0 | 0 | 0 |
+| Response files | 6 | 7 | 6 |
+| Has CLAUDE.md | ❌ | ❌ | ✅ |
+| Has commit hooks | ❌ | ❌ | ✅ |
+| ADR count | 0 | 0 | 4 (ref) |
+| Has Status.md | ❌ | ❌ | ✅ |
+| Schema pre-defined in P1 | ❌ | ❌ | ✅ |
+| Test framework in package.json | ❌ | ✅ | ✅ |
+
+LoC is 37% lower than control and 44% lower than treatment — the naive model wrote significantly less code.
+
+### §13.3 Execution Timing
+
+| Prompt | Naive (s) | Control (s) | Treatment (s) |
+|---|---|---|---|
+| 01 auth | 57.9 | 131.7 | 158.8 |
+| 02 profiles | 77.9 | 67.3 | 112.1 |
+| 03 articles | 67.7 | 145.1 | 193.0 |
+| 04 comments | 37.8 | 85.8 | 126.0 |
+| 05 tags | 21.5 | 58.8 | 64.3 |
+| 06 complete | 130.1 | 114.5 | 111.4 |
+| 07 tests (control only) | — | 143.8 | — |
+| **Total (excl. context ack)** | **393.0** | **747.0** | **765.6** |
+| **Avg per prompt** | **65.5** | **106.7** | **127.6** |
+| Context ack | 40.5 | 24.1 | 34.3 |
+
+Naive was **47% faster** than control per prompt. Shorter prompts → less output → less generation time. However, less output correlated directly with a broken project.
+
+### §13.4 Coverage (Real Tests)
+
+| Metric | Naive | Control | Treatment |
+|---|---|---|---|
+| Lines % | **0%** | 34.12% | 27.63% |
+| Statements % | **0%** | 34.11% | 27.85% |
+| Functions % | **0%** | 32.05% | 27.77% |
+| Branches % | **0%** | 37.50% | 38.63% |
+| Tests passing / total | 0 / 0 | 52 / 186 | 33 / 33 |
+| Test suites passing | 0 / 6 | 5 / 14 | 4 / 10 |
+
+**Coverage gate (80% lines):** ❌ All three conditions fail (naive: catastrophically, others: partially)
+
+**Root cause of 0% naive coverage:**
+
+The naive model produced an **internally incoherent project** — its test suite references Prisma models that do not exist in the materialized schema:
+
+```
+src/__tests__/setup.ts:7 - error TS2339: Property 'comment' does not exist on type 'PrismaClient'
+src/__tests__/setup.ts:8 - error TS2339: Property 'favorite' does not exist on type 'PrismaClient'
+src/__tests__/setup.ts:9 - error TS2339: Property 'article' does not exist on type 'PrismaClient'
+src/__tests__/setup.ts:10 - error TS2339: Property 'tag' does not exist on type 'PrismaClient'
+```
+
+All 6 test suites fail with TS compilation errors — zero tests run.
+
+**Why the schema is incomplete:**
+
+The model defined `Article`, `Comment`, `Tag`, and `Favorite` models in response P3 (articles) and P4 (comments), but inside **non-path-annotated code blocks**. For example, in `03-articles-response.md`, the schema additions appeared inside a prose block labelled `## Updated Application Entry` without a `prisma/schema.prisma` file annotation. The materializer (`materialize.ts`) only extracts code blocks with explicit file-path annotations — so these schema additions were silently dropped.
+
+The materialized schema only contains `User` and `Follow` (from P2 which did use annotated blocks). The test code, meanwhile, assumes the full Conduit schema exists. Neither the schema nor the test code is wrong in isolation — **the problem is that they were never reconciled**.
+
+**Also missing:** The model did not include `jest`, `ts-jest`, or `@types/jest` in `package.json`, despite generating a `jest.config.js` using the `ts-jest` preset. This required runner intervention (auto-injection patch to `run-tests.ts`).
+
+### §13.5 Critical Finding — The Annotation Failure
+
+The naive condition reveals what GS's "Emit, Don't Reference" principle actually prevents at a mechanical level:
+
+Without a file-path-annotated code block convention, the model:
+1. **Describes** schema additions in prose ("we need to add these models") rather than emitting them
+2. **Updates** code that references new models, but the models themselves are never grounded in a real file
+3. **Generates tests** assuming the full schema, creating an impossible gap between test assumptions and runtime reality
+
+The structured conditions (control/treatment) both used explicit `prisma/schema.prisma` annotations on all schema code blocks — meaning this exact failure mode did not occur in either.
+
+This is the strongest evidence that even the control condition (minimal structure) provided significant insurance against the most fundamental class of failure: **building a project that cannot compile its own tests**.
+
+### §13.6 Three-Condition Score Summary
+
+| Condition | GS Score | LoC | Tests (static) | Coverage | Suite compiles |
+|---|---|---|---|---|---|
+| **Naive** | **5/12** | 2,575 | 57 | 0% | ❌ No |
+| **Control** | **8/12** | 4,070 | 141 | 34% | ✅ Yes |
+| **Treatment** | **9/12** | 4,597 | 143 | 28%* | ✅ Yes |
+
+*Treatment 28%: 6 of 10 test suites fail to compile; 4 pass at 100%. Partial compilation failure from missing JWT_SECRET type narrowing — different class of error than naive.
+
+**The progression is monotonic on every instrument:** adding structure (control) or explicit GS artifacts (treatment) improves scores, compilability, and coverage in a consistent direction.
+
+

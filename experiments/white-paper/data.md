@@ -9,13 +9,13 @@ unless explicitly marked as HALLUCINATED or PENDING.*
 
 | Property | Naive | Control | Treatment | Notes |
 |---|---|---|---|---|
-| Self-Describing (0–2) | PENDING | 2 | 2 | Ceiling effect in both structured conditions |
-| Bounded (0–2) | PENDING | 2 | 2 | Ceiling effect in both structured conditions |
-| Verifiable (0–2) | PENDING | 2 | 2 | Ceiling effect in both structured conditions |
-| Defended (0–2) | PENDING | 0 | 0 | Floor effect — hooks referenced but not emitted |
-| Auditable (0–2) | PENDING | 1 | 1 | ADRs referenced but not emitted as files |
-| Composable (0–2) | PENDING | 1 | 2 | Only GS differentiated: interface-based DI + composition root |
-| **Total (0–12)** | PENDING | **8** | **9** | +1 Treatment (8.3% relative improvement over expert control) |
+| Self-Describing (0–2) | **0** | 2 | 2 | Naive: no README, no architecture docs. Ceiling in both structured conditions |
+| Bounded (0–2) | **2** | 2 | 2 | Ceiling in all three conditions — model applies layering regardless of prompting |
+| Verifiable (0–2) | **2*** | 2 | 2 | *Auditor scored test structure/names only — naive tests cannot compile (see §D) |
+| Defended (0–2) | **0** | 0 | 0 | Floor effect in all three — hooks referenced but never emitted |
+| Auditable (0–2) | **0** | 1 | 1 | Naive: no ADRs, no commits guidance, no Status.md |
+| Composable (0–2) | **1** | 1 | 2 | Naive/Control: global Prisma instances, no DI. Treatment: interfaces + composition root |
+| **Total (0–12)** | **5** | **8** | **9** | Monotonic: Naive < Control < Treatment |
 
 *Audit method: separate Claude session, blind to experiment and GS methodology.
 Rubric in `experiments/treatment/evaluation/scores.md`.*
@@ -24,20 +24,20 @@ Rubric in `experiments/treatment/evaluation/scores.md`.*
 
 ## §B Execution Timing
 
-| Prompt | Control (s) | Treatment (s) | Delta |
+| Prompt | Naive (s) | Control (s) | Treatment (s) |
 |---|---|---|---|
-| 01 auth | 131.7 | 158.8 | +27.1 |
-| 02 profiles | 67.3 | 112.1 | +44.8 |
-| 03 articles | 145.1 | 193.0 | +47.9 |
-| 04 comments | 85.8 | 126.0 | +40.2 |
-| 05 tags | 58.8 | 64.3 | +5.5 |
-| 06 integration | 114.5 | 111.4 | −3.1 |
-| 07 tests (control only) | 143.8 | — | — |
-| **Total** | **747.0s** | **765.6s** | +18.6s |
-| **Avg/prompt** | **106.7s** | **127.6s** | +19.9s (+18.6%) |
-| Wall time (incl. gaps) | 772.1s | 799.9s | +27.8s |
+| 01 auth | 57.9 | 131.7 | 158.8 |
+| 02 profiles | 77.9 | 67.3 | 112.1 |
+| 03 articles | 67.7 | 145.1 | 193.0 |
+| 04 comments | 37.8 | 85.8 | 126.0 |
+| 05 tags | 21.5 | 58.8 | 64.3 |
+| 06 complete/integration | 130.1 | 114.5 | 111.4 |
+| 07 tests (control only) | — | 143.8 | — |
+| **Total (excl. context ack)** | **393.0s** | **747.0s** | **765.6s** |
+| **Avg/prompt** | **65.5s** | **106.7s** | **127.6s** |
+| Context ack | 40.5s | 24.1s | 34.3s |
 
-*Naive timing: PENDING.*
+*Naive was 47% faster/prompt than control. Less prompting → less output → less generation time. However, shorter output correlated with an incomplete, non-compilable project.*
 
 ---
 
@@ -45,15 +45,18 @@ Rubric in `experiments/treatment/evaluation/scores.md`.*
 
 | Metric | Naive | Control | Treatment |
 |---|---|---|---|
-| `it`/`test` call count | PENDING | 141 | 143 |
-| `describe` blocks | PENDING | 44 | 50 |
-| Layer violations (prisma.* in routes) | PENDING | 0 | 0 |
-| Estimated LoC (non-blank, non-comment) | PENDING | 4,070 | 4,597 (+13%) |
-| Response files generated | PENDING | 7 | 6 |
-| Has CLAUDE.md | PENDING | ❌ | ✅ |
-| Has commit hooks | PENDING | ❌ | ✅ (as prose, not files) |
-| ADR count | PENDING | 0 | 4 (referenced, not emitted) |
-| Has Prisma schema in P1 | PENDING | ❌ | ✅ |
+| `it`/`test` call count | **57** | 141 | 143 |
+| `describe` blocks | — | 44 | 50 |
+| Layer violations (prisma.* in routes) | **0** | 0 | 0 |
+| Estimated LoC (non-blank, non-comment) | **2,575** | 4,070 | 4,597 (+13%) |
+| Response files generated | 6 | 7 | 6 |
+| Has CLAUDE.md | ❌ | ❌ | ✅ |
+| Has commit hooks | ❌ | ❌ | ✅ (as prose, not files) |
+| ADR count | 0 | 0 | 4 (referenced, not emitted) |
+| Has Prisma schema in P1 | ❌ | ❌ | ✅ |
+| Test framework in package.json | ❌ | ✅ | ✅ |
+
+*Naive LoC is 37% lower than control and 44% lower than treatment.*
 
 ---
 
@@ -61,18 +64,19 @@ Rubric in `experiments/treatment/evaluation/scores.md`.*
 
 | Metric | Naive | Control | Treatment |
 |---|---|---|---|
-| Lines % | PENDING | **34.12%** | **27.63%** |
-| Statements % | PENDING | 34.11% | 27.85% |
-| Functions % | PENDING | 32.05% | 27.77% |
-| Branches % | PENDING | 37.50% | 38.63% |
-| Tests passing | PENDING | 52 / 186 (28%) | 33 / 33 (100%) |
-| Test suites passing | PENDING | 5 / 14 (36%) | 4 / 10 (40%) |
-| Coverage gate (80%) | PENDING | ❌ FAIL | ❌ FAIL |
+| Lines % | **0%** | **34.12%** | **27.63%** |
+| Statements % | **0%** | 34.11% | 27.85% |
+| Functions % | **0%** | 32.05% | 27.77% |
+| Branches % | **0%** | 37.50% | 38.63% |
+| Tests passing | **0 / 0** | 52 / 186 (28%) | 33 / 33 (100%) |
+| Test suites passing | **0 / 6** | 5 / 14 (36%) | 4 / 10 (40%) |
+| Coverage gate (80%) | ❌ FAIL | ❌ FAIL | ❌ FAIL |
 | AI-reported coverage (hallucinated) | — | 94.52% (HALLUCINATED) | 93.1% (HALLUCINATED) |
 
+*Naive failure mode: ALL suites fail with TS2339 compilation errors — Prisma models for Article/Comment/Tag/Favorite are absent from schema. Model described these models in non-annotated prose blocks; materializer could not extract them. Tests reference models that do not exist.*
 *Control failure mode: TS error in `articleService.ts:159` + missing `/api/articles/feed` route*
 *Treatment failure mode: `JWT_SECRET: string | undefined` not narrowed — blocked 6/10 suites*
-*Both models stated 90%+ coverage in documentation. Real coverage: 27–34%.*
+*Both structured models stated 90%+ coverage in documentation. Real coverage: 27–34%.*
 
 ---
 
@@ -127,10 +131,10 @@ The number was right; it described the wrong thing.*
 | Control amendment commit | `7661e62` |
 | Control run session ID | `650a9f59-5a21-4eda-829a-ca46c5fa83be` |
 | Treatment run session ID | `eb7ae491-33fa-4b4c-8b78-e75201ebf46f` |
-| Naive run session ID | PENDING |
+| Naive run session ID | `236a3efd-94ba-45af-b399-bca79f4b1e2e` |
 | Mutation gate added commit | `482a111` |
 | Mutation testing done commit | `433ed1d` |
-| GS template improvements commit | PENDING |
+| GS template improvements commit | `7dc4d58` |
 | Model | claude-sonnet-4-5 |
 | Run date | March 13, 2026 |
 | Benchmark | RealWorld Conduit API |
