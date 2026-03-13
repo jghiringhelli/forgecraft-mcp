@@ -65,7 +65,7 @@ export function scanAntiPatterns(
         const urlMatches = findPattern(
           lines,
           /(localhost|127\.0\.0\.1|0\.0\.0\.0)/,
-          /\/\/|\/\*|\*|#|test|spec|mock/i,
+          /^\s*(\/\/|\/\*|\*|#)|test|spec|mock/i,
         );
         if (urlMatches.length > 0) {
           violations.push({
