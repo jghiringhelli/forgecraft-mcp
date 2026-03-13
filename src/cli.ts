@@ -122,6 +122,7 @@ async function cmdSetup(pos: string[], flags: Flags): Promise<void> {
     tags: arr(flags, "tags") as Tag[] | undefined,
     dry_run: bool(flags, "dry-run", false),
     output_targets: (arr(flags, "targets") as OutputTarget[] | undefined) ?? ["claude"],
+    release_phase: (str(flags, "phase") as "development" | "pre-release" | "release-candidate" | "production" | undefined) ?? "development",
   });
   printResult(result);
 }
@@ -250,6 +251,7 @@ async function cmdGenerate(pos: string[], flags: Flags): Promise<void> {
     output_targets: (arr(flags, "targets") as OutputTarget[] | undefined) ?? ["claude"],
     merge_with_existing: bool(flags, "merge", true),
     compact: bool(flags, "compact", false),
+    release_phase: (str(flags, "phase") as "development" | "pre-release" | "release-candidate" | "production" | undefined) ?? "development",
   });
   printResult(result);
 }

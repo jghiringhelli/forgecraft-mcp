@@ -132,6 +132,10 @@ export const forgecraftSchema = z.object({
     .boolean()
     .optional()
     .describe("Strip explanatory tail clauses and deduplicate bullet lines (~20-40% smaller output). Used by: generate, scaffold, refresh."),
+  release_phase: z
+    .enum(["development", "pre-release", "release-candidate", "production"])
+    .optional()
+    .describe("Current release cycle phase. Controls which test gates are shown as required vs. advisory. Used by: setup, generate, refresh. Default: development."),
   scope: z
     .enum(["comprehensive", "focused"])
     .optional()
@@ -284,6 +288,7 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
         output_targets: args.output_targets ?? ["claude"],
         merge_with_existing: args.merge ?? true,
         compact: args.compact ?? false,
+        release_phase: args.release_phase ?? "development",
       });
 
     case "audit":

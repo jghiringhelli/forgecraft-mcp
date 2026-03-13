@@ -12,6 +12,7 @@ blocks:
       - **Domain**: {{domain}}
       - **Sensitive Data**: {{sensitive_data}}
       - **Project Tags**: {{tags}}
+      - **Release Phase**: {{release_phase | default: development}}
 
   - id: code-standards
     tier: core
@@ -721,6 +722,30 @@ blocks:
       | **Production deploy** | Canary deploy + synthetic monitoring + A/B if applicable | Continuous |
 
       > Mutation score gate: minimum 70% at PR, 80% at RC on changed code. Stryker/mutmut reports block promotion below threshold.
+
+  - id: release-phase-gate
+    tier: core
+    title: "Active Release Phase Gate"
+    content: |
+      ## Active Release Phase: {{release_phase | default: development}}
+
+      Your current phase determines which test gates are **required now**, not advisory.
+      The full taxonomy and trigger mapping are in the Testing section above.
+      Read your phase row below and apply every requirement listed.
+
+      | Phase | Required now — blocking | Not required yet |
+      |---|---|---|
+      | **development** | Unit + integration + lint + tsc --noEmit + npm audit (no HIGH/CRITICAL) | DAST, load/stress, penetration, mutation score gate |
+      | **pre-release / staging** | All development requirements + smoke → DAST (OWASP ZAP / Burp Suite) + load test at 2× peak (k6 / Locust) + chaos/resilience (Toxiproxy) + mutation score ≥ 80% on changed code | Manual penetration test, full a11y audit |
+      | **release-candidate** | All staging requirements + manual penetration test (OWASP Top 10, JWT vectors, BOLA/IDOR) + full a11y audit (if UI) + compatibility matrix + mutation score ≥ 80% overall + zero unresolved HIGH/CRITICAL CVEs | Production canary |
+      | **production** | Canary deploy + automatic rollback on error rate spike + synthetic health probes + incident runbook verified | — |
+
+      **Current active phase: `{{release_phase | default: development}}`**
+
+      > If the phase is `pre-release` or `release-candidate`:
+      > Hardening tests (load, DAST, penetration) are REQUIRED in this session, not deferred.
+      > Do not proceed to merge without completing the required gate for your phase.
+      > The Testing section above maps each gate to its tooling and target duration.
 
   - id: gs-test-techniques
     tier: recommended

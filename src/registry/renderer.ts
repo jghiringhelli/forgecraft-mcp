@@ -31,6 +31,7 @@ export interface RenderContext {
   readonly domain?: string;
   readonly repoUrl?: string;
   readonly sensitiveData?: string;
+  readonly releasePhase?: string;
   readonly tags: Tag[];
   readonly [key: string]: unknown;
 }

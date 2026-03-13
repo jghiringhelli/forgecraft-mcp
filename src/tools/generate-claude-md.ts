@@ -45,6 +45,10 @@ export const generateInstructionsSchema = z.object({
     .boolean()
     .default(false)
     .describe("Strip explanatory tail clauses from bullet points and deduplicate identical lines. Reduces token count by ~20-40%. Recommended for projects with 3+ tags."),
+  release_phase: z
+    .enum(["development", "pre-release", "release-candidate", "production"])
+    .default("development")
+    .describe("Current release cycle phase. Controls which test gates are required now vs. advisory. Options: development, pre-release, release-candidate, production."),
 });
 
 /** @deprecated Use generateInstructionsSchema instead. */
@@ -72,8 +76,8 @@ export async function generateInstructionsHandler(
 
   const detectedLang = args.project_dir ? detectLanguage(args.project_dir) : "typescript";
   const context = args.project_dir
-    ? detectProjectContext(args.project_dir, args.project_name, detectedLang, tags)
-    : { projectName: args.project_name, language: detectedLang, tags };
+    ? { ...detectProjectContext(args.project_dir, args.project_name, detectedLang, tags), releasePhase: args.release_phase }
+    : { projectName: args.project_name, language: detectedLang, tags, releasePhase: args.release_phase };
 
   const compact = args.compact ?? userConfig?.compact ?? false;
   const renderOpts: RenderOptions = { compact };

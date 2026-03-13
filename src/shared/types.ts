@@ -560,6 +560,12 @@ export interface ForgeCraftConfig {
    * Reduces token count by ~20-40%. Recommended for projects with 3+ tags.
    */
   readonly compact?: boolean;
+  /**
+   * Current release cycle phase. Controls which test gates are shown as required
+   * vs. advisory in generated instruction files.
+   * Options: development (default), pre-release, release-candidate, production.
+   */
+  readonly releasePhase?: "development" | "pre-release" | "release-candidate" | "production";
 }
 
 // ── Verify / GS Scorer ──────────────────────────────────────────────

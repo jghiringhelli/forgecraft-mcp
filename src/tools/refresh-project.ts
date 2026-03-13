@@ -52,8 +52,10 @@ export const refreshProjectSchema = z.object({
   output_targets: z
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .optional()
-    .describe("Override output targets. If omitted, uses current config value or defaults to ['claude']."),
-});
+    .describe("Override output targets. If omitted, uses current config value or defaults to ['claude']."),  release_phase: z
+    .enum(["development", "pre-release", "release-candidate", "production"])
+    .optional()
+    .describe("Override current release cycle phase. If omitted, uses value from forgecraft.yaml or defaults to 'development'."),});
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -103,6 +105,7 @@ export async function refreshProjectHandler(
     ...existingConfig,
     tags: updatedTags,
     tier: updatedTier as ContentTier,
+    releasePhase: (args.release_phase ?? existingConfig.releasePhase ?? "development") as ForgeCraftConfig["releasePhase"],
   };
 
   // ── Step 4: Compose with updated config ────────────────────────
@@ -128,12 +131,16 @@ export async function refreshProjectHandler(
 
   // Regenerate instruction files for all targets
   const outputTargets = (args.output_targets ?? updatedConfig.outputTargets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
-  const context = detectProjectContext(
-    projectDir,
-    updatedConfig.projectName ?? inferProjectName(projectDir),
-    detectLanguage(projectDir),
-    updatedTags,
-  );
+  const releasePhase = args.release_phase ?? updatedConfig.releasePhase ?? "development";
+  const context = {
+    ...detectProjectContext(
+      projectDir,
+      updatedConfig.projectName ?? inferProjectName(projectDir),
+      detectLanguage(projectDir),
+      updatedTags,
+    ),
+    releasePhase,
+  };
 
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
