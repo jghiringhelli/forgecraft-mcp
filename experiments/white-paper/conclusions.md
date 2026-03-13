@@ -551,15 +551,15 @@ orthogonal code quality dimensions not captured by the rubric or the runner:
 
 | Quality dimension | Tool | Significance | Status |
 |---|---|---|---|
-| Lint pass/fail + warning count | ESLint | style, no-unused-vars, no-any | ❌ Not measured |
-| TypeScript strict-mode error count | tsc --strict | nullability discipline, type safety | ⚠️ Incidental only |
-| Dependency vulnerability count | npm audit | supply-chain CVEs | ❌ Not measured |
+| Lint pass/fail + warning count | ESLint | style, no-unused-vars, no-any | ✅ Measured — see §9.4a |
+| TypeScript strict-mode error count | tsc --noEmit | compile errors under strict config | ✅ Measured — see §9.4a |
+| Dependency vulnerability count | npm audit | supply-chain CVEs | ✅ Measured — see §9.4a |
 | Cyclomatic complexity | ESLint complexity / plato | cognitive load, refactorability | ❌ Not measured |
 | Code duplication ratio | jscpd | DRY compliance | ❌ Not measured |
 | Dead code / unused exports | ts-prune, depcheck | codebase bloat | ❌ Not measured |
 | JSDoc / documentation coverage | typedoc | public API completeness | ❌ Not measured |
 | Dependency count / depth | npm ls | maintenance surface | ❌ Not measured |
-| Build success (compile only) | tsc --noEmit | compiles at all? | ⚠️ Incidental via run-tests |
+| Build success (compile only) | tsc --noEmit | compiles at all? | ✅ Measured — see §9.4a |
 
 **Three most impactful missing measurements:**
 
@@ -574,6 +574,30 @@ orthogonal code quality dimensions not captured by the rubric or the runner:
    A systematic tsc --strict --noUncheckedIndexedAccess run would reveal the full
    type-safety posture across all conditions.
 
+### 9.4a Static Quality Check Results — Run Post-Publication
+
+Three static checks were run on all four experiment outputs after §9 was initially written.
+No server startup is required for any of these.
+
+| Check | Naive | Control | Treatment | Treatment-v2 | Key finding |
+|---|---|---|---|---|---|
+| **tsc --noEmit** (strict tsconfig) | **41 errors** | **1 error** | **0 errors** | **0 errors** | GS conditions compile cleanly. Naive fails on Prisma annotation errors (schema incomplete). |
+| **ESLint** (bare baseline, no .eslintrc) | **29 problems** | **40 problems** | **40 problems** | **21 problems** | All conditions have lint violations. No condition emitted an ESLint config file. |
+| **npm audit** high CVEs | **3 high** | **0 high** | **3 high** | **9 high** | Control chose a password library with no known CVEs. GS v2 has the most — `@typescript-eslint` devdep pulled in old `minimatch`. |
+
+**Cross-cutting finding:** The 12/12 GS score does not correlate with security posture.
+Treatment-v2 has *more* CVEs than the naive condition. Architectural quality and
+dependency security are fully orthogonal.
+
+**npm audit detail by condition:**
+- Naive, Treatment: `bcrypt` → `@mapbox/node-pre-gyp` → `tar` CVE chain — 3 high
+- Control: avoided `bcrypt` entirely — 0 vulns
+- Treatment-v2: same bcrypt chain (3) + `@typescript-eslint` devdeps → old `minimatch` CVE — 9 high
+
+**ESLint note:** The run used `--no-eslintrc` (bare baseline — only universally enforced rules).
+None of the four conditions emitted a `.eslintrc` file. A proper run with
+`@typescript-eslint/recommended` rules would surface significantly more issues in all conditions.
+
 ### 9.5 Per-Condition Gap Summary
 
 | Test gap | Naive | Control | Treatment | Treatment-v2 | Can run now? |
@@ -582,9 +606,9 @@ orthogonal code quality dimensions not captured by the rubric or the runner:
 | Load test (k6) | ❌ | ❌ | ❌ | ❌ | No |
 | Stress test | ❌ | ❌ | ❌ | ❌ | No |
 | Penetration test (OWASP ZAP) | ❌ | ❌ | ❌ | ❌ | No — requires running server |
-| npm audit | ❌ | ❌ | ❌ | ❌ | Yes — static, no server needed |
-| ESLint run | ❌ | ❌ | ❌ | ❌ | Yes |
-| tsc --strict error count | ❌ | ❌ | ⚠️ partial | ⚠️ partial | Yes |
+| npm audit (high CVEs) | **3H** | **0H** | **3H** | **9H** | ✅ Run — see §9.4a |
+| ESLint (bare, no config) | **29P** | **40P** | **40P** | **21P** | ✅ Run — see §9.4a |
+| tsc --noEmit error count | **41** | **1** | **0** | **0** | ✅ Run — see §9.4a |
 | Mutation testing | ❌ | ❌ | ✅ | ❌ | Yes — DB running |
 | Code duplication (jscpd) | ❌ | ❌ | ❌ | ❌ | Yes |
 
