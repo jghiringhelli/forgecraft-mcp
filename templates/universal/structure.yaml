@@ -20,6 +20,9 @@ entries:
   - path: docs/PRD.md
     type: file
     description: "Product requirements document"
+  - path: DEVELOPMENT_PROMPTS.md
+    type: file
+    description: "Bound roadmap — session-scoped prompts with spec refs, preconditions, scope, acceptance criteria, and commit message. One entry per roadmap item. Procedural Memory."
   - path: docs/TechSpec.md
     type: file
     description: "Technical specification"
