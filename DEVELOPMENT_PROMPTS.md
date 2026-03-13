@@ -12,11 +12,12 @@ Each prompt is executable to completion without additional narration.
 - Load `docs/forgecraft-spec.md` §4 (GS methodology)
 - Load `Status.md` (current session state)
 - Load `templates/universal/reference.yaml` (guidance blocks for exact wording)
+- Load `C:\workspace\argos\argos_automation\docs\forge\delivery\GenerativeSpecification_PractitionerProtocol.md` (white paper being extended)
 - Do NOT load test files, `node_modules`, or `dist`
 
 **Precondition:**
-The practitioner protocol white paper (`GenerativeSpecification_PractitionerProtocol.md`)
-exists in its working location. The five GS guidance procedure blocks have been moved from
+The practitioner protocol white paper exists at:
+`C:\workspace\argos\argos_automation\docs\forge\delivery\GenerativeSpecification_PractitionerProtocol.md` The five GS guidance procedure blocks have been moved from
 `instructions.yaml` to `templates/universal/reference.yaml` with `topic: guidance`. The
 `get_reference(resource: guidance)` tool is implemented and callable. The white paper
 currently lacks explicit coverage of the `get_reference` tool contract as the recommended
