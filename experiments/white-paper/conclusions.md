@@ -128,6 +128,13 @@ No condition came close to 12/12. The ceiling effects on Bounded/Verifiable/Self
 and the floor effects on Defended/Auditable cap what any single approach can achieve today.
 Here is a precise, testable inventory of what is missing.
 
+> **Implementation status (as of commit `7e06e78`):** All items in §4.4 (Defended) and §4.5
+> (Auditable) have been added to `templates/universal/instructions.yaml`. The Dependency
+> Inversion pattern (§4.6) has been made explicit. A GS v2 experimental run against the same
+> benchmark is the next step to confirm whether these template changes produce the expected
+> score movement. See [RESULTS.md §13.5](../RESULTS.md) for how the gap was originally
+> identified.
+
 ### 4.1 Self-Describing — already at 2/2 (ceiling, not an issue)
 
 Both structured conditions reached maximum. Nothing to add here.

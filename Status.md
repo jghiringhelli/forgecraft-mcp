@@ -1,11 +1,32 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 23)
+## Last Updated: 2026-03-13 (Session 24)
 
-## Session 23 Summary
-Analytical synthesis added to white-paper. `conclusions.md` created answering the two key questions raised: (1) whether both GS and expert prompting need mutation testing for Defended to be true, and (2) what would hypothetically achieve a 12/12 GS score. README and conditions updated to reflect completed naive run.
+## Session 24 Summary
+Template improvements for GS v2 readiness. Three targeted changes to `templates/universal/instructions.yaml` closing the Defended, Auditable, and Composable gaps found in the v1 experiment. All project-agnostic.
 
 ### Changes This Session
+
+**`templates/universal/instructions.yaml`:**
+
+*Defended gap (0/2 in all three conditions):*
+- "Commit Hooks — Emit, Don't Reference" expanded to a full P1 emit checklist: `.husky/pre-commit` (tsc + lint + test), `.husky/commit-msg` (commitlint), `commitlint.config.js`, `package.json` prepare script + devDependencies
+- NEW: "CI Pipeline — Emit, Don't Reference" section — `.github/workflows/ci.yml` template with `npx stryker run` mutation gate step as non-negotiable. Rationale stated: 80% line coverage can coexist with 58% MSI; the mutation gate is the only gate that verifies test quality, not just execution.
+
+*Auditable gap (1/2 for structured conditions):*
+- "ADR Stubs — Emit in P1" extended to also require `CHANGELOG.md` with initial `## Unreleased` block emitted as a fenced code block in the first response.
+
+*Composable gap (1/2 for control condition):*
+- Dependency Inversion bullet expanded with explicit `IUserRepository`/`IOrderRepository` pattern, instruction to emit interfaces in P1 alongside schema, explicit rationale.
+
+**`CLAUDE.md` + `.github/copilot-instructions.md`:** regenerated from updated templates (16 blocks, `refresh_project`).
+
+**GS v2 experiment readiness:** all preconditions identified in `experiments/white-paper/conclusions.md §4` are now implemented in the template. Running `setup_project` on any new project will now emit hooks, CI pipeline with mutation gate, CHANGELOG.md, and IRepository interfaces in P1. The v2 experiment (re-run on same Conduit benchmark) will test whether these changes move Defended from 0→2 and Auditable from 1→2.
+
+### Session 24 Commits
+- `7e06e78` — feat(templates): close Defended/Auditable/Composable gaps — GS v2 readiness
+
+### Session 23 Summary (archived)
 
 **`experiments/white-paper/conclusions.md`** (new):
 - §1: Three-condition monotonic progression confirmed on all instruments
