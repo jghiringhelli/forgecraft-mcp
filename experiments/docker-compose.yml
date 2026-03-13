@@ -7,7 +7,7 @@
 #
 # Connection strings:
 #   Control:   postgresql://conduit:conduit@localhost:5433/conduit_control
-#   Treatment: postgresql://conduit:conduit@localhost:5434/conduit_treatment
+#   Treatment: postgresql://conduit:conduit@localhost:5435/conduit_treatment
 
 services:
   postgres-control:
@@ -35,7 +35,7 @@ services:
       POSTGRES_USER:     conduit
       POSTGRES_PASSWORD: conduit
     ports:
-      - "5434:5432"
+      - "5435:5432"
     volumes:
       - pg_treatment:/var/lib/postgresql/data
     healthcheck:

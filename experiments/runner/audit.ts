@@ -22,7 +22,7 @@
  *   npx tsx audit.ts --condition control --dry-run
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -191,6 +191,41 @@ function writeScores(condition: string, auditText: string): void {
 }
 
 // ---------------------------------------------------------------------------
+// Claude CLI helper
+// ---------------------------------------------------------------------------
+function callClaudeOnce(
+  prompt: string,
+  systemPrompt: string,
+  model: string,
+): string {
+  const args = [
+    "--print",
+    "--output-format", "json",
+    "--model",         model,
+    "--system-prompt", systemPrompt,
+    "--no-session-persistence",   // fresh session, not resumable
+  ];
+
+  const result = spawnSync("claude", args, {
+    input:     prompt,
+    encoding:  "utf-8",
+    maxBuffer: 100 * 1024 * 1024,
+    timeout:   600_000,
+  });
+
+  if (result.error) throw new Error(`claude CLI spawn error: ${result.error.message}`);
+  if (result.status !== 0) {
+    throw new Error(
+      `claude CLI exited ${result.status}\nstderr: ${result.stderr}\nstdout: ${result.stdout.slice(0, 1000)}`,
+    );
+  }
+
+  const parsed = JSON.parse(result.stdout.trim()) as { result?: string; is_error?: boolean };
+  if (parsed.is_error) throw new Error(`claude is_error: ${result.stdout}`);
+  return parsed.result ?? "";
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
@@ -205,14 +240,8 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
-  if (!apiKey && !dryRun) {
-    console.error("ANTHROPIC_API_KEY environment variable is not set.");
-    process.exit(1);
-  }
-
   console.log(`\n════════════════════════════════════════════════════`);
-  console.log(`  GS Experiment Auditor`);
+  console.log(`  GS Experiment Auditor  (claude CLI)`);
   console.log(`  Condition : ${condition}`);
   console.log(`  Model     : ${model}`);
   console.log(`  Dry run   : ${dryRun}`);
@@ -230,21 +259,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  const client   = new Anthropic({ apiKey });
-  console.log("\n  Sending to auditor model...");
+  console.log("\n  Sending to auditor model (fresh session, no context)...");
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: 4096,
-    system:     AUDITOR_SYSTEM_PROMPT,
-    messages:   [{ role: "user", content: auditPrompt }],
-  });
-
-  const auditText = response.content
-    .map((b) => (b.type === "text" ? b.text : ""))
-    .join("");
-
-  console.log(`  Tokens: ${response.usage.input_tokens} in / ${response.usage.output_tokens} out`);
+  const auditText = callClaudeOnce(auditPrompt, AUDITOR_SYSTEM_PROMPT, model);
 
   // Extract score summary
   const scoreMatch = auditText.match(/\*\*Total:\*\*\s*([\d]+)\s*\/\s*12/);

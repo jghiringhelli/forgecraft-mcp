@@ -15,7 +15,7 @@
  *   # With docker-compose (from experiments/):
  *   docker compose up -d
  *   DATABASE_URL_CONTROL=postgresql://conduit:conduit@localhost:5433/conduit_control \
- *   DATABASE_URL_TREATMENT=postgresql://conduit:conduit@localhost:5434/conduit_treatment \
+ *   DATABASE_URL_TREATMENT=postgresql://conduit:conduit@localhost:5435/conduit_treatment \
  *   npx tsx run-tests.ts --condition control
  *
  *   # With Rancher/external PostgreSQL:
@@ -68,10 +68,10 @@ function resolveDbUrl(condition: string): string {
 
   if (!url) {
     const dockerUrl = condition === "control"
-      ? "postgresql://conduit:conduit@localhost:5432/conduit_control"
-      : "postgresql://conduit:conduit@localhost:5432/conduit_treatment";
+      ? "postgresql://conduit:conduit@localhost:5433/conduit_control"
+      : "postgresql://conduit:conduit@localhost:5435/conduit_treatment";
 
-    console.warn(`  [WARN] ${envKey} not set — trying Rancher local default: ${dockerUrl}`);
+    console.warn(`  [WARN] ${envKey} not set — trying Docker default: ${dockerUrl}`);
     return dockerUrl;
   }
   return url;

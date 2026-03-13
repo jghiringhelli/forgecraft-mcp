@@ -3,7 +3,7 @@
  * run-experiment.ts
  *
  * Runs one arm of the GS vs. Plain-AI RealWorld experiment by issuing prompts
- * to the Anthropic API in sequence within a single conversation.
+ * to the `claude` CLI in sequence within a single persistent conversation.
  *
  * The script carries ONLY the condition's specified context files.
  * It has no knowledge of the GS methodology, forgecraft-mcp, or this project.
@@ -11,12 +11,12 @@
  * Usage:
  *   npx tsx run-experiment.ts --condition control
  *   npx tsx run-experiment.ts --condition treatment
- *   npx tsx run-experiment.ts --condition control --resume 3   # restart from prompt 3
- *   npx tsx run-experiment.ts --condition control --dry-run    # show context + prompts, no API calls
- *   npx tsx run-experiment.ts --condition control --model claude-opus-4-5
+ *   npx tsx run-experiment.ts --condition control --resume 3   # continue from prompt 3 (session reused)
+ *   npx tsx run-experiment.ts --condition control --dry-run    # show context + prompts, no CLI calls
+ *   npx tsx run-experiment.ts --condition control --model claude-sonnet-4-5
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -150,18 +150,100 @@ function writeSessionLog(
   outputDir: string,
   condition: string,
   model: string,
-  messages: Anthropic.MessageParam[],
+  sessionId: string,
+  turns: Array<{ promptName: string; promptContent: string; response: string; durationMs: number }>,
 ): void {
   const log = {
     condition,
     model,
+    sessionId,
     timestamp:  new Date().toISOString(),
-    messageCount: messages.length,
-    messages,
+    turnCount:  turns.length,
+    turns,
   };
   const filePath = path.join(outputDir, "session.log.json");
   fs.writeFileSync(filePath, JSON.stringify(log, null, 2), "utf-8");
   console.log(`\n  → session log saved to ${path.relative(EXPR_DIR, filePath)}`);
+}
+
+function loadSessionId(outputDir: string): string | undefined {
+  const logPath = path.join(outputDir, "session.log.json");
+  if (!fs.existsSync(logPath)) return undefined;
+  try {
+    const log = JSON.parse(fs.readFileSync(logPath, "utf-8")) as { sessionId?: string };
+    return log.sessionId;
+  } catch {
+    return undefined;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Claude CLI wrapper
+// ---------------------------------------------------------------------------
+interface ClaudeJsonOutput {
+  type?: string;
+  result?: string;
+  session_id: string;
+  is_error?: boolean;
+  cost_usd?: number;
+}
+
+/**
+ * Calls the `claude` CLI with `--print --output-format json`.
+ * Pass `sessionId` to continue an existing conversation via `--resume`.
+ * The system prompt is only set on the initial call (no sessionId).
+ */
+function callClaude(
+  input: string,
+  options: { model: string; sessionId?: string; systemPrompt?: string },
+): { text: string; sessionId: string } {
+  const args: string[] = [
+    "--print",
+    "--output-format", "json",
+    "--model",         options.model,
+  ];
+
+  if (!options.sessionId && options.systemPrompt) {
+    args.push("--system-prompt", options.systemPrompt);
+  }
+
+  if (options.sessionId) {
+    args.push("--resume", options.sessionId);
+  }
+
+  const result = spawnSync("claude", args, {
+    input,
+    encoding:  "utf-8",
+    maxBuffer: 100 * 1024 * 1024, // 100 MB
+    timeout:   600_000,            // 10 minutes per prompt
+  });
+
+  if (result.error) {
+    throw new Error(`claude CLI spawn error: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `claude CLI exited with status ${result.status}` +
+      `\nstderr: ${result.stderr}` +
+      `\nstdout: ${result.stdout.slice(0, 2000)}`,
+    );
+  }
+
+  let parsed: ClaudeJsonOutput;
+  try {
+    parsed = JSON.parse(result.stdout.trim()) as ClaudeJsonOutput;
+  } catch {
+    throw new Error(`Failed to parse claude JSON output: ${result.stdout.slice(0, 500)}`);
+  }
+
+  if (parsed.is_error) {
+    throw new Error(`claude returned is_error=true: ${result.stdout}`);
+  }
+
+  return {
+    text:      parsed.result ?? "",
+    sessionId: parsed.session_id,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -170,14 +252,8 @@ function writeSessionLog(
 async function main(): Promise<void> {
   const { condition, model, resume, dryRun } = parseArgs();
 
-  const apiKey = process.env["ANTHROPIC_API_KEY"];
-  if (!apiKey && !dryRun) {
-    console.error("ANTHROPIC_API_KEY environment variable is not set.");
-    process.exit(1);
-  }
-
   console.log(`\n════════════════════════════════════════════════════`);
-  console.log(`  GS Experiment Runner`);
+  console.log(`  GS Experiment Runner  (claude CLI)`);
   console.log(`  Condition : ${condition}`);
   console.log(`  Model     : ${model}`);
   console.log(`  Resume at : prompt ${resume}`);
@@ -194,83 +270,56 @@ async function main(): Promise<void> {
     console.log("\n=== INITIAL CONTEXT (first user message) ===\n");
     console.log(context.slice(0, 3000), "...[truncated for dry run]");
     console.log(`\n=== PROMPTS (${prompts.length} total) ===\n`);
-    for (const p of prompts) console.log(`  ${p.name}: ${p.content.slice(0, 120).replace(/\n/g, " ")}...`);
+    for (const p of prompts) console.log(`  ${p.name}: ${p.content.split("\n")[0]}`);
     return;
   }
 
-  const client = new Anthropic({ apiKey });
+  const turns: Array<{ promptName: string; promptContent: string; response: string; durationMs: number }> = [];
+  let sessionId: string | undefined;
+  let startIndex = resume - 1;
 
-  // Build the messages history. If resuming, load existing responses as prior turns.
-  const messages: Anthropic.MessageParam[] = [];
-
-  // First user message = full context block
-  messages.push({ role: "user", content: context });
-
-  // If resuming, replay existing responses into history so the model has code context
   if (resume > 1) {
-    console.log(`Replaying ${resume - 1} prior turns from saved responses...\n`);
-    // Seed a minimal assistant ack for the context message
-    messages.push({ role: "assistant", content: "[Context loaded. Ready to implement.]" });
-
-    for (let i = 0; i < resume - 1; i++) {
-      const prompt = prompts[i];
-      if (!prompt) break;
-      const savedPath = path.join(outputDir, `${prompt.name}-response.md`);
-      if (!fs.existsSync(savedPath)) {
-        console.error(`Cannot resume: saved response not found for ${prompt.name}`);
-        process.exit(1);
-      }
-      const savedResponse = fs.readFileSync(savedPath, "utf-8");
-      messages.push({ role: "user",      content: prompt.content });
-      messages.push({ role: "assistant", content: savedResponse });
+    // Reload existing session — the claude CLI keeps conversation history server-side
+    sessionId = loadSessionId(outputDir);
+    if (!sessionId) {
+      console.error(`Cannot resume: no session.log.json found in ${outputDir}`);
+      process.exit(1);
     }
-    console.log(`Resuming from prompt ${resume}: ${prompts[resume - 1]?.name ?? "end"}\n`);
+    console.log(`Resuming session ${sessionId} from prompt ${resume}: ${prompts[startIndex]?.name ?? "end"}\n`);
   } else {
-    // First turn: send context, get ack
+    // Start a new session: send context as first message
     console.log("Sending initial context to model...");
-    const ack = await client.messages.create({
-      model,
-      max_tokens: 256,
-      system:     SYSTEM_PROMPT,
-      messages,
-    });
-    const ackText = ack.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-    messages.push({ role: "assistant", content: ackText });
-    console.log(`  Context acknowledged (${ackText.length} chars)\n`);
+    const t0 = Date.now();
+    const ack = callClaude(context, { model, systemPrompt: SYSTEM_PROMPT });
+    const elapsed = Date.now() - t0;
+    sessionId = ack.sessionId;
+    console.log(`  Context acknowledged in ${(elapsed / 1000).toFixed(1)}s  (session: ${sessionId})\n`);
+    turns.push({ promptName: "00-context", promptContent: context, response: ack.text, durationMs: elapsed });
   }
 
-  // Issue each prompt in sequence
-  const startIndex = resume - 1;
+  // Issue each prompt in sequence, continuing the session
   for (let i = startIndex; i < prompts.length; i++) {
     const prompt = prompts[i]!;
     console.log(`\n── Prompt ${i + 1}/${prompts.length}: ${prompt.name} ──`);
     console.log(`   ${prompt.content.split("\n")[0]}`);
 
-    messages.push({ role: "user", content: prompt.content });
+    const t0  = Date.now();
+    const out = callClaude(prompt.content, { model, sessionId });
+    const elapsed = Date.now() - t0;
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: 8192,
-      system:     SYSTEM_PROMPT,
-      messages,
-    });
+    // Session ID should be stable across turns, but update in case it changes
+    sessionId = out.sessionId;
 
-    const responseText = response.content
-      .map((b) => (b.type === "text" ? b.text : ""))
-      .join("");
-
-    messages.push({ role: "assistant", content: responseText });
-    writeResponse(outputDir, prompt.name, responseText);
-
-    console.log(`   tokens: ${response.usage.input_tokens} in / ${response.usage.output_tokens} out`);
-    console.log(`   stop:   ${response.stop_reason}`);
+    turns.push({ promptName: prompt.name, promptContent: prompt.content, response: out.text, durationMs: elapsed });
+    writeResponse(outputDir, prompt.name, out.text);
+    console.log(`   → done in ${(elapsed / 1000).toFixed(1)}s`);
   }
 
-  writeSessionLog(outputDir, condition, model, messages);
+  writeSessionLog(outputDir, condition, model, sessionId, turns);
   console.log("\n════ Run complete ════\n");
 }
 
-main().catch((err) => {
+main().catch((err: unknown) => {
   console.error("Fatal error:", err);
   process.exit(1);
 });
