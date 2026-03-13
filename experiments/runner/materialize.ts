@@ -115,25 +115,52 @@ function extractCodeBlocks(markdown: string): CodeBlock[] {
   const fenceRe = /```(typescript|javascript|ts|js|prisma|sql|json|sh|bash|yaml|env)?\n([\s\S]*?)```/g;
   let match: RegExpExecArray | null;
 
+  // Pre-split into lines for looking up the heading that precedes each block
+  const allLines = markdown.split("\n");
+
   while ((match = fenceRe.exec(markdown)) !== null) {
     const language = match[1] ?? "text";
     const content  = match[2]!;
     const lines    = content.split("\n");
 
-    // Detect file path annotation on the first line
+    // --- Strategy 1: file path annotation on the first line of the block ---
     // Accepts: // src/foo.ts | # src/foo.ts | // File: src/foo.ts | path: src/foo.ts
     const firstLine = lines[0]!.trim();
     const pathRe =
       /^(?:\/\/\s*(?:File:\s*)?|#\s*(?:File:\s*)?|path:\s*)([^\s]+\.[a-zA-Z0-9]+)$/i;
-    const pathMatch = firstLine.match(pathRe);
+    const inlinePathMatch = firstLine.match(pathRe);
 
-    if (!pathMatch) continue; // skip blocks without a file path annotation
+    let filePath: string | null = null;
+    let code: string;
 
-    const filePath = pathMatch[1]!
+    if (inlinePathMatch) {
+      filePath = inlinePathMatch[1]!;
+      code = lines.slice(1).join("\n"); // strip the path annotation line
+    } else {
+      // --- Strategy 2: scan backwards from the fence opening for a markdown heading ---
+      // Find the line number of the opening fence in allLines
+      const beforeFence = markdown.slice(0, match.index);
+      const openingLineIdx = beforeFence.split("\n").length - 1; // 0-based line index
+
+      // Walk backwards looking for: ### `src/foo.ts` | ### src/foo.ts | **`src/foo.ts`**
+      const headingRe = /^#{1,4}\s+[`*]?([^\s`*]+\.[a-zA-Z0-9]+)[`*]?\s*$|^\*\*[`]?([^\s`]+\.[a-zA-Z0-9]+)[`]?\*\*\s*$/;
+      for (let i = openingLineIdx - 1; i >= Math.max(0, openingLineIdx - 5); i--) {
+        const line = allLines[i]?.trim() ?? "";
+        const hm = line.match(headingRe);
+        if (hm) {
+          filePath = (hm[1] ?? hm[2])!;
+          break;
+        }
+      }
+      code = content;
+    }
+
+    if (!filePath) continue; // no path found by either strategy — skip
+
+    filePath = filePath
       .replace(/^\.\//, "")          // strip leading ./
       .replace(/\\/g, "/");          // normalise to forward slashes
 
-    const code = lines.slice(1).join("\n"); // strip the path annotation line
     blocks.push({ filePath, language, code });
   }
   return blocks;

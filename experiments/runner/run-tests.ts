@@ -155,19 +155,99 @@ function parseCoverageJson(projectDir: string): CoverageResult | null {
 // ---------------------------------------------------------------------------
 // Patch package.json jest config to write json output and coverage summary
 // ---------------------------------------------------------------------------
+
+/**
+ * Remove the `coverageThreshold` key (and its nested object value) from a
+ * Jest config source string.  Handles arbitrarily nested braces.
+ */
+function removeCoverageThreshold(src: string): string {
+  const marker = "coverageThreshold";
+  const idx = src.indexOf(marker);
+  if (idx === -1) return src;
+
+  // Find the ':' after the key
+  let pos = idx + marker.length;
+  while (pos < src.length && /\s/.test(src[pos]!)) pos++;
+  if (src[pos] !== ":") return src;               // unexpected format, skip
+  pos++;                                           // skip ':'
+  while (pos < src.length && /\s/.test(src[pos]!)) pos++;
+
+  if (src[pos] !== "{") return src;               // value is not an object
+  let depth = 0;
+  const valueStart = pos;
+  for (; pos < src.length; pos++) {
+    if (src[pos] === "{") depth++;
+    else if (src[pos] === "}") { depth--; if (depth === 0) { pos++; break; } }
+  }
+  // Also consume a trailing comma and any whitespace
+  while (pos < src.length && /[,\s]/.test(src[pos]!)) pos++;
+
+  return src.slice(0, idx) + src.slice(pos);
+}
+
 function ensureJestCoverageConfig(projectDir: string): void {
-  const pkgPath = path.join(projectDir, "package.json");
+  const pkgPath        = path.join(projectDir, "package.json");
+  const jestConfigTs   = path.join(projectDir, "jest.config.ts");
+  const jestConfigJs   = path.join(projectDir, "jest.config.js");
+  const hasConfigFile  = fs.existsSync(jestConfigTs) || fs.existsSync(jestConfigJs);
+
   if (!fs.existsSync(pkgPath)) return;
 
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-  if (!pkg.jest) pkg.jest = {};
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
 
-  // Ensure coverage reporters include json-summary
-  const reporters: string[] = pkg.jest.coverageReporters ?? ["text", "lcov"];
-  if (!reporters.includes("json-summary")) reporters.push("json-summary");
-  pkg.jest.coverageReporters = reporters;
+  if (hasConfigFile) {
+    // If a jest.config.ts/js exists, remove any conflicting jest key from package.json.
+    if (pkg["jest"]) {
+      delete pkg["jest"];
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+    }
+    // Patch the config file: add json-summary reporter and remove coverageThreshold
+    // (threshold failures prevent coverage-summary.json from being written)
+    const configPath = fs.existsSync(jestConfigTs) ? jestConfigTs : jestConfigJs!;
+    let configSrc = fs.readFileSync(configPath, "utf-8");
+    let changed = false;
 
-  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+    if (!configSrc.includes("json-summary")) {
+      if (configSrc.includes("coverageReporters")) {
+        // Key exists — inject into existing array
+        configSrc = configSrc.replace(
+          /coverageReporters\s*:\s*\[([^\]]*)\]/,
+          (m, inner) => `coverageReporters: [${inner.trimEnd().replace(/,?\s*$/, "")}, "json-summary"]`,
+        );
+      } else {
+        // Key absent — insert before the closing brace of the exported config object.
+        // Both `const config = { ... };\nexport default config;` (TS) and
+        // `module.exports = { ... };` (JS) end the object with `};`.
+        const insertPos = configSrc.lastIndexOf("};");
+        if (insertPos !== -1) {
+          // Ensure the preceding content ends with a comma so the new property
+          // doesn't cause a syntax error (e.g. `verbose: true` has no trailing comma).
+          const before = configSrc.slice(0, insertPos).trimEnd().replace(/,?$/, ",");
+          configSrc =
+            before +
+            `\n  coverageReporters: ["text", "lcov", "json-summary"],\n` +
+            configSrc.slice(insertPos);
+        }
+      }
+      changed = true;
+    }
+    // Remove coverageThreshold block so thresholds don't suppress coverage output
+    if (configSrc.includes("coverageThreshold")) {
+      configSrc = removeCoverageThreshold(configSrc);
+      changed = true;
+    }
+    if (changed) fs.writeFileSync(configPath, configSrc, "utf-8");
+  } else {
+    // No config file — ensure jest key exists in package.json with json-summary
+    const jestKey = (pkg["jest"] ?? {}) as Record<string, unknown>;
+    const reporters = (jestKey["coverageReporters"] as string[] | undefined) ?? ["text", "lcov"];
+    if (!reporters.includes("json-summary")) reporters.push("json-summary");
+    jestKey["coverageReporters"] = reporters;
+    // Remove coverageThreshold so it doesn't suppress coverage-summary.json output
+    delete jestKey["coverageThreshold"];
+    pkg["jest"] = jestKey;
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -240,10 +320,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const dbEnv = { DATABASE_URL: dbUrl };
+  // Inject all env vars the generated code may require
+  const dbEnv: Record<string, string> = {
+    DATABASE_URL:  dbUrl,
+    JWT_SECRET:    "experiment-test-secret-not-for-production",
+    PORT:          "3001",
+    NODE_ENV:      "test",
+    LOG_LEVEL:     "silent",   // suppress pino output in tests
+  };
 
-  // Step 1: npm install
-  const install = run("npm install", projectDir, {}, "npm install");
+  // Step 1: npm install (include pino-pretty to avoid logger transport failures)
+  const install = run("npm install --save-dev pino-pretty", projectDir, {}, "npm install");
   if (install.exitCode !== 0) {
     console.error("npm install failed.");
     process.exit(1);
@@ -270,8 +357,14 @@ async function main(): Promise<void> {
   ensureJestCoverageConfig(projectDir);
 
   // Step 5: run tests with coverage
+  const jestConfigTs  = path.join(projectDir, "jest.config.ts");
+  const jestConfigJs  = path.join(projectDir, "jest.config.js");
+  const configFlag    = fs.existsSync(jestConfigTs) ? "--config jest.config.ts"
+                      : fs.existsSync(jestConfigJs) ? "--config jest.config.js"
+                      : "";
+  // --coverageThreshold='{}' overrides any threshold config so coverage-summary.json is always written
   const testResult = run(
-    "npx jest --runInBand --coverage --json --outputFile=jest-results.json",
+    `npx jest --runInBand --coverage --json --outputFile=jest-results.json --coverageThreshold="{}" ${configFlag}`.trim(),
     projectDir,
     dbEnv,
     "jest --coverage",

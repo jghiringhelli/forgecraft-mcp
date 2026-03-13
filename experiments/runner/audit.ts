@@ -234,7 +234,8 @@ async function main(): Promise<void> {
   const flagIdx   = args.indexOf("--condition");
   const condition = flagIdx !== -1 ? args[flagIdx + 1] : undefined;
   const dryRun    = args.includes("--dry-run");
-  const model     = args[args.indexOf("--model") + 1] ?? process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-4-5";
+  const modelIdx  = args.indexOf("--model");
+  const model     = modelIdx !== -1 ? args[modelIdx + 1] : (process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-4-5");
 
   if (!condition || !["control", "treatment"].includes(condition)) {
     console.error("Usage: npx tsx audit.ts --condition control|treatment [--model MODEL] [--dry-run]");
