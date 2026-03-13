@@ -112,7 +112,8 @@ interface CodeBlock {
 
 function extractCodeBlocks(markdown: string): CodeBlock[] {
   const blocks: CodeBlock[] = [];
-  const fenceRe = /```(typescript|javascript|ts|js|prisma|sql|json|sh|bash|yaml|env)?\n([\s\S]*?)```/g;
+  // Accept any language specifier (or none) — models use markdown, text, etc. for non-code files
+  const fenceRe = /```(\w+)?\n([\s\S]*?)```/g;
   let match: RegExpExecArray | null;
 
   // Pre-split into lines for looking up the heading that precedes each block
