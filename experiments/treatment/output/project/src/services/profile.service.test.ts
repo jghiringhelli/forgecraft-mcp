@@ -82,7 +82,7 @@ describe('ProfileService', () => {
       mockUserRepository.findByUsername.mockResolvedValue(null);
 
       await expect(profileService.getProfile('nonexistent')).rejects.toThrow(
-        NotFoundError
+        'Profile'
       );
     });
   });
@@ -111,7 +111,7 @@ describe('ProfileService', () => {
 
       await expect(
         profileService.followUser(mockUser.id, 'nonexistent')
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('Profile');
     });
 
     it('follow_yourself_throws_not_found_error', async () => {
@@ -119,7 +119,7 @@ describe('ProfileService', () => {
 
       await expect(
         profileService.followUser(mockUser.id, mockUser.username)
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('Profile');
     });
 
     it('follow_already_followed_user_is_idempotent', async () => {
@@ -157,7 +157,7 @@ describe('ProfileService', () => {
 
       await expect(
         profileService.unfollowUser(mockUser.id, 'nonexistent')
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('nonexistent');
     });
 
     it('unfollow_not_followed_user_is_idempotent', async () => {

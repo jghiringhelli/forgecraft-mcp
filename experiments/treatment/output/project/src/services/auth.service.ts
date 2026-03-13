@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { User } from '@prisma/client';
 import { IUserRepository } from '../repositories/user.repository';
 import {
@@ -107,7 +107,7 @@ export class AuthService {
    * Generate JWT token for user.
    */
   generateToken(userId: number): string {
-    return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+    return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRY } as SignOptions);
   }
 
   /**
@@ -116,7 +116,7 @@ export class AuthService {
    */
   verifyToken(token: string): number {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as { userId: number };
+      const decoded = jwt.verify(token, JWT_SECRET) as unknown as { userId: number };
       return decoded.userId;
     } catch (error) {
       throw new AuthenticationError('Invalid or expired token');

@@ -7,13 +7,13 @@
 export const PORT = parseInt(process.env.PORT || '3000', 10);
 export const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// JWT configuration
-export const JWT_SECRET = process.env.JWT_SECRET;
-export const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
-
-if (!JWT_SECRET) {
+// JWT configuration — validated at startup; cast to string after guard
+const _jwtSecret = process.env.JWT_SECRET;
+if (!_jwtSecret) {
   throw new Error('JWT_SECRET environment variable is required');
 }
+export const JWT_SECRET: string = _jwtSecret;
+export const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
 
 // Bcrypt configuration
 export const BCRYPT_ROUNDS = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);

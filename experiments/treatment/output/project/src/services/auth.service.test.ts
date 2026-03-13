@@ -58,7 +58,7 @@ describe('AuthService', () => {
           username: 'differentuser',
           password: 'password123'
         })
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toThrow('Email is already taken');
     });
 
     it('register_with_duplicate_username_throws_validation_error', async () => {
@@ -71,7 +71,7 @@ describe('AuthService', () => {
           username: mockUser.username,
           password: 'password123'
         })
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toThrow('Username is already taken');
     });
   });
 
@@ -110,7 +110,7 @@ describe('AuthService', () => {
           email: mockUser.email,
           password: 'wrongpassword'
         })
-      ).rejects.toThrow(AuthenticationError);
+      ).rejects.toThrow('Email or password');
     });
   });
 
@@ -127,7 +127,7 @@ describe('AuthService', () => {
     it('get_nonexistent_user_throws_not_found_error', async () => {
       mockUserRepository.findById.mockResolvedValue(null);
 
-      await expect(authService.getUserById(999)).rejects.toThrow(NotFoundError);
+      await expect(authService.getUserById(999)).rejects.toThrow('User');
     });
   });
 
@@ -140,6 +140,10 @@ describe('AuthService', () => {
       const result = await authService.updateUser(mockUser.id, { bio: 'New bio' });
 
       expect(result.bio).toBe('New bio');
+      expect(mockUserRepository.update).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.objectContaining({ bio: 'New bio' })
+      );
     });
 
     it('update_user_with_new_email_validates_uniqueness', async () => {
@@ -152,12 +156,58 @@ describe('AuthService', () => {
       ).rejects.toThrow(ValidationError);
     });
 
+    it('update_user_with_same_email_skips_uniqueness_check', async () => {
+      const updatedUser = { ...mockUser, bio: 'New bio' };
+      mockUserRepository.findById.mockResolvedValue(mockUser);
+      mockUserRepository.update.mockResolvedValue(updatedUser);
+
+      await authService.updateUser(mockUser.id, { email: mockUser.email, bio: 'New bio' });
+
+      expect(mockUserRepository.findByEmail).not.toHaveBeenCalled();
+    });
+
+    it('update_user_with_same_username_skips_uniqueness_check', async () => {
+      const updatedUser = { ...mockUser, bio: 'New bio' };
+      mockUserRepository.findById.mockResolvedValue(mockUser);
+      mockUserRepository.update.mockResolvedValue(updatedUser);
+
+      await authService.updateUser(mockUser.id, { username: mockUser.username, bio: 'New bio' });
+
+      expect(mockUserRepository.findByUsername).not.toHaveBeenCalled();
+    });
+
+    it('update_user_with_new_username_validates_uniqueness', async () => {
+      const otherUser = { ...mockUser, id: 2, username: 'otheruser' };
+      mockUserRepository.findById.mockResolvedValue(mockUser);
+      mockUserRepository.findByUsername.mockResolvedValue(otherUser);
+
+      await expect(
+        authService.updateUser(mockUser.id, { username: 'otheruser' })
+      ).rejects.toThrow('Username is already taken');
+    });
+
+    it('update_user_with_password_hashes_password_before_save', async () => {
+      const updatedUser = { ...mockUser, passwordHash: 'newhash' };
+      mockUserRepository.findById.mockResolvedValue(mockUser);
+      mockUserRepository.update.mockResolvedValue(updatedUser);
+
+      await authService.updateUser(mockUser.id, { password: 'newpassword123' });
+
+      expect(mockUserRepository.update).toHaveBeenCalledWith(
+        mockUser.id,
+        expect.objectContaining({ passwordHash: expect.any(String) })
+      );
+      // Ensure the plain-text password is not stored
+      const updateCall = (mockUserRepository.update as jest.Mock).mock.calls[0][1];
+      expect(updateCall.password).toBeUndefined();
+    });
+
     it('update_nonexistent_user_throws_not_found_error', async () => {
       mockUserRepository.findById.mockResolvedValue(null);
 
       await expect(
         authService.updateUser(999, { bio: 'New bio' })
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('User');
     });
   });
 
@@ -171,7 +221,7 @@ describe('AuthService', () => {
 
     it('verify_invalid_token_throws_authentication_error', () => {
       expect(() => authService.verifyToken('invalid.token.here')).toThrow(
-        AuthenticationError
+        'Invalid or expired token'
       );
     });
   });

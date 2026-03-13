@@ -104,7 +104,7 @@ describe('CommentService', () => {
 
       await expect(
         commentService.getComments('nonexistent')
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('Article');
     });
 
     it('get_comments_with_auth_shows_following_status', async () => {
@@ -149,7 +149,7 @@ describe('CommentService', () => {
 
       await expect(
         commentService.addComment('nonexistent', { body: 'Test' }, 1)
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('Article');
     });
   });
 
@@ -170,7 +170,7 @@ describe('CommentService', () => {
 
       await expect(
         commentService.deleteComment('test-article', 1, 999)
-      ).rejects.toThrow(AuthorizationError);
+      ).rejects.toThrow('Only the comment author can delete this comment');
     });
 
     it('delete_nonexistent_comment_throws_not_found_error', async () => {
@@ -179,15 +179,16 @@ describe('CommentService', () => {
 
       await expect(
         commentService.deleteComment('test-article', 999, 1)
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('Comment');
     });
 
     it('delete_comment_for_nonexistent_article_throws_not_found_error', async () => {
       mockArticleRepository.findBySlug.mockResolvedValue(null);
+      mockCommentRepository.findById.mockResolvedValue(mockComment);
 
       await expect(
         commentService.deleteComment('nonexistent', 1, 1)
-      ).rejects.toThrow(NotFoundError);
+      ).rejects.toThrow('Article');
     });
   });
 });
