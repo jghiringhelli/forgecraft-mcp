@@ -216,6 +216,7 @@ function callClaude(
     encoding:  "utf-8",
     maxBuffer: 100 * 1024 * 1024, // 100 MB
     timeout:   600_000,            // 10 minutes per prompt
+    shell:     true,               // required on Windows to resolve claude.cmd
   });
 
   if (result.error) {

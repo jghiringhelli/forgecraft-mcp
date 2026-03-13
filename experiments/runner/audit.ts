@@ -211,6 +211,7 @@ function callClaudeOnce(
     encoding:  "utf-8",
     maxBuffer: 100 * 1024 * 1024,
     timeout:   600_000,
+    shell:     true,               // required on Windows to resolve claude.cmd
   });
 
   if (result.error) throw new Error(`claude CLI spawn error: ${result.error.message}`);
