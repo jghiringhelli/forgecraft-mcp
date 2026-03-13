@@ -23,3 +23,10 @@ mcp-publisher*
 *.cpuprofile
 junit*.xml
 test-results.*
+
+# Experiment generated outputs — rebuildable via run-experiment.ts + materialize.ts
+# Keep: prompts/, docs/, CLAUDE.md, prisma/, evaluation/, README.md, Status.md (source + results)
+# Drop: output/ (generated code), session.log.json (raw CLI logs), *-response.md (raw Claude responses)
+experiments/*/output/
+experiments/failed-runs/*/
+experiments/*/session.log.json
