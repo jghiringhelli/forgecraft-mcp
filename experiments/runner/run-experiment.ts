@@ -201,6 +201,7 @@ function callClaude(
     "--print",
     "--output-format", "json",
     "--model",         options.model,
+    "--tools",         "",            // disable all file-write / bash tools — force pure text + fenced code blocks
   ];
 
   if (!options.sessionId && options.systemPrompt) {
