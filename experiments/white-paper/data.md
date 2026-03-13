@@ -7,15 +7,15 @@ unless explicitly marked as HALLUCINATED or PENDING.*
 
 ## §A GS Property Scores (Blind Adversarial Audit)
 
-| Property | Naive | Control | Treatment | Notes |
-|---|---|---|---|---|
-| Self-Describing (0–2) | **0** | 2 | 2 | Naive: no README, no architecture docs. Ceiling in both structured conditions |
-| Bounded (0–2) | **2** | 2 | 2 | Ceiling in all three conditions — model applies layering regardless of prompting |
-| Verifiable (0–2) | **2*** | 2 | 2 | *Auditor scored test structure/names only — naive tests cannot compile (see §D) |
-| Defended (0–2) | **0** | 0 | 0 | Floor effect in all three — hooks referenced but never emitted |
-| Auditable (0–2) | **0** | 1 | 1 | Naive: no ADRs, no commits guidance, no Status.md |
-| Composable (0–2) | **1** | 1 | 2 | Naive/Control: global Prisma instances, no DI. Treatment: interfaces + composition root |
-| **Total (0–12)** | **5** | **8** | **9** | Monotonic: Naive < Control < Treatment |
+| Property | Naive | Control | Treatment | Treatment-v2 | Notes |
+|---|---|---|---|---|---|
+| Self-Describing (0–2) | **0** | 2 | 2 | **2** | Naive: no README, no architecture docs. Ceiling in all structured conditions |
+| Bounded (0–2) | **2** | 2 | 2 | **2** | Ceiling in all four conditions |
+| Verifiable (0–2) | **2*** | 2 | 2 | **2** | *Auditor scored test structure/names only |
+| Defended (0–2) | **0** | 0 | 0 | **2** | T-v2: hooks + ci.yml emitted in P1; prior conditions: referenced only |
+| Auditable (0–2) | **0** | 1 | 1 | **2** | T-v2: CHANGELOG + commitlint emitted; prior: partially referenced |
+| Composable (0–2) | **1** | 1 | 2 | **2** | T-v2: IRepository interfaces emitted in P1; treatment already at 2 |
+| **Total (0–12)** | **5** | **8** | **9** | **12** | Monotonic: Naive < Control < Treatment < Treatment-v2 |
 
 *Audit method: separate Claude session, blind to experiment and GS methodology.
 Rubric in `experiments/treatment/evaluation/scores.md`.*
@@ -24,18 +24,18 @@ Rubric in `experiments/treatment/evaluation/scores.md`.*
 
 ## §B Execution Timing
 
-| Prompt | Naive (s) | Control (s) | Treatment (s) |
-|---|---|---|---|
-| 01 auth | 57.9 | 131.7 | 158.8 |
-| 02 profiles | 77.9 | 67.3 | 112.1 |
-| 03 articles | 67.7 | 145.1 | 193.0 |
-| 04 comments | 37.8 | 85.8 | 126.0 |
-| 05 tags | 21.5 | 58.8 | 64.3 |
-| 06 complete/integration | 130.1 | 114.5 | 111.4 |
-| 07 tests (control only) | — | 143.8 | — |
-| **Total (excl. context ack)** | **393.0s** | **747.0s** | **765.6s** |
-| **Avg/prompt** | **65.5s** | **106.7s** | **127.6s** |
-| Context ack | 40.5s | 24.1s | 34.3s |
+| Prompt | Naive (s) | Control (s) | Treatment (s) | Treatment-v2 (s) |
+|---|---|---|---|---|
+| 01 auth | 57.9 | 131.7 | 158.8 | 216.1 |
+| 02 profiles | 77.9 | 67.3 | 112.1 | 99.6 |
+| 03 articles | 67.7 | 145.1 | 193.0 | 197.5 |
+| 04 comments | 37.8 | 85.8 | 126.0 | 120.5 |
+| 05 tags | 21.5 | 58.8 | 64.3 | 68.9 |
+| 06 complete/integration | 130.1 | 114.5 | 111.4 | 133.1 |
+| 07 tests (control only) | — | 143.8 | — | — |
+| **Total (excl. context ack)** | **393.0s** | **747.0s** | **765.6s** | **835.7s** |
+| **Avg/prompt** | **65.5s** | **106.7s** | **127.6s** | **139.3s** |
+| Context ack | 40.5s | 24.1s | 34.3s | 41.5s |
 
 *Naive was 47% faster/prompt than control. Less prompting → less output → less generation time. However, shorter output correlated with an incomplete, non-compilable project.*
 
@@ -62,16 +62,20 @@ Rubric in `experiments/treatment/evaluation/scores.md`.*
 
 ## §D Real Test Coverage (Jest + PostgreSQL)
 
-| Metric | Naive | Control | Treatment |
-|---|---|---|---|
-| Lines % | **0%** | **34.12%** | **27.63%** |
-| Statements % | **0%** | 34.11% | 27.85% |
-| Functions % | **0%** | 32.05% | 27.77% |
-| Branches % | **0%** | 37.50% | 38.63% |
-| Tests passing | **0 / 0** | 52 / 186 (28%) | 33 / 33 (100%) |
-| Test suites passing | **0 / 6** | 5 / 14 (36%) | 4 / 10 (40%) |
-| Coverage gate (80%) | ❌ FAIL | ❌ FAIL | ❌ FAIL |
-| AI-reported coverage (hallucinated) | — | 94.52% (HALLUCINATED) | 93.1% (HALLUCINATED) |
+| Metric | Naive | Control | Treatment | Treatment-v2 |
+|---|---|---|---|---|
+| Lines % | **0%** | **34.12%** | **27.63%** | —† |
+| Statements % | **0%** | 34.11% | 27.85% | —† |
+| Functions % | **0%** | 32.05% | 27.77% | —† |
+| Branches % | **0%** | 37.50% | 38.63% | —† |
+| Tests passing | **0 / 0** | 52 / 186 (28%) | 33 / 33 (100%) | 2 / 2 (100%) |
+| Test suites passing | **0 / 6** | 5 / 14 (36%) | 4 / 10 (40%) | 1 / 9 (11%) |
+| Coverage gate (80%) | ❌ FAIL | ❌ FAIL | ❌ FAIL | ❌ FAIL |
+| AI-reported coverage (hallucinated) | — | 94.52% (HALLUCINATED) | 93.1% (HALLUCINATED) | 87% (HALLUCINATED) |
+
+† Coverage not measurable: 8/9 test suites fail on TypeScript import errors for
+unmaterialized files (`testDb`, error classes, `auth.middleware`). The 1 passing
+suite (TagService, 2 tests) has no coverage reporter output.
 
 *Naive failure mode: ALL suites fail with TS2339 compilation errors — Prisma models for Article/Comment/Tag/Favorite are absent from schema. Model described these models in non-annotated prose blocks; materializer could not extract them. Tests reference models that do not exist.*
 *Control failure mode: TS error in `articleService.ts:159` + missing `/api/articles/feed` route*
@@ -132,9 +136,11 @@ The number was right; it described the wrong thing.*
 | Control run session ID | `650a9f59-5a21-4eda-829a-ca46c5fa83be` |
 | Treatment run session ID | `eb7ae491-33fa-4b4c-8b78-e75201ebf46f` |
 | Naive run session ID | `236a3efd-94ba-45af-b399-bca79f4b1e2e` |
+| **Treatment-v2 run session ID** | **`c55b63f6-b84a-40be-bfc9-87eae107d52c`** |
 | Mutation gate added commit | `482a111` |
 | Mutation testing done commit | `433ed1d` |
 | GS template improvements commit | `7dc4d58` |
+| **Treatment-v2 condition added commit** | **`6c24f6d`** |
 | Model | claude-sonnet-4-5 |
 | Run date | March 13, 2026 |
 | Benchmark | RealWorld Conduit API |

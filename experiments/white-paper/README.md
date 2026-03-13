@@ -9,10 +9,10 @@ This folder collects all evidence, data, and artifacts for the paper:
 
 | Where to look | What you get |
 |---|---|
-| [RESULTS.md](../RESULTS.md) | Complete results across all 13 sections — the primary evidence document |
-| [data.md](./data.md) | All key numbers in one place, pre-formatted for citation |
-| [conclusions.md](./conclusions.md) | **Start here for synthesis.** Defended floor analysis, mutation testing question, 12/12 gap analysis, honest limitations, next experiments |
-| [conditions.md](./conditions.md) | Summary of all three experimental conditions with links to prompts |
+| [RESULTS.md](../RESULTS.md) | Complete results across all sections — the primary evidence document. §14 has treatment-v2 post-hoc data. |
+| [data.md](./data.md) | All key numbers in one place, pre-formatted for citation. Four-condition tables. |
+| [conclusions.md](./conclusions.md) | **Start here for synthesis.** Defended floor analysis, mutation testing, 12/12 gap analysis, **§8 treatment-v2 confirmation**, limitations, next experiments |
+| [conditions.md](./conditions.md) | Summary of all four experimental conditions with links to prompts |
 | [gs-artifacts.md](./gs-artifacts.md) | What GS actually emits — the treatment artifact set |
 | [code-comparison.md](./code-comparison.md) | Side-by-side code quality evidence (interfaces vs concrete, composition root) |
 | [experiment-design.md](../../docs/experiment-design.md) | Pre-registered design (pre-dated all experimental runs) |
@@ -35,7 +35,11 @@ Three conditions were run to build the same backend API (RealWorld/Conduit in Ty
    C4 diagrams, NFRs, use-cases, test architecture doc, pre-defined Prisma schema.
    Same problem, but with GS as the structured specification layer.
 
-All three used the same model (claude-sonnet-4-5), same benchmark (RealWorld Conduit API spec),
+4. **Treatment-v2** *(post-hoc, not pre-registered)* — GS v2: Treatment with updated templates
+   applying "Emit, Don't Reference" to infrastructure files. First Response Requirements added
+   for hooks, CI pipeline, CHANGELOG, and IRepository interfaces.
+
+All four used the same model (claude-sonnet-4-5), same benchmark (RealWorld Conduit API spec),
 and same evaluation rubric (blind adversarial GS property audit, real test execution, mutation testing).
 
 ---
@@ -49,6 +53,7 @@ and same evaluation rubric (blind adversarial GS property audit, real test execu
 | **Naive** | **5/12** | Annotation failure: schema incomplete, 0% real coverage, all test suites fail to compile |
 | **Control** | **8/12** | Expert prompting achieves ceiling on 3/6 properties |
 | **Treatment** | **9/12** | +1 on Composable only — GS artifacts translated directly to interface-based DI |
+| **Treatment-v2** | **12/12** | First perfect score — hooks/CI/CHANGELOG/IRepository emitted in P1 |
 
 **Most important finding:** Expert prompting was *more capable than anticipated*.
 It hit the ceiling (2/2) on Self-Describing, Bounded, and Verifiable — the same as GS treatment.
@@ -60,19 +65,23 @@ Treatment's GS artifact: *"Depend on abstractions. Concrete classes are injected
 → Model emitted: `IUserRepository`, `IArticleRepository` interfaces + explicit composition root in `app.ts`.
 Control had constructor injection but against concrete types — functional but not substitutable.
 
-### Defended Property (all three conditions: 0/2)
+### Defended Property — 0/2 in original three conditions, 2/2 in treatment-v2
 
-The largest finding across all conditions. No condition — naive, expert-prompted, or GS —
+The largest finding across the original three conditions. No condition — naive, expert-prompted, or GS —
 emitted pre-commit hooks or CI pipelines as actual files. All three described or implied them.
 None of them exist in any materialized output.
 
 This is the "Emit vs. Reference" failure at its most consequential: a developer receiving
 any of these outputs would have documentation claiming enforcement exists. No enforcement exists.
 
-**Key question answered in [conclusions.md §3](./conclusions.md):**
-Mutation testing is necessary for hooks to be *meaningful* enforcement, but the prerequisite
-(hooks existing at all) is the first unmet step. Both GS and expert prompting need to be
-explicitly instructed to emit hook and CI files in P1 — not just describe them.
+**Post-hoc resolution:** Treatment-v2 applied "Emit, Don't Reference" to infrastructure files
+directly — providing fenced file templates in CLAUDE.md for `.husky/pre-commit`, `.husky/commit-msg`,
+`commitlint.config.js`, and a complete `.github/workflows/ci.yml` with `npx stryker run`.
+Result: Defended 0→2. The auditor found every hook and CI artifact emitted as a real file in P1.
+
+**Key question answered in [conclusions.md §3 and §8](./conclusions.md):**
+Once told to *emit* rather than *describe*, the model emits. The failure was not capability — it was
+instruction precision.
 
 ### Coverage Hallucination (both expert conditions)
 

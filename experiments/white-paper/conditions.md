@@ -1,6 +1,7 @@
 # Experimental Conditions
 
-Three conditions, same benchmark (RealWorld Conduit API in TypeScript), same model (claude-sonnet-4-5).
+Three pre-registered conditions plus one post-hoc GS v2 condition, all using the same benchmark
+(RealWorld Conduit API in TypeScript) and same model (claude-sonnet-4-5).
 
 ---
 
@@ -89,17 +90,52 @@ Before committing: run the Verification Protocol (see CLAUDE.md).
 
 ---
 
+## Condition 4: Treatment-v2 (GS v2 — Post-Hoc)
+
+**Design intent:** Re-run of the GS condition using updated template artifacts that apply the
+"Emit, Don't Reference" principle to infrastructure files (hooks, CI, CHANGELOG, IRepository interfaces).
+Not pre-registered. Purpose: verify that the §4 gap analysis predictions in [conclusions.md](./conclusions.md)
+are correct and sufficient to achieve a perfect score.
+
+**Changes from treatment (v1):**
+1. **DI bullet expanded** — `IUserRepository`, `IArticleRepository`, `ICommentRepository`, `IProfileRepository`
+   explicitly named; "Emit these interfaces in P1 alongside schema" stated as a requirement.
+2. **Commit Protocol rewritten** — "Commit Hooks — Emit, Don't Reference" section replaced the
+   3-line protocol, providing fenced file templates for `.husky/pre-commit`, `.husky/commit-msg`,
+   `commitlint.config.js`, and `.github/workflows/ci.yml` with `npx stryker run` as a mutation gate step.
+3. **First Response Requirements section** — 9 mandatory P1 artifacts listed: schema, hooks, CI, CHANGELOG,
+   IRepository interfaces, package.json with prepare script. Framing: "A file referenced in documentation
+   but not emitted as a code block does not exist."
+
+**What the model received:**
+- The RealWorld API spec
+- 18 context files: updated CLAUDE.md (with the three changes above), Status.md, Prisma schema,
+  4 ADRs, C4 context + container + domain-model diagrams, sequence diagrams, use-cases,
+  test-architecture, NFR, TechSpec docs
+- 6 prompts (same as treatment)
+
+**Files:** `experiments/treatment-v2/` (updated GS artifact cascade), `experiments/treatment-v2/prompts/`
+
+**Results:** **12/12 GS audit score** — first perfect score in the series.
+Test suite coverage: 1/9 suites passed, 2/2 tests (8 suites blocked by missing test
+helper/error class files — same "Emit vs. Reference" failure applied to a different artifact class).
+
+---
+
 ## Condition Comparison Matrix
 
-| Dimension | Naive | Control | Treatment |
-|---|---|---|---|
-| Context artifacts | API spec + 3-line README | API spec + detailed README | API spec + 17 GS documents |
-| Prompt length (avg) | ~4 lines | ~30 lines | ~8 lines |
-| Prompt count | 6 | 7 | 6 |
-| Architecture guidance | None | Inline text in README and prompts | GS artifacts (CLAUDE.md, ADRs) |
-| Error format specified | No | Yes (inline) | Yes (ADR-004) |
-| Pre-defined schema | No | No | Yes (Prisma schema in context) |
-| Test requirements | No | Per-feature in prompts | Per-feature + test-architecture doc |
-| Commit hooks | No mention | No mention | Specified in CLAUDE.md |
-| ADRs | None | None | 4 pre-written |
-| GS audit score | PENDING | 8/12 | 9/12 |
+| Dimension | Naive | Control | Treatment | Treatment-v2 |
+|---|---|---|---|---|
+| Context artifacts | API spec + 3-line README | API spec + detailed README | API spec + 17 GS documents | API spec + 18 GS documents (updated) |
+| Prompt length (avg) | ~4 lines | ~30 lines | ~8 lines | ~8 lines |
+| Prompt count | 6 | 7 | 6 | 6 |
+| Architecture guidance | None | Inline text in README and prompts | GS artifacts (CLAUDE.md, ADRs) | GS artifacts (updated CLAUDE.md, ADRs) |
+| Error format specified | No | Yes (inline) | Yes (ADR-004) | Yes (ADR-004) |
+| Pre-defined schema | No | No | Yes (Prisma schema in context) | Yes (same schema) |
+| Test requirements | No | Per-feature in prompts | Per-feature + test-architecture doc | Per-feature + test-architecture doc |
+| Commit hooks | No mention | No mention | Specified in prose | **Emitted as files in P1** |
+| CI pipeline | No mention | No mention | No mention | **Emitted as file in P1** |
+| IRepository interfaces | None | None | In context ADRs | **Named + required in P1** |
+| CHANGELOG | None | None | None | **Required in P1** |
+| ADRs | None | None | 4 pre-written | 4 pre-written |
+| GS audit score | 5/12 | 8/12 | 9/12 | **12/12** |
