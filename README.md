@@ -12,7 +12,9 @@
 
 ---
 
-AI coding assistants work better with clear engineering standards. Most start with a generic instruction file — ForgeCraft replaces that with production-grade standards: SOLID principles, testing pyramids, architecture patterns, CI/CD pipelines, domain-specific rules, and quality-gate hooks — all composed from 116 curated template blocks matched to your actual stack.
+An AI session starts stateless. Without an explicit, self-contained specification — a grammar the AI reads before every session — output drifts with every context boundary. Architecture erodes one generation at a time.
+
+**[Generative Specification](https://github.com/jghiringhelli/forgecraft-mcp)** is the discipline that addresses this structurally. ForgeCraft is its toolchain: it writes the grammar your AI needs to produce coherent, standards-consistent output across every session — not just the first one.
 
 **Supports:** Claude (CLAUDE.md) · Cursor (.cursor/rules/) · GitHub Copilot (.github/copilot-instructions.md) · Windsurf (.windsurfrules) · Cline (.clinerules) · Aider (CONVENTIONS.md)
 
@@ -20,9 +22,11 @@ AI coding assistants work better with clear engineering standards. Most start wi
 npx forgecraft-mcp setup .
 ```
 
-That's it. ForgeCraft scans your project, auto-detects your stack, and generates tailored instruction files in seconds.
+ForgeCraft scans your project, auto-detects your stack, and generates tailored instruction files from 116 curated blocks — SOLID, hexagonal architecture, testing pyramids, CI/CD, and 24 domain-specific rule sets — in seconds.
 
 ## `claude init` vs ForgeCraft
+
+`claude init` gets you started. ForgeCraft gets you to production standards — across every AI assistant, every session, every engineer on the team.
 
 | | `claude init` | ForgeCraft |
 |---|---|---|
@@ -53,13 +57,13 @@ npx forgecraft-mcp setup .
 
 ForgeCraft is a **setup-time CLI tool**. Run it once to configure your project, then remove it — it has no runtime footprint.
 
-optional: add the MCP sentinel to let your AI assistant diagnose and recommend commands:
+Optionally add the MCP sentinel to let your AI assistant diagnose and recommend commands:
 
 ```bash
 claude mcp add forgecraft -- npx -y forgecraft-mcp
 ```
 
-The sentinel is a single lightweight tool (~200 tokens) that checks your project state and tells your AI what CLI command to run next. [Remove it](#mcp-sentinel) after initial setup to save tokens.
+The sentinel is a single tool (~200 tokens). It reads three artifacts — `forgecraft.yaml`, `CLAUDE.md`, `.claude/hooks` — derives the correct next CLI command, and returns it. Nothing more. This is the methodology's core principle expressed as tool design: a stateless reader, a finite artifact set, a derived action. [Remove it](#mcp-sentinel) after initial setup to reclaim token budget.
 
 ## What You Get
 
@@ -185,11 +189,15 @@ Optionally add the ForgeCraft MCP sentinel to let your AI assistant diagnose you
 claude mcp add forgecraft -- npx -y forgecraft-mcp
 ```
 
-The sentinel is a **single minimal tool** (~200 tokens per request, vs ~1,500 for a full MCP tool suite). It checks whether `forgecraft.yaml`, `CLAUDE.md`, and `.claude/hooks` exist, then returns targeted CLI commands to run.
+The sentinel is a **single minimal tool** (~200 tokens per request, vs ~1,500 for a full tool suite). It checks whether `forgecraft.yaml`, `CLAUDE.md`, and `.claude/hooks` exist, then returns the targeted CLI command for the project's current state.
+
+**The design is intentional.** The full ForgeCraft command surface — 21 actions — lives in the CLI, not the MCP server. The MCP server exposes exactly one tool that reads three artifacts and returns one recommendation. This is the Generative Specification principle in the tool's own architecture: a stateless reader, a bounded artifact set, a derived action. The tool practices what it writes into your `CLAUDE.md`.
+
+A side effect: every declared MCP tool is read by the model on every turn whether invoked or not. One tool costs 200 tokens. Twenty-one tools costs 1,500. The sentinel keeps the methodology's recommended MCP budget (≤3 active servers) by design.
 
 **Recommended workflow:**
 1. Add the sentinel temporarily
-2. Let Claude run `npx forgecraft-mcp setup .`
+2. Let your AI assistant run `npx forgecraft-mcp setup .`
 3. Remove the sentinel: `claude mcp remove forgecraft`
 4. Re-add it when you need to refresh or audit
 
@@ -301,7 +309,7 @@ git clone https://github.com/jghiringhelli/forgecraft-mcp.git
 cd forgecraft-mcp
 npm install
 npm run build
-npm test   # 237 tests, 16 suites
+npm test   # 610 tests, 42 suites
 ```
 
 ## License

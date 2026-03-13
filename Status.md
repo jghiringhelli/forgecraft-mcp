@@ -1,6 +1,32 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 16)
+## Last Updated: 2026-03-13 (Session 17)
+
+## Session 17 Summary
+Version 1.0.0 release preparation. Wrote CHANGELOG.md tracing v0.1→v1.0.0. Rewrote
+README opening narrative with GS framing (architectural drift problem, ForgeCraft as
+the methodology's toolchain). Expanded MCP Sentinel section with the "practices what
+it preaches" design-principle narrative. Updated test count (237→610). Bumped version
+to 1.0.0 in package.json and index.ts. Confirmed §16 already exists in the Practitioner
+Protocol manual (Context Loading Strategy, lines ~470-500) — P-001 is complete.
+
+**Commit**: pending
+
+**Version**: 0.5.1 → **1.0.0**
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `CHANGELOG.md` | NEW — full version history v0.1.0 → v1.0.0 |
+| `README.md` | Opening rewritten with GS/drift narrative; MCP Sentinel expanded with design-principle explanation; test count 237→610 |
+| `package.json` | version: 0.5.1 → 1.0.0 |
+| `src/index.ts` | McpServer version: 0.5.0 → 1.0.0 |
+| `DEVELOPMENT_PROMPTS.md` | P-001 closed — §16 confirmed already exists in manual |
+
+## Remaining Pre-1.0.0 Gates
+- [ ] Experiment results (April 10, Solera) — `experiments/RESULTS.md`
+- [ ] §16 confirmation: exists in manual at lines ~470-500 ✅ (P-001 done)
+- [ ] npm publish `forgecraft-mcp@1.0.0`
 
 ## Session 16 Summary
 Filled three coverage/test gaps identified at end of Session 15. Added unit tests for

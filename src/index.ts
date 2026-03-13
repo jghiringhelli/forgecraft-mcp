@@ -25,7 +25,7 @@ async function startMcpServer(): Promise<void> {
 
   const server = new McpServer({
     name: "forgecraft",
-    version: "0.5.0",
+    version: "1.0.0",
   });
 
   // ── Single sentinel tool (~200 tokens vs ~1,500 for full suite) ──

@@ -5,9 +5,14 @@ Each prompt is executable to completion without additional narration.
 
 ---
 
-## P-001 — Add §16 Context Loading Strategy to Practitioner Protocol White Paper
+## P-001 — ~~Add §16 Context Loading Strategy to Practitioner Protocol White Paper~~ ✅ COMPLETE
 
-**Specification references:**
+> **Status:** §16 "Context Loading Strategy" already exists in the Practitioner Protocol
+> at lines ~470–500. It covers: context loading order, what to exclude, MCP server budget
+> (≤3), and the token-budget rationale that produced the pointer architecture + `get_reference`
+> on-demand dispatch. No action required.
+
+**Original specification references:**
 - Load `CLAUDE.md` (architectural constitution)
 - Load `docs/forgecraft-spec.md` §4 (GS methodology)
 - Load `Status.md` (current session state)
