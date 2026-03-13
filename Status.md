@@ -1,5 +1,52 @@
 # Status.md
 
+## Last Updated: 2026-03-13 (Session 21)
+
+## Session 21 Summary
+Naive baseline condition added. GS templates improved from experiment findings. White-paper evidence package created.
+
+### Changes This Session
+
+**Naive condition (`experiments/naive/`):**
+- `README.md` — 3 lines: "Build a REST API for Conduit. Use Node.js and TypeScript." No architecture, no stack, no error format, no test requirements. Represents vibe coding.
+- `prompts/01-auth.md` through `06-complete.md` — 2–4 lines each, feature names + endpoint lists only
+- `evaluation/scores.md` — blank rubric, ready for scoring post-run
+- `docker-compose.yml` — `postgres-naive` added at port 5437
+- `run-experiment.ts` — `naive` added to allowed conditions and context file list
+
+**GS template improvements (`templates/universal/instructions.yaml`):**
+3 patches derived directly from the experiment's Defended=0 failure and the JWT_SECRET compile error:
+1. `code-standards`: `noUncheckedIndexedAccess: true` required alongside `strict: true`
+2. `commit-protocol`: "Commit Hooks — Emit, Don't Reference" section — hooks must be fenced code blocks in P1, not prose references
+3. `adr-protocol`: "ADR Stubs — Emit in P1" — ADR files must be emitted alongside `prisma/schema.prisma` in first response
+
+**White-paper evidence package (`experiments/white-paper/`):**
+- `README.md` — master index: experiment in one paragraph, key findings, honest limitations, file inventory
+- `data.md` — all numeric results pre-formatted for citation (audit scores, timing, coverage, MSI, prediction accuracy, git SHAs)
+- `conditions.md` — three-condition matrix with prompts summary and design intent for each
+- `gs-artifacts.md` — full GS artifact set inventory + post-experiment improvements documented
+- `code-comparison.md` — 5 findings with actual code excerpts (IRepository pattern, composition root, error format, schema pre-specification, coverage hallucination)
+
+### Commits This Session
+- `7b59d3e` — naive condition + docker-compose + run-experiment.ts
+- `7dc4d58` — GS template improvements + white-paper evidence package
+
+### Current State
+- Naive run: **PENDING** — ready to run: `npx tsx run-experiment.ts --condition naive --model claude-sonnet-4-5`
+  DB: `postgresql://conduit:conduit@localhost:5437/conduit_naive` (need `docker compose up -d` to start)
+- Branch: `docs/gs-specs`
+- Three commits outstanding since last merge to main
+
+### Next Steps
+1. Run naive condition: `cd experiments/runner; npx tsx run-experiment.ts --condition naive --model claude-sonnet-4-5`
+2. Materialize naive output: `npx tsx materialize.ts --condition naive`
+3. Run tests: `$env:DATABASE_URL_NAIVE = "postgresql://conduit:conduit@localhost:5437/conduit_naive"; npx tsx run-tests.ts --condition naive`
+4. Run audit: `npx tsx audit.ts --condition naive`
+5. Fill in RESULTS.md §13 (naive results) and update white-paper/data.md
+6. White paper §7 writeup using complete 3-condition data
+
+---
+
 ## Last Updated: 2026-03-13 (Session 20)
 
 ## Session 20 Summary
