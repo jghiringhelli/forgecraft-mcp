@@ -1,6 +1,26 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 15)
+## Last Updated: 2026-03-13 (Session 16)
+
+## Session 16 Summary
+Filled three coverage/test gaps identified at end of Session 15. Added unit tests for
+`scanAntiPatterns`, `probeLoc`, `probeCoverage`, `probeLayerViolations`, and
+`getGuidanceHandler`. Fixed a production bug in `anti-pattern.ts` where the `//`
+comment-exclusion regex also incorrectly excluded lines containing `http://` URLs.
+
+**Commit**: `fd8e1d9` (test(analyzers+guidance): fill coverage gaps — anti-pattern, code-probes, guidance integration)
+
+**Coverage**: `src/analyzers` 73.47% → 81.64% | overall 84.67% → 87.07% (gate: 80% ✅)
+
+**Tests**: 610 passing / 42 test files — 0 failures (+39 tests from prior session baseline)
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `tests/analyzers/anti-pattern.test.ts` | NEW — 14 tests: return shape, file_length, hardcoded_url, mock_in_source, bare_exception, hardcoded_credential, non-source file exclusion |
+| `tests/analyzers/code-probes.test.ts` | NEW — 18 tests: probeLoc (8), probeCoverage LCOV/Istanbul/Cobertura (6), probeLayerViolations (4) |
+| `tests/tools/get-reference.test.ts` | Extended — 5 tests for getGuidanceHandler (block count, topic coverage, on-demand notice, instruction-exclusion regression guard, design_patterns exclusion guard) |
+| `src/analyzers/anti-pattern.ts` | Bug fix — anchor comment-exclusion regex to line-start (`\/\/` → `^\s*(\/\/\|\/\*\|\*\|#)`) to prevent false positive on `http://` URLs |
 
 ## Session 15 Summary
 Restructured GS Practitioner Protocol encoding: moved 5 verbose procedure blocks from
