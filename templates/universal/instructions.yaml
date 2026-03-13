@@ -22,6 +22,9 @@ blocks:
       - Maximum file length: {{max_file_length | default: 300}} lines (hook-enforced).
       - Maximum function parameters: {{max_function_params | default: 5}}. If more, use a parameter object.
       - No circular imports — module dependency graph must be acyclic (hook-enforced).
+      - TypeScript projects: `tsconfig.json` must include `"strict": true` AND `"noUncheckedIndexedAccess": true`.
+        `strict: true` alone does not narrow `process.env.*` from `string | undefined` — the second flag is required
+        to catch unguarded environment variable access at compile time.
       - Every public function/method must have {{#if language_is_typescript}}a JSDoc comment{{/if}}{{#if language_is_python}}a docstring (Google or NumPy style){{/if}} with typed params and returns.
       - Delete orphaned code. Do not comment it out. Git has history.
       - Before creating a new utility, search the entire codebase for existing ones.
@@ -450,6 +453,18 @@ blocks:
       - Commit BEFORE any risky refactor. Tag stable states.
       - Update Status.md at the end of every session.
 
+      ### Commit Hooks — Emit, Don't Reference
+      Commit hooks (`.husky/pre-commit`, `.husky/commit-msg`) must be **emitted as fenced code
+      blocks** in the first session response — not merely referenced in prose or README text.
+      A hook that exists only as "you should add a pre-commit hook" in documentation provides
+      zero enforcement. If the file is not written to disk, the gate does not exist.
+      Minimum pre-commit hook for any project:
+      ```bash
+      #!/usr/bin/env sh
+      . "$(dirname -- "$0")/_/husky.sh"
+      npm run lint && npm run type-check && npm test -- --passWithNoTests
+      ```
+
       ### Commit Message Precision
       The commit message is the sentence describing this state in the project's typed corpus.
       - ❌ `fix bug` — not a sentence; not queryable; useless as episodic memory.
@@ -849,10 +864,15 @@ blocks:
       - Any change to the architectural constitution itself
 
       ### ADR Directory
-      - Path: `docs/adr/` (or `docs/adrs/`)
-      - Naming: `ADR-0001-short-title.md` (zero-padded, kebab-case)
+      - Path: `docs/adrs/` (zero-padded, kebab-case: `ADR-0001-short-title.md`)
       - ADRs are immutable once Accepted. To change a decision: write a new ADR that supersedes the old one.
       - The old ADR is updated only to add `Superseded by ADR-NNNN` to its status.
+
+      ### ADR Stubs — Emit in P1
+      When starting a new project, emit ADR stub files as **fenced code blocks** in the first
+      response alongside `prisma/schema.prisma`, `tsconfig.json`, and `package.json`.
+      ADRs referenced only in a README but not written as files are not present in the project.
+      The model cannot reference a file that does not exist. Emit the file.
 
       ### Session Protocol
       Every session begins by reading the open ADRs. The status of each ADR is the authoritative
