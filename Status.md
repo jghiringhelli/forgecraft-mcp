@@ -1,8 +1,37 @@
 # Status.md
 
-## Last Updated: 2026-03-12 (Session 14)
+## Last Updated: 2026-03-13 (Session 15)
 
-## Session 14 Summary
+## Session 15 Summary
+Restructured GS Practitioner Protocol encoding: moved 5 verbose procedure blocks from
+`instructions.yaml` into `reference.yaml` (served on-demand via `get_reference(resource: guidance)`),
+keeping CLAUDE.md output lean and within token budget. Added `getGuidanceHandler` and
+`"guidance"` resource to the router. Fixed artifact test coverage (`src/artifacts` 37% → 93.58%).
+Created `DEVELOPMENT_PROMPTS.md` with bound prompts for next sessions.
+
+**Commit**: `27526f8` (feat(templates+tools): get_reference guidance resource + artifact test coverage)
+
+**Coverage**: `src/artifacts` 37% → 93.58% | overall 84.67% (gate: 80% ✅)
+
+**Tests**: 571 passing / 40 test files — 0 failures
+
+**Files changed**:
+| File | Change |
+|------|--------|
+| `templates/universal/reference.yaml` | Added 5 `gs-guidance-*` blocks with `topic: guidance` |
+| `templates/universal/instructions.yaml` | Removed 5 verbose GS blocks (lines 1101–1313); added pointer to `get_reference(guidance)` in `artifact-grammar` |
+| `src/shared/types.ts` | Added `readonly topic?: string` to `ReferenceBlock` |
+| `src/tools/get-reference.ts` | Added `getGuidanceHandler()`; `getDesignReferenceHandler` now filters out guidance blocks |
+| `src/tools/forgecraft-router.ts` | Added `"guidance"` to `REFERENCE_RESOURCES`; added dispatch case; imported `getGuidanceHandler` |
+| `vitest.config.ts` | Added `pool: "threads"` to fix Windows fork spawn error |
+| `tests/core/properties.test.ts` | NEW — GenerativeSpec interface contract tests |
+| `tests/artifacts/claude-instructions.test.ts` | NEW — ClaudeInstructionsArtifact tests |
+| `tests/artifacts/commit-hooks.test.ts` | NEW — CommitHooksArtifact tests |
+| `tests/artifacts/schema.test.ts` | NEW — SchemaArtifact tests |
+| `tests/registry/loader.test.ts` | Updated reference block count assertion 3 → 8 |
+| `DEVELOPMENT_PROMPTS.md` | NEW — Procedural Memory: bound prompts for P-001 (white paper §16), P-002 (coverage fix), P-003 (guidance integration test) |
+
+## Previous Session (14) Summary
 Read GS theory documents; executed P1 backlog from `docs/gs-tooling-crosscheck.md`; fixed docs-only pre-commit hook bug.
 
 **Commit**: `b1d07a7` (feat(gs): implement P1 GS backlog items from crosscheck analysis)
@@ -203,9 +232,14 @@ Language-independence rework for `forgecraft metrics` probes.
 
 ## Current Context
 - Working on: nothing blocked
-- Decisions pending: user to provide updated Forge methodology (Session 1 note)
+- Decisions pending: none
 
-- Next steps:
+- Next steps (see DEVELOPMENT_PROMPTS.md for bound prompts):
+  - [ ] **P-001** — Add §16 Context Loading Strategy to Practitioner Protocol white paper
+  - [ ] **P-002** — Verify artifact coverage gates hold after new test files (src/artifacts 93%, overall 84%)
+  - [ ] **P-003** — Add integration test for `getGuidanceHandler()` (verifies 5 guidance blocks returned, not in instruction output)
+  - [ ] `generate_adr` tool — triggered by decision event; minimum ADR format
+  - [ ] Run GS AI vs Plain AI experiment per `docs/gs-experiment-execution.md`
 
 ## Architecture Decision Log
 | Date | Decision | Rationale | Status |
