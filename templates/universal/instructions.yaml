@@ -34,6 +34,128 @@ blocks:
       - All names must be intention-revealing. If you need a comment to explain what a variable
         holds, the name is wrong.
 
+  - id: dependency-registry
+    tier: core
+    title: "Dependency Registry"
+    content: |
+      ## Dependency Registry — AI-Maintained Security Contract
+
+      The project's approved dependency set is a **living GS artifact maintained by the AI
+      assistant**. It is not a template rule — template authors cannot predict which library
+      will gain a CVE next quarter. The AI can run an audit at the moment a dependency is
+      about to be added. This block prescribes that it must.
+
+      ### The registry artifact
+
+      File: **`docs/approved-packages.md`** — emit in P1 alongside schema, tsconfig, package.json.
+      Update it every time a dependency is added or upgraded. If it exists only in prose or a
+      README reference, it does not exist.
+
+      ```markdown
+      # Approved Packages
+
+      | Package | Version range | Purpose | Alternatives rejected | Rationale | Audit status |
+      |---|---|---|---|---|---|
+      | example-pkg | ^2.4 | HTTP client | axios (larger bundle), node-fetch (no TS types) | Wide adoption, zero known CVEs | 0 HIGH/CRITICAL |
+      ```
+
+      The AI populates every row. The registry is the authoritative record of WHY each
+      dependency was chosen and that it was clean at the time of addition.
+
+      ### Process rules — stack-agnostic
+
+      1. **Before adding any package**: run the project's audit command (see table below)
+         with `--dry-run` or equivalent to check the candidate for known CVEs.
+         - If HIGH or CRITICAL found: choose an alternative and document the rejection.
+         - If no CVE-free alternative exists: document the accepted risk and create an ADR
+           naming the approver. Zero-tolerance is the default; exceptions require a record.
+      2. **After adding a package**: add a row to `docs/approved-packages.md` with audit status.
+      3. **Commit gate**: the pre-commit hook runs the audit command. HIGH or CRITICAL blocks
+         the commit. If audit is not in the pre-commit hook, the gate does not exist.
+      4. **Version pins**: approved version ranges are locked in the lockfile (package-lock.json,
+         uv.lock, Cargo.lock). The lockfile is committed. Ranges without a lockfile are not pins.
+
+      ### Audit commands by ecosystem
+
+      | Ecosystem | Audit command | Threshold |
+      |---|---|---|
+      | npm / Node.js | `npm audit --audit-level=high` | HIGH or CRITICAL |
+      | pnpm | `pnpm audit --audit-level=high` | HIGH or CRITICAL |
+      | yarn | `yarn npm audit --severity high` | HIGH or CRITICAL |
+      | Python / pip | `pip-audit --fail-on-severity high` | HIGH or CRITICAL |
+      | Python / uv | `uv audit` | HIGH or CRITICAL |
+      | Rust | `cargo audit` | HIGH or CRITICAL |
+      | Go | `govulncheck ./...` | Any directly imported |
+      | Java / Maven | `mvn dependency-check:check -DfailBuildOnCVSS=7` | CVSS ≥ 7 |
+      | Ruby | `bundle audit` | HIGH or CRITICAL |
+
+      The correct command for **this project's ecosystem** must appear in the pre-commit hook
+      emitted in P1. Discovering CVEs at code review is too late.
+
+  - id: language-stack-constraints
+    tier: core
+    title: "Language Stack Constraints"
+    content: |
+      ## Language Stack Constraints — Seed Defaults
+
+      These are **starting defaults for {{language}} projects** — use them to populate the
+      initial rows of `docs/approved-packages.md` in P1. They are not a permanent approved
+      list: the AI maintains the registry from here forward, keeps versions current, and
+      replaces any entry that develops a known CVE. The Dependency Registry block above
+      governs the process.
+
+      Before adding any dependency not listed here, apply the audit-before-add process.
+
+      {{#if language_is_typescript}}
+      ### TypeScript / Node.js — Approved Toolchain
+
+      **Runtime & compiler**
+      - Node.js: `^20 LTS` minimum. NOT `^16` or `^18` (EOL or near-EOL).
+      - TypeScript: `^5.4` minimum. `tsconfig.json` must include `"strict": true` AND
+        `"noUncheckedIndexedAccess": true`. The second flag is required to narrow
+        `process.env.*` from `string | undefined` at compile time.
+
+      **Linting**
+      - `eslint@^9` + `@typescript-eslint/eslint-plugin@^8` + `@typescript-eslint/parser@^8`
+      - NOT `@typescript-eslint@^5` or `^6` — old `minimatch` transitive dep has known CVEs.
+      - NOT `tslint` — deprecated.
+
+      **Test runner**
+      - `vitest@^2` (preferred — native ESM, fast, Jest-compatible API) or `jest@^29`.
+      - NOT `mocha` + `chai` for new projects (weaker TypeScript support).
+      - NOT `jasmine` (no active maintenance for Node.js use).
+
+      **Formatting**
+      - `prettier@^3` — configured via `.prettierrc`, integrated with ESLint via
+        `eslint-config-prettier`. NOT separate manual formatting.
+      {{/if}}
+
+      {{#if language_is_python}}
+      ### Python — Approved Toolchain
+
+      **Runtime**
+      - Python `^3.11` minimum. NOT `3.8` or `3.9` for new projects — `3.11+` brings
+        `tomllib` builtin, `ExceptionGroup`, and significant performance improvements.
+
+      **Linting / formatting**
+      - `ruff@^0.4` — replaces `flake8` + `isort` + `black` with a single 10–100× faster tool.
+      - NOT separate `flake8` + `isort` + `black` for new projects.
+
+      **Type checking**
+      - `pyright@^1.1` (strict mode) — same engine as Pylance, best TypedDict support.
+      - `mypy@^1.9` is acceptable. Strict mode required in both cases.
+      - NOT unchecked Python — all public functions must be typed.
+
+      **Test runner**
+      - `pytest@^8` — NOT `unittest` for new projects.
+      - Async tests: `pytest-asyncio@^0.23`.
+
+      **Dependency management**
+      - `uv@^0.1` (recommended — fastest resolver) or `poetry@^1.7`.
+      - ALL dependencies pinned in lockfile (`uv.lock` or `poetry.lock`). Lockfile committed.
+      - `pip-tools` acceptable for library projects.
+      {{/if}}
+
   - id: production-code-standards
     tier: core
     title: "Production Code Standards"
