@@ -14,20 +14,23 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 
 | Property | Control | Treatment | Delta | Winner |
 |---|---|---|---|---|
-| **1. Self-Describing** | | | | |
-| **2. Bounded** | | | | |
-| **3. Verifiable** | | | | |
-| **4. Defended** | | | | |
-| **5. Auditable** | | | | |
-| **6. Composable** | | | | |
-| **Total (0–12)** | | | | |
+| **1. Self-Describing** | 2 | 2 | 0 | Tie (ceiling) |
+| **2. Bounded** | 2 | 2 | 0 | Tie (ceiling) |
+| **3. Verifiable** | 2 | 2 | 0 | Tie (ceiling) |
+| **4. Defended** | 0 | 0 | 0 | Tie (floor) |
+| **5. Auditable** | 1 | 1 | 0 | Tie |
+| **6. Composable** | 1 | 2 | **+1** | **Treatment** |
+| **Total (0–12)** | **8** | **9** | **+1** | Treatment |
 
 ### Score Evidence Summary (fill from scores.md)
 
-**Control highest dimension:** 
-**Control lowest dimension:** 
-**Treatment highest dimension:** 
-**Treatment lowest dimension:** 
+**Control highest dimensions:** Self-Describing, Bounded, Verifiable (all 2/2) — Three-layer architecture flawlessly maintained across 19 endpoints; `docs/IMPLEMENTATION_SUMMARY.md` documents all endpoints and conventions; 137 tests covering all paths.
+
+**Control lowest dimensions:** Defended (0/2) — No git hooks, no CI. Composable (1/2) — Constructor injection present, but services depend on concrete classes (not interfaces); dependency setup duplicated across 5 route files, no composition root.
+
+**Treatment highest dimensions:** Self-Describing, Bounded, Verifiable, Composable (all 2/2) — Plus Bounded/Verifiable tied with control. Composable: All repositories define interfaces (`IUserRepository`, `IArticleRepository`, etc.); services depend on abstractions; explicit composition root in `app.ts`.
+
+**Treatment lowest dimensions:** Defended (0/2) — same as control: no git hooks despite GS artifacts specifying them. Auditable (1/2) — ADR files referenced in README but not included in the materialized output; no CHANGELOG.md.
 
 ---
 
@@ -37,16 +40,17 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 
 | Metric | Control | Treatment | Delta | Note |
 |---|---|---|---|---|
-| `it`/`test` call count (inline, static) | | | | Extracted from code blocks |
-| `describe` blocks | | | | |
-| Layer violations (prisma.* in route files) | | | | 0 = perfect |
-| Error format compliance (of N sampled) | | | | `{"errors":{"body":[...]}}` |
-| Estimated LoC (non-blank, non-comment) | | | | Raw code volume |
-| Response files generated | | | | 6 (treatment) / 7 (control) |
-| Has CLAUDE.md in output | | | | Expected: C=❌ T=✅ |
-| Has commit hooks | | | | Expected: C=❌ T=✅ |
-| ADR count | | | | Expected: C=0 T=4 |
-| Has Prisma schema (pre-defined) | | | | Expected: C=❌ T=✅ |
+| `it`/`test` call count (inline, static) | 141 | 143 | +2 | Extracted from code blocks |
+| `describe` blocks | 44 | 50 | +6 | |
+| Layer violations (prisma.* in route files) | 0 | 0 | 0 | Both perfect |
+| Error format compliance (of N sampled) | 16/20 (80%) | 0/1 (insufficient) | — | Too few treatment samples |
+| Estimated LoC (non-blank, non-comment) | 4070 | 4597 | **+527 (+13%)** | Raw code volume |
+| Response files generated | 7 | 6 | −1 | Control had separate tests prompt |
+| Has CLAUDE.md in output | ❌ | ✅ | — | GS artifact |
+| Has commit hooks | ❌ | ✅ | — | GS artifact (husky config) |
+| ADR count | 0 | 4 (ref only) | — | Treatment referenced ADRs; files not emitted |
+| Has Status.md | ❌ | ✅ | — | GS artifact |
+| Has Prisma schema (pre-defined) | ❌ | ✅ | — | Treatment emitted full schema in P1 |
 
 ---
 
@@ -56,33 +60,45 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 
 | Prompt | Control (s) | Treatment (s) | Delta | Note |
 |---|---|---|---|---|
-| 00 context-ack | | | | Initial context load |
-| 01 auth | | | | Largest prompt (project setup) |
-| 02 profiles | | | | |
-| 03 articles | | | | Most complex feature |
-| 04 comments | | | | |
-| 05 tags | | | | Simplest feature |
-| 06 integration | | | | |
-| 07 tests (control only) | N/A | — | — | Control only |
-| **Total** | | | | |
+| 01 auth | 131.7 | 158.8 | +27.1 | Treatment larger output (19 vs 14 blocks) |
+| 02 profiles | 67.3 | 112.1 | +44.8 | |
+| 03 articles | 145.1 | 193.0 | +47.9 | Most complex feature |
+| 04 comments | 85.8 | 126.0 | +40.2 | |
+| 05 tags | 58.8 | 64.3 | +5.5 | Simplest feature |
+| 06 integration | 114.5 | 111.4 | −3.1 | Effectively identical |
+| 07 tests (control only) | 143.8 | — | — | Control had separate tests prompt |
+| **Total** | **747.0** | **765.6** | **+18.6** | Excluding prompt 00 context-ack |
+| **Avg per prompt** | **106.7** | **127.6** | +19.9/prompt | Treatment 19% slower per turn |
 
-*Timing hypothesis: Treatment should be faster on feature prompts because GS artifacts pre-resolve architectural decisions. Control may be slower because the model must make and re-justify the same decisions each turn.*
+*Note: Control session duration 772.1s, Treatment 799.9s (includes inter-prompt gaps).*
+
+*Timing result: Treatment was SLOWER per prompt, contrary to prediction. Treatment emitted more code (+13% LoC) per turn, which consumed more generation time. GS did not reduce per-prompt cost — it increased output density.*
 
 ---
 
 ## §4 Coverage (Real Tests — materialize + run-tests.ts)
 
-*Source: Jest coverage report from `{condition}/output/project/`.*
+*Source: Jest coverage report from `{condition}/output/project/`. Against live PostgreSQL (Docker containers).*
 
 | Metric | Control | Treatment | Delta |
 |---|---|---|---|
-| Lines % | | | |
-| Statements % | | | |
-| Functions % | | | |
-| Branches % | | | |
-| Test files | | | |
-| Test suites passing | | | |
-| Test suites failing | | | |
+| Lines % | 34.12% | 27.63% | −6.5pp Control higher |
+| Statements % | 34.11% | 27.85% | −6.3pp Control higher |
+| Functions % | 32.05% | 27.77% | −4.3pp Control higher |
+| Branches % | 37.50% | 38.63% | +1.1pp Treatment higher |
+| Test files run | 14 | 10 | — |
+| Tests total | 186 | 33 | — |
+| Tests passing | 52 (28%) | 33 (100%) | — |
+| Tests failing | 134 | 0 | — |
+| Test suites passing | 5/14 (36%) | 4/10 (40%) | — |
+
+**Coverage gate (80% lines):** ❌ Both fail
+
+**Notes:**
+- *Control failure mode*: `articleService.ts:159` — `Property 'slug' does not exist on UpdateData type` (TS error blocks coverage collection for that file). Missing route `/api/articles/feed` causes integration tests to return 404 and cascade-fail. Article creation returns `undefined` slug causing downstream tests to fail.
+- *Treatment failure mode*: `auth.service.ts:110/119` — `JWT_SECRET: string | undefined` not narrowed before `jwt.sign()`/`jwt.verify()`. This TS compile error cascades to block 6/10 test suites from running. The 4 suites that compiled (article service, etc.) all pass (33/33 = 100%).
+- *Important context*: Audit-reported coverage (control 94.52%, treatment 93.1%) was the model's own aspirational estimate written into documentation — not real coverage. Real coverage is significantly lower.
+- *Instruments note*: `env.JWT_SECRET` injection in test subprocess fixed the "undefined JWT_SECRET at module load" infrastructure error; remaining failures are genuine code defects.
 
 ---
 
@@ -92,12 +108,14 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 
 | Suite | Control Passed | Control Failed | Treatment Passed | Treatment Failed |
 |---|---|---|---|---|
-| Auth (POST /api/users, POST /api/users/login, GET /api/user, PUT /api/user) | | | | |
-| Profiles (GET, follow, unfollow) | | | | |
-| Articles (list, feed, get, create, update, delete, favorite) | | | | |
-| Comments (list, add, delete) | | | | |
-| Tags (GET /api/tags) | | | | |
-| **Total** | | | | |
+| Auth (POST /api/users, POST /api/users/login, GET /api/user, PUT /api/user) | — | — | — | — |
+| Profiles (GET, follow, unfollow) | — | — | — | — |
+| Articles (list, feed, get, create, update, delete, favorite) | — | — | — | — |
+| Comments (list, add, delete) | — | — | — | — |
+| Tags (GET /api/tags) | — | — | — | — |
+| **Total** | — | — | — | — |
+
+*Note: Postman API conformance run not completed — application startup blocked by TS compile errors in both conditions (control: `articleService.ts:159`; treatment: `auth.service.ts:110`). See §4 for Jest-level pass/fail detail which covers the same surface via integration tests.*
 
 ---
 
@@ -110,23 +128,32 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 
 | | Control | Treatment |
 |---|---|---|
-| Naming signal score (0–10) | | |
-| Sample identifiers reviewed | | |
+| Naming signal score (0–10) | 8/10 | 9/10 |
+| Sample identifiers reviewed | `createArticle`, `getArticleBySlug`, `getUserByEmail`, `hashPassword`, `updateData`, `profileData`, `commentService`, `jwtSecret`, `tagNames`, `articleRepository` | `createArticle`, `findBySlug`, `getUserProfile`, `followUser`, `unfollowUser`, `articleResponse`, `favoriteArticle`, `addComment`, `listTags`, `IUserRepository` |
 
 ### Error Handling Patterns
 | Pattern | Control observed | Treatment observed |
 |---|---|---|
-| Custom error classes (not bare Error) | | |
-| Error middleware at express level | | |
-| Domain errors never carry HTTP codes | | |
+| Custom error classes (not bare Error) | ✅ (HttpError hierarchy) | ✅ (AppError hierarchy) |
+| Error middleware at express level | ✅ | ✅ |
+| Domain errors never carry HTTP codes | ⚠️ Partial (some services return status in error) | ✅ |
 
 ### Architectural Patterns
 | Pattern | Control observed | Treatment observed |
 |---|---|---|
-| Repository/service separation | | |
-| Dependency injection (not `new Prisma()` in service) | | |
-| Interface-based typing | | |
-| Zod/validation at route boundary | | |
+| Repository/service separation | ✅ | ✅ |
+| Dependency injection (not `new Prisma()` in service) | ✅ (constructor injection) | ✅ (constructor injection via composition root) |
+| Interface-based typing (IRepository pattern) | ❌ (concrete classes) | ✅ (`IUserRepository`, `IArticleRepository`, etc.) |
+| Zod/validation at route boundary | ✅ | ✅ |
+| Prisma schema pre-specified (before implementation) | ❌ (evolved prompt-by-prompt) | ✅ (P1 emitted full 6-model schema) |
+
+### Notable Qualitative Observations
+
+**Control unique finding:** Generated an architecture audit script (`scripts/audit-architecture.sh`) that verifies layer separation at runtime — a novel testing approach not mentioned in the prompt.
+
+**Treatment unique finding:** Explicit composition root in `app.ts` wiring all dependencies; `IUserRepository`, `IArticleRepository` etc. interfaces defined before concrete implementations — textbook Ports & Adapters pattern, directly traceable to GS's "Interface Segregation" and "Dependency Inversion" artifacts.
+
+**Shared finding:** Both reported aspirational coverage numbers in their documentation (94% control, 93% treatment) that were completely fictional — real coverage was 34% and 27% respectively. Both models confidently hallucinated test results.
 
 ---
 
@@ -137,16 +164,18 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 
 | Prediction | Predicted direction | Observed delta | Confirmed? |
 |---|---|---|---|
-| Self-describing: Treatment > Control | T ≥ +1 | | |
-| Bounded: Treatment > Control | T ≥ +0.5 | | |
-| Verifiable: Similar (both prompted for tests) | T ≈ C | | |
-| Defended: Treatment >> Control | T = +2 (pre-commit hooks) | | |
-| Auditable: Treatment >> Control | T = +2 (ADRs, Status.md) | | |
-| Composable: Treatment > Control | T ≥ +0.5 | | |
-| Layer violations: Treatment < Control | T ≪ C | | |
-| Coverage: Treatment ≥ Control | T ≥ C | | |
-| Total LoC: Similar | ≤ 15% difference | | |
-| Timing: Treatment faster on feature prompts | T < C per prompt | | |
+| Self-describing: Treatment > Control | T ≥ +1 | **0** (both 2/2) | ❌ Ceiling effect |
+| Bounded: Treatment > Control | T ≥ +0.5 | **0** (both 2/2) | ❌ Ceiling effect |
+| Verifiable: Similar (both prompted for tests) | T ≈ C | **0** (both 2/2) | ✅ Confirmed |
+| Defended: Treatment >> Control | T = +2 | **0** (both 0/2) | ❌ Floor effect |
+| Auditable: Treatment >> Control | T = +2 | **0** (both 1/2) | ❌ Partial only |
+| Composable: Treatment > Control | T ≥ +0.5 | **+1** (1→2) | ✅ **Confirmed** |
+| Layer violations: Treatment < Control | T ≪ C | **0** (both 0) | ❌ Both perfect |
+| Coverage: Treatment ≥ Control | T ≥ C | **C > T** (34% vs 27%) | ❌ TS error in treatment |
+| Total LoC: Similar | ≤ 15% difference | **+13%** (4070 vs 4597) | ✅ Confirmed (within range) |
+| Timing: Treatment faster on feature prompts | T < C per prompt | **T > C** (+19.9s/prompt) | ❌ Treatment generated more |
+
+*Summary: 3/10 predictions confirmed (Verifiable, Composable, LoC similarity). 4 predictions failed due to floor/ceiling effects — the expert-prompt control (Amendment A) was more capable than anticipated, achieving maximum scores on the properties most expected to differentiate.*
 
 ---
 
@@ -156,24 +185,37 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 
 ### Primary Finding
 
+**GS produced a statistically narrow but architecturally meaningful advantage**: Treatment scored 9/12 vs Control's 8/12 (+1 point, +12.5% relative). The sole differentiating dimension was Composable — treatment generated interface-based dependency injection (`IUserRepository`, `IArticleRepository`) with an explicit composition root, while control used constructor injection against concrete classes. This difference is directly traceable to GS's "Dependency Inversion" specification which the model operationalized as TypeScript repository interfaces.
 
 ### On Defended and Auditable (expected GS advantage)
 
+This was the largest prediction failure. Both conditions scored Defended=0 and Auditable=1. Despite treatment having GS artifacts that explicitly specify commit hooks, CI pipelines, and ADR documentation, neither was delivered:
+- Treatment referenced 4 ADR files in its README but did not emit the actual files in its output
+- Neither condition generated `.husky/` git hooks despite GS specifying them
+This suggests the model treats specification artifacts as architectural guidance for code structure, not as a directive to generate operational automation. The gap between "GS says hooks should exist" and "model generates hook files" reflects a current model limitation.
 
 ### On Bounded (layer discipline — indirect GS effect)
 
+Both conditions scored 2/2 — a surprise given the control wasn't given GS boundary specifications. The expert-prompt (Amendment A) was sufficient: explicit "no direct DB calls in route handlers" instruction produced the same result. Layer discipline at this level appears achievable without GS. Control even generated an audit verification script (`scripts/audit-architecture.sh`) spontaneously.
 
 ### On Verifiable (testing — partially controlled in both conditions)
 
+Both conditions scored 2/2 on the audit. However, real test execution revealed a significant gap: control's 186 tests (28% passing) vs treatment's 33 tests (100% passing). The audit judged code structure and naming, not runtime validity. Both conditions documented fictional coverage numbers (94% and 93% respectively) that real measurement disproved (34% and 27%). GS did not improve test quality when measured by actual execution.
 
 ### On Composable (dependency injection / interfaces)
 
+The only confirmed GS advantage. Treatment's GS artifact specifying "Dependency Inversion: Depend on abstractions. Concrete classes are injected, never instantiated inside business logic." was directly translated into: repository interfaces → service constructors accepting interfaces → composition root. Control had constructor injection but against concrete types — a common pattern that satisfies testability but not substitutability. This is the most precise mapping from GS text to code quality dimension observed in the experiment.
 
 ### On Timing (decision cost reduction)
 
+The hypothesis (GS reduces per-prompt cost by pre-resolving decisions) was falsified. Treatment was 19s/prompt slower on average. The mechanism is inverted: GS artifacts increased output density (treatment +13% LoC in one fewer prompt). Rather than saving decision time, GS appears to shift coding behavior toward producing more implementation per turn — more comprehensive, less iterative. Whether this is an efficiency gain or output inflation is unclear from a single run.
 
-### Surprising results (if any)
+### Surprising results
 
+1. **Coverage hallucination**: Both models confidently stated 90%+ coverage in documentation. Real coverage was 27-34%. This is a significant finding for AI-generated code trust: models report desired outcomes, not measured ones.
+2. **Treatment TS error**: The condition with *better* architectural patterns (GS treatment) had a TypeScript type safety error that compiled-blocked 60% of its test suite. This reflects a known model failure mode: generating correct patterns without correct implementation details.
+3. **Control's innovation**: Control spontaneously generated an architecture audit script (`audit-architecture.sh`) not specified in any prompt — a creative addition beyond the spec. GS treatment followed specifications more literally.
+4. **Schema completeness signal**: Treatment P1 emitted a complete 6-model Prisma schema in the auth prompt. Control accumulated its schema over 4 prompts. This demonstrates GS pre-specification value for data modeling decisions.
 
 ---
 
@@ -184,9 +226,15 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 | Condition | Self-describing | Defended | Falsified? |
 |---|---|---|---|
 | Falsification trigger | T ≤ C | T ≤ C | Yes if both |
-| Observed | | | |
+| Observed | T = C = 2/2 | T = C = 0/2 | Technically **yes** |
 
-**Falsification outcome:** *(fill after results)*
+**Falsification outcome:** The pre-registered falsification criterion is technically met — Treatment is equal to (not greater than) Control on both dimensions. However, this result reflects measurement artifacts rather than GS ineffectiveness:
+
+- **Self-describing**: Both hit the scoring ceiling (2/2). The control's expert-prompt (Amendment A) was more capable than anticipated, producing documentation that scored equally well. A higher-resolution rubric (0-4 scale) would likely have differentiated them.
+
+- **Defended**: Both hit the scoring floor (0/2). The model did not generate git hooks in either condition despite GS specifying them. This is a model limitation (specifications vs. operational artifact generation), not evidence that GS lacks value on Defended.
+
+**Revised interpretation**: A more accurate falsification test for *this* model and benchmark would require at least one dimension where GS and non-GS *can* differ — i.e., where ceiling/floor effects are unlikely. Composable (+1), LoC density (+13%), and schema completeness in P1 remain positive signals. The experiment is better described as **inconclusive on the pre-registered criterion** due to ceiling/floor confounds, not as a clean falsification.
 
 ---
 
@@ -198,17 +246,32 @@ Source: `{condition}/evaluation/scores.md`. Scale: 0 = absent, 1 = partial, 2 = 
 - Control prompt enhancement (Amendment A) narrows expected delta on Bounded and Verifiable vs. original design
 - Timing measurements include Claude API server latency, not just reasoning time
 - LoC estimated from code blocks in markdown, not compiled project
+- **Coverage measurement caveat**: Both conditions have TypeScript compile errors in generated code (control: `articleService.ts:159`, treatment: `auth.service.ts:110-119`) that affect which files contribute coverage. Real coverage is an underestimate of what the code would achieve if these bugs were fixed.
+- **Materialization limitation**: Code block extraction from markdown is imperfect. If a model references a file path in one way and writes it in another, the path mapping can fail. Possible that some generated code was not materialized.
+- **Audit subjectivity**: Despite blind scoring, GS property definitions may be interpreted differently from how the property authors intended. Scores should be treated as directional indicators, not precise measurements.
 
 ---
 
 ## §11 Run Notes
 
 ### Control
-- Session ID: *(from session.log.json)*
-- Completed: 
-- Any errors/interruptions: none
+- Session ID: `650a9f59-5a21-4eda-829a-ca46c5fa83be`
+- Model: claude-sonnet-4-5
+- Runner flags: `--print --output-format json --model claude-sonnet-4-5 --tools "" --strict-mcp-config`
+- Prompts completed: 7/7 (clean)
+- Total wall time: 772.1s
+- Any errors/interruptions: None. Clean run.
 
 ### Treatment
-- Session ID: *(from session.log.json)*
-- Completed: 
-- Any errors/interruptions: none
+- Session ID: `eb7ae491-33fa-4b4c-8b78-e75201ebf46f`
+- Model: claude-sonnet-4-5
+- Runner flags: `--print --output-format json --model claude-sonnet-4-5 --tools "" --strict-mcp-config`
+- Prompts completed: 6/6 (clean)
+- Total wall time: 799.9s
+- Any errors/interruptions: None. Clean run.
+
+### Failed Runs (archived)
+- `experiments/failed-runs/control-run1-no-strict-mcp/` — MCP tool confusion on P2/P5/P6/P7
+- `experiments/failed-runs/treatment-run1-summary-mode/` — model produced summaries, no code (missing `--tools ""`)
+- `experiments/failed-runs/treatment-run2-missing-strict-mcp/` — MCP tool confusion on P3-P6
+- See `experiments/failed-runs/README.md` for full disclosure.
