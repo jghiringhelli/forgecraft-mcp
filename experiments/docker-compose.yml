@@ -44,6 +44,24 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-naive:
+    image: postgres:16-alpine
+    container_name: conduit-naive
+    environment:
+      POSTGRES_DB:       conduit_naive
+      POSTGRES_USER:     conduit
+      POSTGRES_PASSWORD: conduit
+    ports:
+      - "5437:5432"
+    volumes:
+      - pg_naive:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduit -d conduit_naive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   pg_control:
   pg_treatment:
+  pg_naive:

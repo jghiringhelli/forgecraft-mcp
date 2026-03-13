@@ -32,6 +32,10 @@ const EXPR_DIR   = path.resolve(__dirname, ".."); // experiments/
 // Context file lists — only these files are loaded into the session
 // ---------------------------------------------------------------------------
 const CONTEXT_FILES: Record<string, string[]> = {
+  naive: [
+    "REALWORLD_API_SPEC.md",
+    "naive/README.md",
+  ],
   control: [
     "REALWORLD_API_SPEC.md",
     "control/README.md",
@@ -81,8 +85,8 @@ function parseArgs(): {
     return idx !== -1 ? args[idx + 1] : undefined;
   };
   const condition = get("--condition");
-  if (!condition || !["control", "treatment"].includes(condition)) {
-    console.error("Usage: npx tsx run-experiment.ts --condition control|treatment [--model MODEL] [--resume N] [--dry-run]");
+  if (!condition || !["naive", "control", "treatment"].includes(condition)) {
+    console.error("Usage: npx tsx run-experiment.ts --condition naive|control|treatment [--model MODEL] [--resume N] [--dry-run]");
     process.exit(2);
   }
   return {
