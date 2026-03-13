@@ -43,9 +43,9 @@ function parseArgs(): { condition: string; materialize: boolean; skipMigrate: bo
   const flagIdx   = args.indexOf("--condition");
   const condition = flagIdx !== -1 ? args[flagIdx + 1] : undefined;
 
-  if (!condition || !["naive", "control", "treatment"].includes(condition)) {
+  if (!condition || !["naive", "control", "treatment", "treatment-v2"].includes(condition)) {
     console.error(
-      "Usage: npx tsx run-tests.ts --condition naive|control|treatment [--materialize] [--skip-migrate]"
+      "Usage: npx tsx run-tests.ts --condition naive|control|treatment|treatment-v2 [--materialize] [--skip-migrate]"
     );
     process.exit(2);
   }
@@ -64,6 +64,8 @@ function resolveDbUrl(condition: string): string {
     ? "DATABASE_URL_CONTROL"
     : condition === "treatment"
     ? "DATABASE_URL_TREATMENT"
+    : condition === "treatment-v2"
+    ? "DATABASE_URL_TREATMENT_V2"
     : "DATABASE_URL_NAIVE";
 
   const url = process.env[envKey] ?? process.env["DATABASE_URL"];
@@ -73,6 +75,8 @@ function resolveDbUrl(condition: string): string {
       ? "postgresql://conduit:conduit@localhost:5433/conduit_control"
       : condition === "treatment"
       ? "postgresql://conduit:conduit@localhost:5435/conduit_treatment"
+      : condition === "treatment-v2"
+      ? "postgresql://conduit:conduit@localhost:5439/conduit_treatment_v2"
       : "postgresql://conduit:conduit@localhost:5437/conduit_naive";
 
     console.warn(`  [WARN] ${envKey} not set — trying Docker default: ${dockerUrl}`);

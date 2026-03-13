@@ -1,51 +1,67 @@
-# Treatment — Objective Metrics
+# Objective Metrics — treatment
 
-*Populated after implementation run.*
-*Run `npx forgecraft-mcp verify .` for GS score and `npx forgecraft-mcp metrics . --mutation` for external quality report.*
+*Generated: 2026-03-13T15:34:11.544Z*
 
-## forgecraft verify Score
-| Property | Score (0–2) | Evidence |
-|---|---|---|
-| Self-describing | | |
-| Bounded | | |
-| Verifiable | | |
-| Defended | | |
-| Auditable | | |
-| Composable | | |
-| **Total** | **/12** | |
+## Source
 
-## Implementation Metrics
+| Item | Value |
+|---|---|
+| Response files collected | 6 |
+| Estimated LoC (non-blank, non-comment) | 4597 |
+
+## Testing
+
 | Metric | Value |
 |---|---|
-| Test count | |
-| Test coverage % | |
-| Layer violations (prisma.* in routes) | |
-| API spec conformance | |
-| Naming signal (0–10 sample) | |
-| Has CLAUDE.md | Yes |
-| ADR count | 4 |
-| Conventional commits | |
+| `describe` blocks | 50 |
+| `it`/`test` calls | 143 |
+| Coverage % | *run `npx jest --coverage` in output/ to measure* |
 
-## External Quality Report (forgecraft metrics)
+## Layer Discipline
+
 | Metric | Value |
 |---|---|
-| LOC (lines) | |
-| Source files | |
-| Coverage — lines % | |
-| Coverage — functions % | |
-| Coverage — branches % | |
-| Layer violations (dependency-cruiser/internal) | |
-| Dead code — unused files | |
-| Dead code — unused exports | |
-| High complexity functions (> 10) | |
-| Mutation score (Stryker) | |
+| Layer violations (prisma. in route files) | 0 |
 
-## RealWorld Spec Conformance (Postman collection)
-| Suite | Passed | Failed | Total |
-|---|---|---|---|
-| Auth | | | |
-| Profiles | | | |
-| Articles | | | |
-| Comments | | | |
-| Tags | | | |
-| **Total** | | | |
+
+## Error Format Compliance
+
+| Metric | Value |
+|---|---|
+| Error response sites sampled | 1 |
+| Conforming to `{"errors": {"body": [...]}}` | 0 / 1 |
+
+## GS Artifact Presence
+
+| Artifact | Present |
+|---|---|
+| CLAUDE.md | ✅ |
+| Commit hooks | ✅ |
+| ADRs | ✅ (4 files) |
+| Status.md | ✅ |
+| Prisma schema (pre-defined) | ✅ |
+| Conventional commits detected in session | 0 |
+
+## Naming Signal
+
+*Score manually: pick 10 random function/variable names from output code and assess whether each uses a domain term (User, Article, Comment, Profile, Tag, slug, feed, favorite, follow). Score = domain terms / 10.*
+
+| Manual sample score | *fill after review* |
+|---|---|
+
+---
+
+## Real Test Coverage (from Jest + PostgreSQL)
+
+*Measured: 2026-03-13T16:06:13.241Z*
+
+| Metric | Value |
+|---|---|
+| Test files run | 10 |
+| Tests passed | 33 |
+| Tests failed | 0 |
+| Statement coverage | 27.85% |
+| Branch coverage   | 38.63% |
+| Function coverage | 27.77% |
+| Line coverage     | 27.63% |
+| Coverage gate (80% lines) | ❌ Fail |

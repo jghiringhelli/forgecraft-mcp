@@ -59,6 +59,25 @@ const CONTEXT_FILES: Record<string, string[]> = {
     "treatment/docs/nfr.md",
     "treatment/docs/TechSpec.md",
   ],
+  "treatment-v2": [
+    "REALWORLD_API_SPEC.md",
+    "treatment-v2/README.md",
+    "treatment-v2/CLAUDE.md",
+    "treatment-v2/Status.md",
+    "treatment-v2/prisma/schema.prisma",
+    "treatment-v2/docs/adrs/001-stack.md",
+    "treatment-v2/docs/adrs/002-auth.md",
+    "treatment-v2/docs/adrs/003-layers.md",
+    "treatment-v2/docs/adrs/004-errors.md",
+    "treatment-v2/docs/diagrams/c4-context.md",
+    "treatment-v2/docs/diagrams/c4-container.md",
+    "treatment-v2/docs/diagrams/domain-model.md",
+    "treatment-v2/docs/diagrams/sequences.md",
+    "treatment-v2/docs/use-cases.md",
+    "treatment-v2/docs/test-architecture.md",
+    "treatment-v2/docs/nfr.md",
+    "treatment-v2/docs/TechSpec.md",
+  ],
 };
 
 // System prompt — deliberately generic, no GS/architecture framing
@@ -85,8 +104,8 @@ function parseArgs(): {
     return idx !== -1 ? args[idx + 1] : undefined;
   };
   const condition = get("--condition");
-  if (!condition || !["naive", "control", "treatment"].includes(condition)) {
-    console.error("Usage: npx tsx run-experiment.ts --condition naive|control|treatment [--model MODEL] [--resume N] [--dry-run]");
+  if (!condition || !["naive", "control", "treatment", "treatment-v2"].includes(condition)) {
+    console.error("Usage: npx tsx run-experiment.ts --condition naive|control|treatment|treatment-v2 [--model MODEL] [--resume N] [--dry-run]");
     process.exit(2);
   }
   return {
