@@ -83,7 +83,7 @@ export const forgecraftSchema = z.object({
   tags: z
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
     .optional()
-    .describe("Project classification tags. Used by: scaffold, generate, audit, review, add_module, configure_mcp, get_reference, convert, list (as filter)."),
+    .describe("Project classification tags. Used by: scaffold, generate, audit, review, add_module, configure_mcp, get_reference (not needed for resource=guidance), convert, list (as filter)."),
   project_name: z
     .string()
     .optional()
@@ -99,7 +99,7 @@ export const forgecraftSchema = z.object({
   resource: z
     .enum([...LIST_RESOURCES, ...REFERENCE_RESOURCES] as unknown as [string, ...string[]])
     .optional()
-    .describe("Sub-resource for list (tags|hooks|skills) and get_reference (nfr|design_patterns|playbook|guidance). Use 'guidance' to retrieve GS session-loop, context-loading, incremental-cascade, bound-roadmap, and diagnostic-checklist procedures on demand."),
+    .describe("Sub-resource for list (tags|hooks|skills) and get_reference (nfr|design_patterns|playbook|guidance). Use 'guidance' to retrieve GS session-loop, context-loading, incremental-cascade, bound-roadmap, and diagnostic-checklist procedures on demand — 'guidance' does not require the tags parameter."),
   name: z
     .string()
     .optional()
@@ -399,15 +399,20 @@ async function dispatchList(args: ForgecraftArgs): Promise<ToolResult> {
  */
 async function dispatchGetReference(args: ForgecraftArgs): Promise<ToolResult> {
   const resource = args.resource ?? "design_patterns";
-  const tags = requireParam(args.tags, "tags", "get_reference");
 
   switch (resource) {
-    case "nfr":
+    case "nfr": {
+      const tags = requireParam(args.tags, "tags", "get_reference[nfr]");
       return getNfrTemplateHandler({ tags });
-    case "design_patterns":
+    }
+    case "design_patterns": {
+      const tags = requireParam(args.tags, "tags", "get_reference[design_patterns]");
       return getDesignReferenceHandler({ tags });
-    case "playbook":
+    }
+    case "playbook": {
+      const tags = requireParam(args.tags, "tags", "get_reference[playbook]");
       return getPlaybookHandler({ tags, phase: args.name });
+    }
     case "guidance":
       return getGuidanceHandler();
     default:
