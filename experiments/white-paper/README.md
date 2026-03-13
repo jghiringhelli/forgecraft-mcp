@@ -9,9 +9,10 @@ This folder collects all evidence, data, and artifacts for the paper:
 
 | Where to look | What you get |
 |---|---|
-| [RESULTS.md](../RESULTS.md) | Complete results across all 11 sections — the primary evidence document |
+| [RESULTS.md](../RESULTS.md) | Complete results across all 13 sections — the primary evidence document |
 | [data.md](./data.md) | All key numbers in one place, pre-formatted for citation |
-| [conditions/](./conditions.md) | Summary of all three experimental conditions with links to prompts |
+| [conclusions.md](./conclusions.md) | **Start here for synthesis.** Defended floor analysis, mutation testing question, 12/12 gap analysis, honest limitations, next experiments |
+| [conditions.md](./conditions.md) | Summary of all three experimental conditions with links to prompts |
 | [gs-artifacts.md](./gs-artifacts.md) | What GS actually emits — the treatment artifact set |
 | [code-comparison.md](./code-comparison.md) | Side-by-side code quality evidence (interfaces vs concrete, composition root) |
 | [experiment-design.md](../../docs/experiment-design.md) | Pre-registered design (pre-dated all experimental runs) |
@@ -45,9 +46,9 @@ and same evaluation rubric (blind adversarial GS property audit, real test execu
 
 | Condition | Score | Notes |
 |---|---|---|
-| **Naive** | TBD (run pending) | Expected floor — no structure, no layers, no tests |
-| **Control** | 8/12 | Expert prompting achieves ceiling on 3/6 properties |
-| **Treatment** | 9/12 | +1 on Composable only — GS artifacts translated directly to interface-based DI |
+| **Naive** | **5/12** | Annotation failure: schema incomplete, 0% real coverage, all test suites fail to compile |
+| **Control** | **8/12** | Expert prompting achieves ceiling on 3/6 properties |
+| **Treatment** | **9/12** | +1 on Composable only — GS artifacts translated directly to interface-based DI |
 
 **Most important finding:** Expert prompting was *more capable than anticipated*.
 It hit the ceiling (2/2) on Self-Describing, Bounded, and Verifiable — the same as GS treatment.
@@ -59,18 +60,19 @@ Treatment's GS artifact: *"Depend on abstractions. Concrete classes are injected
 → Model emitted: `IUserRepository`, `IArticleRepository` interfaces + explicit composition root in `app.ts`.
 Control had constructor injection but against concrete types — functional but not substitutable.
 
-### Defended Property (both conditions: 0/2)
+### Defended Property (all three conditions: 0/2)
 
-The largest prediction failure. GS artifacts explicitly specify commit hooks (`.husky/pre-commit`).
-Neither condition generated them as actual files. Both referenced them in prose documentation only.
+The largest finding across all conditions. No condition — naive, expert-prompted, or GS —
+emitted pre-commit hooks or CI pipelines as actual files. All three described or implied them.
+None of them exist in any materialized output.
 
-**Root cause identified:** Models treat specification text as guidance for code structure,
-not as directives to generate operational artifacts. The gap between "GS says hooks should exist"
-and "model generates hook files" is a current model-level limitation.
+This is the "Emit vs. Reference" failure at its most consequential: a developer receiving
+any of these outputs would have documentation claiming enforcement exists. No enforcement exists.
 
-**Corrective action taken:** GS templates updated post-experiment to explicitly instruct:
-*"Commit hooks must be emitted as fenced code blocks in P1 — not referenced in prose."*
-The experiment produced a concrete, actionable template improvement.
+**Key question answered in [conclusions.md §3](./conclusions.md):**
+Mutation testing is necessary for hooks to be *meaningful* enforcement, but the prerequisite
+(hooks existing at all) is the first unmet step. Both GS and expert prompting need to be
+explicitly instructed to emit hook and CI files in P1 — not just describe them.
 
 ### Coverage Hallucination (both expert conditions)
 
@@ -104,6 +106,11 @@ on AI adoption, and juniors/non-engineers are using it without structure ("vibe 
 The naive condition is that pattern. It documents what the cost of no structure is —
 in terms of architecture quality, testability, and code reliability — on a real-world benchmark.
 
+**The annotation failure** is the naive condition's most important specific finding:
+the model described four Prisma models in non-path-annotated prose blocks. The materializer
+extracted zero of them. The test suite references all four. Every test suite fails to compile.
+Real coverage: 0%. See [conclusions.md §5](./conclusions.md) for the full analysis.
+
 GS is one answer to that cost. Expert prompting is another. The naive baseline makes the
 magnitude of the problem visible before discussing solutions.
 
@@ -115,7 +122,7 @@ magnitude of the problem visible before discussing solutions.
 - **Single run per condition**: Not replicated. Results are direction indicators, not statistical facts.
 - **Author bias**: GS was designed by the same team running the experiment.
   Expert prompting control (Amendment A) was added specifically to narrow the expected GS advantage.
-- **n=1 on Naive**: Run pending. Results will be added when it completes.
+- **n=1 on Naive**: Run completed (session `236a3efd`). Single run only — not replicated.
 - **Ceiling/floor effects**: The GS property rubric saturates at 2/2 per dimension.
   A higher-resolution rubric would likely show larger treatment-control differences.
 
@@ -125,6 +132,7 @@ magnitude of the problem visible before discussing solutions.
 
 ### This folder (`experiments/white-paper/`)
 - `README.md` — this file
+- `conclusions.md` — **analytical synthesis: Defended floor, mutation testing, perfect score analysis, limitations** (start here)
 - `data.md` — all numeric results, pre-formatted for citation
 - `conditions.md` — three-condition comparison with prompts summary
 - `gs-artifacts.md` — the GS artifact set (what treatment received)

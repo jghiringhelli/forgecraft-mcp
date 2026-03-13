@@ -26,7 +26,10 @@ Make sure authentication works with JWT tokens.
 
 **Files:** `experiments/naive/README.md`, `experiments/naive/prompts/`
 
-**Status:** Run pending.
+**Status:** Complete. Session `236a3efd-94ba-45af-b399-bca79f4b1e2e`, March 13 2026.
+Result: 5/12 GS audit score. **0% real coverage** — all test suites fail TS2339 compilation
+errors (Article/Comment/Tag/Favorite models absent from schema due to annotation failure).
+See [conclusions.md §5](./conclusions.md) for the annotation failure analysis.
 
 ---
 
