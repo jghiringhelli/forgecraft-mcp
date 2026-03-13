@@ -201,7 +201,8 @@ function callClaude(
     "--print",
     "--output-format", "json",
     "--model",         options.model,
-    "--tools",         "",            // disable all file-write / bash tools — force pure text + fenced code blocks
+    "--tools",         "",            // disable all built-in tools (Bash, Read, Write, etc.)
+    "--strict-mcp-config",            // ignore ALL registered MCP servers (e.g. forgecraft-mcp) — pure text only
   ];
 
   if (!options.sessionId && options.systemPrompt) {
