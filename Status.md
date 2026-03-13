@@ -1,32 +1,45 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 24)
+## Last Updated: 2026-03-13 (Session 25)
 
-## Session 24 Summary
-Template improvements for GS v2 readiness. Three targeted changes to `templates/universal/instructions.yaml` closing the Defended, Auditable, and Composable gaps found in the v1 experiment. All project-agnostic.
+## Session 25 Summary
+Ran the treatment-v2 (GS v2) experiment end-to-end. Created `experiments/treatment-v2/` condition with updated CLAUDE.md (hooks + CI pipeline + IRepository emit + CHANGELOG emit), ran all 6 prompts, evaluated, audited, materialized, and tested. **First 12/12 audit in the experiment series.** Committed all four condition outputs (naive, control, treatment, treatment-v2) to the repo.
 
 ### Changes This Session
 
-**`templates/universal/instructions.yaml`:**
+**`experiments/treatment-v2/`** (new):
+- Copied from `treatment/`, then applied 3 targeted CLAUDE.md edits:
+  1. DI bullet expanded with `IUserRepository`, `IArticleRepository`, etc. and "Emit in P1" instruction
+  2. Commit Protocol expanded to full "Emit, Don't Reference" section (husky hooks, commitlint, CI yaml with stryker)
+  3. First Response Requirements section listing 9 mandatory P1 artifacts
+- `README.md` title updated to "Treatment-v2 Condition — Updated GS Artifact Cascade"
 
-*Defended gap (0/2 in all three conditions):*
-- "Commit Hooks — Emit, Don't Reference" expanded to a full P1 emit checklist: `.husky/pre-commit` (tsc + lint + test), `.husky/commit-msg` (commitlint), `commitlint.config.js`, `package.json` prepare script + devDependencies
-- NEW: "CI Pipeline — Emit, Don't Reference" section — `.github/workflows/ci.yml` template with `npx stryker run` mutation gate step as non-negotiable. Rationale stated: 80% line coverage can coexist with 58% MSI; the mutation gate is the only gate that verifies test quality, not just execution.
+**`experiments/docker-compose.yml`**: added `postgres-treatment-v2` service (port 5439, `conduit_treatment_v2`)
 
-*Auditable gap (1/2 for structured conditions):*
-- "ADR Stubs — Emit in P1" extended to also require `CHANGELOG.md` with initial `## Unreleased` block emitted as a fenced code block in the first response.
+**Runner scripts** (`run-experiment.ts`, `audit.ts`, `materialize.ts`, `run-tests.ts`):
+- All condition whitelists extended: `["naive", "control", "treatment", "treatment-v2"]`
+- `CONTEXT_FILES["treatment-v2"]` added (18 files, same structure as treatment)
+- `resolveDbUrl()` extended with `DATABASE_URL_TREATMENT_V2` + Docker default fallback
 
-*Composable gap (1/2 for control condition):*
-- Dependency Inversion bullet expanded with explicit `IUserRepository`/`IOrderRepository` pattern, instruction to emit interfaces in P1 alongside schema, explicit rationale.
+**treatment-v2 run results** (session `c55b63f6`):
+- 6/6 prompts completed, ~836s total
+- Evaluate: 0 layer violations, 415 estimated LoC
+- **Audit: 12/12** (perfect — first in the series), all 6 criteria 2/2
+- Materialize: 35 files, 32 annotated code blocks
+- Tests: 1/9 suites passed, 2/2 tests (8 suites TypeScript missing-module errors)
 
-**`CLAUDE.md` + `.github/copilot-instructions.md`:** regenerated from updated templates (16 blocks, `refresh_project`).
+### Comparative Results (all conditions)
+| Condition | Audit | Notes |
+|-----------|-------|-------|
+| naive | 5/12 | annotation failure (schema in prose, not annotated blocks) |
+| control | 8/12 | no GS artifacts, plain prompt |
+| treatment | 9/12 | full GS cascade |
+| **treatment-v2** | **12/12** | updated GS: hooks + CI + IRepository + CHANGELOG emit |
 
-**GS v2 experiment readiness:** all preconditions identified in `experiments/white-paper/conclusions.md §4` are now implemented in the template. Running `setup_project` on any new project will now emit hooks, CI pipeline with mutation gate, CHANGELOG.md, and IRepository interfaces in P1. The v2 experiment (re-run on same Conduit benchmark) will test whether these changes move Defended from 0→2 and Auditable from 1→2.
+### Session 25 Commits
+- `6c24f6d` — feat(experiment): add treatment-v2 condition + commit all experiment outputs
 
-### Session 24 Commits
-- `7e06e78` — feat(templates): close Defended/Auditable/Composable gaps — GS v2 readiness
-
-### Session 23 Summary (archived)
+### Session 24 Summary (archived)
 
 **`experiments/white-paper/conclusions.md`** (new):
 - §1: Three-condition monotonic progression confirmed on all instruments

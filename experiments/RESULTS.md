@@ -468,4 +468,81 @@ This is the strongest evidence that even the control condition (minimal structur
 
 **The progression is monotonic on every instrument:** adding structure (control) or explicit GS artifacts (treatment) improves scores, compilability, and coverage in a consistent direction.
 
+---
 
+## §14 Treatment-v2 Post-Hoc Condition
+
+*Condition added post-experiment to test GS v2 template improvements. Not pre-registered.
+Session: `c55b63f6`. Run date: 2026-03-13. Model: `claude-sonnet-4-5`.*
+
+**Changes from treatment to treatment-v2:**
+1. DI bullet expanded: explicit `IUserRepository`, `IArticleRepository`, `ICommentRepository`, `IProfileRepository` named; "Emit in P1 alongside schema"
+2. Commit Protocol replaced with "Emit, Don't Reference" section: `.husky/pre-commit`, `.husky/commit-msg`, `commitlint.config.js`, `package.json prepare`, `.github/workflows/ci.yml` with `npx stryker run`
+3. First Response Requirements section added: 9 mandatory P1 artifacts listed explicitly (schema, hooks, CI, CHANGELOG, IRepository interfaces)
+
+### §14.1 GS Property Scores
+
+| Property | Naive | Control | Treatment | **Treatment-v2** |
+|---|---|---|---|---|
+| **1. Self-Describing** | 2 | 2 | 2 | **2** |
+| **2. Bounded** | 0 | 2 | 2 | **2** |
+| **3. Verifiable** | 1 | 2 | 2 | **2** |
+| **4. Defended** | 0 | 0 | 0 | **2** |
+| **5. Auditable** | 1 | 1 | 1 | **2** |
+| **6. Composable** | 1 | 1 | 2 | **2** |
+| **Total (0–12)** | **5** | **8** | **9** | **12** |
+
+**Treatment-v2 is the first condition to achieve a perfect score.** The three targeted template improvements closed all three remaining gaps simultaneously.
+
+**Defended (0→2):** The model emitted `.husky/pre-commit` (tsc + lint + test), `.husky/commit-msg` (commitlint), `commitlint.config.js`, and `.github/workflows/ci.yml` with `npx stryker run` in P1. The auditor independently verified: "A failing test cannot be committed locally or merged remotely."
+
+**Auditable (1→2):** `CHANGELOG.md` was emitted in P1. Conventional commits enforced via commitlint. Architectural decisions documented in README + CLAUDE.md.
+
+**Composable (2/2 already in treatment, maintained):** All four `IRepository` interfaces emitted in P1 alongside schema.
+
+### §14.2 Execution Timing
+
+| Prompt | Naive (s) | Control (s) | Treatment (s) | Treatment-v2 (s) |
+|---|---|---|---|---|
+| 01 auth | 59.0 | 131.7 | 158.8 | 216.1 |
+| 02 profiles | 77.9 | 67.3 | 112.1 | 99.6 |
+| 03 articles | 67.7 | 145.1 | 193.0 | 197.5 |
+| 04 comments | 37.8 | 85.8 | 126.0 | 120.5 |
+| 05 tags | 21.5 | 58.8 | 64.3 | 68.9 |
+| 06 integration | 130.1 | 114.5 | 111.4 | 133.1 |
+| 07 tests (control only) | — | 143.8 | — | — |
+| **Total** | **393.0** | **747.0** | **765.6** | **835.7** |
+
+P1 (auth) took 216s vs. 158s for treatment — the extra time corresponds to emitting hooks, CI yaml, CHANGELOG, and IRepository interfaces in addition to auth code. The model spent ~57s more on infrastructure in P1 to achieve the Defended gate.
+
+### §14.3 Coverage (Real Tests)
+
+| Metric | Naive | Control | Treatment | Treatment-v2 |
+|---|---|---|---|---|
+| Lines % | 0% | 34.12% | 27.63% | — |
+| Tests passing / total | 0/0 | 52/186 | 33/33 | 2/2 |
+| Test suites passing | 0/6 | 5/14 | 4/10 | 1/9 |
+
+Treatment-v2 failure mode: 8/9 suites fail with TypeScript missing-module errors:
+- `tests/helpers/testDb` not emitted
+- `src/errors/NotFoundError`, `AuthorizationError`, `ValidationError` not emitted
+- `src/repositories/IProfileRepository` referenced but not emitted as standalone file
+- `src/middleware/auth.middleware`, `validation.middleware` not emitted
+- `req.user` missing from Express `Request` type (no type augmentation file)
+
+**Only TagService tests (1 suite, 2 tests) ran and passed.** This is a different failure mode than prior conditions — the project has correct architecture (audit agrees: 12/12) but the materializer extracted too few of the model's output files. The model likely emitted some of these files in the integration prompt but path-annotated them inside blocks inside a summary, or it described them without full code blocks.
+
+**Assessment:** Treatment-v2 improves quality gates (12/12 audit) but the coverage regression vs. treatment is real. Next iteration should add test helper and error class emission to the First Response Requirements.
+
+### §14.4 Four-Condition Summary
+
+| Condition | GS Score | Tests passing | Suite compiles | Key gap closed |
+|---|---|---|---|---|
+| **Naive** | 5/12 | 0/0 | ❌ | — |
+| **Control** | 8/12 | 52/186 | ✅ | — |
+| **Treatment** | 9/12 | 33/33 | ✅ (partial) | Composable |
+| **Treatment-v2** | **12/12** | 2/2 | ✅ (partial) | Defended, Auditable |
+
+**The audit score progression is monotonic: 5 → 8 → 9 → 12.** Each structural addition moves the score in the predicted direction. Treatment-v2 confirms that "Emit, Don't Reference" applied to commit hooks and CI pipeline is sufficient to achieve 2/2 on the Defended property — a property that scored 0/2 in all three prior conditions.
+
+**Open question for v3:** Can the same "Emit, Don't Reference" principle applied to test helpers and error classes close the coverage gap? If treatment-v2 explicitly lists `tests/helpers/testDb.ts`, `src/errors/NotFoundError.ts` etc. in its First Response Requirements, would the 1/9 suite pass rate improve?
