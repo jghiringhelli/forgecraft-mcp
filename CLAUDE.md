@@ -249,12 +249,20 @@ Before writing any implementation:
 - Overall minimum: 80% line coverage (blocks commit)
 - New/changed code: 90% minimum (measured on diff)
 - Critical paths: 95%+ (data pipelines, auth, PHI handling, financial calculations)
+- Mutation score (MSI) — overall: ≥ 65% (blocks PR merge)
+- Mutation score (MSI) — new/changed code: ≥ 70% (measured on diff)
+- Note: Line coverage and mutation score are both required. 80% line coverage can coexist
+  with 58% MSI when tests execute code without asserting its behavior (confirmed in Shattered
+  Stars). Run stryker-mutator immediately after writing each test batch, not only pre-release.
+  Tooling: stryker-mutator (JS/TS), mutmut (Python), Pitest (Java).
 
 ### Test Rules
 - Every test name is a specification: `test_rejects_duplicate_member_ids` not `test_validation`
 - No empty catch blocks. No `assert True`. No tests that can't fail.
 - Test files colocated: `[module].test.[ext]` or in `tests/` mirroring src structure.
 - Flaky tests are bugs — fix or quarantine, never ignore.
+- After writing tests for any module, run Stryker on that module before moving on.
+  Surviving mutants = missing assertions. Fix before proceeding.
 
 ### Test Doubles Taxonomy
 Use the correct double for the job:
@@ -282,7 +290,7 @@ Prefer stubs and fakes over mocks. Tests that mock everything test nothing.
 
 ## Commit Protocol
 - Conventional commits: feat|fix|refactor|docs|test|chore(scope): description
-- Commits must pass: compilation, lint, tests, coverage gate, anti-pattern scan.
+- Commits must pass: compilation, lint, tests, coverage gate, mutation score gate (Stryker on changed modules), anti-pattern scan.
 - Keep commits atomic — one logical change per commit.
 - Commit BEFORE any risky refactor. Tag stable states.
 - Update Status.md at the end of every session.
