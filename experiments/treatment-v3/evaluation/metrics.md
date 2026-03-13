@@ -87,3 +87,136 @@ a template specificity defect, not a GS design flaw.
 | **Treatment-v3** | **11/12** | **1** | **0** |
 
 > treatment-v3 tsc error is a materializer artifact (synthesized tsconfig), not a code defect.
+
+---
+
+## Spec Compliance Validation — Official RealWorld Hurl Suite
+
+**Tool:** Hurl 7.1.0 (`winget install Orange-OpenSource.Hurl`)
+**Spec:** [realworld-apps/realworld](https://github.com/realworld-apps/realworld) — 13 Hurl files
+**Server:** treatment-v3 re-materialized (52 files after fenceRe fix), running on `http://localhost:3010`
+**Run date:** 2026-03-13
+
+### Hurl Spec Results
+
+| File | Requests run | Result | First failure |
+|---|---|---|---|
+| auth.hurl | 6 | FAIL | Request 6: `bio == null` expected, got `""` |
+| articles.hurl | 1 | FAIL | Request 1: `POST /api/articles` → 404 (route not wired) |
+| comments.hurl | 1 | FAIL | Request 1: → 404 |
+| favorites.hurl | 1 | FAIL | Request 1: → 404 |
+| feed.hurl | 1 | FAIL | Request 1: → 404 |
+| profiles.hurl | 1 | FAIL | Request 1: → 404 |
+| tags.hurl | 1 | FAIL | Request 1: → 404 |
+| pagination.hurl | 1 | FAIL | Request 1: → 404 |
+| errors_auth.hurl | 1 | FAIL | Request 1: → 404 |
+| errors_articles.hurl | 1 | FAIL | Request 1: → 404 |
+| errors_comments.hurl | 1 | FAIL | Request 1: → 404 |
+| errors_profiles.hurl | 1 | FAIL | Request 1: → 404 |
+| errors_authorization.hurl | 1 | FAIL | Request 1: → 404 |
+
+**Overall: 0/13 spec files pass. 5 of 6 auth requests succeed; all feature-route requests 404.**
+
+---
+
+## Root Cause Analysis — Route Wiring Gap
+
+**Finding:** `src/app.ts` mounts only two route groups:
+
+```typescript
+app.use('/api/users', createUserRoutes(userService));
+app.use('/api/user',  userRouter);
+```
+
+Five route modules exist on disk (`articles`, `profiles`, `comments`, `tags`, plus user) but the
+Express composition root was never updated to mount them. All requests to
+`/api/articles`, `/api/profiles`, `/api/comments`, and `/api/tags` return 404.
+
+**Root cause — incremental prompting failure mode:**
+- P1 generated `app.ts` mounting only user routes (auth feature)
+- P3–P5 prompts generated route files for each feature in isolation
+- P6 (integration + QA) prompt fixed service interface mismatches but did NOT regenerate `app.ts`
+- No prompt in the sequence was responsible for updating the composition root as new features were added
+
+This is a structural gap in incremental prompting: when route wiring lives in a single
+composition file and each feature prompt only generates that feature's module, the composition
+root diverges from the full set of registered features.
+
+**Severity:** Critical. The generated server is functionally broken for 12 of 13 spec coverage areas.
+
+---
+
+## Root Cause Analysis — Integration Test Compilation Failure
+
+**Finding:** All 5 integration test suites (`tests/integration/`) fail to compile under `ts-jest`.
+
+**Errors:**
+
+| File | Error | Cause |
+|---|---|---|
+| `src/services/UserService.ts:196` | TS2769: No overload matches — `expiresIn` type mismatch | `JWT_EXPIRY` is `string`; `@types/jsonwebtoken@^9` requires `StringValue` (branded type) |
+| `tests/integration/profiles.test.ts:132,223` | TS6133: `bobToken` is declared but never read | Unused variable in strict mode |
+
+**Root cause:** The generated code uses `expiresIn: JWT_EXPIRY` where `JWT_EXPIRY = '7d'` (inferred
+as `string`). Newer `@types/jsonwebtoken` uses the branded type `StringValue` for this option.
+The server runs fine under `tsx` (runtime, ignores types) but `ts-jest` strict compilation rejects it.
+
+**Implication for GS Verifiable score:**
+The GS auditor gave Verifiable 2/2 citing "~130 tests, ~92% coverage." In practice:
+
+- No service unit tests were written — the model produced only integration tests
+- All 5 integration test suites fail to compile (0 tests execute)
+- The "130 tests" figure was derived by reading test file source, not from executing the test runner
+- Coverage is unmeasurable because the test runner never reaches code collection
+
+The Verifiable dimension of the GS rubric cannot detect compilation failures in test code because it
+evaluates raw AI response content, not executed output.
+
+---
+
+## Bio Normalization Bug (auth.hurl request 6)
+
+**Finding:** `PUT /api/user` returns `"bio": ""` for a user with no bio set.
+**Spec requires:** `"bio": null`
+
+The Prisma schema likely defaults `bio` to `""` or the service layer coerces `null` to `""` during
+entity mapping. The spec expects SQL NULL to propagate as JSON `null`. This is a data-type
+normalization defect in the persistence → domain → API mapping layer.
+
+---
+
+## New Finding for P-004 White Paper (Section 10.7)
+
+**The GS rubric scores against raw AI response content, not executed program behavior.**
+
+A treatment-v3 server scoring GS 11/12 (near-perfect) is nonetheless:
+
+1. **Functionally broken** — 12 of 13 spec coverage areas return 404 at runtime
+2. **Unexecutable** — all integration tests fail to compile; 0 tests execute
+3. **Partially spec-compliant** — only the `/api/users` and `/api/user` auth surface passes spec (5/6 auth requests succeed)
+
+This demonstrates that GS is a **specification-quality metric**, not a **runtime-compliance metric**.
+It answers "did the AI produce a well-specified, verifiable design?" but not "does the server actually work?"
+
+**Proposed additional GS dimension — Executable (0–2):**
+
+| Score | Criterion |
+|---|---|
+| 0 | Generated code does not compile OR tests do not execute |
+| 1 | Server starts; official spec suite partially passes (>0 files, <80%) |
+| 2 | Server starts; official spec suite majority passes (>=80% of spec files) |
+
+Under this rubric, treatment-v3 would score **Executable: 0** despite scoring **Verifiable: 2/2**
+for having test files with coverage declarations.
+
+**The gap between Verifiable (claimed 2/2) and Executable (actual 0/2) is the core finding.**
+
+A language model can produce well-structured test code that is syntactically complete and passes
+visual review, yet is broken in ways the GS rubric cannot detect without execution:
+- Type-branded mismatches caught only under strict ts-jest compilation
+- Route composition gaps spanning multiple incremental prompts
+- Data normalization defects masked by integration test non-execution
+
+This finding argues for a mandatory **Executable gate** as a post-GS validation step in any
+prompting evaluation methodology that claims to measure production-readiness.
+

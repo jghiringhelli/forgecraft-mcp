@@ -54,6 +54,54 @@ blocks:
       - Kubernetes: readiness probe fails immediately, liveness continues during drain.
       - Shutdown timeout configurable (default: 30s). Force exit after timeout.
 
+  - id: api-stack-constraints
+    tier: core
+    title: "API Stack Constraints"
+    content: |
+      ## API Stack Constraints — Approved Dependency Choices
+
+      These are the **approved libraries for this API project**.
+      Every choice has a banned alternative with a concrete reason.
+      If you reach for a banned alternative, stop and use the approved one instead.
+      Rationale is stated so you understand the constraint — not so you can argue around it.
+
+      {{#if language_is_typescript}}
+      ### TypeScript API — Required Packages
+
+      | Concern | Use | Do NOT use | Reason |
+      |---|---|---|---|
+      | **Password hashing** | `argon2@^0.31` | `bcrypt`, `bcryptjs` | `bcrypt` requires a native module (`@mapbox/node-pre-gyp`) that pulls in an old `tar` CVE chain. `argon2` is pure JS, faster, OWASP-preferred. |
+      | **HTTP framework** | `express@^4` or `fastify@^4` | `restify`, `hapi@<21`, `koa` alone | `restify` is unmaintained. `hapi` is fine at `^21+` only. |
+      | **Input validation** | `zod@^3` | `joi` alone, `express-validator` alone | `zod` infers TypeScript types natively — no separate type declaration needed. |
+      | **JWT** | `jsonwebtoken@^9` | `jwt-simple` (abandoned), `jsonwebtoken@<9` | Security fixes landed in v9. `jwt-simple` has no active maintainer. |
+      | **ORM / query builder** | `@prisma/client@^5` or `kysely@^0.27` | `typeorm`, `sequelize` | `typeorm` uses decorators (not type-safe), slow migrations. `sequelize` has weak TypeScript support. |
+      | **Logger** | `pino@^9` | `winston` alone, `console.log` in prod | `pino` is 5–10× faster than `winston` and outputs structured JSON natively. `console.log` is not structured. |
+      | **HTTP client (outbound)** | `undici@^6` or native `fetch` (Node 18+) | `axios` for Node ≥18 | Native `fetch` is available; `axios` adds bundle weight and a dependency surface for a built-in feature. |
+      | **ESLint** | `@typescript-eslint/eslint-plugin@^8` | `@typescript-eslint@^5` or `^6` | `^6` has a known CVE via old `minimatch` transitive dep. `^8` is the current stable. |
+
+      **npm audit policy**: `npm audit` must return zero `high` or `critical` findings before the
+      first commit. If a dependency introduces a high/critical CVE, replace it with an alternative
+      from this table or open an ADR documenting the exception with mitigation.
+      {{/if}}
+
+      {{#if language_is_python}}
+      ### Python API — Required Packages
+
+      | Concern | Use | Do NOT use | Reason |
+      |---|---|---|---|
+      | **Web framework** | `fastapi@^0.110` | `flask` for new async APIs | Flask has no native `async` request handling at the framework level — blocks on every request without extra extensions. |
+      | **Validation** | `pydantic@^2` | `pydantic@^1` | v2 is 5–50× faster. v1 is not maintained for new projects. Breaking API — pin to `^2`. |
+      | **Password hashing** | `argon2-cffi@^23` | `hashlib` for passwords, `MD5/SHA256` for passwords | `hashlib` is not a KDF — it is trivially reversible with a GPU. `argon2` wins OWASP Password Hashing Competition. |
+      | **JWT** | `PyJWT@^2.8` or `python-jose[cryptography]@^3.3` | `python-jwt` (unmaintained), `itsdangerous` alone | `python-jwt` has no active maintainer. `itsdangerous` is for URL-safe tokens, not JWT. |
+      | **ORM** | `sqlalchemy@^2.0` with `asyncpg` | `sqlalchemy@^1.x` | v2 has a fundamentally better async story and type-annotated query API. |
+      | **HTTP client** | `httpx@^0.27` | `requests` in async code | `requests` is sync-only — it will block the asyncio event loop. |
+      | **Logger** | `structlog@^24` | bare `logging` module in production | Unstructured log lines are not machine-parseable. `structlog` wraps `logging` with structured output. |
+      | **Linting** | `ruff@^0.4` | `flake8` + `isort` + `black` separately | `ruff` replaces all three with one tool 10–100× faster. No reason to run them separately. |
+
+      **pip audit policy**: `pip audit` must return zero `high` or `critical` findings before the
+      first commit. If a dependency introduces a high/critical CVE, replace it or open an ADR.
+      {{/if}}
+
   - id: api-deployment
     tier: recommended
     title: "API Deployment & Hosting"
