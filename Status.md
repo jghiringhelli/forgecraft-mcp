@@ -1,11 +1,40 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 21)
+## Last Updated: 2026-03-13 (Session 22)
 
-## Session 21 Summary
-Naive baseline condition added. GS templates improved from experiment findings. White-paper evidence package created.
+## Session 22 Summary
+Naive condition executed end-to-end. Key finding: annotation failure — model wrote schema additions in non-path-annotated prose blocks, producing an internally incoherent project (tests reference DB models that don't exist). Three-condition GS scores are monotonic: Naive 5/12 < Control 8/12 < Treatment 9/12. All runner scripts patched to accept naive condition.
 
 ### Changes This Session
+
+**Naive experiment pipeline completed:**
+- `run-experiment.ts` — naive condition run (session `236a3efd`, 393s prompt time, 65.5s avg/prompt)
+- `evaluate.ts --condition naive` → 57 tests, 2575 LoC, 0 layer violations
+- `materialize.ts --condition naive` → 35 files to `naive/output/project/`
+- `audit.ts --condition naive` → **5/12** (Self-Describing 0, Bounded 2, Verifiable 2, Defended 0, Auditable 0, Composable 1)
+- `run-tests.ts --condition naive` → **0% coverage** — all 6 test suites fail TS2339 compilation errors
+
+**Critical finding — The Annotation Failure:**
+The model wrote `model Article`, `model Comment`, `model Tag`, `model Favorite` inside non-path-annotated code blocks in P3/P4. The materializer only extracts path-annotated blocks. The materialized schema contains only `User` and `Follow`. Test suite references all four missing models → TS2339 compile error on every test suite → zero tests run. This is precisely the failure mode that GS's "Emit, Don't Reference" principle prevents.
+
+**Also missing from naive output:** `jest`, `ts-jest`, `@types/jest` absent from `package.json` despite `jest.config.js` using `ts-jest` preset.
+
+**Runner patches:**
+- `experiments/runner/audit.ts` — condition whitelist expanded to `naive|control|treatment`
+- `experiments/runner/materialize.ts` — same
+- `experiments/runner/run-tests.ts` — same + `DATABASE_URL_NAIVE` resolution + auto-injects missing test deps when not present
+
+**Results documentation:**
+- `experiments/RESULTS.md` — §13 added (full three-condition comparison, annotation failure analysis, monotonic score table)
+- `experiments/white-paper/data.md` — all PENDING naive columns filled
+
+### Session 22 Commits
+- `ee395f4` — feat(experiment): naive condition - complete run, audit (5/12), metrics, tests, RESULTS §13
+
+### Session 21 Summary (archived)
+Naive baseline condition added. GS templates improved from experiment findings. White-paper evidence package created.
+
+### Session 21 Changes
 
 **Naive condition (`experiments/naive/`):**
 - `README.md` — 3 lines: "Build a REST API for Conduit. Use Node.js and TypeScript." No architecture, no stack, no error format, no test requirements. Represents vibe coding.
@@ -27,7 +56,7 @@ Naive baseline condition added. GS templates improved from experiment findings. 
 - `gs-artifacts.md` — full GS artifact set inventory + post-experiment improvements documented
 - `code-comparison.md` — 5 findings with actual code excerpts (IRepository pattern, composition root, error format, schema pre-specification, coverage hallucination)
 
-### Commits This Session
+### Session 21 Commits
 - `7b59d3e` — naive condition + docker-compose + run-experiment.ts
 - `7dc4d58` — GS template improvements + white-paper evidence package
 
