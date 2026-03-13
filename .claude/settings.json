@@ -20,6 +20,10 @@
     ]
   },
   "mcpServers": {
+    "forgecraft": {
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    },
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"]
