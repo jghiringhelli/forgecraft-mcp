@@ -1,11 +1,29 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 22)
+## Last Updated: 2026-03-13 (Session 23)
 
-## Session 22 Summary
-Naive condition executed end-to-end. Key finding: annotation failure — model wrote schema additions in non-path-annotated prose blocks, producing an internally incoherent project (tests reference DB models that don't exist). Three-condition GS scores are monotonic: Naive 5/12 < Control 8/12 < Treatment 9/12. All runner scripts patched to accept naive condition.
+## Session 23 Summary
+Analytical synthesis added to white-paper. `conclusions.md` created answering the two key questions raised: (1) whether both GS and expert prompting need mutation testing for Defended to be true, and (2) what would hypothetically achieve a 12/12 GS score. README and conditions updated to reflect completed naive run.
 
 ### Changes This Session
+
+**`experiments/white-paper/conclusions.md`** (new):
+- §1: Three-condition monotonic progression confirmed on all instruments
+- §2: Defended=0 structural analysis — identical floor across all 3 conditions because models treat specification as code-structure guidance, not as directives to emit operational artifacts
+- §3: **Mutation testing question answered** — hooks must exist first (precondition unmet), AND even if hooks existed and enforced `npm test`, the generated test suite at 58.62% MSI would silently pass code with 23 surviving mutants. Meaningful defense requires hooks + mutation gate in CI.
+- §4: **12/12 gap analysis** — exact missing files per dimension: `.husky/pre-commit`, `.github/workflows/ci.yml` with `npx stryker run` step (Defended); `docs/adrs/ADR-000x.md`, `CHANGELOG.md`, `commitlint.config.js` (Auditable); `IUserRepository` interfaces + composition root in control (Composable). GS advantage: one template change propagates everywhere vs manual per-project README edits for expert prompting.
+- §5: Annotation failure mechanics — path-annotated fenced blocks as a coherence mechanism, not just documentation format
+- §6: Honest limitations — single model, single run, author bias, benchmark contamination (Conduit is training-data-present)
+- §7: Six specific, testable follow-up experiments including "GS v2 with Emit, Don't Reference enforcement" and "naive v2 with output format specification only"
+
+**`experiments/white-paper/README.md`**: naive 5/12 filled, conclusions.md added to navigation, Defended section updated to all-3-conditions finding, annotation failure crosslinked
+
+**`experiments/white-paper/conditions.md`**: naive status updated to complete (session `236a3efd`)
+
+### Session 23 Commits
+- `8eacce8` — docs(white-paper): add conclusions.md - Defended analysis, mutation gate, 12/12 gap
+
+### Session 22 Summary (archived)
 
 **Naive experiment pipeline completed:**
 - `run-experiment.ts` — naive condition run (session `236a3efd`, 393s prompt time, 65.5s avg/prompt)
