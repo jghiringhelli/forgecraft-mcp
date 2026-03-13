@@ -11,7 +11,7 @@ This folder collects all evidence, data, and artifacts for the paper:
 |---|---|
 | [RESULTS.md](../RESULTS.md) | Complete results across all sections — the primary evidence document. §14 has treatment-v2 post-hoc data. |
 | [data.md](./data.md) | All key numbers in one place, pre-formatted for citation. Four-condition tables. |
-| [conclusions.md](./conclusions.md) | **Start here for synthesis.** Defended floor analysis, mutation testing, 12/12 gap analysis, **§8 treatment-v2 confirmation**, limitations, next experiments |
+| [conclusions.md](./conclusions.md) | **Start here for synthesis.** Defended floor analysis, mutation testing, 12/12 gap analysis, **§8 treatment-v2 confirmation**, **§9 measurement gaps** (E2E/load/pen/lint/audit not run), limitations, next experiments |
 | [conditions.md](./conditions.md) | Summary of all four experimental conditions with links to prompts |
 | [gs-artifacts.md](./gs-artifacts.md) | What GS actually emits — the treatment artifact set |
 | [code-comparison.md](./code-comparison.md) | Side-by-side code quality evidence (interfaces vs concrete, composition root) |

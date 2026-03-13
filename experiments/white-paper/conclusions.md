@@ -1,6 +1,6 @@
 # Experiment Conclusions — Analytical Synthesis
 
-*Cross-condition analysis of the three-condition GS experiment.*
+*Cross-condition analysis of the four-condition GS experiment (three pre-registered + one post-hoc).*
 *Primary evidence: [RESULTS.md](../RESULTS.md) and [data.md](./data.md).*
 
 ---
@@ -476,3 +476,132 @@ The audit score progression **5 → 8 → 9 → 12 is monotonic** across all fou
 Each structural addition (minimal prompting → expert prompting → GS v1 → GS v2) moves
 the score in the predicted direction, and the GS v2 changes were sufficient to close
 all three remaining gaps simultaneously in a single iteration.
+---
+
+## §9 Measurement Gaps: Test Types Not Conducted
+
+This section documents what this experiment **did not measure** and what a more complete
+evaluation would require. These are not excuses — they are action items for future work.
+
+### 9.1 What Was Measured
+
+| Test type | Tool | Conditions | Status |
+|---|---|---|---|
+| Unit tests (service layer) | Jest | All 4 | ✅ Run |
+| Integration tests (REST → DB) | Jest + PostgreSQL | All 4 | ✅ Run |
+| Mutation testing | Stryker | Treatment only | ✅ Post-hoc |
+| Architectural audit | Blind Claude session | All 4 | ✅ Run |
+| Static code extraction | evaluate.ts | All 4 | ✅ Run (LoC, test count, layer violations) |
+
+### 9.2 Functional / E2E API Testing — Not Run for Any Condition
+
+§5 API Spec Conformance was left blank across all conditions.
+Reason: application startup was blocked by TypeScript compile errors in every condition:
+
+| Condition | Startup blocker | E2E tested? |
+|---|---|---|
+| Naive | Prisma models absent from schema (annotation failure) | ❌ |
+| Control | articleService.ts:159 slug TS error | ❌ |
+| Treatment | auth.service.ts:110 JWT_SECRET not narrowed | ❌ |
+| Treatment-v2 | Missing middleware / error class files | ❌ |
+
+**No condition had its API endpoints verified against the RealWorld spec** by sending
+actual HTTP requests to a running server. The experiment measures architectural quality
+(the GS rubric) and test suite quality (Jest coverage, Stryker MSI) but makes
+no claim about whether the API actually conforms to the specification at the HTTP level.
+
+What conformance testing would require:
+1. Auto-fix the blocking TS error per condition (or run with ts-node --transpile-only)
+2. Start the server on a dedicated port
+3. Run the RealWorld Postman collection (46 tests) via Newman
+4. Record: pass count, fail count, error classes per endpoint group
+
+This is the most important unrun test type. The current experiment cannot answer:
+*"Does the generated code produce correct HTTP responses?"*
+
+### 9.3 Pre-Release Hardening Tests — Not Run
+
+The treatment NFR document specified response time p95 < 200ms, connection pool sizing,
+security headers, and rate limiting. None were verified.
+
+**Load testing** (k6, Artillery, wrk):
+- Does the API sustain 100 concurrent users? What is p95 latency under load?
+- Cannot be run until E2E server startup is fixed (§9.2).
+
+**Stress testing:**
+- What happens at 10× normal load? Does the connection pool exhaust? Does it recover?
+- Cannot be run until E2E server startup is fixed.
+
+**Penetration testing / SAST:**
+- JWT attack surfaces: alg:none, SECRET leakage, token replay, missing expiry
+- Broken object-level auth: can user A read/modify user B's articles?
+- Brute force on /api/users/login — missing rate limiting?
+- Password exposure in error messages or logs
+- No OWASP ZAP scan, no Snyk, no manual pen test was run on any condition.
+
+**Contract testing** (Pact):
+- Are response shapes exactly per the RealWorld spec?
+- Are optional fields nullable vs. absent? Any extra fields?
+- Not run.
+
+### 9.4 Code Quality Dimensions Not Measured (Independent of GS Attributes)
+
+The GS rubric (6 properties) measures *architectural compliance*. The following are
+orthogonal code quality dimensions not captured by the rubric or the runner:
+
+| Quality dimension | Tool | Significance | Status |
+|---|---|---|---|
+| Lint pass/fail + warning count | ESLint | style, no-unused-vars, no-any | ❌ Not measured |
+| TypeScript strict-mode error count | tsc --strict | nullability discipline, type safety | ⚠️ Incidental only |
+| Dependency vulnerability count | npm audit | supply-chain CVEs | ❌ Not measured |
+| Cyclomatic complexity | ESLint complexity / plato | cognitive load, refactorability | ❌ Not measured |
+| Code duplication ratio | jscpd | DRY compliance | ❌ Not measured |
+| Dead code / unused exports | ts-prune, depcheck | codebase bloat | ❌ Not measured |
+| JSDoc / documentation coverage | typedoc | public API completeness | ❌ Not measured |
+| Dependency count / depth | npm ls | maintenance surface | ❌ Not measured |
+| Build success (compile only) | tsc --noEmit | compiles at all? | ⚠️ Incidental via run-tests |
+
+**Three most impactful missing measurements:**
+
+1. **ESLint warning count** — A codebase scoring 12/12 on the GS rubric could still have
+   hundreds of lint warnings. Architectural compliance ≠ code cleanliness.
+
+2. **npm audit severity** — The dependencies in AI-generated package.json files were
+   never scanned. If the model selected an express version with a known CVE, the experiment
+   would not have detected it. This is a material security measurement gap.
+
+3. **Strict TypeScript compliance** — TS errors found during run-tests were incidental.
+   A systematic tsc --strict --noUncheckedIndexedAccess run would reveal the full
+   type-safety posture across all conditions.
+
+### 9.5 Per-Condition Gap Summary
+
+| Test gap | Naive | Control | Treatment | Treatment-v2 | Can run now? |
+|---|---|---|---|---|---|
+| E2E API conformance (Postman/Newman) | ❌ | ❌ | ❌ | ❌ | No — server startup blocked |
+| Load test (k6) | ❌ | ❌ | ❌ | ❌ | No |
+| Stress test | ❌ | ❌ | ❌ | ❌ | No |
+| Penetration test (OWASP ZAP) | ❌ | ❌ | ❌ | ❌ | No — requires running server |
+| npm audit | ❌ | ❌ | ❌ | ❌ | Yes — static, no server needed |
+| ESLint run | ❌ | ❌ | ❌ | ❌ | Yes |
+| tsc --strict error count | ❌ | ❌ | ⚠️ partial | ⚠️ partial | Yes |
+| Mutation testing | ❌ | ❌ | ✅ | ❌ | Yes — DB running |
+| Code duplication (jscpd) | ❌ | ❌ | ❌ | ❌ | Yes |
+
+### 9.6 Recommended Runner Extensions for GS v3
+
+evaluate.ts should be extended to capture static-only quality metrics before any further run:
+
+- tsc --strict --noEmit → error count per condition
+- eslint src --format json → warning + error count
+- npm audit --json → critical/high/medium vulnerability count
+- jscpd src → clone ratio %
+
+run-tests.ts should attempt an E2E startup check after compile, then Newman against the
+RealWorld collection if the server starts successfully.
+
+Without these additions, the experiment measures *structural quality* and *test suite quality*
+but cannot claim anything about *behavioral correctness*, *security posture*, or
+*pre-release operational hardening*. The 12/12 GS score tells you the architecture is sound;
+it does not tell you the API returns the right responses or that the JWT implementation
+is free from common attack vectors.
