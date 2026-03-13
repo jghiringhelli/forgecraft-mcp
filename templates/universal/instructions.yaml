@@ -48,7 +48,12 @@ blocks:
       - **Liskov Substitution**: Any interface implementation must be fully swappable. No isinstance checks.
       - **Interface Segregation**: Small focused interfaces. No god-interfaces.
       - **Dependency Inversion**: Depend on abstractions. Concrete classes are injected, never instantiated
-        inside business logic.
+        inside business logic. **In practice**: define `IUserRepository`, `IOrderRepository`,
+        `IEmailSender` etc. as interfaces in the domain/service layer first. Services depend on
+        the interface. The Prisma/SQL/HTTP concrete implementation lives in the adapter layer and
+        is injected at the composition root. Emit these interfaces in P1 alongside the schema —
+        a service that imports a concrete class cannot be unit-tested, cannot be swapped, and
+        is not Composable.
 
       ### Zero Hardcoded Values
       - ALL configuration through environment variables or config files. No exceptions.
@@ -454,15 +459,74 @@ blocks:
       - Update Status.md at the end of every session.
 
       ### Commit Hooks — Emit, Don't Reference
-      Commit hooks (`.husky/pre-commit`, `.husky/commit-msg`) must be **emitted as fenced code
-      blocks** in the first session response — not merely referenced in prose or README text.
-      A hook that exists only as "you should add a pre-commit hook" in documentation provides
-      zero enforcement. If the file is not written to disk, the gate does not exist.
-      Minimum pre-commit hook for any project:
+      Commit hooks, commit-message linting, and the CI pipeline must be **emitted as fenced
+      code blocks** in the first session response — not merely referenced in prose or README
+      text. A hook that exists only as "you should add a pre-commit hook" in documentation
+      provides zero enforcement. If the file is not written to disk, the gate does not exist.
+
+      The following files must be emitted for any new project:
+
+      **`package.json`** — add to `scripts` and `devDependencies`:
+      ```json
+      "scripts": { "prepare": "husky install" },
+      "devDependencies": {
+        "husky": "^9.0.0",
+        "@commitlint/cli": "^19.0.0",
+        "@commitlint/config-conventional": "^19.0.0"
+      }
+      ```
+
+      **`.husky/pre-commit`**:
       ```bash
       #!/usr/bin/env sh
       . "$(dirname -- "$0")/_/husky.sh"
-      npm run lint && npm run type-check && npm test -- --passWithNoTests
+      npx tsc --noEmit && npm run lint && npm test -- --passWithNoTests
+      ```
+
+      **`.husky/commit-msg`**:
+      ```bash
+      #!/usr/bin/env sh
+      . "$(dirname -- "$0")/_/husky.sh"
+      npx commitlint --edit "$1"
+      ```
+
+      **`commitlint.config.js`**:
+      ```js
+      module.exports = { extends: ['@commitlint/config-conventional'] };
+      ```
+
+      ### CI Pipeline — Emit, Don't Reference
+      `.github/workflows/ci.yml` must be emitted as a fenced code block in the first response.
+      A CI configuration described only in documentation does not enforce anything.
+      Adapt service blocks, branch names, and language-specific commands to the project stack.
+      The mutation gate step (`npx stryker run` for JS/TS, `mutmut run` for Python, `pitest` for
+      Java) is non-negotiable — it is the only gate that verifies test quality, not just
+      test execution. Line coverage at 80% can coexist with 58% mutation score; the mutation
+      gate catches the difference.
+
+      Minimum CI for a Node.js/TypeScript project:
+      ```yaml
+      name: CI
+      on:
+        push:
+          branches: [main, develop]
+        pull_request:
+          branches: [main, develop]
+      jobs:
+        ci:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                node-version: '20'
+                cache: 'npm'
+            - run: npm ci
+            - run: npx tsc --noEmit
+            - run: npm run lint
+            - run: npm test -- --coverage --passWithNoTests
+            - name: Mutation gate
+              run: npx stryker run
       ```
 
       ### Commit Message Precision
@@ -873,6 +937,16 @@ blocks:
       response alongside `prisma/schema.prisma`, `tsconfig.json`, and `package.json`.
       ADRs referenced only in a README but not written as files are not present in the project.
       The model cannot reference a file that does not exist. Emit the file.
+
+      Also emit **`CHANGELOG.md`** in P1 with an initial `## Unreleased` block:
+      ```markdown
+      # Changelog
+      All notable changes to this project will be documented here.
+      Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+
+      ## [Unreleased]
+      ```
+      A CHANGELOG that exists only as "we will add one" is not Auditable. Write the file.
 
       ### Session Protocol
       Every session begins by reading the open ADRs. The status of each ADR is the authoritative

@@ -1,6 +1,6 @@
 # Copilot Instructions
 
-<!-- ForgeCraft managed | 2026-03-12 | target: copilot -->
+<!-- ForgeCraft managed | 2026-03-13 | target: copilot -->
 > **This project is managed by [ForgeCraft](https://github.com/jghiringhelli/forgecraft-mcp).** Generated for GitHub Copilot.
 > Tags: `UNIVERSAL`, `LIBRARY`, `CLI`, `API`
 >
@@ -14,38 +14,12 @@
 > Config: `forgecraft.yaml` | Tier system: core → recommended → optional
 
 ## Project Identity
-- **Repo**: github.com/jghiringhelli/forgecraft-mcp
-- **Primary Language**: TypeScript 5 · Node 18+
-- **Framework**: @modelcontextprotocol/sdk
-- **Domain**: MCP Server — project infrastructure generator for AI-assisted development
-- **Sensitive Data**: None
-- **Package**: forgecraft-mcp (npm)
+- **Repo**: {{repo_url}}
+- **Primary Language**: typescript
+- **Framework**: {{framework}}
+- **Domain**: {{domain}}
+- **Sensitive Data**: {{sensitive_data}}
 - **Project Tags**: `[UNIVERSAL]` `[LIBRARY]` `[CLI]` `[API]`
-
-## Generative Specification (this project implements GS)
-This project adopts the GS methodology (ADR-0001). A spec is well-formed when it satisfies:
-**Self-describing · Bounded · Verifiable · Defended · Auditable · Composable**
-
-Before any structural change: check `docs/adrs/` for an existing decision. If none — write one first.
-Artifacts in `src/core/` (interfaces), `src/artifacts/` (grammar), `src/validators/` (enforcement).
-
-## MCP Tool Contract (ForgeCraft-specific)
-- Define Zod schema **before** handler. Schema is the source of truth for the tool's input contract.
-- Every tool returns structured JSON with `files_created`, `next_steps`, and actionable guidance.
-- Tools that write files: list ALL created/modified paths in output.
-- `setup_project` + `generate_instructions` both use `writeInstructionFileWithMerge` — custom sections survive regeneration.
-- Every new MCP tool: schema → handler → tests. In that order, no exceptions.
-
-## ForgeCraft Architecture
-```
-MCP Tool Handlers (src/tools/)     ← Zod schema + delegation only. No business logic.
-Registry (src/registry/)            ← Template loading, composition, rendering
-Analyzers (src/analyzers/)          ← Project analysis (package.json, structure, anti-patterns)
-Core / Artifacts / Validators       ← GenerativeSpec interfaces + grammar + enforcement
-Templates (templates/**/)           ← YAML data files. Never imported as code.
-Shared (src/shared/)                ← Config, errors, logger, filesystem utils
-```
-Layer rules: tool handlers → registry only · registry never imports from tools · templates are pure data · `shared/` has zero imports from any feature layer.
 
 ## Code Standards
 - Maximum function/method length: 50 lines. If longer, decompose.
@@ -249,20 +223,12 @@ Before writing any implementation:
 - Overall minimum: 80% line coverage (blocks commit)
 - New/changed code: 90% minimum (measured on diff)
 - Critical paths: 95%+ (data pipelines, auth, PHI handling, financial calculations)
-- Mutation score (MSI) — overall: ≥ 65% (blocks PR merge)
-- Mutation score (MSI) — new/changed code: ≥ 70% (measured on diff)
-- Note: Line coverage and mutation score are both required. 80% line coverage can coexist
-  with 58% MSI when tests execute code without asserting its behavior (confirmed in Shattered
-  Stars). Run stryker-mutator immediately after writing each test batch, not only pre-release.
-  Tooling: stryker-mutator (JS/TS), mutmut (Python), Pitest (Java).
 
 ### Test Rules
 - Every test name is a specification: `test_rejects_duplicate_member_ids` not `test_validation`
 - No empty catch blocks. No `assert True`. No tests that can't fail.
 - Test files colocated: `[module].test.[ext]` or in `tests/` mirroring src structure.
 - Flaky tests are bugs — fix or quarantine, never ignore.
-- After writing tests for any module, run Stryker on that module before moving on.
-  Surviving mutants = missing assertions. Fix before proceeding.
 
 ### Test Doubles Taxonomy
 Use the correct double for the job:
@@ -290,7 +256,7 @@ Prefer stubs and fakes over mocks. Tests that mock everything test nothing.
 
 ## Commit Protocol
 - Conventional commits: feat|fix|refactor|docs|test|chore(scope): description
-- Commits must pass: compilation, lint, tests, coverage gate, mutation score gate (Stryker on changed modules), anti-pattern scan.
+- Commits must pass: compilation, lint, tests, coverage gate, anti-pattern scan.
 - Keep commits atomic — one logical change per commit.
 - Commit BEFORE any risky refactor. Tag stable states.
 - Update Status.md at the end of every session.
