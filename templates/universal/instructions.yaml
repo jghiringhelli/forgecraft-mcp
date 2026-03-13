@@ -1085,15 +1085,35 @@ blocks:
       ADRs referenced only in a README but not written as files are not present in the project.
       The model cannot reference a file that does not exist. Emit the file.
 
-      Also emit **`CHANGELOG.md`** in P1 with an initial `## Unreleased` block:
+      **Minimum ADRs to emit in P1** (adapt titles to the actual stack chosen):
+      - `docs/adrs/ADR-0001-stack.md` — language, runtime, framework, ORM selection and rationale
+      - `docs/adrs/ADR-0002-authentication.md` — auth strategy (JWT/session), hashing algorithm and why
+      - `docs/adrs/ADR-0003-architecture.md` — layered/hexagonal architecture decision and boundary rules
+
+      Each ADR stub must contain real content in `Status`, `Context`, `Decision`, and `Consequences`
+      fields — not placeholder text. A stub that says "TBD" is not an ADR.
+
+      **ADR reference check:** If your README mentions `docs/adrs/ADR-0001-stack.md`, that file
+      must appear as a fenced code block in the same response. A reference to a non-emitted file
+      is an Auditable violation — it creates the appearance of traceability without the substance.
+
+      Also emit **`CHANGELOG.md`** in P1 with initial content documenting the P1 decisions:
       ```markdown
       # Changelog
       All notable changes to this project will be documented here.
       Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
       ## [Unreleased]
+      ### Added
+      - Initial project scaffold: layered architecture, Prisma schema, repository interfaces
+      - Authentication: JWT + Argon2 (see ADR-0002)
+      - Dependency registry: docs/approved-packages.md with audit baseline
+      - CI pipeline: lint, type-check, test, npm audit, mutation gate
+      - Pre-commit hooks: tsc, lint, audit, test gates
       ```
       A CHANGELOG that exists only as "we will add one" is not Auditable. Write the file.
+      Document the P1 decisions immediately — the first entry is not a release entry, it is the
+      architectural record of what was built in this session.
 
       ### Session Protocol
       Every session begins by reading the open ADRs. The status of each ADR is the authoritative
