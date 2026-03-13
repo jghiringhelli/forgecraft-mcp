@@ -267,6 +267,8 @@ export interface ReferenceBlock {
   readonly id: string;
   readonly title: string;
   readonly content: string;
+  /** Optional topic grouping. 'guidance' blocks are GS practitioner protocol procedures. */
+  readonly topic?: string;
 }
 
 /** A reference template for a tag. */

@@ -62,7 +62,7 @@ describe("loader", () => {
     it("should load UNIVERSAL reference blocks", () => {
       const universal = templates.get("UNIVERSAL")!;
       expect(universal.reference).toBeDefined();
-      expect(universal.reference!.blocks.length).toBe(3);
+      expect(universal.reference!.blocks.length).toBe(8); // 3 design-pattern blocks + 5 gs-guidance blocks
     });
 
     it("should load reference blocks with expected IDs", () => {

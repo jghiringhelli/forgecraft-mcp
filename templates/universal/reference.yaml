@@ -109,3 +109,218 @@ blocks:
       - **Service Locator**: Global registry looked up at runtime. Use constructor injection instead.
       - **Anemic Domain Model**: Entities with only getters/setters, logic in services.
         Push behavior into domain objects.
+
+  # ── GS Practitioner Protocol — on-demand only (not inlined in CLAUDE.md) ────
+
+  - id: gs-guidance-session-loop
+    title: "GS — Session Loop Procedure"
+    topic: guidance
+    content: |
+      ## Generative Specification: Session Loop
+
+      Every session begins and ends at the same steady state: code, tests, and documentation
+      mutually consistent; the specification accurately describing what exists; the commit
+      history recording how it changed; Status.md capturing intent for the next session.
+      A session that ends with passing tests but a stale specification has not completed the loop.
+
+      ### Phase 1 — Intake and Clarification
+      Check for exactly two conditions before implementation begins:
+      - **Ambiguity**: the request admits two or more valid interpretations producing different implementations.
+      - **Unverifiable assumptions**: the request presupposes facts about scope, schema, or behavior
+        not verifiable from the current codebase.
+
+      If either is present, batch ALL clarifying questions into a single prompt — answered once.
+      If neither is present, implementation proceeds immediately.
+      The constraint on asking is as important as the obligation to ask.
+
+      ### Phase 2 — Specification Gate ⛔
+      Before any code is written: does this change **fit** the existing specification, or does
+      it **change** it?
+      - A feature the specification anticipates: implement directly.
+      - A feature the specification does not yet cover: **update the specification first**.
+        The ADR, the schema change, the new constitution section — these precede implementation.
+        Code written against the old specification is wrong by the grammar it was supposed to
+        serve, regardless of whether the tests pass.
+
+      ### Phase 3 — Implementation and Verification
+      Three conditions must hold before any commit:
+      1. Full test suite passes.
+      2. Feature exercised at the HTTP or CLI boundary — not only unit-tested internally.
+      3. No new anti-patterns: no hardcoded values, no bare exception throws, no diagnostic
+         logging in production paths.
+
+      ### Phase 4 — Documentation Cascade
+      After a passing commit, restore all artifacts to consistency in this order:
+      1. Spec files — if a public contract changed (endpoint, CLI command, schema).
+      2. ADR — if a non-obvious architectural decision was made.
+      3. Architectural constitution — if a new pattern was established for future sessions.
+      4. Architecture diagrams — if a new component or boundary was introduced.
+      5. Sequence diagrams — if a new inter-component flow was added.
+      6. Tech spec — if implementation diverged from the written spec (spec is the truth; update it).
+      7. Status.md — every session, without exception.
+
+      The cascade closes the loop. A session that skips this phase has not completed.
+
+  - id: gs-guidance-context-loading
+    title: "GS — Context Loading Strategy"
+    topic: guidance
+    content: |
+      ## Generative Specification: Context Loading Strategy
+
+      The order in which artifacts are loaded at session start determines what the AI holds
+      as authoritative. Load in this order:
+
+      1. **Architectural constitution** (`CLAUDE.md`) first. This is the grammar. Everything
+         else is read against it.
+      2. **Technical specification** — the section relevant to this session's scope. Load the
+         whole document for cross-cutting tasks; load the relevant section for bounded tasks.
+      3. **Active ADRs** — those covering the area being modified. Do not load the full ADR
+         directory on every session; load the decisions that govern the current scope.
+      4. **Status.md** — what was done, what is in progress, what is next.
+      5. **Session prompt** — last, after all context artifacts are loaded.
+
+      ### What to Exclude
+      Test files (unless the session is about the test suite), generated files, `node_modules`,
+      `dist`, `build`, lock files. Context budget is finite; loading noise competes with signal.
+
+      ### MCP Server Budget
+      Maximum **three** active MCP servers in any session:
+      - Built-in file/search/terminal tools (treated as one).
+      - Optionally one semantic search tool (CodeSeeker) for large codebases.
+      - Optionally one specification-management tool (ForgeCraft).
+
+      Each declared tool is read by the model on every turn whether invoked or not. Beyond
+      three servers, tooling overhead begins to compete with the specification for context attention.
+
+  - id: gs-guidance-bound-roadmap
+    title: "GS — Bound Roadmap and Waiting State"
+    topic: guidance
+    content: |
+      ## Generative Specification: Bound Roadmap
+
+      A roadmap item without a pre-generated prompt is a task title — it requires the
+      practitioner to reconstruct context at execution time. A roadmap item *with* a bound
+      prompt is an independent execution unit: it already contains the specification references,
+      the acceptance criteria, and the verification steps.
+
+      Bound prompts live in `DEVELOPMENT_PROMPTS.md` (Procedural Memory). This file is a
+      first-class specification artifact. The criteria for "specific enough" is:
+      can the agent execute this prompt to completion without any narration?
+
+      ### Bound Prompt Format
+      ```markdown
+      ## [Prompt ID] — [Feature or Task Name]
+
+      **Specification references:** [Artifacts to load before beginning]
+      **Precondition:** [What must be true before this task begins]
+      **Scope:** [What to build AND what NOT to touch]
+      **Acceptance criteria:**
+      - [ ] [Specific, verifiable criterion]
+      - [ ] [Full test suite passes]
+      - [ ] [Feature exercised at HTTP or CLI boundary]
+      **Architecture constraints:** [Layer rules or patterns specific to this task]
+      **Commit message:** feat([scope]): [description]
+      ```
+
+      "Build the connection system" is not a bound prompt.
+      "Implement the `createConnection` service method against the `ConnectionRepository`
+      interface, write unit tests for all three error paths, verify via HTTP test against
+      `/connections`, run the full suite before committing" is a bound prompt.
+
+      ### Valid Waiting State
+      A project in a valid waiting state requires zero practitioner effort until cycled back.
+      Requirements:
+      - Current commit passes the full test suite.
+      - Status.md names the immediate next action specifically enough to begin from it alone.
+      - No partial work in the working tree — everything is committed or staged with a note.
+      - Inflight ADR decisions are noted in Status.md.
+
+      Cycling back in: read Status.md → run test suite → load bound prompt → begin.
+      The specification holds the context. The practitioner holds nothing.
+
+  - id: gs-guidance-incremental-cascade
+    title: "GS — Incremental Cascade"
+    topic: guidance
+    content: |
+      ## Generative Specification: Incremental Cascade
+
+      Every change consists of two decisions: *what* to change and *which artifacts* that
+      change affects. The incremental cascade manages the second decision.
+
+      ### 1. Name the Delta
+      Observe something: a discrepancy in the running system, a new requirement, a bug. Write
+      it in precise terms. Vague deltas produce vague cascades.
+
+      ### 2. Change Impact Assessment (CIA)
+      Before propagating anything: Which artifacts reference the changed element? Which roadmap
+      items in progress share a dependency with it? Does the delta change a shared interface
+      contract or schema? Skipping CIA risks propagating a change into implementation before
+      discovering it breaks a parallel item already in progress.
+
+      ### 3. Determine Minimum Cascade Depth
+      | Change Type | Minimum Depth |
+      |---|---|
+      | Bug the spec correctly describes | Implementation only |
+      | New behavior within existing architecture | Use case, possibly tech spec |
+      | New component or service boundary | C4 → constitution → ADR → use cases → implementation |
+      | Change to shared interface contract | Contract spec → dependent use cases → all affected prompts → implementation |
+
+      ### 4. Propagate Upward First, Then Downward
+      When a layer needs updating, all layers above it are made consistent **before** any layer
+      below it receives the change.
+      ```
+      Functional specification      ← top
+        ↓
+      Architecture / C4 diagrams
+        ↓
+      Architectural constitution (CLAUDE.md)
+        ↓
+      ADRs
+        ↓
+      Use cases / sequence diagrams
+        ↓
+      Implementation + tests        ← bottom
+      ```
+      Code that was correct relative to the old specification and is now wrong relative to the new
+      one is a derivation gap, not a bug. The correct response is re-derivation, not patching.
+
+      ### 5. Close the Cascade
+      After implementation commits, run Phase 4 (Documentation Cascade) of the session loop
+      to restore all artifacts to consistency.
+
+  - id: gs-guidance-diagnostic-checklist
+    title: "GS — Memory Diagnostic Checklist"
+    topic: guidance
+    content: |
+      ## Generative Specification: Diagnostic Checklist
+
+      Run before beginning any session on a new or inherited project. A "no" on any semantic
+      or procedural item is a **blocker** — fill the gap before implementation begins.
+      A "no" on episodic, relationship, or working items must be resolved in the first 10 minutes.
+
+      ```
+      SEMANTIC MEMORY
+      [ ] CLAUDE.md exists and is current (describes the current architecture, not a prior one)
+      [ ] Technical specification covers current scope
+      [ ] Domain vocabulary is defined (no ambiguous names across modules)
+
+      PROCEDURAL MEMORY
+      [ ] Bound prompts exist for the next 3+ roadmap items (DEVELOPMENT_PROMPTS.md)
+      [ ] CI/CD pipeline is specified (not just configured)
+      [ ] Pre-commit hooks are active and tested
+
+      EPISODIC MEMORY
+      [ ] ADRs exist for every non-obvious architectural decision currently in force
+      [ ] Status.md was updated at the close of the last session
+      [ ] Git history is typed (conventional commits, not 'wip' and 'changes')
+
+      RELATIONSHIP MEMORY
+      [ ] C4 context and container diagrams are current
+      [ ] Primary flows have sequence diagrams
+      [ ] Use cases cover every behavioral contract being modified this session
+
+      WORKING MEMORY
+      [ ] Session prompt is specific enough to begin without narration
+      [ ] Context loading plan covers what's needed and excludes what isn't
+      [ ] MCP server count ≤ 3
+      ```

@@ -22,7 +22,7 @@ import { addHookHandler } from "./add-hook.js";
 import { addModuleHandler } from "./add-module.js";
 import { configureMcpHandler } from "./configure-mcp.js";
 import { getNfrTemplateHandler } from "./get-nfr.js";
-import { getDesignReferenceHandler } from "./get-reference.js";
+import { getDesignReferenceHandler, getGuidanceHandler } from "./get-reference.js";
 import { getPlaybookHandler } from "./get-playbook.js";
 import { convertExistingHandler } from "./convert.js";
 import { reviewProjectHandler } from "./review.js";
@@ -58,7 +58,7 @@ const ACTIONS = [
 type Action = (typeof ACTIONS)[number];
 
 const LIST_RESOURCES = ["tags", "hooks", "skills"] as const;
-const REFERENCE_RESOURCES = ["nfr", "design_patterns", "playbook"] as const;
+const REFERENCE_RESOURCES = ["nfr", "design_patterns", "playbook", "guidance"] as const;
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ export const forgecraftSchema = z.object({
   resource: z
     .enum([...LIST_RESOURCES, ...REFERENCE_RESOURCES] as unknown as [string, ...string[]])
     .optional()
-    .describe("Sub-resource for list (tags|hooks|skills) and get_reference (nfr|design_patterns)."),
+    .describe("Sub-resource for list (tags|hooks|skills) and get_reference (nfr|design_patterns|playbook|guidance). Use 'guidance' to retrieve GS session-loop, context-loading, incremental-cascade, bound-roadmap, and diagnostic-checklist procedures on demand."),
   name: z
     .string()
     .optional()
@@ -408,9 +408,11 @@ async function dispatchGetReference(args: ForgecraftArgs): Promise<ToolResult> {
       return getDesignReferenceHandler({ tags });
     case "playbook":
       return getPlaybookHandler({ tags, phase: args.name });
+    case "guidance":
+      return getGuidanceHandler();
     default:
       return errorResult(
-        `Invalid resource '${resource}' for get_reference action. Use: nfr, design_patterns, or playbook.`,
+        `Invalid resource '${resource}' for get_reference action. Use: nfr, design_patterns, playbook, or guidance.`,
       );
   }
 }
