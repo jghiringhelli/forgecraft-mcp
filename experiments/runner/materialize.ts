@@ -270,8 +270,8 @@ function main(): void {
   const condition = flagIdx !== -1 ? args[flagIdx + 1] : undefined;
   const dryRun    = args.includes("--dry-run");
 
-  if (!condition || !["naive", "control", "treatment", "treatment-v2", "treatment-v3"].includes(condition)) {
-    console.error("Usage: npx tsx materialize.ts --condition naive|control|treatment|treatment-v2|treatment-v3 [--dry-run]");
+  if (!condition || !["naive", "control", "treatment", "treatment-v2", "treatment-v3", "treatment-v4"].includes(condition)) {
+    console.error("Usage: npx tsx materialize.ts --condition naive|control|treatment|treatment-v2|treatment-v3|treatment-v4 [--dry-run]");
     process.exit(2);
   }
 
