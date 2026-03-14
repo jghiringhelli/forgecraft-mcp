@@ -1,0 +1,171 @@
+tag: FINTECH
+section: verification
+title: "Statistical Simulation + Heuristic Model Verification"
+description: >
+  Financial models have two uncertainty dimensions. Stochastic uncertainty: price,
+  volume, and risk outputs depend on market regime and path-dependent sequences that
+  unit tests cannot cover. Heuristic uncertainty: hyperparameter values (lookback
+  windows, threshold multipliers, decay factors) must be found by search, not derived
+  analytically. This strategy uses statistically meaningful simulated datasets,
+  Monte Carlo scenario analysis, and constrained hyperparameter search with pruning.
+uncertainty_levels:
+  - stochastic
+  - heuristic
+completeness_ceiling: 0.85
+
+phases:
+
+  - id: contract-definition
+    title: "Define Statistical Contracts and Parameter Bounds"
+    rationale: >
+      A financial model contract is a statistical bound, not an exact output.
+      "VaR at 95% confidence ≤ 2.5% of portfolio" is a valid contract.
+      "The model returns 0.031" is not. Contracts must hold across market regimes,
+      not just on the training period.
+    steps:
+      - id: define-statistical-invariants
+        instruction: >
+          For each model output, define statistical contracts:
+          - VaR (Value at Risk): max acceptable VaR at 95% and 99% confidence levels
+          - CVaR (Conditional VaR / Expected Shortfall): max acceptable CVaR at 95%
+          - Sharpe ratio: minimum acceptable Sharpe across rolling 90-day windows
+          - Max drawdown: maximum acceptable peak-to-trough drawdown
+          - Hit rate: for classification signals, minimum precision and recall
+          Store in docs/statistical-contracts.md.
+        contract: >
+          docs/statistical-contracts.md exists with one row per model output.
+          Each row has: metric, confidence level, bound (max or min), measurement window.
+        tools: ["filesystem"]
+        expected_output: "| VaR | 95% | ≤ 2.5% portfolio | 1-day holding period |"
+        pass_criterion: "File exists with ≥1 statistical bound per model output"
+
+      - id: define-parameter-search-space
+        instruction: >
+          For each tunable hyperparameter, define:
+          - Name (e.g., lookback_window, threshold_multiplier)
+          - Type (int, float, categorical)
+          - Valid range with hard bounds (e.g., lookback_window ∈ [5, 252] days)
+          - Prior (e.g., uniform, log-uniform, normal around domain-expert estimate)
+          - Forbidden regions (e.g., lookback_window < 5 causes lookahead bias)
+          Store in docs/parameter-space.md.
+        contract: "docs/parameter-space.md exists with bounds and forbidden regions per parameter"
+        tools: ["filesystem"]
+        expected_output: "| lookback_window | int | [5, 252] | days | uniform | >252 causes data sparsity |"
+        pass_criterion: "Every tunable parameter has hard bounds and a forbidden-regions note"
+
+      - id: build-simulation-dataset
+        instruction: >
+          Generate or load a statistically meaningful simulation dataset:
+          - Minimum 1,000 trading days of price + volume data per instrument
+          - Must include at least 3 distinct market regimes: trending, mean-reverting, high-volatility
+          - Data must pass stationarity and regime-detection checks
+          - Use real historical data or a calibrated GBM/Heston model with documented parameters
+          Do NOT use synthetic uncalibrated random data — this produces misleading validation.
+        contract: >
+          simulation-dataset.parquet or simulation-dataset.csv exists.
+          Row count ≥ 1,000 per instrument. Regime labels column present.
+          Stationarity check (ADF) passes. Volatility distribution is documented.
+        tools: ["pandas", "numpy", "yfinance", "scipy.stats.adfuller", "hmmlearn"]
+        expected_output: "simulation-dataset.csv: date, open, high, low, close, volume, regime_label"
+        pass_criterion: "Row count ≥ 1000; ADF p-value < 0.05 on returns series"
+
+  - id: simulation
+    title: "Monte Carlo Scenario Analysis Across Market Regimes"
+    rationale: >
+      A model that works on one market regime and fails on others is not production-grade.
+      Monte Carlo across regimes closes stochastic uncertainty by constructing a confidence
+      interval for every statistical contract across the full scenario space.
+    steps:
+      - id: run-monte-carlo-per-regime
+        instruction: >
+          For each market regime in the simulation dataset, run 10,000 Monte Carlo
+          iterations of the model. Each iteration uses a bootstrapped price path from
+          that regime. Record the distribution of each model output (VaR, CVaR, Sharpe, etc.).
+          Use multiprocessing — 10,000 iterations must complete in < 60 seconds.
+        contract: >
+          Monte Carlo output exists per regime with ≥ 10,000 iterations.
+          Runtime < 60 seconds on a 4-core machine.
+        tools: ["numpy.random.bootstrap", "scipy.stats", "multiprocessing", "joblib"]
+        expected_output: "mc-results-{regime}.json: {n_iterations, metric_distributions: {VaR: {mean, p5, p95}, ...}}"
+        pass_criterion: "File exists per regime; n_iterations ≥ 10000"
+
+      - id: assert-statistical-contracts
+        instruction: >
+          For each statistical contract in docs/statistical-contracts.md, assert it holds
+          at the specified confidence level across all regimes:
+          - VaR: p95 of the VaR distribution ≤ contracted bound
+          - CVaR: same approach
+          - Sharpe: p5 of the Sharpe distribution ≥ contracted bound
+          Any contract that fails at p5/p95 is a FAIL — not just the mean.
+        contract: "All statistical contracts hold at the contracted confidence level across all regimes"
+        tools: ["python scripts/assert-contracts.py", "scipy.stats"]
+        expected_output: "contract-report.json: [{metric, regime, contracted_bound, p5_actual, p95_actual, result}]"
+        pass_criterion: "All result fields = PASS in contract-report.json"
+
+  - id: hyperparameter-search
+    title: "Constrained Heuristic Search with Pruning and Warm Runs"
+    rationale: >
+      Hyperparameters cannot be derived analytically. They must be found by search.
+      Random search without pruning wastes compute on clearly bad regions.
+      Pruning eliminates unpromising trials early. Warm runs reuse the best
+      checkpoint from a previous search run to avoid starting from scratch.
+    steps:
+      - id: warm-run-from-prior
+        instruction: >
+          Before launching a full hyperparameter search, load the best parameters
+          from the previous run (warm-run-checkpoint.json). If no checkpoint exists,
+          use domain-expert priors from docs/parameter-space.md as the starting point.
+          Run the model with the warm start and record its baseline performance.
+        contract: >
+          warm-run-checkpoint.json contains the best parameters from the last search.
+          Warm-start baseline performance is recorded before the new search begins.
+        tools: ["optuna", "hyperopt", "ray.tune", "json"]
+        expected_output: "warm-run-baseline.json: {params, sharpe, VaR, CVaR, regime_scores}"
+        pass_criterion: "warm-run-baseline.json exists; sharpe > 0 (model is not trivially broken)"
+
+      - id: run-pruned-search
+        instruction: >
+          Run a Bayesian hyperparameter search with early stopping (pruning):
+          - Use Optuna with a MedianPruner or HyperbandPruner
+          - Max 200 trials total; trials that fall below the 25th percentile of completed
+            trials' primary metric at the 25% epoch mark are pruned immediately
+          - Search within the bounds defined in docs/parameter-space.md
+          - Forbidden regions are enforced as hard constraints (trial returns -inf)
+        contract: >
+          Search completes in ≤ 200 trials. Best trial improves on warm-run baseline.
+          No forbidden-region parameter combinations appear in the top 10 trials.
+        tools: ["optuna", "optuna.pruners.HyperbandPruner", "optuna.samplers.TPESampler"]
+        expected_output: "search-results.json: {best_params, best_score, n_trials, n_pruned, improvement_over_baseline}"
+        pass_criterion: "best_score > warm_run_baseline_score; no forbidden regions in top 10"
+
+      - id: validate-best-params-out-of-sample
+        instruction: >
+          Take the best parameters from the search and run them on a held-out
+          out-of-sample dataset (a market period not present in the simulation dataset).
+          The model must meet all statistical contracts on this out-of-sample data.
+          In-sample performance that does not generalize is overfitting — report it as FAIL.
+        contract: >
+          Out-of-sample dataset covers ≥ 252 trading days not in the training set.
+          All statistical contracts hold on the out-of-sample data.
+        tools: ["pandas", "scripts/run-oos-validation.py"]
+        expected_output: "oos-validation.json: {params, oos_sharpe, oos_VaR, oos_CVaR, oos_max_drawdown, all_contracts_pass}"
+        pass_criterion: "all_contracts_pass = true in oos-validation.json"
+
+  - id: evidence
+    title: "Persist Backtests, Param Checkpoints, and Contract Reports"
+    rationale: >
+      Financial model evidence is audit-critical. Regulators and risk teams require
+      reproducible backtests with exact parameter sets and dataset provenance.
+    steps:
+      - id: commit-simulation-artifacts
+        instruction: >
+          Commit to docs/backtests/:
+          - contract-report.json (all statistical contract assertions)
+          - oos-validation.json (out-of-sample results)
+          - simulation-dataset metadata (NOT the full dataset if large — commit a hash and S3/GCS URI)
+          - warm-run-checkpoint.json (best params for next run warm start)
+          Include dataset SHA-256 hash in the commit message for reproducibility.
+        contract: "docs/backtests/ exists with contract-report.json and oos-validation.json"
+        tools: ["git", "sha256sum"]
+        expected_output: "Committed files with dataset hash in commit message"
+        pass_criterion: "Files present in docs/backtests/; contract-report parsed successfully"

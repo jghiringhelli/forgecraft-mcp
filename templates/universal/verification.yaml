@@ -1,0 +1,109 @@
+tag: UNIVERSAL
+section: verification
+title: "Contract-First Baseline Verification"
+description: >
+  Applicable to every domain. Establishes type contracts, schema validation,
+  and unit-level assertions as the minimum completeness floor before any
+  domain-specific verification is applied. S = 0.4 is the best a project
+  can achieve with this strategy alone — domain strategies must layer on top.
+uncertainty_levels:
+  - deterministic
+completeness_ceiling: 0.40
+
+phases:
+
+  - id: contract-definition
+    title: "Define Contracts Before Code"
+    rationale: >
+      Every function, module boundary, and API surface must have a machine-checkable
+      contract before implementation begins. This transforms implicit intent into
+      explicit invariants the verify loop can check automatically.
+    steps:
+      - id: define-type-contracts
+        instruction: >
+          For every public function and class, define TypeScript types or Python type
+          annotations for all parameters and return values. No `any`, no untyped
+          function signatures. Run `tsc --noEmit` or `mypy` before proceeding.
+        contract: >
+          Zero type errors reported by the compiler. Every exported function has
+          explicit parameter and return types.
+        tools: ["tsc --noEmit", "mypy --strict"]
+        expected_output: "Exit code 0 from type checker with zero errors"
+        pass_criterion: "tsc --noEmit exits 0"
+
+      - id: define-schema-contracts
+        instruction: >
+          For every external interface (HTTP request/response, config file, event payload,
+          CLI flags), define a Zod schema (TypeScript) or Pydantic model (Python) colocated
+          with the module that owns it. The schema must be the single source of truth —
+          types must be derived from it, not maintained separately.
+        contract: >
+          All external interfaces have a named Zod schema or Pydantic model that
+          is used at the entry point and is importable by tests.
+        tools: ["zod", "pydantic"]
+        expected_output: "Schema files present and exported from module barrel"
+        pass_criterion: >
+          grep -r 'z.object\|z.string\|BaseModel' src/ returns ≥1 result per external interface
+
+      - id: define-error-contracts
+        instruction: >
+          For every module, define a custom error class that carries: message, operation name,
+          and a timestamp. No bare `throw new Error(...)` in business logic. In tests, assert
+          on the specific error class, not just the message string.
+        contract: >
+          Every module directory has an errors file. No bare `new Error()` in business logic
+          files (src/ excluding test files).
+        tools: ["grep", "eslint"]
+        expected_output: "Custom error classes present; eslint no-throw-generic rule passes"
+        pass_criterion: "grep -r 'throw new Error' src --include='*.ts' --exclude='*.test.ts' returns 0 matches"
+
+  - id: execution
+    title: "Run Type Checker + Unit Tests"
+    rationale: >
+      Contracts defined above are verified by automated tooling. This is the
+      deterministic verify loop — no human judgment needed at this phase.
+    steps:
+      - id: run-type-check
+        instruction: >
+          Run the type checker in strict mode. Treat warnings as errors.
+          All type errors must be resolved before running tests.
+        contract: "Zero compiler errors in strict mode"
+        tools: ["tsc --noEmit --strict", "mypy --strict"]
+        expected_output: "Exit code 0"
+        pass_criterion: "tsc --noEmit exits 0"
+
+      - id: run-unit-tests
+        instruction: >
+          Run the full test suite. All tests must pass. Coverage must meet
+          the project's coverage gate (≥80% line coverage overall, ≥90% on changed files).
+        contract: "All tests pass; coverage gate met"
+        tools: ["jest --runInBand --coverage", "pytest --cov"]
+        expected_output: "Test results JSON + coverage report"
+        pass_criterion: "Exit code 0; coverage ≥ 80% overall"
+
+  - id: evidence
+    title: "Persist and Interpret Results"
+    rationale: >
+      Verification evidence must be persisted as artifacts so the verify loop
+      can compare pass/fail state across iterations. Without persisted evidence,
+      regressions go undetected.
+    steps:
+      - id: persist-coverage-report
+        instruction: >
+          Save the coverage report to coverage/ in the project root. If CI is
+          configured, upload as a build artifact. Record the overall line coverage
+          percentage in the session log.
+        contract: "coverage/lcov.info or coverage/coverage.json exists after test run"
+        tools: ["jest --coverage", "pytest-cov", "lcov"]
+        expected_output: "coverage/ directory with lcov.info or JSON summary"
+        pass_criterion: "coverage/ directory non-empty after test run"
+
+      - id: record-type-error-count
+        instruction: >
+          Record the number of type errors before and after each verify loop pass.
+          If the count does not decrease across passes, the fix prompt is not effective —
+          escalate to human review.
+        contract: "Type error count is 0 at end of final pass"
+        tools: ["tsc --noEmit 2>&1 | grep 'error TS'"]
+        expected_output: "Integer error count per pass"
+        pass_criterion: "Error count = 0"

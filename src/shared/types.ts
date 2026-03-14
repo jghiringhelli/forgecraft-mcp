@@ -436,6 +436,8 @@ export interface TagTemplateSet {
   readonly mcpServers?: McpServersTemplate;
   readonly reference?: ReferenceTemplate;
   readonly playbook?: PlaybookTemplate;
+  /** Verification strategy: uncertainty-level-aware contracts + execution plan. On-demand only. */
+  readonly verification?: VerificationStrategy;
   /**
    * @deprecated Use `instructions` instead. Alias kept for backward compatibility.
    */
@@ -566,6 +568,82 @@ export interface ForgeCraftConfig {
    * Options: development (default), pre-release, release-candidate, production.
    */
   readonly releasePhase?: "development" | "pre-release" | "release-candidate" | "production";
+}
+
+// ── Verification Strategy ───────────────────────────────────────────
+
+/**
+ * Uncertainty level for a domain — how well-defined the expected output is
+ * from specification alone. Determines which verification techniques close the gap.
+ *
+ * - deterministic: formal spec exists (schema, Hurl suite, type contracts) → automated loop
+ * - behavioral: UI/navigation behavior → Playwright paths + screenshot + vision assertion
+ * - stochastic: balance, statistical, simulation outputs → Monte Carlo + convergence bounds
+ * - heuristic: hyperparameter search, optimization → warm runs + pruning + plateau detection
+ * - generative: art, content, animation → MCP tool output + diff-based human approval
+ */
+export type UncertaintyLevel =
+  | "deterministic"
+  | "behavioral"
+  | "stochastic"
+  | "heuristic"
+  | "generative";
+
+/** A single executable verification step within a phase. */
+export interface VerificationStep {
+  /** Unique identifier for this step. */
+  readonly id: string;
+  /** What the step does in one line. */
+  readonly instruction: string;
+  /** What artifact, output, or assertion constitutes a pass. */
+  readonly contract: string;
+  /** Tools or commands to use (MCP tool names, CLI commands, test frameworks). */
+  readonly tools: string[];
+  /** Expected output format or schema that the next step can consume. */
+  readonly expected_output: string;
+  /** Hard pass/fail criterion. If this is not met, the phase does not advance. */
+  readonly pass_criterion: string;
+  /** Whether human review is required before advancing to the next step. */
+  readonly requires_human_review?: boolean;
+}
+
+/** A phase within a verification strategy. */
+export interface VerificationPhase {
+  /** Phase identifier (e.g., contract-definition, execution, evidence). */
+  readonly id: string;
+  /** Human-readable phase title. */
+  readonly title: string;
+  /**
+   * Why this phase exists in this domain.
+   * Maps to a specific uncertainty dimension being closed.
+   */
+  readonly rationale: string;
+  /** Ordered steps to execute within this phase. */
+  readonly steps: VerificationStep[];
+}
+
+/** Full verification strategy for a tag. On-demand — not emitted into instruction files. */
+export interface VerificationStrategy {
+  /** Tag this strategy applies to. */
+  readonly tag: Tag;
+  /** section discriminator for YAML loading. */
+  readonly section: "verification";
+  /** Human-readable title. */
+  readonly title: string;
+  /**
+   * Description of what type of uncertainty this domain has and
+   * what the strategy closes.
+   */
+  readonly description: string;
+  /** One or more uncertainty levels this strategy addresses. */
+  readonly uncertainty_levels: UncertaintyLevel[];
+  /**
+   * Specification completeness score S ∈ [0.0, 1.0] achievable after running
+   * this strategy for this domain. Used to estimate I(S) ≈ 1/S.
+   */
+  readonly completeness_ceiling: number;
+  /** Ordered verification phases. */
+  readonly phases: VerificationPhase[];
 }
 
 // ── Verify / GS Scorer ──────────────────────────────────────────────

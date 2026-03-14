@@ -32,6 +32,7 @@ import { adviceHandler } from "./advice.js";
 import { metricsHandler } from "./metrics.js";
 import { checkCascadeHandler } from "./check-cascade.js";
 import { generateSessionPromptHandler } from "./generate-session-prompt.js";
+import { getVerificationStrategyHandler } from "./get-verification-strategy.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ const ACTIONS = [
   "metrics",
   "check_cascade",
   "generate_session_prompt",
+  "get_verification_strategy",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -74,7 +76,8 @@ export const forgecraftSchema = z.object({
       "advice (quality cycle checklist + tool stack + example configs for your tags), " +
       "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation), " +
       "check_cascade (derivability gate: verify all 5 GS init cascade steps are complete before implementation begins), " +
-      "generate_session_prompt (produce a bound, self-contained session prompt for a single roadmap item).",
+      "generate_session_prompt (produce a bound, self-contained session prompt for a single roadmap item), " +
+      "get_verification_strategy (uncertainty-aware verification plan: contracts + execution technique per domain — API=Hurl, WEB-REACT=Playwright+vision, GAME=headless sim+Aseprite, FINTECH=statistical sim, ML=warm runs+pruning).",
     ),
   project_dir: z
     .string()
@@ -229,6 +232,10 @@ export const forgecraftSchema = z.object({
     .enum(["feature", "fix", "refactor", "test", "docs", "chore"])
     .optional()
     .describe("Conventional commit type for session output. Used by: generate_session_prompt. Default: feature."),
+  uncertainty_level: z
+    .enum(["deterministic", "behavioral", "stochastic", "heuristic", "generative"])
+    .optional()
+    .describe("Filter verification strategies by uncertainty level. Used by: get_verification_strategy."),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -370,6 +377,13 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
         acceptance_criteria: args.acceptance_criteria,
         scope_note: args.scope_note,
         session_type: args.session_type ?? "feature",
+      });
+
+    case "get_verification_strategy":
+      return getVerificationStrategyHandler({
+        tags: requireParam(args.tags, "tags", "get_verification_strategy"),
+        phase: args.name,
+        uncertainty_level: args.uncertainty_level as "deterministic" | "behavioral" | "stochastic" | "heuristic" | "generative" | undefined,
       });
 
     default:

@@ -1,0 +1,174 @@
+tag: GAME
+section: verification
+title: "Balance Simulation + Generative Art Verification"
+description: >
+  Game systems have two orthogonal uncertainty dimensions. Balance uncertainty
+  is stochastic: damage formulas, economy ratios, and progression curves produce
+  emergent outcomes that are only visible through simulation across thousands of
+  iterations. Art uncertainty is generative: output correctness requires human
+  aesthetic judgment, with MCP tools (Aseprite) producing the artifact that
+  the AI assembles. This strategy closes both dimensions.
+uncertainty_levels:
+  - stochastic
+  - generative
+completeness_ceiling: 0.80
+
+phases:
+
+  - id: contract-definition
+    title: "Define Balance Invariants and Art Acceptance Criteria"
+    rationale: >
+      Balance contracts are statistical bounds, not exact values. A contract states:
+      "TTK for equal-level combatants is between 8 and 14 seconds" — not a specific number.
+      Art contracts are visual: "the idle animation has 4 frames, is 32x32px, and loops cleanly
+      with no visible seam." Both must be written before simulation or generation begins.
+    steps:
+      - id: define-balance-invariants
+        instruction: >
+          For each game system, define statistical invariants:
+          - Time-to-kill (TTK): target range in seconds for equal-level match
+          - Win rate variance: target σ for balanced competitive (typically σ < 5%)
+          - Economy sink/source ratio: target range (typically 0.9–1.1 for stable economy)
+          - Catch-up ceiling: max XP gap allowed between players at same session time
+          Store in docs/balance-contracts.md as a table: System | Metric | Target | Acceptable Range.
+        contract: >
+          docs/balance-contracts.md exists with ≥1 row per game system.
+          Every row has a numeric target and acceptable range.
+        tools: ["filesystem"]
+        expected_output: "| Combat | TTK | 11s | [8s, 14s] | per-patch measurement |"
+        pass_criterion: "File exists and passes grep for at least one numeric range"
+
+      - id: define-art-acceptance-criteria
+        instruction: >
+          For each asset type (character sprite, tile, UI element, animation), define:
+          - Dimensions (e.g., 32x32px, 192x48px sprite sheet)
+          - Frame count for animations
+          - Palette constraints (max colors, transparency requirements)
+          - Animation loop contract (first and last frame must be visually continuous)
+          Store in docs/art-contracts.md.
+        contract: "docs/art-contracts.md exists with dimensions and frame count per asset type"
+        tools: ["filesystem"]
+        expected_output: "| player-idle | 32x32 | 4 frames | 4-color palette | loop | Aseprite |"
+        pass_criterion: "File exists with ≥1 row per asset type"
+
+  - id: simulation
+    title: "Headless Balance Simulation"
+    rationale: >
+      Balance bugs are invisible to unit tests and playtesters until they manifest as
+      dominant strategies. Headless simulation runs thousands of match iterations with
+      scripted AI agents and reports whether invariants hold. It surfaces problems in
+      minutes that playtesting would take months to detect.
+    steps:
+      - id: build-simulation-harness
+        instruction: >
+          Build a headless simulation harness: a function `runSimulation(config, seed) → SimResult`
+          that is deterministic given the same seed. No DOM, no renderer, no input system.
+          For Unity/Godot: headless build + scripted test runner. For browser/Node: pure logic module.
+          For Python: standalone module with no display imports.
+          Verify determinism: assert runSimulation(config, 42) === runSimulation(config, 42).
+        contract: >
+          runSimulation function exists and is importable/callable from test scripts.
+          Determinism test: two calls with same seed produce identical SimResult objects.
+        tools: ["node", "python", "unity-headless", "godot --headless", "jest"]
+        expected_output: "Determinism test: PASS. SimResult schema: {winner, ttk, rounds, stats}"
+        pass_criterion: "Determinism test passes; runSimulation callable from test script"
+
+      - id: run-monte-carlo
+        instruction: >
+          Run 10,000 simulations per balance scenario. Scenarios:
+          1. Equal-level PvP (player A vs player B, same level)
+          2. ±5 level advantage PvP (balance stress test)
+          3. Economy sink/source over 60-minute session
+          For each scenario, record: distribution of outcomes, mean, σ, p5, p95.
+        contract: >
+          10,000 iterations complete without error for each scenario.
+          For equal-level PvP: win rate for each side is in [45%, 55%].
+        tools: ["node scripts/simulate.js --iterations 10000", "python simulate.py --n 10000"]
+        expected_output: "simulation-results.json: {scenario, n, mean_ttk, sigma, p5, p95, win_rate_a, win_rate_b}"
+        pass_criterion: "win_rate_a ∈ [0.45, 0.55] for equal-level scenarios"
+
+      - id: assert-balance-invariants
+        instruction: >
+          Compare simulation results against the balance contracts in docs/balance-contracts.md.
+          For each invariant, report: PASS or FAIL with the actual value and the contracted range.
+          Any FAIL becomes the input to the next fix iteration.
+        contract: "All balance invariants in docs/balance-contracts.md are PASS"
+        tools: ["node scripts/check-invariants.js", "python check_invariants.py"]
+        expected_output: "invariant-report.json: [{system, metric, target_range, actual, result}]"
+        pass_criterion: "All result fields = PASS in invariant-report.json"
+
+  - id: art-generation
+    title: "Generative Art via MCP + Human Approval"
+    rationale: >
+      Aseprite is available as an MCP tool. The AI assembles sprites by: generating
+      pixel art frames via prompt-to-pixel generation, importing into Aseprite via MCP,
+      applying palette constraints, and exporting as PNG sprite sheets. Human approval
+      is required before art assets are committed — this is irreducibly generative.
+    steps:
+      - id: generate-art-assets
+        instruction: >
+          For each asset defined in docs/art-contracts.md, use the Aseprite MCP tool to:
+          1. Create a new sprite of the correct dimensions
+          2. Generate pixel art for each frame (use aseprite_new_frame for multi-frame assets)
+          3. Apply the palette constraint (aseprite_set_palette)
+          4. Export as PNG sprite sheet (aseprite_export)
+          Name the output files as: assets/{type}/{name}.png and assets/{type}/{name}-sheet.png.
+        contract: >
+          PNG file exists per asset at the correct path.
+          File dimensions match the contract (use imagemagick identify or PIL).
+          Frame count matches by dividing sheet width by frame width.
+        tools: ["aseprite MCP tool", "aseprite_new_sprite", "aseprite_export", "imagemagick identify"]
+        expected_output: "assets/sprites/player-idle.png (32x128px = 32x32 × 4 frames)"
+        pass_criterion: "File exists; dimensions match contract; frame count matches"
+
+      - id: assert-art-contracts
+        instruction: >
+          For each generated asset, assert:
+          1. Dimensions: `identify -format '%wx%h' file.png` matches contract
+          2. Palette: `identify -format '%k' file.png` ≤ max colors in contract
+          3. Animation loop: first and last frame pixel hashes are compatible (no abrupt cut)
+        contract: >
+          All dimension asserts pass. Palette constraint met. Loop continuity check passes
+          (difference between last and first frame pixel arrays < 10% of total pixels).
+        tools: ["imagemagick identify", "PIL/Pillow", "python scripts/check-loop.py"]
+        expected_output: "art-validation.json: [{asset, dimensions, palette_colors, loop_continuous, result}]"
+        pass_criterion: "All result fields = PASS in art-validation.json"
+
+      - id: human-approval
+        instruction: >
+          Present each generated asset to the human for approval. For each asset: show the
+          PNG, the contract spec, and the automated assertion results. The human approves or
+          provides specific correction instructions (e.g., "darken the shadow, add 1 frame for
+          the landing pose"). Record approval decisions in art-approvals.json.
+        contract: "All assets have human_approved: true in art-approvals.json"
+        tools: ["filesystem", "claude vision (for AI pre-screening before human review)"]
+        expected_output: "art-approvals.json: [{asset, human_approved, corrections}]"
+        pass_criterion: "All human_approved = true"
+        requires_human_review: true
+
+  - id: evidence
+    title: "Persist Simulation Results and Art Approvals"
+    rationale: >
+      Simulation results and art approvals are the ground truth for this domain.
+      They must be committed alongside code so balance regressions are detectable
+      across game patches.
+    steps:
+      - id: commit-simulation-artifacts
+        instruction: >
+          Commit simulation-results.json and invariant-report.json to docs/balance/.
+          Tag the commit with the game patch version.
+          If any invariant is FAIL, fix the formula before committing.
+        contract: "docs/balance/simulation-results.json and invariant-report.json committed"
+        tools: ["git add docs/balance/", "git commit"]
+        expected_output: "Files present in repository under docs/balance/"
+        pass_criterion: "git show HEAD:docs/balance/invariant-report.json is valid JSON"
+
+      - id: commit-approved-art
+        instruction: >
+          Commit approved PNG assets to assets/sprites/ (or appropriate path).
+          Include art-approvals.json with human sign-off records.
+          Do not commit unapproved or placeholder assets as final production art.
+        contract: "All PNG files in assets/ have a corresponding approval entry in art-approvals.json"
+        tools: ["git add assets/", "git commit"]
+        expected_output: "art-approvals.json committed alongside PNG files"
+        pass_criterion: "art-approvals.json exists; all assets have human_approved: true"

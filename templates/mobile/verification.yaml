@@ -1,0 +1,121 @@
+tag: MOBILE
+section: verification
+title: "Mobile Navigational Path + Screenshot Verification"
+description: >
+  Mobile UI behavior has the same behavioral uncertainty as WEB-REACT but adds
+  platform-specific dimensions: touch targets, safe areas, OS permission dialogs,
+  hardware back button, deep links, and push notification appearance.
+  This strategy uses Playwright for React Native Web or Appium for native,
+  with Claude Vision assertions for screenshot-based behavioral contracts.
+uncertainty_levels:
+  - behavioral
+completeness_ceiling: 0.80
+
+phases:
+
+  - id: contract-definition
+    title: "Define Mobile Navigation Contracts"
+    rationale: >
+      Mobile UX contracts must account for both platforms (iOS + Android) and
+      at minimum two viewport sizes (phone + tablet). Navigation paths must account
+      for OS-level interruptions: permission dialogs, push notifications, app backgrounding.
+    steps:
+      - id: define-use-case-paths
+        instruction: >
+          For each screen flow, define a numbered navigational path:
+          1. Starting screen and initial state
+          2. User gestures (tap, swipe, long-press, pinch) in order
+          3. Expected screen and visible elements after each gesture
+          4. Platform-specific branches (iOS vs Android where behavior diverges)
+          5. Terminal state (e.g., "payment confirmation screen with order summary visible")
+          Store in docs/use-cases/{feature}-mobile.md.
+        contract: >
+          docs/use-cases/ has *-mobile.md files.
+          Each file documents iOS and Android paths separately where they diverge.
+        tools: ["filesystem"]
+        expected_output: "docs/use-cases/checkout-mobile.md with iOS and Android sections"
+        pass_criterion: "File count in docs/use-cases/ matching *-mobile.md ≥ number of screen flows"
+
+      - id: define-touch-target-contracts
+        instruction: >
+          For every interactive element, define:
+          - Minimum tap target size (Apple HIG: 44x44pt, Material: 48x48dp)
+          - Minimum spacing between adjacent targets (Apple: 8pt, Material: 8dp)
+          - Label text for accessibility (VoiceOver / TalkBack)
+          Store in docs/mobile-accessibility-contracts.md.
+        contract: "docs/mobile-accessibility-contracts.md with ≥1 row per interactive element type"
+        tools: ["filesystem"]
+        expected_output: "| primary-button | 44x44pt | 8pt | 'Submit order' |"
+        pass_criterion: "File exists with tap target sizes and accessibility labels"
+
+  - id: execution
+    title: "Run Automated Tests + Screenshot Assertions"
+    rationale: >
+      Playwright for RN Web or Appium for native drives real gestures on emulators.
+      Screenshots at each step are asserted via Claude Vision against the contracts.
+      Touch target sizes are measured programmatically — no manual measurement.
+    steps:
+      - id: run-navigation-tests
+        instruction: >
+          Write and execute one test per use-case path. Use Playwright (RN Web) or Appium (native).
+          Each test:
+          1. Launches the app in the correct initial state
+          2. Executes gestures in the contracted order
+          3. Takes a screenshot after each state transition
+          4. Asserts DOM/hierarchy elements visible at each step
+          Run on iOS Simulator + Android Emulator.
+        contract: >
+          Test files present per use case. All tests pass on both platforms.
+          Screenshots saved per step in test-results/mobile/screenshots/.
+        tools: ["npx playwright test", "appium", "xcrun simctl", "emulator -avd"]
+        expected_output: "Test results + screenshots in test-results/mobile/"
+        pass_criterion: "All tests pass on both platforms; 0 failing navigation assertions"
+
+      - id: assert-screenshots-with-vision
+        instruction: >
+          For each screenshot, call Claude Vision with:
+          - The screenshot
+          - The platform (iOS/Android) and viewport (phone/tablet)
+          - The visual contract for that state
+          - Prompt: "Assert this mobile screenshot against the contract. List any FAILS. If all pass: PASS."
+          Run on all platform + viewport combinations.
+        contract: "All vision assertions return PASS on both platforms and both viewports"
+        tools: ["claude --vision", "anthropic vision API"]
+        expected_output: "vision-results.json: [{platform, viewport, screen, result}]"
+        pass_criterion: "All result = PASS"
+        requires_human_review: true
+
+      - id: measure-touch-targets
+        instruction: >
+          Using the accessibility tree (iOS Accessibility Inspector or Android UIAutomator),
+          retrieve the bounding rect of every interactive element. Assert that each element
+          meets the tap target size in docs/mobile-accessibility-contracts.md.
+        contract: "All interactive elements meet minimum tap target size on both platforms"
+        tools: ["XCTest accessibilityFrame", "UIAutomator getBounds", "accessibility-inspector"]
+        expected_output: "touch-target-report.json: [{element, platform, size_pt, passes_contract}]"
+        pass_criterion: "All passes_contract = true"
+
+  - id: evidence
+    title: "Persist Screenshots and Platform Test Reports"
+    rationale: >
+      Mobile screenshots are the only reliable evidence of cross-platform visual fidelity.
+      They must be committed or archived per release so regressions are detectable.
+    steps:
+      - id: persist-screenshots
+        instruction: >
+          Save one screenshot per step per platform to test-results/mobile/screenshots/{platform}/{test}/{step}.png.
+          Compress to <500KB per screenshot. Include platform, OS version, and app version in filename.
+        contract: "Screenshots exist for all tests on all platforms"
+        tools: ["playwright screenshot", "appium driver.saveScreenshot"]
+        expected_output: "test-results/mobile/screenshots/ios/checkout/step-3-confirm.png"
+        pass_criterion: "Screenshot count matches steps × platforms"
+
+      - id: persist-platform-reports
+        instruction: >
+          Save the JUnit XML report from Playwright/Appium to test-results/mobile/.
+          Save vision-results.json and touch-target-report.json to the same directory.
+          Record platform and OS versions tested in test-results/mobile/environment.json.
+        contract: "test-results/mobile/ has report, vision-results, touch-target-report, environment"
+        tools: ["playwright --reporter=junit", "appium --reporter"]
+        expected_output: "All 4 files present in test-results/mobile/"
+        pass_criterion: "Files exist and parse as valid JSON/XML"
