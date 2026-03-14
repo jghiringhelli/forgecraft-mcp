@@ -97,6 +97,26 @@ const CONTEXT_FILES: Record<string, string[]> = {
     "treatment-v3/docs/nfr.md",
     "treatment-v3/docs/TechSpec.md",
   ],
+  // treatment-v4 = treatment-v3 + verify loop (same context artifacts, runner adds tsc+jest feedback)
+  "treatment-v4": [
+    "REALWORLD_API_SPEC.md",
+    "treatment-v3/README.md",
+    "treatment-v3/CLAUDE.md",
+    "treatment-v3/Status.md",
+    "treatment-v3/prisma/schema.prisma",
+    "treatment-v3/docs/adrs/001-stack.md",
+    "treatment-v3/docs/adrs/002-auth.md",
+    "treatment-v3/docs/adrs/003-layers.md",
+    "treatment-v3/docs/adrs/004-errors.md",
+    "treatment-v3/docs/diagrams/c4-context.md",
+    "treatment-v3/docs/diagrams/c4-container.md",
+    "treatment-v3/docs/diagrams/domain-model.md",
+    "treatment-v3/docs/diagrams/sequences.md",
+    "treatment-v3/docs/use-cases.md",
+    "treatment-v3/docs/test-architecture.md",
+    "treatment-v3/docs/nfr.md",
+    "treatment-v3/docs/TechSpec.md",
+  ],
 };
 
 // System prompt — deliberately generic, no GS/architecture framing
@@ -111,11 +131,25 @@ const SYSTEM_PROMPT =
 // ---------------------------------------------------------------------------
 // Argument parsing
 // ---------------------------------------------------------------------------
+// Conditions where the verify loop (tsc + jest feedback) runs automatically after P6
+const VERIFY_LOOP_CONDITIONS = new Set(["treatment-v4"]);
+
+// DB URLs for verify-loop jest runs — must match docker-compose.yml ports
+const DB_URLS: Record<string, string> = {
+  control:          "postgresql://conduit:conduit@localhost:5433/conduit_control",
+  treatment:        "postgresql://conduit:conduit@localhost:5435/conduit_treatment",
+  naive:            "postgresql://conduit:conduit@localhost:5437/conduit_naive",
+  "treatment-v2":   "postgresql://conduit:conduit@localhost:5439/conduit_treatment_v2",
+  "treatment-v3":   "postgresql://conduit:conduit@localhost:5441/conduit_treatment_v3",
+  "treatment-v4":   "postgresql://conduit:conduit@localhost:5443/conduit_treatment_v4",
+};
+
 function parseArgs(): {
   condition: string;
   model: string;
   resume: number;
   dryRun: boolean;
+  verifyLoop: boolean;
 } {
   const args = process.argv.slice(2);
   const get = (flag: string): string | undefined => {
@@ -123,15 +157,17 @@ function parseArgs(): {
     return idx !== -1 ? args[idx + 1] : undefined;
   };
   const condition = get("--condition");
-  if (!condition || !["naive", "control", "treatment", "treatment-v2", "treatment-v3"].includes(condition)) {
-    console.error("Usage: npx tsx run-experiment.ts --condition naive|control|treatment|treatment-v2|treatment-v3 [--model MODEL] [--resume N] [--dry-run]");
+  const validConditions = ["naive", "control", "treatment", "treatment-v2", "treatment-v3", "treatment-v4"];
+  if (!condition || !validConditions.includes(condition)) {
+    console.error(`Usage: npx tsx run-experiment.ts --condition ${validConditions.join("|")} [--model MODEL] [--resume N] [--dry-run] [--verify-loop]`);
     process.exit(2);
   }
   return {
     condition,
-    model:   get("--model") ?? process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-4-5",
-    resume:  parseInt(get("--resume") ?? "1", 10),
-    dryRun:  args.includes("--dry-run"),
+    model:       get("--model") ?? process.env["ANTHROPIC_MODEL"] ?? "claude-sonnet-4-5",
+    resume:      parseInt(get("--resume") ?? "1", 10),
+    dryRun:      args.includes("--dry-run"),
+    verifyLoop:  args.includes("--verify-loop") || VERIFY_LOOP_CONDITIONS.has(condition),
   };
 }
 
@@ -292,10 +328,132 @@ function callClaude(
 }
 
 // ---------------------------------------------------------------------------
+// Verify loop — post-generation compile + test feedback gate
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs materialize → tsc → jest in the generated project directory.
+ * Feeds compilation/test errors back into the open Claude session up to
+ * `maxPasses` times until both checks are clean or passes are exhausted.
+ *
+ * @returns the (possibly updated) sessionId
+ */
+function runVerifyLoop(
+  condition: string,
+  outputDir: string,
+  sessionIdIn: string,
+  model: string,
+  turns: Array<{ promptName: string; promptContent: string; response: string; durationMs: number }>,
+  maxPasses = 3,
+): string {
+  const projectDir = path.resolve(EXPR_DIR, condition, "output", "project");
+  const dbUrl      = DB_URLS[condition];
+  const testEnv    = {
+    DATABASE_URL: dbUrl ?? "",
+    JWT_SECRET:   "experiment-verify-loop-secret",
+    NODE_ENV:     "test",
+    LOG_LEVEL:    "silent",
+  };
+  let sessionId = sessionIdIn;
+
+  const exec = (
+    cmd: string,
+    args: string[],
+    cwd: string,
+    env?: Record<string, string>,
+  ): { stdout: string; stderr: string; ok: boolean } => {
+    const result = spawnSync(cmd, args, {
+      encoding:  "utf-8",
+      cwd,
+      timeout:   180_000,
+      shell:     true,
+      env:       { ...process.env, ...env },
+    });
+    return {
+      stdout:  result.stdout ?? "",
+      stderr:  result.stderr ?? "",
+      ok:      (result.status ?? 1) === 0,
+    };
+  };
+
+  for (let pass = 1; pass <= maxPasses; pass++) {
+    console.log(`\n── Verify loop pass ${pass}/${maxPasses} ──`);
+
+    // 1. Materialize current session responses to disk
+    console.log("  → materializing...");
+    exec("npx", ["tsx", path.resolve(__dirname, "materialize.ts"), "--condition", condition], __dirname);
+
+    // 2. npm install
+    console.log("  → npm install...");
+    exec("npm", ["install", "--ignore-scripts"], projectDir);
+
+    // 3. prisma generate + migrate deploy (needed for compiled types and test DB)
+    if (dbUrl) {
+      console.log("  → prisma generate + migrate...");
+      exec("npx", ["prisma", "generate"], projectDir, testEnv);
+      exec("npx", ["prisma", "migrate", "deploy"], projectDir, testEnv);
+    }
+
+    // 4. tsc --noEmit
+    console.log("  → tsc --noEmit...");
+    const tsc     = exec("npx", ["tsc", "--noEmit"], projectDir);
+    const tscOut  = (tsc.stdout + "\n" + tsc.stderr).trim();
+
+    // 5. jest (integration tests need the live DB)
+    console.log("  → jest --runInBand --no-coverage...");
+    const jest    = exec("npx", ["jest", "--runInBand", "--no-coverage", "--forceExit"], projectDir, testEnv);
+    // Trim jest output: keep up to 200 lines to avoid overflowing the context window
+    const jestLines = (jest.stdout + "\n" + jest.stderr).trim().split("\n");
+    const jestOut = jestLines.slice(0, 200).join("\n");
+
+    if (tsc.ok && jest.ok) {
+      console.log(`  ✅ Pass ${pass}: tsc + jest both clean — verify loop done.`);
+      return sessionId;
+    }
+
+    const problems = [!tsc.ok && "tsc errors", !jest.ok && "jest failures"].filter(Boolean).join(" + ");
+    console.log(`  ✗ Pass ${pass}: ${problems}`);
+
+    if (pass === maxPasses) {
+      console.warn(`  ⚠️  Verify loop exhausted ${maxPasses} passes — stopping.`);
+      break;
+    }
+
+    // 6. Build fix prompt and continue the session
+    const fixParts: string[] = [
+      "The code has been extracted and compiled. Fix ALL errors below.",
+      "Emit only complete corrected files — do not summarise.\n",
+    ];
+    if (!tsc.ok) {
+      fixParts.push("## TypeScript compilation errors (`tsc --noEmit`)\n");
+      fixParts.push("```\n" + tscOut + "\n```\n");
+    }
+    if (!jest.ok) {
+      fixParts.push("## Test failures (`jest --runInBand --no-coverage`)\n");
+      fixParts.push("```\n" + jestOut + "\n```\n");
+    }
+    const fixPrompt     = fixParts.join("\n");
+    const fixPromptName = `0${6 + pass}-fix-pass-${pass}`;
+
+    console.log(`\n── Fix prompt: ${fixPromptName} ──`);
+    const t0  = Date.now();
+    const out = callClaude(fixPrompt, { model, sessionId });
+    const elapsed = Date.now() - t0;
+
+    sessionId = out.sessionId;
+    turns.push({ promptName: fixPromptName, promptContent: fixPrompt, response: out.text, durationMs: elapsed });
+    writeResponse(outputDir, fixPromptName, out.text);
+    console.log(`   → done in ${(elapsed / 1000).toFixed(1)}s`);
+  }
+
+  return sessionId;
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  const { condition, model, resume, dryRun } = parseArgs();
+  const { condition, model, resume, dryRun, verifyLoop } = parseArgs();
 
   console.log(`\n════════════════════════════════════════════════════`);
   console.log(`  GS Experiment Runner  (claude CLI)`);
@@ -358,6 +516,13 @@ async function main(): Promise<void> {
     turns.push({ promptName: prompt.name, promptContent: prompt.content, response: out.text, durationMs: elapsed });
     writeResponse(outputDir, prompt.name, out.text);
     console.log(`   → done in ${(elapsed / 1000).toFixed(1)}s`);
+  }
+
+  // Verify loop: materialize → tsc → jest → feed errors back → repeat
+  if (verifyLoop && sessionId) {
+    console.log(`\n════ Verify Loop (tsc + jest feedback) ════`);
+    sessionId = runVerifyLoop(condition, outputDir, sessionId, model, turns);
+    console.log(`════ Verify Loop complete ════\n`);
   }
 
   writeSessionLog(outputDir, condition, model, sessionId, turns);
