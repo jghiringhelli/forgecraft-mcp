@@ -117,6 +117,26 @@ const CONTEXT_FILES: Record<string, string[]> = {
     "treatment-v3/docs/nfr.md",
     "treatment-v3/docs/TechSpec.md",
   ],
+  // treatment-v5 = treatment-v3 context + v5 CLAUDE.md (§6+§7 Verification Protocol, Known Type Pitfalls)
+  //              + verify loop + dedicated infrastructure prompt (P0)
+  "treatment-v5": [
+    "REALWORLD_API_SPEC.md",
+    "treatment-v5/CLAUDE.md",
+    "treatment-v3/Status.md",
+    "treatment-v3/prisma/schema.prisma",
+    "treatment-v3/docs/adrs/001-stack.md",
+    "treatment-v3/docs/adrs/002-auth.md",
+    "treatment-v3/docs/adrs/003-layers.md",
+    "treatment-v3/docs/adrs/004-errors.md",
+    "treatment-v3/docs/diagrams/c4-context.md",
+    "treatment-v3/docs/diagrams/c4-container.md",
+    "treatment-v3/docs/diagrams/domain-model.md",
+    "treatment-v3/docs/diagrams/sequences.md",
+    "treatment-v3/docs/use-cases.md",
+    "treatment-v3/docs/test-architecture.md",
+    "treatment-v3/docs/nfr.md",
+    "treatment-v3/docs/TechSpec.md",
+  ],
 };
 
 // System prompt — deliberately generic, no GS/architecture framing
@@ -132,7 +152,7 @@ const SYSTEM_PROMPT =
 // Argument parsing
 // ---------------------------------------------------------------------------
 // Conditions where the verify loop (tsc + jest feedback) runs automatically after P6
-const VERIFY_LOOP_CONDITIONS = new Set(["treatment-v4"]);
+const VERIFY_LOOP_CONDITIONS = new Set(["treatment-v4", "treatment-v5"]);
 
 // DB URLs for verify-loop jest runs — must match docker-compose.yml ports
 const DB_URLS: Record<string, string> = {
@@ -142,6 +162,7 @@ const DB_URLS: Record<string, string> = {
   "treatment-v2":   "postgresql://conduit:conduit@localhost:5439/conduit_treatment_v2",
   "treatment-v3":   "postgresql://conduit:conduit@localhost:5441/conduit_treatment_v3",
   "treatment-v4":   "postgresql://conduit:conduit@localhost:5443/conduit_treatment_v4",
+  "treatment-v5":   "postgresql://conduit:conduit@localhost:5445/conduit_treatment_v5",
 };
 
 function parseArgs(): {
@@ -157,7 +178,7 @@ function parseArgs(): {
     return idx !== -1 ? args[idx + 1] : undefined;
   };
   const condition = get("--condition");
-  const validConditions = ["naive", "control", "treatment", "treatment-v2", "treatment-v3", "treatment-v4"];
+  const validConditions = ["naive", "control", "treatment", "treatment-v2", "treatment-v3", "treatment-v4", "treatment-v5"];
   if (!condition || !validConditions.includes(condition)) {
     console.error(`Usage: npx tsx run-experiment.ts --condition ${validConditions.join("|")} [--model MODEL] [--resume N] [--dry-run] [--verify-loop]`);
     process.exit(2);

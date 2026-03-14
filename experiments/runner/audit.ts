@@ -88,7 +88,7 @@ is demonstrably present throughout the service layer.
 The code actually runs: it compiles without TypeScript errors, database migrations succeed, and
 the test suite passes. Score 0 if compilation fails or migrations cannot be applied. Score 1 if
 the code compiles but tests fail or have significant failures (>20% failing). Score 2 if
-`tsc --noEmit` exits clean, migrations deploy successfully, and the test suite passes with no
+\`tsc --noEmit\` exits clean, migrations deploy successfully, and the test suite passes with no
 failures. This property measures the gap between specification completeness and runtime correctness.
 `;
 

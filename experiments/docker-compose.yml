@@ -113,6 +113,23 @@ services:
       timeout: 5s
       retries: 10
 
+  postgres-treatment-v5:
+    image: postgres:16-alpine
+    container_name: conduit-treatment-v5
+    environment:
+      POSTGRES_DB:       conduit_treatment_v5
+      POSTGRES_USER:     conduit
+      POSTGRES_PASSWORD: conduit
+    ports:
+      - "5445:5432"
+    volumes:
+      - pg_treatment_v5:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conduit -d conduit_treatment_v5"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   pg_control:
   pg_treatment:
@@ -120,3 +137,4 @@ volumes:
   pg_treatment_v2:
   pg_treatment_v3:
   pg_treatment_v4:
+  pg_treatment_v5:
