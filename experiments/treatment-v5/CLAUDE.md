@@ -35,9 +35,12 @@
 
 ### Process Rules (non-negotiable)
 
-1. **Audit before add**: Run `npm audit --audit-level=high <package>` before adding any new dependency. If it reports HIGH or CRITICAL, do NOT add the package — choose an alternative and document why.
-2. **Update registry after add**: Every new entry in `package.json` must have a corresponding row in `docs/approved-packages.md` before the commit is made.
-3. **Commit gate**: `npm audit --audit-level=high` must pass with zero findings. A commit that introduces a HIGH or CRITICAL vulnerability is always wrong — if no safe alternative exists, create a named ADR explaining the exception and the mitigation.
+1. **Audit before add**: Run the vulnerability scanner appropriate for the detected stack against any new dependency before adding it. If it reports HIGH or CRITICAL, do NOT add the package — choose an alternative and document why.
+   - Node/npm: `npm audit --audit-level=high`
+   - Python: `pip-audit` or `safety check`
+   - Any stack: `trivy fs --exit-code 1 --severity HIGH,CRITICAL .`
+2. **Update registry after add**: Every new entry in the project's dependency manifest must have a corresponding row in `docs/approved-packages.md` before the commit is made.
+3. **Commit gate**: Zero HIGH/CRITICAL CVEs are permitted to be committed. Use the stack-appropriate scanner. A commit that introduces a HIGH or CRITICAL vulnerability is always wrong — if no safe alternative exists, create a named ADR explaining the exception and the mitigation.
 4. **No CVE exceptions without ADR**: ZERO tolerance for HIGH/CRITICAL CVEs without a corresponding `docs/adrs/ADR-XXXX-security-exception.md`.
 5. **Check alternatives first**: Before adding any dependency, check if the functionality already exists in Node.js built-ins or an already-approved package. Every new dep is maintenance surface.
 
@@ -339,8 +342,8 @@ No bare `res.json({ error: "..." })` or `res.json({ message: "..." })`.
 *Fix: wrap in correct shape before returning.*
 
 **6. Defended** — Commit gates exist on disk with actual enforcement content, not just documentation:
-- `.husky/pre-commit` is present and contains `npx tsc --noEmit` and the test command
-- `.github/workflows/ci.yml` is present and contains both `npm test` and a Stryker mutation gate step
+- `.husky/pre-commit` is present and contains `npx tsc --noEmit`, the test command, **and the vulnerability scanner** for this stack (zero HIGH/CRITICAL CVEs required)
+- `.github/workflows/ci.yml` is present and contains both `npm test`, a Stryker mutation gate step, **and a vulnerability scan step**
 *Fix: emit these files as fenced code blocks. A gate described only in prose provides zero enforcement. See § Commit Hooks — Emit, Don't Reference.*
 
 **7. Auditable** — Decision trail is recoverable from the repository alone:
@@ -372,7 +375,10 @@ Emit these files in **P0** (the infrastructure prompt):
 ```bash
 #!/usr/bin/env sh
 . "$(dirname -- "$0")/_/husky.sh"
-npx tsc --noEmit && npm run lint && npm audit --audit-level=high && npm test -- --passWithNoTests
+# Security gate: zero HIGH/CRITICAL CVEs required — use stack-appropriate scanner
+# (npm audit --audit-level=high | pip-audit | trivy fs --exit-code 1 --severity HIGH,CRITICAL .)
+<vulnerability-scanner-command-for-this-stack>
+npx tsc --noEmit && npm run lint && npm test -- --passWithNoTests
 ```
 
 **`.husky/commit-msg`**:
@@ -414,6 +420,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '20', cache: 'npm' }
       - run: npm ci
+      # Security gate: zero HIGH/CRITICAL CVEs required
+      # Replace with stack-appropriate scanner (npm audit / pip-audit / trivy)
       - run: npm audit --audit-level=high
       - run: npx prisma generate
       - run: npx tsc --noEmit
