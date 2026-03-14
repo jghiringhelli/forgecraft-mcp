@@ -35,7 +35,7 @@ const EXPR_DIR   = path.resolve(__dirname, "..");
 // Auditor system prompt — no GS framing whatsoever
 // ---------------------------------------------------------------------------
 const AUDITOR_SYSTEM_PROMPT = `You are a senior software architect conducting a code review.
-You will be given a TypeScript Node.js codebase and asked to score it on six structural properties.
+You will be given a TypeScript Node.js codebase and asked to score it on seven structural properties.
 For each property, provide:
 1. A score: 0 (absent), 1 (partially present), or 2 (fully present and enforced)
 2. A brief evidence quote or observation from the code that justifies your score
@@ -83,6 +83,13 @@ Services depend on interfaces or abstractions rather than concrete implementatio
 pattern (or equivalent abstraction layer) separates data access from business logic. No implicit
 global state is shared across modules. Score 2 if dependency injection or interface-based design
 is demonstrably present throughout the service layer.
+
+### 7. Executable
+The code actually runs: it compiles without TypeScript errors, database migrations succeed, and
+the test suite passes. Score 0 if compilation fails or migrations cannot be applied. Score 1 if
+the code compiles but tests fail or have significant failures (>20% failing). Score 2 if
+`tsc --noEmit` exits clean, migrations deploy successfully, and the test suite passes with no
+failures. This property measures the gap between specification completeness and runtime correctness.
 `;
 
 // ---------------------------------------------------------------------------
@@ -118,7 +125,7 @@ function buildAuditPrompt(outputText: string): string {
     "Below is the complete output of a TypeScript Node.js REST API project.",
     "The implementation covers user authentication, profiles, articles, comments, and tags.",
     "",
-    "Please score each of the six properties defined below based only on what you see in the code.",
+    "Please score each of the seven properties defined below based only on what you see in the code.",
     "",
     PROPERTY_DEFINITIONS,
     "",
@@ -164,8 +171,13 @@ function buildAuditPrompt(outputText: string): string {
     "**Evidence:** [quote or observation]",
     "**Suggestion:** [if score < 2]",
     "",
+    "## 7. Executable",
+    "**Score:** [0/1/2]",
+    "**Evidence:** [TypeScript compilation result, migration status, or test pass rate from the artifacts]",
+    "**Suggestion:** [if score < 2, what specific errors or failures would need to be resolved]",
+    "",
     "## Summary",
-    "**Total:** [X/12]",
+    "**Total:** [X/14]",
     "**Strongest dimension:** [property name — one sentence]",
     "**Weakest dimension:** [property name — one sentence]",
     "**Overall assessment:** [2-3 sentences]",
