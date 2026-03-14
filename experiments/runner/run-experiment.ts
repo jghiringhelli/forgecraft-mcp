@@ -365,7 +365,7 @@ function runVerifyLoop(
   sessionIdIn: string,
   model: string,
   turns: Array<{ promptName: string; promptContent: string; response: string; durationMs: number }>,
-  maxPasses = 3,
+  maxPasses = 5,
 ): string {
   const projectDir = path.resolve(EXPR_DIR, condition, "output", "project");
   const dbUrl      = DB_URLS[condition];
@@ -408,11 +408,14 @@ function runVerifyLoop(
     console.log("  → npm install...");
     exec("npm", ["install", "--ignore-scripts"], projectDir);
 
-    // 3. prisma generate + migrate deploy (needed for compiled types and test DB)
+    // 3. prisma generate + db push (needed for compiled types and test DB)
+    // Note: using db push instead of migrate deploy because the model typically
+    // generates schema.prisma without migration files — migrate deploy would
+    // silently succeed with no-op and leave the DB empty.
     if (dbUrl) {
-      console.log("  → prisma generate + migrate...");
+      console.log("  → prisma generate + db push...");
       exec("npx", ["prisma", "generate"], projectDir, testEnv);
-      exec("npx", ["prisma", "migrate", "deploy"], projectDir, testEnv);
+      exec("npx", ["prisma", "db", "push", "--accept-data-loss", "--skip-generate"], projectDir, testEnv);
     }
 
     // 4. tsc --noEmit
