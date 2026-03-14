@@ -443,12 +443,36 @@ function runVerifyLoop(
       break;
     }
 
-    // 6. Build fix prompt and continue the session
+    // 6. Build fix prompt:
+    //    - Include current on-disk content of every file mentioned in tsc errors
+    //      so the model can see the full state it needs to make consistent fixes.
+    //    - Error messages alone cause interface-drift: the model fixes one side
+    //      of a call boundary without seeing the other side's current definition.
     const fixParts: string[] = [
       "The code has been extracted and compiled. Fix ALL errors below.",
-      "Emit only complete corrected files — do not summarise.\n",
+      "Emit only complete corrected files — do not summarise.",
+      "IMPORTANT: the 'Current file contents' section below shows what is on disk NOW.",
+      "Ensure ALL call sites are consistent with the method signatures you emit.\n",
     ];
+
+    // Attach current on-disk content for every file referenced in tsc errors
     if (!tsc.ok) {
+      const tscFileRe = /^([^(\n\r]+)\(\d+,\d+\)/gm;
+      const errorFiles = new Set<string>();
+      let m: RegExpExecArray | null;
+      while ((m = tscFileRe.exec(tscOut)) !== null) errorFiles.add(m[1]!.trim());
+
+      if (errorFiles.size > 0) {
+        fixParts.push("## Current file contents (read-only reference — DO NOT copy verbatim, fix the errors)\n");
+        for (const relFile of [...errorFiles].sort()) {
+          const absFile = path.resolve(projectDir, relFile);
+          if (fs.existsSync(absFile)) {
+            const src = fs.readFileSync(absFile, "utf-8");
+            fixParts.push(`### ${relFile}\n\`\`\`typescript\n${src}\n\`\`\`\n`);
+          }
+        }
+      }
+
       fixParts.push("## TypeScript compilation errors (`tsc --noEmit`)\n");
       fixParts.push("```\n" + tscOut + "\n```\n");
     }
@@ -457,7 +481,8 @@ function runVerifyLoop(
       fixParts.push("```\n" + jestOut + "\n```\n");
     }
     const fixPrompt     = fixParts.join("\n");
-    const fixPromptName = `0${6 + pass}-fix-pass-${pass}`;
+    const passNum       = String(6 + pass).padStart(2, "0");
+    const fixPromptName = `${passNum}-fix-pass-${pass}`;
 
     console.log(`\n── Fix prompt: ${fixPromptName} ──`);
     const t0  = Date.now();
