@@ -104,7 +104,27 @@ sign(payload, secret, { expiresIn: JWT_EXPIRY_SECONDS });
 
 Use whichever approach you choose consistently. Define it as a named module-level constant — never inline the cast inside a `sign()` call body.
 
-## Code Standards
+### `prisma.$executeRawUnsafe` — no multi-statement queries
+
+The `pg` driver does **not** allow multiple SQL statements in a single prepared statement. Sending `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` in one call throws:
+```
+Raw query failed. Code: 42601. Cannot insert multiple commands into a prepared statement
+```
+
+**Wrong (causes 42601 runtime failure)**:
+```typescript
+await prisma.$executeRawUnsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+```
+
+**Correct — one statement per call**:
+```typescript
+await prisma.$executeRawUnsafe('DROP SCHEMA public CASCADE');
+await prisma.$executeRawUnsafe('CREATE SCHEMA public');
+```
+
+**Better — in test setup, just clean data; never drop the schema**. The schema is already applied by `prisma db push` before tests run. Use `deleteMany()` calls in `beforeEach` in the correct FK order instead of dropping and recreating the schema. Never call `DROP SCHEMA public CASCADE` in test setup.
+
+
 - Maximum function/method length: 50 lines. If longer, decompose.
 - Maximum file length: 300 lines. If longer, split by responsibility.
 - Maximum function parameters: 5. If more, use a parameter object.

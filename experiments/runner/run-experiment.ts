@@ -371,7 +371,7 @@ function runVerifyLoop(
   const dbUrl      = DB_URLS[condition];
   const testEnv    = {
     DATABASE_URL: dbUrl ?? "",
-    JWT_SECRET:   "experiment-verify-loop-secret",
+    JWT_SECRET:   "experiment-verify-loop-secret-32chars",
     NODE_ENV:     "test",
     LOG_LEVEL:    "silent",
   };
@@ -477,6 +477,25 @@ function runVerifyLoop(
       fixParts.push("```\n" + tscOut + "\n```\n");
     }
     if (!jest.ok) {
+      // Attach current on-disk content of every failing test file so the model
+      // can see the test setup (beforeAll/beforeEach) that it needs to fix.
+      const failFileRe = /^FAIL\s+(.+\.test\.[tj]s)/gm;
+      const failTestFiles = new Set<string>();
+      let fm: RegExpExecArray | null;
+      const rawJestOut = (jest.stdout + "\n" + jest.stderr).trim();
+      while ((fm = failFileRe.exec(rawJestOut)) !== null) failTestFiles.add(fm[1]!.trim());
+
+      if (failTestFiles.size > 0) {
+        fixParts.push("## Failing test files (read-only reference — fix source or test files as needed to make these pass)\n");
+        for (const relFile of [...failTestFiles].sort()) {
+          const absFile = path.resolve(projectDir, relFile);
+          if (fs.existsSync(absFile)) {
+            const src = fs.readFileSync(absFile, "utf-8");
+            fixParts.push(`### ${relFile}\n\`\`\`typescript\n${src}\n\`\`\`\n`);
+          }
+        }
+      }
+
       fixParts.push("## Test failures (`jest --runInBand --no-coverage`)\n");
       fixParts.push("```\n" + jestOut + "\n```\n");
     }
