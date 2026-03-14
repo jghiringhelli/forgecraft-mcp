@@ -10,10 +10,19 @@
  */
 
 import { z } from "zod";
-import { ALL_TAGS, CONTENT_TIERS, ALL_OUTPUT_TARGETS } from "../shared/types.js";
+import {
+  ALL_TAGS,
+  CONTENT_TIERS,
+  ALL_OUTPUT_TARGETS,
+} from "../shared/types.js";
+import type { Tag } from "../shared/types.js";
 
 // ── Handler imports ─────────────────────────────────────────────────
-import { listTagsHandler, listHooksHandler, listSkillsHandler } from "./list.js";
+import {
+  listTagsHandler,
+  listHooksHandler,
+  listSkillsHandler,
+} from "./list.js";
 import { classifyProjectHandler } from "./classify.js";
 import { scaffoldProjectHandler } from "./scaffold.js";
 import { generateInstructionsHandler } from "./generate-claude-md.js";
@@ -22,7 +31,10 @@ import { addHookHandler } from "./add-hook.js";
 import { addModuleHandler } from "./add-module.js";
 import { configureMcpHandler } from "./configure-mcp.js";
 import { getNfrTemplateHandler } from "./get-nfr.js";
-import { getDesignReferenceHandler, getGuidanceHandler } from "./get-reference.js";
+import {
+  getDesignReferenceHandler,
+  getGuidanceHandler,
+} from "./get-reference.js";
 import { getPlaybookHandler } from "./get-playbook.js";
 import { convertExistingHandler } from "./convert.js";
 import { reviewProjectHandler } from "./review.js";
@@ -33,6 +45,10 @@ import { metricsHandler } from "./metrics.js";
 import { checkCascadeHandler } from "./check-cascade.js";
 import { generateSessionPromptHandler } from "./generate-session-prompt.js";
 import { getVerificationStrategyHandler } from "./get-verification-strategy.js";
+import {
+  recordVerificationHandler,
+  getVerificationStatusHandler,
+} from "./verification-state.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -55,12 +71,19 @@ const ACTIONS = [
   "check_cascade",
   "generate_session_prompt",
   "get_verification_strategy",
+  "record_verification",
+  "verification_status",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
 
 const LIST_RESOURCES = ["tags", "hooks", "skills"] as const;
-const REFERENCE_RESOURCES = ["nfr", "design_patterns", "playbook", "guidance"] as const;
+const REFERENCE_RESOURCES = [
+  "nfr",
+  "design_patterns",
+  "playbook",
+  "guidance",
+] as const;
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -69,24 +92,30 @@ export const forgecraftSchema = z.object({
     .enum(ACTIONS as unknown as [string, ...string[]])
     .describe(
       "Operation to perform: refresh (re-sync project), scaffold (generate structure), " +
-      "generate (instruction files only), audit (check standards), review (code review checklist), " +
-      "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
-      "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
-      "verify (run tests + score §4.3 GS properties + report layer violations), " +
-      "advice (quality cycle checklist + tool stack + example configs for your tags), " +
-      "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation), " +
-      "check_cascade (derivability gate: verify all 5 GS init cascade steps are complete before implementation begins), " +
-      "generate_session_prompt (produce a bound, self-contained session prompt for a single roadmap item), " +
-      "get_verification_strategy (uncertainty-aware verification plan: contracts + execution technique per domain — API=Hurl, WEB-REACT=Playwright+vision, GAME=headless sim+Aseprite, FINTECH=statistical sim, ML=warm runs+pruning).",
+        "generate (instruction files only), audit (check standards), review (code review checklist), " +
+        "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
+        "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
+        "verify (run tests + score §4.3 GS properties + report layer violations), " +
+        "advice (quality cycle checklist + tool stack + example configs for your tags), " +
+        "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation), " +
+        "check_cascade (derivability gate: verify all 5 GS init cascade steps are complete before implementation begins), " +
+        "generate_session_prompt (produce a bound, self-contained session prompt for a single roadmap item), " +
+        "get_verification_strategy (uncertainty-aware verification plan: contracts + execution technique per domain — API=Hurl, WEB-REACT=Playwright+vision, GAME=headless sim+Aseprite, FINTECH=statistical sim, ML=warm runs+pruning), " +
+        "record_verification (upsert acceptance decision for one verification step, returns updated S_realized), " +
+        "verification_status (full per-project acceptance report: S per tag, blocking items, aggregate S).",
     ),
   project_dir: z
     .string()
     .optional()
-    .describe("Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify, metrics. Optional for: classify, advice."),
+    .describe(
+      "Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify, metrics, record_verification, verification_status. Optional for: classify, advice, get_verification_strategy.",
+    ),
   tags: z
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
     .optional()
-    .describe("Project classification tags. Used by: scaffold, generate, audit, review, add_module, configure_mcp, get_reference (not needed for resource=guidance), convert, list (as filter)."),
+    .describe(
+      "Project classification tags. Used by: scaffold, generate, audit, review, add_module, configure_mcp, get_reference (not needed for resource=guidance), convert, list (as filter).",
+    ),
   project_name: z
     .string()
     .optional()
@@ -94,23 +123,34 @@ export const forgecraftSchema = z.object({
   output_targets: z
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .optional()
-    .describe("AI assistant targets (claude, cursor, copilot, windsurf, cline, aider). Used by: scaffold, generate, refresh."),
+    .describe(
+      "AI assistant targets (claude, cursor, copilot, windsurf, cline, aider). Used by: scaffold, generate, refresh.",
+    ),
   tier: z
     .enum(CONTENT_TIERS as unknown as [string, ...string[]])
     .optional()
     .describe("Content depth: core, recommended, optional. Used by: refresh."),
   resource: z
-    .enum([...LIST_RESOURCES, ...REFERENCE_RESOURCES] as unknown as [string, ...string[]])
+    .enum([...LIST_RESOURCES, ...REFERENCE_RESOURCES] as unknown as [
+      string,
+      ...string[],
+    ])
     .optional()
-    .describe("Sub-resource for list (tags|hooks|skills) and get_reference (nfr|design_patterns|playbook|guidance). Use 'guidance' to retrieve GS session-loop, context-loading, incremental-cascade, bound-roadmap, and diagnostic-checklist procedures on demand — 'guidance' does not require the tags parameter."),
+    .describe(
+      "Sub-resource for list (tags|hooks|skills) and get_reference (nfr|design_patterns|playbook|guidance). Use 'guidance' to retrieve GS session-loop, context-loading, incremental-cascade, bound-roadmap, and diagnostic-checklist procedures on demand — 'guidance' does not require the tags parameter.",
+    ),
   name: z
     .string()
     .optional()
-    .describe("Item name. Used by: add_hook (hook name), add_module (module name)."),
+    .describe(
+      "Item name. Used by: add_hook (hook name), add_module (module name).",
+    ),
   language: z
     .enum(["typescript", "python"])
     .optional()
-    .describe("Programming language. Used by: scaffold, add_module. Default: typescript."),
+    .describe(
+      "Programming language. Used by: scaffold, add_module. Default: typescript.",
+    ),
   description: z
     .string()
     .optional()
@@ -130,15 +170,21 @@ export const forgecraftSchema = z.object({
   merge: z
     .boolean()
     .optional()
-    .describe("Merge with existing instruction files. Used by: generate. Default: true."),
+    .describe(
+      "Merge with existing instruction files. Used by: generate. Default: true.",
+    ),
   compact: z
     .boolean()
     .optional()
-    .describe("Strip explanatory tail clauses and deduplicate bullet lines (~20-40% smaller output). Used by: generate, scaffold, refresh."),
+    .describe(
+      "Strip explanatory tail clauses and deduplicate bullet lines (~20-40% smaller output). Used by: generate, scaffold, refresh.",
+    ),
   release_phase: z
     .enum(["development", "pre-release", "release-candidate", "production"])
     .optional()
-    .describe("Current release cycle phase. Controls which test gates are shown as required vs. advisory. Used by: setup, generate, refresh. Default: development."),
+    .describe(
+      "Current release cycle phase. Controls which test gates are shown as required vs. advisory. Used by: setup, generate, refresh. Default: development.",
+    ),
   scope: z
     .enum(["comprehensive", "focused"])
     .optional()
@@ -176,11 +222,15 @@ export const forgecraftSchema = z.object({
   auto_approve_tools: z
     .boolean()
     .optional()
-    .describe("Auto-approve MCP tool calls. Used by: configure_mcp. Default: true."),
+    .describe(
+      "Auto-approve MCP tool calls. Used by: configure_mcp. Default: true.",
+    ),
   include_remote: z
     .boolean()
     .optional()
-    .describe("Query remote MCP registry. Used by: configure_mcp. Default: false."),
+    .describe(
+      "Query remote MCP registry. Used by: configure_mcp. Default: false.",
+    ),
   remote_registry_url: z
     .string()
     .optional()
@@ -207,35 +257,99 @@ export const forgecraftSchema = z.object({
     .min(0)
     .max(12)
     .optional()
-    .describe("Minimum §4.3 GS score (0–12) required for overall pass. Used by: verify. Default: 10."),
+    .describe(
+      "Minimum §4.3 GS score (0–12) required for overall pass. Used by: verify. Default: 10.",
+    ),
   include_mutation: z
     .boolean()
     .optional()
-    .describe("Run Stryker mutation testing (slow, opt-in). Used by: metrics. Default: false."),
+    .describe(
+      "Run Stryker mutation testing (slow, opt-in). Used by: metrics. Default: false.",
+    ),
   coverage_dir: z
     .string()
     .optional()
-    .describe("Path to existing coverage report directory. Used by: metrics. Defaults to coverage/ relative to project_dir."),
+    .describe(
+      "Path to existing coverage report directory. Used by: metrics. Defaults to coverage/ relative to project_dir.",
+    ),
   item_description: z
     .string()
     .optional()
-    .describe("Roadmap item description for this session. Used by: generate_session_prompt. Should include actor, behavior, and postcondition."),
+    .describe(
+      "Roadmap item description for this session. Used by: generate_session_prompt. Should include actor, behavior, and postcondition.",
+    ),
   acceptance_criteria: z
     .array(z.string())
     .optional()
-    .describe("Checkable acceptance criteria. Used by: generate_session_prompt. If omitted, defaults are generated."),
+    .describe(
+      "Checkable acceptance criteria. Used by: generate_session_prompt. If omitted, defaults are generated.",
+    ),
   scope_note: z
     .string()
     .optional()
-    .describe("Explicit out-of-scope statement — what this session must NOT touch. Used by: generate_session_prompt."),
+    .describe(
+      "Explicit out-of-scope statement — what this session must NOT touch. Used by: generate_session_prompt.",
+    ),
   session_type: z
     .enum(["feature", "fix", "refactor", "test", "docs", "chore"])
     .optional()
-    .describe("Conventional commit type for session output. Used by: generate_session_prompt. Default: feature."),
+    .describe(
+      "Conventional commit type for session output. Used by: generate_session_prompt. Default: feature.",
+    ),
   uncertainty_level: z
-    .enum(["deterministic", "behavioral", "stochastic", "heuristic", "generative"])
+    .enum([
+      "deterministic",
+      "behavioral",
+      "stochastic",
+      "heuristic",
+      "generative",
+    ])
     .optional()
-    .describe("Filter verification strategies by uncertainty level. Used by: get_verification_strategy."),
+    .describe(
+      "Filter verification strategies by uncertainty level. Used by: get_verification_strategy.",
+    ),
+  step_id: z
+    .string()
+    .optional()
+    .describe(
+      "Verification step ID to record an acceptance decision for (e.g., 'write-hurl-spec'). Used by: record_verification.",
+    ),
+  phase_id: z
+    .string()
+    .optional()
+    .describe(
+      "Verification phase ID containing the step (e.g., 'contract-definition'). Used by: record_verification.",
+    ),
+  strategy_tag: z
+    .enum(ALL_TAGS as unknown as [string, ...string[]])
+    .optional()
+    .describe(
+      "Tag whose verification strategy the step belongs to (e.g., 'API', 'GAME'). Used by: record_verification.",
+    ),
+  step_status: z
+    .enum(["pass", "fail", "skipped"] as const)
+    .optional()
+    .describe(
+      "Acceptance decision for the verification step: pass | fail | skipped. Used by: record_verification.",
+    ),
+  recorded_by: z
+    .string()
+    .optional()
+    .describe(
+      "Who recorded this decision (e.g., 'claude-sonnet-4-5', 'human', CI name). Used by: record_verification. Defaults to 'unknown'.",
+    ),
+  show_pending_only: z
+    .boolean()
+    .optional()
+    .describe(
+      "Show only pending/failed steps. Used by: verification_status. Default: false.",
+    ),
+  notes: z
+    .string()
+    .optional()
+    .describe(
+      "Evidence or justification for a verification decision. Used by: record_verification.",
+    ),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -250,7 +364,9 @@ type ToolResult = { content: Array<{ type: "text"; text: string }> };
  * @param args - Validated unified tool input
  * @returns MCP tool response from the delegated handler
  */
-export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResult> {
+export async function forgecraftHandler(
+  args: ForgecraftArgs,
+): Promise<ToolResult> {
   const action = args.action as Action;
 
   switch (action) {
@@ -321,7 +437,11 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
     case "add_module":
       return addModuleHandler({
         module_name: requireParam(args.name, "name", "add_module"),
-        project_dir: requireParam(args.project_dir, "project_dir", "add_module"),
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "add_module",
+        ),
         tags: args.tags ?? ["UNIVERSAL"],
         language: args.language ?? "typescript",
       });
@@ -329,7 +449,11 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
     case "configure_mcp":
       return configureMcpHandler({
         tags: requireParam(args.tags, "tags", "configure_mcp"),
-        project_dir: requireParam(args.project_dir, "project_dir", "configure_mcp"),
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "configure_mcp",
+        ),
         custom_servers: args.custom_servers,
         auto_approve_tools: args.auto_approve_tools ?? true,
         include_remote: args.include_remote ?? false,
@@ -367,13 +491,25 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
 
     case "check_cascade":
       return checkCascadeHandler({
-        project_dir: requireParam(args.project_dir, "project_dir", "check_cascade"),
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "check_cascade",
+        ),
       });
 
     case "generate_session_prompt":
       return generateSessionPromptHandler({
-        project_dir: requireParam(args.project_dir, "project_dir", "generate_session_prompt"),
-        item_description: requireParam(args.item_description, "item_description", "generate_session_prompt"),
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "generate_session_prompt",
+        ),
+        item_description: requireParam(
+          args.item_description,
+          "item_description",
+          "generate_session_prompt",
+        ),
         acceptance_criteria: args.acceptance_criteria,
         scope_note: args.scope_note,
         session_type: args.session_type ?? "feature",
@@ -383,11 +519,60 @@ export async function forgecraftHandler(args: ForgecraftArgs): Promise<ToolResul
       return getVerificationStrategyHandler({
         tags: requireParam(args.tags, "tags", "get_verification_strategy"),
         phase: args.name,
-        uncertainty_level: args.uncertainty_level as "deterministic" | "behavioral" | "stochastic" | "heuristic" | "generative" | undefined,
+        uncertainty_level: args.uncertainty_level as
+          | "deterministic"
+          | "behavioral"
+          | "stochastic"
+          | "heuristic"
+          | "generative"
+          | undefined,
+        project_dir: args.project_dir,
+      });
+
+    case "record_verification":
+      return recordVerificationHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "record_verification",
+        ),
+        tags: requireParam(args.tags, "tags", "record_verification") as Tag[],
+        language: args.language,
+        strategy_tag: requireParam(
+          args.strategy_tag,
+          "strategy_tag",
+          "record_verification",
+        ) as Tag,
+        phase_id: requireParam(
+          args.phase_id,
+          "phase_id",
+          "record_verification",
+        ),
+        step_id: requireParam(args.step_id, "step_id", "record_verification"),
+        status: requireParam(
+          args.step_status,
+          "step_status",
+          "record_verification",
+        ) as "pass" | "fail" | "skipped",
+        notes: args.notes,
+        recorded_by: args.recorded_by,
+      });
+
+    case "verification_status":
+      return getVerificationStatusHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "verification_status",
+        ),
+        tags: args.tags as Tag[] | undefined,
+        show_pending_only: args.show_pending_only ?? false,
       });
 
     default:
-      return errorResult(`Unknown action: ${String(action satisfies never)}. Valid actions: ${ACTIONS.join(", ")}`);
+      return errorResult(
+        `Unknown action: ${String(action satisfies never)}. Valid actions: ${ACTIONS.join(", ")}`,
+      );
   }
 }
 
@@ -425,7 +610,11 @@ async function dispatchGetReference(args: ForgecraftArgs): Promise<ToolResult> {
       return getNfrTemplateHandler({ tags });
     }
     case "design_patterns": {
-      const tags = requireParam(args.tags, "tags", "get_reference[design_patterns]");
+      const tags = requireParam(
+        args.tags,
+        "tags",
+        "get_reference[design_patterns]",
+      );
       return getDesignReferenceHandler({ tags });
     }
     case "playbook": {
@@ -452,7 +641,11 @@ async function dispatchGetReference(args: ForgecraftArgs): Promise<ToolResult> {
  * @param action - Action name for context
  * @returns The non-undefined value
  */
-function requireParam<T>(value: T | undefined, paramName: string, action: string): T {
+function requireParam<T>(
+  value: T | undefined,
+  paramName: string,
+  action: string,
+): T {
   if (value === undefined || (Array.isArray(value) && value.length === 0)) {
     throw new Error(
       `Missing required parameter '${paramName}' for action '${action}'.`,

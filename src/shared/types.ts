@@ -108,7 +108,11 @@ export interface HookInfo {
 export type ContentTier = "core" | "recommended" | "optional";
 
 /** All valid content tiers as a constant array for schema validation. */
-export const CONTENT_TIERS: readonly ContentTier[] = ["core", "recommended", "optional"] as const;
+export const CONTENT_TIERS: readonly ContentTier[] = [
+  "core",
+  "recommended",
+  "optional",
+] as const;
 
 // ── Output Targets ───────────────────────────────────────────────────
 
@@ -196,7 +200,10 @@ export const DEFAULT_OUTPUT_TARGET: OutputTarget = "claude";
  * @param target - The output target
  * @returns Absolute path to the instruction file
  */
-export function resolveOutputPath(projectDir: string, target: OutputTarget): string {
+export function resolveOutputPath(
+  projectDir: string,
+  target: OutputTarget,
+): string {
   const config = OUTPUT_TARGET_CONFIGS[target];
   if (config.directory) {
     return `${projectDir}/${config.directory}/${config.filename}`;
@@ -567,7 +574,11 @@ export interface ForgeCraftConfig {
    * vs. advisory in generated instruction files.
    * Options: development (default), pre-release, release-candidate, production.
    */
-  readonly releasePhase?: "development" | "pre-release" | "release-candidate" | "production";
+  readonly releasePhase?:
+    | "development"
+    | "pre-release"
+    | "release-candidate"
+    | "production";
 }
 
 // ── Verification Strategy ───────────────────────────────────────────
@@ -644,6 +655,103 @@ export interface VerificationStrategy {
   readonly completeness_ceiling: number;
   /** Ordered verification phases. */
   readonly phases: VerificationPhase[];
+}
+
+// ── Verification Acceptance State ───────────────────────────────────
+
+/**
+ * Acceptance status for a single verification step within a project.
+ * - pending: not yet executed or reviewed
+ * - pass: automated criterion met (or human approved for requires_human_review steps)
+ * - fail: criterion not met — blocks S advancement for this phase
+ * - skipped: explicitly excluded from this project (with required justification)
+ */
+export type VerificationStepStatus = "pending" | "pass" | "fail" | "skipped";
+
+/** Persisted record of one step's acceptance decision for a specific project. */
+export interface VerificationStepRecord {
+  /** Tag the strategy belongs to (e.g., "API", "GAME"). */
+  readonly strategyTag: Tag;
+  /** Phase ID within that strategy (e.g., "contract-definition"). */
+  readonly phaseId: string;
+  /** Step ID within that phase (e.g., "write-hurl-spec"). */
+  readonly stepId: string;
+  /** Acceptance status. */
+  readonly status: VerificationStepStatus;
+  /** ISO 8601 timestamp of the last status change. */
+  readonly recordedAt: string;
+  /**
+   * Free-form notes: tool output excerpt, vision assertion result,
+   * human approval comment, or skip justification.
+   */
+  readonly notes?: string;
+  /** Identifier of who recorded this (e.g., "claude-sonnet-4-5", "human"). */
+  readonly recordedBy?: string;
+}
+
+/**
+ * Per-tag summary of realized specification completeness based on
+ * accepted steps vs total steps in the strategy.
+ * S_realized = (passing steps) / (total non-skipped steps)
+ */
+export interface VerificationTagSummary {
+  readonly tag: Tag;
+  /** Number of steps with status=pass. */
+  readonly passedSteps: number;
+  /** Number of steps with status=fail. */
+  readonly failedSteps: number;
+  /** Number of steps with status=pending. */
+  readonly pendingSteps: number;
+  /** Number of steps with status=skipped. */
+  readonly skippedSteps: number;
+  /** Total steps in the strategy (all phases). */
+  readonly totalSteps: number;
+  /**
+   * Realized S value: passedSteps / (totalSteps - skippedSteps).
+   * S = 0.0 if all steps are pending or failed.
+   * S = 1.0 if all non-skipped steps are passing.
+   */
+  readonly s_realized: number;
+  /**
+   * Maximum achievable S given the strategy's completeness_ceiling.
+   * s_realized is always ≤ completeness_ceiling.
+   */
+  readonly completeness_ceiling: number;
+  /** Whether any step with requires_human_review is still pending. */
+  readonly awaitingHumanReview: boolean;
+}
+
+/**
+ * Project-level verification state file.
+ * Stored at {projectDir}/.forgecraft/verification-state.json.
+ * Created on first `record_verification` call; updated on every subsequent call.
+ * Community-extensible: any tag with a verification.yaml can contribute records.
+ */
+export interface VerificationStateFile {
+  /** Schema version for forward compatibility. */
+  readonly version: "1";
+  /** Project root path (absolute). Used for context, not for path resolution. */
+  readonly projectDir: string;
+  /** Active project tags at the time of last update. */
+  readonly tags: Tag[];
+  /** Primary language of the project. */
+  readonly language: string;
+  /** ISO 8601 timestamp of file creation. */
+  readonly createdAt: string;
+  /** ISO 8601 timestamp of last update. */
+  readonly updatedAt: string;
+  /** All step records, one per (strategyTag, phaseId, stepId) combination. */
+  readonly steps: VerificationStepRecord[];
+  /**
+   * Per-tag summary computed from steps at read time.
+   * Stored as a cache — always recomputed from steps when writing.
+   */
+  readonly summary: VerificationTagSummary[];
+  /**
+   * Aggregate realized S across all active tags:
+   * weighted mean of per-tag s_realized, weight = completeness_ceiling.
+   */
+  readonly aggregate_s: number;
 }
 
 // ── Verify / GS Scorer ──────────────────────────────────────────────

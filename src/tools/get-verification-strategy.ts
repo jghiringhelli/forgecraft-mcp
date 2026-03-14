@@ -21,9 +21,17 @@
 
 import { z } from "zod";
 import { ALL_TAGS } from "../shared/types.js";
-import type { Tag, VerificationStrategy, VerificationPhase, UncertaintyLevel } from "../shared/types.js";
+import type {
+  Tag,
+  VerificationStrategy,
+  VerificationPhase,
+  UncertaintyLevel,
+  VerificationStateFile,
+  VerificationStepStatus,
+} from "../shared/types.js";
 import { loadAllTemplates } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
+import { loadVerificationState } from "./verification-state.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -33,22 +41,35 @@ export const getVerificationStrategySchema = z.object({
     .min(1)
     .describe(
       "Project tags to get verification strategies for. " +
-      "Returns one strategy per tag that has a verification.yaml. " +
-      "UNIVERSAL provides baseline contract-first checks applicable to all domains.",
+        "Returns one strategy per tag that has a verification.yaml. " +
+        "UNIVERSAL provides baseline contract-first checks applicable to all domains.",
     ),
   phase: z
     .string()
     .optional()
     .describe(
       "Filter to a specific phase ID (e.g., 'contract-definition', 'execution', 'evidence'). " +
-      "Omit to return all phases.",
+        "Omit to return all phases.",
     ),
   uncertainty_level: z
-    .enum(["deterministic", "behavioral", "stochastic", "heuristic", "generative"] as const)
+    .enum([
+      "deterministic",
+      "behavioral",
+      "stochastic",
+      "heuristic",
+      "generative",
+    ] as const)
     .optional()
     .describe(
       "Filter to strategies that address a specific uncertainty level. " +
-      "Omit to return all strategies regardless of uncertainty type.",
+        "Omit to return all strategies regardless of uncertainty type.",
+    ),
+  project_dir: z
+    .string()
+    .optional()
+    .describe(
+      "Absolute path to the project root. When provided, overlays per-step acceptance state " +
+        "from .forgecraft/verification-state.json onto each step — showing current pass/fail/pending status.",
     ),
 });
 
@@ -76,8 +97,15 @@ export async function getVerificationStrategyHandler(
     );
   }
 
+  // Load state if project_dir provided
+  const state: VerificationStateFile | null = args.project_dir
+    ? loadVerificationState(args.project_dir)
+    : null;
+
   if (strategies.length === 0) {
-    const allLevels = args.uncertainty_level ? ` with uncertainty_level=${args.uncertainty_level}` : "";
+    const allLevels = args.uncertainty_level
+      ? ` with uncertainty_level=${args.uncertainty_level}`
+      : "";
     return {
       content: [
         {
@@ -109,23 +137,59 @@ export async function getVerificationStrategyHandler(
   ];
 
   // Summary table
-  lines.push("| Tag | Uncertainty Level(s) | Completeness Ceiling |");
-  lines.push("|-----|---------------------|----------------------|");
+  lines.push(
+    "| Tag | Uncertainty Level(s) | Completeness Ceiling | Realized S | Progress |",
+  );
+  lines.push(
+    "|-----|---------------------|----------------------|------------|----------|",
+  );
   for (const strategy of strategies) {
     const levels = strategy.uncertainty_levels.join(", ");
     const ceiling = `S ≤ ${strategy.completeness_ceiling.toFixed(2)}`;
-    lines.push(`| [${strategy.tag}] | ${levels} | ${ceiling} |`);
+    const tagSummary = state?.summary.find((s) => s.tag === strategy.tag);
+    const realized = tagSummary ? tagSummary.s_realized.toFixed(2) : "—";
+    const progress = tagSummary
+      ? `${tagSummary.passedSteps}✓ ${tagSummary.failedSteps}✗ ${tagSummary.pendingSteps}○`
+      : "not started";
+    lines.push(
+      `| [${strategy.tag}] | ${levels} | ${ceiling} | ${realized} | ${progress} |`,
+    );
   }
   lines.push("");
 
   for (const strategy of strategies) {
-    lines.push(...renderStrategy(strategy, args.phase));
+    lines.push(...renderStrategy(strategy, args.phase, state));
     lines.push("");
   }
 
   return {
     content: [{ type: "text", text: lines.join("\n") }],
   };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Return a short status badge for a verification step.
+ *
+ * @param status - Current acceptance status of the step
+ * @param requiresHumanReview - Whether the step requires explicit human approval
+ * @returns Emoji badge string
+ */
+function stepStatusLabel(
+  status: VerificationStepStatus | "pending",
+  requiresHumanReview?: boolean,
+): string {
+  switch (status) {
+    case "pass":
+      return "✅";
+    case "fail":
+      return "❌";
+    case "skipped":
+      return "⏭️";
+    case "pending":
+      return requiresHumanReview ? "👤 pending" : "○";
+  }
 }
 
 // ── Rendering ────────────────────────────────────────────────────────
@@ -135,9 +199,14 @@ export async function getVerificationStrategyHandler(
  *
  * @param strategy - The strategy to render
  * @param phaseFilter - Optional phase ID to render only one phase
+ * @param state - Optional project state to overlay step statuses
  * @returns Array of Markdown lines
  */
-function renderStrategy(strategy: VerificationStrategy, phaseFilter?: string): string[] {
+function renderStrategy(
+  strategy: VerificationStrategy,
+  phaseFilter?: string,
+  state?: VerificationStateFile | null,
+): string[] {
   const lines: string[] = [
     `## [${strategy.tag}] — ${strategy.title}`,
     "",
@@ -153,12 +222,14 @@ function renderStrategy(strategy: VerificationStrategy, phaseFilter?: string): s
     : strategy.phases;
 
   if (phaseFilter && phases.length === 0) {
-    lines.push(`> Phase '${phaseFilter}' not found. Available: ${strategy.phases.map((p) => p.id).join(", ")}`);
+    lines.push(
+      `> Phase '${phaseFilter}' not found. Available: ${strategy.phases.map((p) => p.id).join(", ")}`,
+    );
     return lines;
   }
 
   for (const phase of phases) {
-    lines.push(...renderPhase(phase));
+    lines.push(...renderPhase(phase, strategy.tag, state));
   }
 
   return lines;
@@ -168,9 +239,15 @@ function renderStrategy(strategy: VerificationStrategy, phaseFilter?: string): s
  * Render a single VerificationPhase to Markdown lines.
  *
  * @param phase - The phase to render
+ * @param strategyTag - Tag the phase belongs to (for state lookup)
+ * @param state - Optional project state for step status overlay
  * @returns Array of Markdown lines
  */
-function renderPhase(phase: VerificationPhase): string[] {
+function renderPhase(
+  phase: VerificationPhase,
+  strategyTag: Tag,
+  state?: VerificationStateFile | null,
+): string[] {
   const lines: string[] = [
     `### Phase: ${phase.title} \`[${phase.id}]\``,
     "",
@@ -181,7 +258,19 @@ function renderPhase(phase: VerificationPhase): string[] {
   for (let i = 0; i < phase.steps.length; i++) {
     const step = phase.steps[i];
     const stepNum = i + 1;
-    lines.push(`**Step ${stepNum}: ${step.id}**`);
+
+    // Look up acceptance state for this step
+    const record = state?.steps.find(
+      (r) =>
+        r.strategyTag === strategyTag &&
+        r.phaseId === phase.id &&
+        r.stepId === step.id,
+    );
+    const status: VerificationStepStatus | "pending" =
+      record?.status ?? "pending";
+    const statusLabel = stepStatusLabel(status, step.requires_human_review);
+
+    lines.push(`**Step ${stepNum}: ${step.id}** ${statusLabel}`);
     lines.push("");
     lines.push(`- **Instruction:** ${step.instruction}`);
     lines.push(`- **Contract:** ${step.contract}`);
@@ -189,7 +278,19 @@ function renderPhase(phase: VerificationPhase): string[] {
     lines.push(`- **Expected output:** ${step.expected_output}`);
     lines.push(`- **Pass criterion:** ${step.pass_criterion}`);
     if (step.requires_human_review) {
-      lines.push(`- **Human review required:** yes — do not advance until approved`);
+      lines.push(
+        `- **Human review required:** yes — do not advance until approved`,
+      );
+    }
+    if (record) {
+      lines.push(
+        `- **Recorded by:** ${record.recordedBy ?? "unknown"} @ ${record.recordedAt.slice(0, 19)}`,
+      );
+      if (record.notes) {
+        lines.push(
+          `- **Notes:** ${record.notes.slice(0, 200)}${record.notes.length > 200 ? "…" : ""}`,
+        );
+      }
     }
     lines.push("");
   }
