@@ -1,6 +1,6 @@
 # Adversarial Audit Scores — treatment
 
-*Generated: 2026-03-13T15:41:00.055Z*
+*Generated: 2026-03-15T00:35:08.638Z*
 *Method: blind Claude API session (auditor received only output + property definitions)*
 
 ---
@@ -9,35 +9,36 @@
 ## 1. Self-Describing
 **Score:** 2/2
 
-**Evidence:** The README.md provides a comprehensive architectural overview:
-```
-## Architecture
-Strict layered architecture (Hexagonal/Ports & Adapters):
+**Evidence:** 
+The README.md provides:
+- Clear architecture diagram: "Routes (HTTP) → Services (Logic) → Repositories (Data) → Domain Models"
+- Tech stack overview (TypeScript 5, Express 4, Prisma 5, PostgreSQL)
+- Complete API endpoint listing with auth requirements
+- Project structure with directory purposes
+- Key architectural principles: "No database calls in route handlers, Dependency injection throughout, All config from environment variables"
 
-Routes (HTTP)          → Thin handlers, validation, delegation
-Services (Logic)       → Business rules, orchestration
-Repositories (Data)    → Database access via Prisma
-Domain Models          → Pure data structures
-```
+A stateless reader can determine the system is a RealWorld API backend implementation following hexagonal architecture without needing to run it.
 
-The project structure is documented, setup instructions are clear, and all 19 API endpoints are listed with authentication requirements. A stateless reader can determine system purpose (RealWorld API backend), structure (layered/hexagonal architecture), and conventions (no DB calls in routes, DI throughout) from the README alone.
-
-**Suggestion:** None. Fully satisfies the criterion.
+**Suggestion:** None needed.
 
 ---
 
 ## 2. Bounded
 **Score:** 2/2
 
-**Evidence:** The verification section explicitly confirms:
-```bash
-grep -r "prisma\." src/routes/
-# Result: No matches found
-```
+**Evidence:** 
+The verification protocol confirms: "grep -r 'prisma\.' src/routes/ — Result: No matches found"
 
-All route handlers delegate to services (e.g., `authService.register()`, `articleService.createArticle()`). All services call repositories only (e.g., `this.userRepository.findByEmail()`). All Prisma operations are isolated in repository classes. The architecture exhibits strict layer separation with zero violations detected across 19 endpoints.
+Examining route handlers:
+- `user.routes.ts`: Only calls `authService.register()`, `authService.login()`, etc.
+- `article.routes.ts`: Only calls `articleService.createArticle()`, `articleService.listArticles()`, etc.
+- `comment.routes.ts`: Only calls `commentService.getComments()`, `commentService.addComment()`, etc.
 
-**Suggestion:** None. Textbook implementation of bounded layers.
+Service layer (e.g., `ArticleService`): Calls repositories only (`this.articleRepository.create()`, `this.tagRepository.upsertMany()`)
+
+Repository layer: Contains all Prisma calls (`this.prisma.article.findMany()`)
+
+**Suggestion:** None needed.
 
 ---
 
@@ -45,68 +46,100 @@ All route handlers delegate to services (e.g., `authService.register()`, `articl
 **Score:** 2/2
 
 **Evidence:** 
-- **Test count:** 148 tests (48 unit, 100 integration)
-- **Coverage:** Statements 92.5%, Branches 88.3%, Functions 91.7%, Lines 93.1% (all ≥80%)
-- **Naming:** Tests use behavioral names like `create_article_with_valid_data_returns_201_and_article` and `delete_comment_by_non_author_returns_403`
-- **Organization:** Unit tests colocated with services (`*.service.test.ts`), integration tests in `tests/integration/`, plus an E2E journey test
+- **Total tests:** 148 (48 unit, 100 integration)
+- **Coverage:** Statements 92.5%, Branches 88.3%, Functions 91.7%, Lines 93.1% — all exceed 80% threshold
+- **Test organization:** Unit tests in `src/services/*.test.ts`, integration tests in `tests/integration/*.test.ts`
+- **Behavioral naming:** `create_article_with_valid_data_returns_201_and_article`, `follow_user_twice_is_idempotent`, `delete_comment_by_non_author_returns_403`
+- **Error path coverage:** 401 (15+ cases), 403 (8+ cases), 404 (12+ cases), 422 (20+ cases)
 
-All endpoints tested for success paths and all relevant error codes (401, 403, 404, 422).
-
-**Suggestion:** None. Exceeds all verifiability criteria.
+**Suggestion:** None needed.
 
 ---
 
 ## 4. Defended
 **Score:** 0/2
 
-**Evidence:** The codebase contains no automated enforcement gates:
-- No `.husky/` directory or git hooks
-- No `.github/workflows/` or CI configuration files
-- No pre-commit/pre-push scripts in `package.json`
-- No evidence of tools like `lint-staged`, `commitlint`, or similar
+**Evidence:** 
+The `package.json` includes `"lint": "eslint src/**/*.ts"` and `"test": "jest --coverage"` scripts, but there is **no evidence** of automated enforcement:
+- No `.git/hooks/` configuration shown
+- No `.github/workflows/` or CI config files
+- No `husky` in dependencies
+- No `lint-staged` configuration
+- No pre-commit/pre-push hooks
 
-While the project has `npm test` and `npm run lint` scripts, there is no mechanism to **block** commits or pushes when tests fail or code doesn't pass linting.
+Tests and linting exist but can be bypassed — nothing blocks a failing test from being committed.
 
-**Suggestion:** Add pre-commit hooks using Husky:
+**Suggestion:** Add automated gates:
 ```bash
 npm install --save-dev husky lint-staged
-npx husky init
+npx husky install
+npx husky add .husky/pre-commit "npx lint-staged"
+npx husky add .husky/pre-push "npm test"
 ```
-Create `.husky/pre-commit`:
-```bash
-#!/usr/bin/env sh
-npm run lint && npm test
+
+Configure `lint-staged` in `package.json`:
+```json
+"lint-staged": {
+  "src/**/*.ts": ["eslint --fix", "npm test -- --findRelatedTests"]
+}
 ```
-This would prevent any commit with failing tests or lint errors, elevating the score to 2/2.
+
+Or add GitHub Actions CI:
+```yaml
+# .github/workflows/ci.yml
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+```
 
 ---
 
 ## 5. Auditable
-**Score:** 1/2
+**Score:** 0/2
 
-**Evidence:**
-- ✅ **Conventional commits:** Demonstrated throughout (`feat(auth):`, `feat(articles):`, etc.)
-- ⚠️ **ADRs:** Referenced in README ("See `docs/adrs/`" with ADR-001 through ADR-004 listed) but the actual ADR files are **not included** in the codebase output
-- ❌ **Changelog/Status:** No `CHANGELOG.md`, `Status.md`, or equivalent present
+**Evidence:** 
+The README references ADRs: "See `docs/adrs/` for architectural decision records: ADR-001: Stack selection, ADR-002: JWT authentication strategy, ADR-003: Layered architecture, ADR-004: Error handling strategy"
 
-Only 1 of 3 audit trail elements is fully present in the deliverable.
+However:
+- **The ADR files themselves are not included** in the codebase output
+- **No CHANGELOG.md** present
+- **No Status.md** or equivalent tracking document shown
+- **No commit history** provided to verify conventional commit format usage
+
+Only references to decision artifacts exist, not the artifacts themselves.
 
 **Suggestion:** 
-1. Include the actual ADR files in `docs/adrs/` (currently only referenced, not present)
-2. Add a `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/) format:
-```markdown
-# Changelog
+1. **Create the referenced ADRs:**
+   ```markdown
+   # docs/adrs/001-stack-selection.md
+   # Decision: TypeScript + Express + Prisma + PostgreSQL
+   ## Status: Accepted
+   ## Context: [why these choices]
+   ## Decision: [what was decided]
+   ## Consequences: [trade-offs]
+   ```
 
-## [1.0.0] - 2024-01-15
-### Added
-- User authentication (registration, login, profile updates)
-- User profiles and follow relationships
-- Article CRUD with favorites and feed
-- Comment system
-- Tag listing
-```
+2. **Add CHANGELOG.md:**
+   ```markdown
+   # Changelog
+   ## [1.0.0] - 2024-01-15
+   ### Added
+   - Initial implementation of RealWorld API spec
+   - All 19 endpoints (auth, profiles, articles, comments, tags)
+   ```
 
-This would bring the score to 2/2.
+3. **Enforce conventional commits** with commitlint:
+   ```bash
+   npm install --save-dev @commitlint/cli @commitlint/config-conventional
+   echo "module.exports = {extends: ['@commitlint/config-conventional']}" > commitlint.config.js
+   npx husky add .husky/commit-msg 'npx --no -- commitlint --edit "$1"'
+   ```
 
 ---
 
@@ -114,30 +147,70 @@ This would bring the score to 2/2.
 **Score:** 2/2
 
 **Evidence:** 
-- All repositories define interfaces (`IUserRepository`, `IArticleRepository`, etc.)
-- All services depend on abstractions:
+All services use constructor injection with interface dependencies:
 ```typescript
-export class AuthService {
-  constructor(private readonly userRepository: IUserRepository) {}
+export class ArticleService {
+  constructor(
+    private readonly articleRepository: IArticleRepository,
+    private readonly tagRepository: ITagRepository,
+    private readonly profileRepository: IProfileRepository
+  ) {}
 }
 ```
-- Explicit composition root in `app.ts`:
+
+All repositories implement interfaces:
+```typescript
+export interface IArticleRepository {
+  findBySlug(slug: string): Promise<ArticleWithRelations | null>;
+  // ... other methods
+}
+
+export class ArticleRepository implements IArticleRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+}
+```
+
+Wiring in `app.ts`:
 ```typescript
 const userRepository = new UserRepository(prisma);
+const profileRepository = new ProfileRepository(prisma);
 const authService = new AuthService(userRepository);
+const profileService = new ProfileService(userRepository, profileRepository);
 ```
-- Zero global singletons, zero service locator patterns
-- PrismaClient injected via constructor to all repositories
 
-**Suggestion:** None. Demonstrates exemplary interface-based dependency injection throughout.
+No global singletons (PrismaClient instantiated once in `server.ts`, passed to repositories). No service locator pattern.
+
+**Suggestion:** None needed.
+
+---
+
+## 7. Executable
+**Score:** 2/2
+
+**Evidence:** 
+The final verification section reports:
+- **Test execution:** "Test Suites: 7 passed, 7 total | Tests: 148 passed, 148 total"
+- **Compilation:** "Ready for: npm run build (Clean TypeScript compilation)"
+- **TypeScript config:** `"strict": true` enabled in `tsconfig.json`
+- **Migrations:** "Database migrations ready" in checklist
+
+Code inspection shows:
+- All imports resolve to defined modules
+- Type definitions are complete (no `any` types in business logic)
+- No syntax errors visible
+- Test structure is valid (uses Jest/Supertest correctly)
+
+While actual terminal output is not shown, the code quality and reported verification results indicate the system compiles and runs successfully.
+
+**Suggestion:** None needed.
 
 ---
 
 ## Summary
-**Total:** 9/12
+**Total:** 10/14
 
-**Strongest dimension:** Bounded, Verifiable, and Composable (all 2/2) — The codebase exhibits exceptional architectural discipline with perfect layer separation, comprehensive test coverage (148 tests, 92%+ coverage), and rigorous dependency injection using interfaces throughout.
+**Strongest dimension:** **Bounded** — Exemplary layer separation with zero ORM calls in routes, strict delegation to services, and repositories handling all data access. The architecture is enforced consistently across all 19 endpoints.
 
-**Weakest dimension:** Defended (0/2) — Despite having excellent tests and linting configured, the project lacks any automated enforcement mechanism to prevent broken code from being committed or pushed.
+**Weakest dimension:** **Defended** and **Auditable** (tied at 0/2) — No automated gates prevent broken code from being committed, and referenced architectural decision records are missing. The project lacks enforcement mechanisms despite having good testing and documentation infrastructure.
 
-**Overall assessment:** This is a production-grade implementation of the RealWorld API spec with exemplary layered architecture, comprehensive testing, and clean separation of concerns. The primary gaps are operational rather than architectural: missing commit hooks (Defended) and incomplete documentation artifacts (Auditable). Adding pre-commit hooks and including the referenced ADR files would elevate this to 11/12 or 12/12. The code quality, test discipline, and architectural boundaries are outstanding.
+**Overall assessment:** This is a well-architected, thoroughly tested implementation with excellent separation of concerns and dependency injection. The codebase demonstrates strong engineering discipline in its layering and test coverage (92%). However, it lacks the guardrails (pre-commit hooks, CI) and historical artifacts (ADRs, changelog) that would make it production-hardened and maintainable by a team. Adding automated enforcement and completing the decision documentation would elevate this from a solid individual implementation to a team-ready codebase.
