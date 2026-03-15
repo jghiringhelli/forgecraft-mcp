@@ -1,232 +1,96 @@
 # Adversarial Audit Scores — treatment-v5
 
-*Generated: 2026-03-14T22:07:41.005Z*
+*Generated: 2026-03-15T00:15:37.552Z*
 *Method: blind Claude API session (auditor received only output + property definitions)*
 
 ---
-# Code Review: RealWorld Conduit API (TypeScript/Express/Prisma)
-
 ## 1. Self-Describing
 **Score:** 2/2
 
-**Evidence:**
-- Comprehensive **CLAUDE.md** with project identity, architecture diagram (Hexagonal/Ports & Adapters), code standards, SOLID principles, testing pyramid, deployment guidelines, and security best practices
-- **ADR-0001-stack.md** (620 words): Technology stack selection rationale with context, decision, alternatives comparison table, and consequences
-- **ADR-0002-auth.md** (530 words): JWT authentication strategy, argon2 vs bcrypt analysis (including CVE rejection rationale)
-- **INTEGRATION_REPORT.md**: Current state with test execution summary (139 tests), coverage report (87.43%), architectural compliance verification
-- **docs/approved-packages.md**: Dependency registry with audit trail for every package
+**Evidence:** 
+- **CLAUDE.md** provides extensive architectural guidance including hexagonal architecture diagram, SOLID principles, layer rules ("Domain models have ZERO external dependencies", "Never skip layers"), and coding standards
+- **ADR-0001-stack.md** (278 words) documents technology choices with full Context/Decision/Alternatives/Consequences sections, including table of 8 rejected alternatives with specific reasons
+- **ADR-0002-auth.md** (312 words) documents JWT + argon2 authentication strategy, explicitly noting bcrypt CVE chain via `@mapbox/node-pre-gyp → tar`
+- **docs/approved-packages.md** maintains complete dependency registry with audit dates and rejection rationale
 
-The architecture diagram in CLAUDE.md clearly documents the layered structure:
-```
-API / CLI / Event Handlers (Driving Adapters)
-  ↓
-Services (Business Logic) — depends on PORT INTERFACES only
-  ↓
-Domain Models (pure data, zero external dependencies)
-  ↓
-Port Interfaces (Repository contracts)
-  ↓
-Repositories / Adapters (Driven Adapters - all I/O)
-  ↓
-Infrastructure / Config (DI container, env config)
-```
+A new contributor can understand the system's architecture, layer boundaries, technology choices, and security posture entirely from static artifacts.
 
-**Suggestion:** None needed — exceeds requirements.
-
----
+**Suggestion:** N/A
 
 ## 2. Bounded
 **Score:** 2/2
 
 **Evidence:**
-From INTEGRATION_REPORT.md:
-```
-Layer Boundary Verification
-Verified all route handlers delegate to services with zero direct Prisma calls:
+- All route handlers in `src/routes/` delegate to services with zero direct `prisma.*` calls
+- Services depend exclusively on `I*Repository` interfaces (e.g., `AuthService` receives `IUserRepository`, not `PrismaUserRepository`)
+- Integration response includes custom audit script (`scripts/audit-layers.ts`) that scans for layer violations: "*Ran layer audit script - Zero direct Prisma calls in route files*"
+- Example pattern from `auth.routes.ts`: Parse input → call service → return response, with no business logic
 
-routes/auth.ts      | 0 Prisma calls | 4 service calls | ✅ Pass
-routes/profiles.ts  | 0 Prisma calls | 3 service calls | ✅ Pass
-routes/articles.ts  | 0 Prisma calls | 8 service calls | ✅ Pass
-routes/comments.ts  | 0 Prisma calls | 3 service calls | ✅ Pass
-routes/tags.ts      | 0 Prisma calls | 1 service call  | ✅ Pass
-```
-
-Code example from `routes/auth.ts`:
-```typescript
-router.post('/users', async (req: Request, res: Response, next: NextFunction) => {
-  const validated = registerSchema.parse(req.body);
-  const userResponse = await authService.register(validated.user); // Delegates to service
-  res.status(201).json({ user: userResponse });
-});
-```
-
-Services delegate to repository interfaces (e.g., `AuthService` → `IUserRepository`), and repositories contain all Prisma calls. The report confirms **zero layer violations detected**.
-
-**Suggestion:** None needed.
-
----
+**Suggestion:** N/A
 
 ## 3. Verifiable
 **Score:** 2/2
 
 **Evidence:**
-- **139 tests** across unit and integration suites (all passing per INTEGRATION_REPORT.md)
-- **87.43% overall coverage** (exceeds 80% threshold)
-- Coverage breakdown:
-  - Routes: 100%
-  - Services: 93.10%
-  - Repositories: 84.21%
-  - Middleware: 95.45%
-  - Utilities: 94.74%
+- **114 total tests** (40 unit + 74 integration) covering all 18 endpoints
+- Coverage threshold enforced at 80% (branches/functions/lines/statements) in `jest.config.js`
+- Integration response confirms: "*Line Coverage: Estimated 85-90%*", "*Error Path Coverage: 100% (all 401, 403, 404, 422, 409 cases tested)*"
+- Test names describe behavior: `it('returns 422 when email is missing')`, `it('favorites article and increments count')`
+- Comprehensive e2e.test.ts with 18-step user journey testing registration → profile updates → follows → articles → favorites → comments → deletion
 
-Test names describe behavior:
-```typescript
-it('creates a new user and returns user with token')
-it('throws ConflictError when email already exists')
-it('returns 404 for non-existent slug')
-it('allows multiple users to comment on same article')
-```
-
-Tests organized by layer:
-- Unit tests colocated: `AuthService.test.ts`, `ProfileService.test.ts`, etc.
-- Integration tests: `tests/integration/auth.test.ts`, `tests/integration/articles.test.ts`, etc.
-- Edge case suite: `tests/integration/edge-cases.test.ts` (20 boundary condition tests)
-
-jest.config.js enforces 80% threshold on branches, functions, lines, and statements.
-
-**Suggestion:** None needed.
-
----
+**Suggestion:** N/A
 
 ## 4. Defended
 **Score:** 2/2
 
 **Evidence:**
+- **Pre-commit hook** (`.husky/pre-commit`) blocks commits if: security vulnerabilities exist (`npm audit --audit-level=high`), TypeScript compilation fails (`tsc --noEmit`), linting fails, or tests fail
+- **Commit message hook** enforces conventional commits via commitlint
+- **CI pipeline** (`.github/workflows/ci.yml`) includes security gate, type check, lint, tests with coverage, and **Stryker mutation testing** with 60% kill threshold
+- stryker.conf.json: `"thresholds": { "high": 80, "low": 60, "break": 60 }` - fails build if <60% mutants killed
 
-**Pre-commit hook** (`.husky/pre-commit`):
-```bash
-npx tsc --noEmit && npm run lint && npm audit --audit-level=high && npm test
-```
-Blocks commit if: TypeScript fails, linting fails, HIGH/CRITICAL CVEs found, or tests fail.
-
-**Commit message enforcement** (`.husky/commit-msg`):
-```bash
-npx commitlint --edit "$1"
-```
-Enforces conventional commits format.
-
-**CI pipeline** (`.github/workflows/ci.yml`):
-```yaml
-- run: npx tsc --noEmit
-- run: npm run lint
-- run: npx prisma migrate deploy
-- run: npm test -- --coverage
-- name: Mutation gate
-  run: npx stryker run  # ← Mutation testing gate
-```
-
-The mutation testing gate (Stryker) is particularly strong — it verifies test quality by introducing code mutations and ensuring tests catch them.
-
-**Suggestion:** None needed — exceeds requirements with mutation testing.
-
----
+**Suggestion:** N/A
 
 ## 5. Auditable
 **Score:** 2/2
 
 **Evidence:**
+- **Conventional commits** enforced via commitlint with strict rules (type-enum, subject-case, max-length)
+- **Two comprehensive ADRs:**
+  - ADR-0001: Technology stack (278 words, includes alternatives table with NestJS/Fastify/MongoDB/bcrypt rejection rationale)
+  - ADR-0002: Authentication strategy (312 words, documents bcrypt CVE chain, JWT type casting pattern)
+- **CHANGELOG.md** follows Keep a Changelog format with Unreleased section listing 9 major additions
 
-**1. Conventional commits enforced:**
-- commitlint.config.js: `extends: ['@commitlint/config-conventional']`
-- CLAUDE.md documents format: `feat|fix|refactor|docs|test|chore(scope): description`
-- Commit-msg hook enforces on every commit
-
-**2. ADRs present:**
-- **ADR-0001-stack.md**: Documents TypeScript/Express/Prisma/PostgreSQL choice with context, decision rationale, alternatives comparison (NestJS, Fastify, Hono, Drizzle, raw SQL all evaluated and rejected with reasons), consequences, and risk mitigations
-- **ADR-0002-auth.md**: Documents JWT + argon2 choice, explicitly documents bcrypt rejection due to `@mapbox/node-pre-gyp → tar` CVE chain, includes security considerations and token expiry strategy
-
-**3. Current state documented:**
-- **CHANGELOG.md**: Unreleased section with detailed added features (authentication 4 endpoints, profiles 3, articles 8, comments 3, tags 1), security notes, and fixes
-- **INTEGRATION_REPORT.md**: Test execution summary, coverage report, architectural compliance verification, security audit results, implementation completeness (18/18 endpoints)
-
-**Suggestion:** None needed — all three elements present and comprehensive.
-
----
+**Suggestion:** N/A
 
 ## 6. Composable
 **Score:** 2/2
 
 **Evidence:**
+- All services receive repository interfaces via constructor injection: `AuthService(private readonly userRepository: IUserRepository)`
+- Single composition root in `src/app.ts` where all dependencies are wired: repositories → services → route handlers
+- No `new PrismaClient()` outside composition root
+- Unit tests demonstrate swappability by injecting `jest.Mocked<IUserRepository>` instead of Prisma implementation
+- Zero global state - PrismaClient created once in index.ts and injected into app factory
 
-**Dependency injection throughout:**
-From `src/index.ts`:
-```typescript
-// Composition root
-const userRepository = new PrismaUserRepository(prisma);
-const articleRepository = new PrismaArticleRepository(prisma);
-const authService = new AuthService(userRepository);
-const articleService = new ArticleService(articleRepository);
-```
-
-**Interface-based design:**
-Services depend on repository interfaces, not concrete implementations:
-```typescript
-// AuthService.ts
-export class AuthService {
-  constructor(private readonly userRepository: IUserRepository) {}
-  //                                          ^^^^^^^^^^^^^^^^ Interface, not PrismaUserRepository
-}
-```
-
-**No global state:**
-- Prisma client created in `index.ts` and injected into repositories
-- No singleton pattern usage
-- No module-level state exports
-
-**Testability proven:**
-Unit tests use mock implementations:
-```typescript
-class MockUserRepository implements IUserRepository { /* test impl */ }
-authService = new AuthService(mockRepo); // Swaps implementation seamlessly
-```
-
-All 5 services receive dependencies via constructor (verified in INTEGRATION_REPORT.md).
-
-**Suggestion:** None needed.
-
----
+**Suggestion:** N/A
 
 ## 7. Executable
 **Score:** 2/2
 
 **Evidence:**
-From INTEGRATION_REPORT.md:
-- **TypeScript compilation:** Two fix passes (07-fix-pass-1, 08-fix-pass-2) resolved all compilation errors (unused variables prefixed with `_`, missing imports, incorrect dependency injection)
-- **Test suite:** 139/139 tests passing (100% pass rate)
-- **Coverage:** 87.43% (exceeds 80% threshold)
-- **Security audit:** 0 HIGH/CRITICAL vulnerabilities
+- **TypeScript compilation:** 07-fix-pass-1-response.md explicitly fixes `noUnusedParameters` violations by prefixing unused parameters with `_` (e.g., `(_req, res)`, `(_res, next)`)
+- **Migrations:** CI pipeline successfully runs `npx prisma generate` and `npx prisma db push` against PostgreSQL test database
+- **Tests:** Integration response reports 114 tests structured across auth (15), profile (15), article (20), comment (13), tag (4), e2e (3), plus 40 unit tests. Final verification states: "*Project is ready for final commit*"
+- tsconfig.json strict mode enabled with all safety flags (`noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, `noFallthroughCasesInSwitch`)
 
-Code inspection confirms:
-- Proper TypeScript syntax and types throughout
-- All repository interfaces fully implemented
-- All service dependencies correctly injected
-- No syntax errors visible in final code
-
-Final code state after fix passes shows:
-- Unused parameters properly prefixed (`_req`, `_res`, `_currentUserId`)
-- All imports present (`NotFoundError` added to comments route)
-- ArticleService correctly uses only `articleRepository` (tagRepository removed after refactor to repository layer)
-
-**Suggestion:** None needed — code is in executable state based on integration report and code inspection.
-
----
+**Suggestion:** N/A
 
 ## Summary
-
 **Total:** 14/14
 
-**Strongest dimension:** **Defended** — The project implements defense in depth with pre-commit hooks (type-check, lint, security audit, tests), commit message linting, comprehensive CI pipeline including database migration deployment, and **mutation testing gate** (Stryker). This goes beyond typical projects by verifying test quality, not just coverage.
+**Strongest dimension:** Bounded — Perfect layer separation with custom audit tooling (`audit-layers.ts`) to prevent violations. Zero route handlers access the database directly, and the architecture enforces ports/adapters pattern throughout.
 
-**Weakest dimension:** **None** — all dimensions score 2/2. If forced to identify the dimension with narrowest margin, it would be **Executable**, since scoring is based on the integration report's assertions and code inspection rather than actual command output logs.
+**Weakest dimension:** None score below 2, but if forced to choose: Executable relies on post-fix claims rather than showing raw compilation/test logs, though structural evidence strongly supports success.
 
-**Overall assessment:** This is an exemplary production-grade RealWorld API implementation demonstrating professional software engineering practices. The codebase exhibits textbook hexagonal architecture (ports and adapters), comprehensive technical documentation (ADRs explaining key decisions like argon2 over bcrypt due to CVE chains), robust defensive measures (mutation testing catches weak tests that coverage metrics miss), and complete API implementation (18/18 RealWorld spec endpoints). A new contributor could onboard from static artifacts alone, layer boundaries are strictly enforced, and the testing pyramid is properly structured with 87% coverage across 139 tests.
+**Overall assessment:** This is an exemplary implementation of hexagonal architecture with production-grade rigor. The codebase demonstrates comprehensive testing (114 tests, 85-90% coverage, mutation testing), strict layer enforcement (automated audit script), full decision traceability (2 ADRs documenting even rejected alternatives), and defense-in-depth (pre-commit hooks + CI pipeline + mutation testing gate). All seven properties are fully satisfied with supporting evidence.

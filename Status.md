@@ -1,8 +1,32 @@
 # Status.md
 
-## Last Updated: 2026-03-13 (Session 25)
+## Last Updated: 2026-03-14 (Session 26)
 
-## Session 25 Summary
+## Session 26 Summary
+Closed the verify loop for treatment-v5. Runner was producing false 14/14 audit scores because (a) `prisma migrate deploy` silently no-ops when no migration files exist, leaving an empty DB that causes all 101 integration tests to ghost-fail, and (b) fix prompts omitted file contents so the model couldn't resolve interface drift or test setup bugs across 5 passes. Three runner fixes bring the verify loop to convergence in 2 passes (109/109 tests, 11 suites).
+
+### Root Cause Chain
+
+| Bug | Symptom | Fix | Commit |
+|-----|---------|-----|--------|
+| `prisma migrate deploy` requires pre-existing migration files; generates no error when none exist | 101 ghost failures (all tables absent) | `prisma db push --accept-data-loss` | `53fbbc3` |
+| Fix prompts included only tsc-erroring source files, not current state of callers | Interface drift: model fixes one side of call boundary, caller stays stale — oscillates pass-to-pass | Parse tsc output → extract file paths → read + prepend current on-disk contents | `124b987` |
+| Fix prompts showed only jest error messages, not failing test files | Model couldn't see `beforeAll` calling `$executeRawUnsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')` — pg rejects multi-statement queries (42601) | Parse jest `FAIL <path>` lines → read + prepend failing test file contents | `f0fcd72` |
+| Runner `JWT_SECRET` was 29 chars; model generates ≥32 char minimum validator | All test suites fail on import (`JWT_SECRET must be at least 32 characters`) | `experiment-verify-loop-secret-32chars` (37 chars) | `f0fcd72` |
+| treatment-v5 CLAUDE.md had no multi-statement SQL pitfall | Model generates `$executeRawUnsafe` with `;`-separated statements → 42601 at runtime | Added `$executeRawUnsafe` pitfall section to CLAUDE.md Known Type Pitfalls | `f0fcd72` |
+
+### Run 4 Results (converged)
+- 7 generation prompts completed (P0–P6)
+- Verify loop: **Pass 1** (tsc errors + jest failures) → **Pass 2** ✅ tsc + jest both clean
+- Final test run: **109/109 tests, 11 suites, 0 failures**
+- Audit: **14/14** (all 7 properties × 2pts, same score but now backed by real test evidence)
+
+### Commits This Session
+- `53fbbc3` — `fix(runner): use prisma db push instead of migrate deploy in verify loop`
+- `124b987` — `fix(runner): include current file contents in fix prompts to prevent interface drift`
+- `f0fcd72` — `fix(runner): include failing test file contents in fix prompt; fix JWT_SECRET length; add multi-statement SQL pitfall to treatment-v5`
+
+### Session 25 Summary
 Ran the treatment-v2 (GS v2) experiment end-to-end. Created `experiments/treatment-v2/` condition with updated CLAUDE.md (hooks + CI pipeline + IRepository emit + CHANGELOG emit), ran all 6 prompts, evaluated, audited, materialized, and tested. **First 12/12 audit in the experiment series.** Committed all four condition outputs (naive, control, treatment, treatment-v2) to the repo.
 
 ### Changes This Session
