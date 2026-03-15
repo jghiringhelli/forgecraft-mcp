@@ -70,12 +70,13 @@ phases:
       - id: start-server
         instruction: >
           Start the API server with NODE_ENV=test and a clean test database.
-          Prisma migrate deploy must complete before the server starts.
+          Sync the schema with `prisma db push --accept-data-loss` (not `migrate deploy` —
+          migrate deploy silently no-ops when no migrations folder exists, leaving an empty DB).
           Capture the server process and its port in a test fixture.
         contract: >
           Server health check endpoint returns HTTP 200 within 5 seconds.
           Test database has 0 seed rows (clean state).
-        tools: ["docker-compose up -d", "npx prisma migrate deploy", "curl /health"]
+        tools: ["docker-compose up -d", "npx prisma db push --accept-data-loss", "curl /health"]
         expected_output: "HTTP 200 from /health or /api/health"
         pass_criterion: "curl -s localhost:PORT/health returns 200"
 

@@ -749,6 +749,62 @@ blocks:
       - **Bias toward explicit over clever** — readability wins over brevity.
       - When in doubt, ask rather than assume.
 
+  - id: code-generation-verification
+    tier: core
+    title: "Code Generation — Self-Verify Loop"
+    content: |
+      ## Code Generation — Verify Before Returning
+
+      When emitting implementation code across one or more files, the response is not complete
+      until the following are true. Show the evidence in your response — do not claim without running.
+
+      ### Verification steps (in order)
+      1. **Compile check**: Run `tsc --noEmit` (TypeScript), `mypy` (Python), or equivalent.
+         Zero errors required. Do not return with type errors outstanding.
+      2. **Test suite**: Run the full test suite (`jest --runInBand`, `pytest`, etc.).
+         Zero failures required. Fix every failure before returning.
+      3. **Interface consistency**: When fixing a compile error in file A, check ALL callers of
+         the changed interface. Fixing one side without seeing the other causes oscillation:
+         the model fixes `service.ts` (3-param signature) but `routes.ts` still calls it with
+         an object — same error reappears inverted next pass.
+
+      ### Required evidence in the final response
+      ```
+      tsc --noEmit: 0 errors
+      Jest: 109 passed, 0 failed, 11 suites
+      ```
+
+      ### Common test setup pitfalls (TypeScript / Prisma)
+      - **`prisma db push`, not `prisma migrate deploy`** in test environments.
+        `migrate deploy` silently no-ops when no `prisma/migrations/` folder exists,
+        leaving all tables absent. `db push --accept-data-loss` syncs `schema.prisma` directly.
+      - **`deleteMany` in FK order, not `DROP SCHEMA`**.
+        `$executeRawUnsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')` throws
+        error 42601 — pg rejects multi-statement queries in prepared statements.
+        Use ordered `deleteMany()` calls in `beforeEach` instead.
+      - **JWT_SECRET minimum length**: HS256 requires ≥ 32 characters.
+        Test secrets like `"test-secret"` (11 chars) cause startup errors.
+        Use `"test-secret-that-is-at-least-32-chars"` in test env.
+
+  - id: known-pitfalls
+    tier: core
+    title: "Known Pitfalls"
+    content: |
+      ## Known Pitfalls
+      Recurring type errors and runtime traps specific to this project's stack.
+      Resolve exactly as documented — no `any` casts, ignore directives, or unlisted workarounds.
+      ### [Add project-specific pitfalls here]
+      <!-- Entry format:
+      ### Library — trap description
+      What goes wrong and why, then:
+      ```
+      // ❌ wrong
+      ```
+      ```
+      // ✅ correct
+      ```
+      -->
+
   - id: corrections-log
     tier: core
     title: "Corrections Log"
