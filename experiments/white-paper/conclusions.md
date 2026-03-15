@@ -203,7 +203,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx eslint src
-      - run: npx prisma migrate deploy
+      - run: npx prisma db push --accept-data-loss  # migrate deploy silently no-ops with no migrations folder
       - run: npm test -- --coverage
       - run: npx stryker run   # mutation gate — this is the key addition
 ```
