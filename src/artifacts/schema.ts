@@ -19,6 +19,7 @@ import type {
   CompositionConflict,
   ComposableSpec,
   BoundedSpec,
+  ExecutableResult,
 } from "../core/index.js";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -35,7 +36,8 @@ export const SCHEMA_ARTIFACT_ID = "artifact:schema";
  */
 export class SchemaArtifact implements GenerativeSpec {
   readonly name = "Data Shape Contracts (Zod / JSON Schema)";
-  readonly purpose = "Defines the precise shape of data at every module boundary so agents cannot introduce type drift.";
+  readonly purpose =
+    "Defines the precise shape of data at every module boundary so agents cannot introduce type drift.";
   readonly covers = [
     "Tool handler input schemas (Zod)",
     "Inter-module DTO contracts",
@@ -55,7 +57,10 @@ export class SchemaArtifact implements GenerativeSpec {
 
   readonly gates: ReadonlyArray<QualityGate>;
 
-  constructor(readonly projectDir: string, version = "1.0.0") {
+  constructor(
+    readonly projectDir: string,
+    version = "1.0.0",
+  ) {
     this.version = version;
     this.gates = [
       {
@@ -66,16 +71,22 @@ export class SchemaArtifact implements GenerativeSpec {
           // Check that every tool file exports a *Schema named export
           const toolsDir = join(projectDir, "src", "tools");
           if (!existsSync(toolsDir)) return { exitCode: 0, message: "skipped" };
-          return { exitCode: 0, message: "Schema check passed (static analysis required for full check)" };
+          return {
+            exitCode: 0,
+            message:
+              "Schema check passed (static analysis required for full check)",
+          };
         },
       },
     ];
   }
 
   isInScope(artifactPath: string): boolean {
-    return artifactPath.includes("Schema") ||
+    return (
+      artifactPath.includes("Schema") ||
       artifactPath.endsWith(".schema.ts") ||
-      artifactPath.includes("types.ts");
+      artifactPath.includes("types.ts")
+    );
   }
 
   async verify(targetPath: string): Promise<ReadonlyArray<VerificationResult>> {
@@ -97,10 +108,28 @@ export class SchemaArtifact implements GenerativeSpec {
   }
 
   findDecision(topic: string): ArchDecision | undefined {
-    return this.decisions.find((d) => d.title.toLowerCase().includes(topic.toLowerCase()));
+    return this.decisions.find((d) =>
+      d.title.toLowerCase().includes(topic.toLowerCase()),
+    );
   }
 
-  composeWith(_other: ComposableSpec & BoundedSpec): ReadonlyArray<CompositionConflict> {
+  composeWith(
+    _other: ComposableSpec & BoundedSpec,
+  ): ReadonlyArray<CompositionConflict> {
     return [];
+  }
+
+  async execute(
+    _targetPath: string,
+    _contractPath: string,
+  ): Promise<ExecutableResult> {
+    return {
+      passed: true,
+      passedCount: 0,
+      totalCount: 0,
+      executionEnvironment: "none",
+      detail:
+        "Schema artifacts define data contracts — not applicable for runtime execution",
+    };
   }
 }

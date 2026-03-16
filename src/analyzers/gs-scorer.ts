@@ -1,9 +1,9 @@
 /**
  * GS Property Scorer (§4.3).
  *
- * Scores a project against the six Generative Specification properties defined
- * in the experiment design: Self-describing, Bounded, Verifiable, Defended,
- * Auditable, Composable. Each property is scored 0–2.
+ * Scores a project against the seven Generative Specification properties defined
+ * in §4.3 of the GS paper: Self-describing, Bounded, Verifiable, Defended,
+ * Auditable, Composable, Executable. Each property is scored 0–2 (max 14).
  *
  * Also detects direct-DB calls in route/controller files (Bounded violations)
  * and source modules that lack corresponding test files (Verifiable gaps).
@@ -29,14 +29,14 @@ const ROUTE_DIRS = ["routes", "controllers", "handlers", "api", "endpoints"];
 
 /** ORM/DB client call patterns to flag in route files. */
 const DB_CALL_PATTERNS: RegExp[] = [
-  /\bprisma\.\w+\.\w+\s*\(/,       // prisma.user.findMany(
-  /\bdb\.\w+\s*\.\s*\w+\s*\(/,    // db.user.findMany(
-  /\.query\s*\(/,                   // connection.query(
-  /\.execute\s*\(/,                 // db.execute(
-  /\bnew\s+PrismaClient\b/,         // new PrismaClient()
-  /\bmongoose\.model\b/,            // mongoose.model(
-  /\bMongoose\b.*\.find\b/,         // Mongoose.(*).find(
-  /\brepository\s*=\s*null\b/,      // uninitialized repository (smell)
+  /\bprisma\.\w+\.\w+\s*\(/, // prisma.user.findMany(
+  /\bdb\.\w+\s*\.\s*\w+\s*\(/, // db.user.findMany(
+  /\.query\s*\(/, // connection.query(
+  /\.execute\s*\(/, // db.execute(
+  /\bnew\s+PrismaClient\b/, // new PrismaClient()
+  /\bmongoose\.model\b/, // mongoose.model(
+  /\bMongoose\b.*\.find\b/, // Mongoose.(*).find(
+  /\brepository\s*=\s*null\b/, // uninitialized repository (smell)
 ];
 
 /** Lines that are comments or imports — excluded from DB call detection. */
@@ -64,13 +64,14 @@ const MIN_KEYWORD_HITS = 3;
 // ── Public API ─────────────────────────────────────────────────────────
 
 /**
- * Score all six GS properties for a project directory.
+ * Score all seven GS properties for a project directory.
  *
  * @param projectDir - Absolute path to the project root
  * @param testsPassed - Whether the test suite passed (feeds Verifiable)
  * @param layerViolations - Pre-computed layer violations (feeds Bounded)
  * @param missingTestFiles - Pre-computed missing test files (feeds Verifiable)
- * @returns Array of scored GS properties in canonical §4.3 order
+ * @param verificationStateDir - Path to .forgecraft/ dir if exists (feeds Executable)
+ * @returns Array of scored GS properties in canonical §4.3 order (7 properties)
  */
 export function scoreGsProperties(
   projectDir: string,
@@ -89,6 +90,7 @@ export function scoreGsProperties(
     scoreDefended(projectDir),
     scoreAuditable(projectDir, allFiles),
     scoreComposable(projectDir, allFiles),
+    scoreExecutable(projectDir, testsPassed),
   ];
 }
 
@@ -102,7 +104,9 @@ export function findDirectDbCallsInRoutes(
   projectDir: string,
 ): LayerViolation[] {
   const allFiles = listAllFiles(projectDir);
-  const routeFiles = allFiles.filter((f) => isRouteFile(f) && isSourceCodeFile(f));
+  const routeFiles = allFiles.filter(
+    (f) => isRouteFile(f) && isSourceCodeFile(f),
+  );
   const violations: LayerViolation[] = [];
 
   for (const relPath of routeFiles) {
@@ -136,7 +140,10 @@ export function findDirectDbCallsInRoutes(
 export function findMissingTestFiles(projectDir: string): MissingTestFile[] {
   const allFiles = listAllFiles(projectDir);
   const sourceFiles = allFiles.filter(
-    (f) => isSourceCodeFile(f) && !isTestOrFixtureFile(f) && !isConfigOrDeclaration(f),
+    (f) =>
+      isSourceCodeFile(f) &&
+      !isTestOrFixtureFile(f) &&
+      !isConfigOrDeclaration(f),
   );
 
   const missing: MissingTestFile[] = [];
@@ -191,7 +198,11 @@ function scoreSelfDescribing(projectDir: string): GsPropertyScore {
   if (hits.length < MIN_KEYWORD_HITS) {
     return gs("self-describing", 1, [
       `${found} found (${lines.length} lines) but covers fewer than ${MIN_KEYWORD_HITS} architecture/convention keywords`,
-      `Missing keywords: ${INSTRUCTION_COVERAGE_KEYWORDS.filter((kw) => !lower.includes(kw)).slice(0, 5).join(", ")}`,
+      `Missing keywords: ${INSTRUCTION_COVERAGE_KEYWORDS.filter(
+        (kw) => !lower.includes(kw),
+      )
+        .slice(0, 5)
+        .join(", ")}`,
     ]);
   }
 
@@ -209,7 +220,9 @@ function scoreBounded(violations: LayerViolation[]): GsPropertyScore {
   const count = violations.length;
 
   if (count === 0) {
-    return gs("bounded", 2, ["No direct DB/ORM calls detected in route or controller files"]);
+    return gs("bounded", 2, [
+      "No direct DB/ORM calls detected in route or controller files",
+    ]);
   }
 
   if (count <= 2) {
@@ -221,7 +234,9 @@ function scoreBounded(violations: LayerViolation[]): GsPropertyScore {
 
   return gs("bounded", 0, [
     `${count} direct DB calls found — route layer is calling the DB directly`,
-    ...violations.slice(0, 5).map((v) => `  ${v.file}:${v.line} — ${v.snippet.trim()}`),
+    ...violations
+      .slice(0, 5)
+      .map((v) => `  ${v.file}:${v.line} — ${v.snippet.trim()}`),
     ...(count > 5 ? [`  … and ${count - 5} more`] : []),
   ]);
 }
@@ -242,7 +257,10 @@ function scoreVerifiable(
   }
 
   const sourceCount = allFiles.filter(
-    (f) => isSourceCodeFile(f) && !isTestOrFixtureFile(f) && !isConfigOrDeclaration(f),
+    (f) =>
+      isSourceCodeFile(f) &&
+      !isTestOrFixtureFile(f) &&
+      !isConfigOrDeclaration(f),
   ).length;
 
   const missingCount = missingTestFiles.length;
@@ -276,9 +294,17 @@ function scoreDefended(projectDir: string): GsPropertyScore {
   const hasPreCommitHook = existsSync(huskyHook) || existsSync(gitHook);
 
   const lintConfigs = [
-    ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yaml", ".eslintrc.yml",
-    "eslint.config.js", "eslint.config.mjs", ".pylintrc", "pyproject.toml",
-    "biome.json", ".oxlintrc.json",
+    ".eslintrc.js",
+    ".eslintrc.cjs",
+    ".eslintrc.json",
+    ".eslintrc.yaml",
+    ".eslintrc.yml",
+    "eslint.config.js",
+    "eslint.config.mjs",
+    ".pylintrc",
+    "pyproject.toml",
+    "biome.json",
+    ".oxlintrc.json",
   ];
   const hasLint = lintConfigs.some((c) => existsSync(join(projectDir, c)));
 
@@ -306,7 +332,10 @@ function scoreDefended(projectDir: string): GsPropertyScore {
  * Auditable: ADRs, Status.md, and conventional commit infrastructure present.
  * 2 = ADRs + Status.md + commit config, 1 = some subset, 0 = none.
  */
-function scoreAuditable(projectDir: string, allFiles: string[]): GsPropertyScore {
+function scoreAuditable(
+  projectDir: string,
+  allFiles: string[],
+): GsPropertyScore {
   const adrFiles = allFiles.filter(
     (f) => /docs\/(adrs?|decisions?|rfcs?)\//i.test(f) && f.endsWith(".md"),
   );
@@ -316,11 +345,17 @@ function scoreAuditable(projectDir: string, allFiles: string[]): GsPropertyScore
   const hasStatus = statusPaths.some((p) => existsSync(join(projectDir, p)));
 
   const commitConfigs = [
-    "commitlint.config.js", "commitlint.config.cjs", "commitlint.config.mjs",
-    ".commitlintrc.js", ".commitlintrc.json", ".commitlintrc.yaml",
+    "commitlint.config.js",
+    "commitlint.config.cjs",
+    "commitlint.config.mjs",
+    ".commitlintrc.js",
+    ".commitlintrc.json",
+    ".commitlintrc.yaml",
     ".husky/commit-msg",
   ];
-  const hasCommitConfig = commitConfigs.some((p) => existsSync(join(projectDir, p)));
+  const hasCommitConfig = commitConfigs.some((p) =>
+    existsSync(join(projectDir, p)),
+  );
 
   const signals = [hasAdrs, hasStatus, hasCommitConfig].filter(Boolean).length;
 
@@ -335,9 +370,12 @@ function scoreAuditable(projectDir: string, allFiles: string[]): GsPropertyScore
   if (signals >= 1) {
     const present: string[] = [];
     const absent: string[] = [];
-    if (hasAdrs) present.push(`${adrFiles.length} ADR(s)`); else absent.push("ADRs in docs/adrs/");
-    if (hasStatus) present.push("Status.md"); else absent.push("Status.md / CHANGELOG.md");
-    if (hasCommitConfig) present.push("commit config"); else absent.push("commitlint config");
+    if (hasAdrs) present.push(`${adrFiles.length} ADR(s)`);
+    else absent.push("ADRs in docs/adrs/");
+    if (hasStatus) present.push("Status.md");
+    else absent.push("Status.md / CHANGELOG.md");
+    if (hasCommitConfig) present.push("commit config");
+    else absent.push("commitlint config");
 
     return gs("auditable", 1, [
       `Present: ${present.join(", ")}`,
@@ -356,7 +394,10 @@ function scoreAuditable(projectDir: string, allFiles: string[]): GsPropertyScore
  * Composable: service layer, repository pattern, and interface-first design.
  * 2 = services + repositories + interface files, 1 = services only, 0 = none.
  */
-function scoreComposable(projectDir: string, allFiles: string[]): GsPropertyScore {
+function scoreComposable(
+  projectDir: string,
+  allFiles: string[],
+): GsPropertyScore {
   const hasSrc = existsSync(join(projectDir, "src"));
   const root = hasSrc ? "src" : "";
 
@@ -375,14 +416,18 @@ function scoreComposable(projectDir: string, allFiles: string[]): GsPropertyScor
   ].find((d) => existsSync(join(projectDir, d)));
 
   const hasInterfaces = allFiles.some(
-    (f) => /\/(interfaces?|contracts?|ports?|types?)\//i.test(f) && isSourceCodeFile(f),
+    (f) =>
+      /\/(interfaces?|contracts?|ports?|types?)\//i.test(f) &&
+      isSourceCodeFile(f),
   );
 
   if (serviceDir && repositoryDir) {
     return gs("composable", 2, [
       `Service layer found: ${serviceDir}/`,
       `Repository layer found: ${repositoryDir}/`,
-      hasInterfaces ? "Interface/contract files detected" : "No dedicated interface files (partial credit)",
+      hasInterfaces
+        ? "Interface/contract files detected"
+        : "No dedicated interface files (partial credit)",
     ]);
   }
 
@@ -396,6 +441,79 @@ function scoreComposable(projectDir: string, allFiles: string[]): GsPropertyScor
   return gs("composable", 0, [
     "No service layer found — business logic likely lives in route handlers",
     "No repository layer found",
+  ]);
+}
+
+/**
+ * Executable: runtime evidence that generated output satisfies behavioral contracts.
+ *
+ * Distinguished from Verifiable (which checks test existence and coverage):
+ * Executable checks whether there is evidence the implementation was actually
+ * exercised against a real runtime environment, not just statically analyzed.
+ *
+ * Scoring:
+ *   2 = tests passed + CI configured (automated runtime evidence) OR
+ *       .forgecraft/verification-state.json exists with passed steps
+ *   1 = tests passed locally but no CI or verification state
+ *       (local evidence only — sufficient for development, not pre-release)
+ *   0 = tests failed OR no test infrastructure
+ */
+function scoreExecutable(
+  projectDir: string,
+  testsPassed: boolean,
+): GsPropertyScore {
+  if (!testsPassed) {
+    return gs("executable", 0, [
+      "Tests did not pass — implementation does not satisfy its behavioral contracts at runtime",
+    ]);
+  }
+
+  // Check for verification-state.json (strongest evidence: step-level acceptance recorded)
+  const verificationState = join(
+    projectDir,
+    ".forgecraft",
+    "verification-state.json",
+  );
+  if (existsSync(verificationState)) {
+    try {
+      const raw = readFileSync(verificationState, "utf-8");
+      const state = JSON.parse(raw) as {
+        aggregate_s?: number;
+        summary?: Array<{ passedSteps: number }>;
+      };
+      const hasPassedSteps =
+        state.summary?.some((s) => s.passedSteps > 0) ?? false;
+      if (hasPassedSteps) {
+        return gs("executable", 2, [
+          "Tests passed + verification-state.json records accepted runtime steps",
+          `Aggregate S: ${state.aggregate_s?.toFixed(2) ?? "unknown"}`,
+        ]);
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  // Check for CI configuration (automated execution evidence)
+  const ciPaths = [
+    ".github/workflows",
+    ".gitlab-ci.yml",
+    ".circleci/config.yml",
+    "Jenkinsfile",
+    ".travis.yml",
+    "azure-pipelines.yml",
+  ];
+  const hasCi = ciPaths.some((p) => existsSync(join(projectDir, p)));
+
+  if (hasCi) {
+    return gs("executable", 2, [
+      "Tests passed + CI pipeline configured (automated runtime execution evidence)",
+    ]);
+  }
+
+  return gs("executable", 1, [
+    "Tests passed locally but no CI configured and no verification-state.json",
+    "Local pass is necessary but not sufficient for pre-release — add CI or record_verification steps",
   ]);
 }
 
@@ -445,12 +563,11 @@ function buildExpectedTestPath(sourceFile: string, base: string): string {
  * Check whether a test file exists for a given source base name.
  * Checks across the entire file set (co-located or in tests/ mirror).
  */
-function testFileExists(
-  base: string,
-  allFiles: string[],
-): boolean {
+function testFileExists(base: string, allFiles: string[]): boolean {
   return allFiles.some(
-    (f) => isTestOrFixtureFile(f) && stripExtension(basename(f)).replace(/\.(test|spec)$/, "") === base,
+    (f) =>
+      isTestOrFixtureFile(f) &&
+      stripExtension(basename(f)).replace(/\.(test|spec)$/, "") === base,
   );
 }
 
@@ -465,21 +582,29 @@ function safeReadText(fullPath: string): string {
 
 /** True for TypeScript/JavaScript/Python/Kotlin/Rust source files. */
 function isSourceCodeFile(filePath: string): boolean {
-  return [".ts", ".tsx", ".js", ".jsx", ".py", ".kt", ".rs"].includes(extname(filePath));
+  return [".ts", ".tsx", ".js", ".jsx", ".py", ".kt", ".rs"].includes(
+    extname(filePath),
+  );
 }
 
 /** True for test or fixture files (should not require their own test). */
 function isTestOrFixtureFile(filePath: string): boolean {
-  return /(\btest[_.]|\.test\.|\.spec\.|__tests__|\/tests\/|\/test\/|\/fixtures\/|\/mocks?\/|conftest|\.d\.ts)/.test(filePath);
+  return /(\btest[_.]|\.test\.|\.spec\.|__tests__|\/tests\/|\/test\/|\/fixtures\/|\/mocks?\/|conftest|\.d\.ts)/.test(
+    filePath,
+  );
 }
 
 /** True for declaration, config, or infrastructure files. */
 function isConfigOrDeclaration(filePath: string): boolean {
-  return /(\.d\.ts|config\.|\.config\.|migration|seed|schema\.prisma|index\.ts)/.test(filePath);
+  return /(\.d\.ts|config\.|\.config\.|migration|seed|schema\.prisma|index\.ts)/.test(
+    filePath,
+  );
 }
 
 /** True if a file path is inside a route or controller directory. */
 function isRouteFile(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, "/");
-  return ROUTE_DIRS.some((dir) => new RegExp(`(^|/)${dir}/`, "i").test(normalized));
+  return ROUTE_DIRS.some((dir) =>
+    new RegExp(`(^|/)${dir}/`, "i").test(normalized),
+  );
 }

@@ -178,12 +178,65 @@ Treatment-v3 added, as GS artifacts prescribed in the CLAUDE.md:
 - ADD to `conclusions.md` a brief "Prescriptive at All Levels" synthesis paragraph:
   GS prescriptiveness must extend to dependency governance, not just architecture. The experiment shows that structural quality (layers, interfaces, tests) and dependency security are fully orthogonal — high GS scores do not imply low CVE counts unless the spec explicitly prescribes dependency auditing. Treatment-v3 tests whether making the AI the owner of a living approved-package registry closes this gap.
 
+- ADD §10.7 "Verifiable vs Executable — Two Distinct Quality Dimensions":
+  The treatment-v3 Hurl spec run revealed that GS Verifiable 2/2 and Executable 0/2 are
+  orthogonal. GS evaluates raw response content (does the code exist, is it well-structured,
+  are tests present?). It cannot detect whether the code compiles and routes correctly. The
+  route-wiring gap (app.ts not updated incrementally), the JWT StringValue type mismatch, and
+  the bio normalization bug were invisible to the rubric but fatal to runtime compliance.
+  Introduce the **Executable dimension (0–2)**: 0 = fails to compile or start, 1 = partial
+  spec pass (<80%), 2 = ≥80% of spec files pass. Record treatment-v3 as Verifiable 2/2 /
+  Executable 0/2 and explain why the runner design (--tools "") contributed to the gap.
+
+- ADD §10.8 "Main Conclusion: GS as a Specification-Completeness Amplifier":
+  This is the paper's central claim, supported by all five conditions.
+
+  Let $S \in [0, 1]$ be the **specification completeness** for a given quality dimension
+  (architecture, testing, dependency security, runtime compliance). Let $I(S)$ be the
+  expected number of human-feedback iterations required to reach a correct implementation
+  in that dimension. The empirical claim is:
+
+  $$I(S) \approx \frac{1}{S}$$
+
+  At $S = 1$ (formal executable spec, e.g. a Hurl suite): the verify loop closes
+  automatically in a single pass — no human judgment required. At $S \to 0$ (pure
+  creative output, undefined requirements): every iteration requires a human oracle.
+
+  GS is a **specification-completeness amplifier**: it raises $S$ before generation by
+  forcing human judgment into structured, reusable artifacts (ADRs, CLAUDE.md blocks,
+  approved-package registries, pre-commit hooks) rather than absorbing that judgment
+  reactively in post-generation prompts. Each treatment condition advances $S$ in one
+  additional dimension:
+
+  | Condition | Dimension advanced | Observable effect |
+  |---|---|---|
+  | naive | baseline (no amplification) | maximum gap in all dimensions |
+  | control | expert prompting | structural improvement only |
+  | treatment | architecture ADRs + CLAUDE.md | higher GS score |
+  | treatment-v2 | explicit test contracts per feature | 12/12 GS but CVE gap exposed |
+  | treatment-v3 | dependency registry + audit gate | 0 HIGH CVEs, runtime gap exposed |
+  | treatment-v4 | verify loop (tsc + jest feedback) | hypothesis: Executable 0→2 |
+
+  The CVE gap in treatment-v2 and the runtime gap in treatment-v3 are not failures of
+  the method — they are confirmations of the formula. Specification completeness in the
+  dependency-security and runtime-compliance dimensions was still low ($S \approx 0$),
+  so convergence required interventions that were not yet prescribed.
+
+  This framing is falsifiable and domain-independent. The open research question is
+  whether $S$ can be raised to near-1 across all dimensions for a given domain class,
+  enabling reliable single-pass generation.
+
 **Acceptance criteria:**
-- [ ] `conclusions.md` has §10 with all 6 subsections
+- [ ] `conclusions.md` has §10 with all 8 subsections
 - [ ] treatment-v3 npm audit HIGH count reported (expected: 0)
 - [ ] Whether `docs/approved-packages.md` was emitted in P1 is recorded (yes/no + what packages it listed)
 - [ ] Whether AI chose argon2 or bcrypt is explicitly reported
-- [ ] `data.md` updated with treatment-v3 column
+- [ ] §10.7 reports treatment-v3 Verifiable and Executable scores explicitly
+- [ ] §10.7 defines the Executable dimension (0–2) with criteria
+- [ ] §10.8 contains the $I(S) \approx 1/S$ formulation with the five-condition evidence table
+- [ ] §10.8 explains each treatment delta as an advancement of $S$ in a specific dimension
+- [ ] §10.8 states the main finding without overclaiming: directional, N=1 per condition
+- [ ] `data.md` updated with treatment-v3 column and Executable score row
 - [ ] `conditions.md` updated with treatment-v3 profile
 - [ ] No claim of statistical significance — N=1 run, directional finding only
 
@@ -191,5 +244,6 @@ Treatment-v3 added, as GS artifacts prescribed in the CLAUDE.md:
 - White paper register: principled, concise, practitioner-oriented — not implementation docs
 - Do NOT modify §1–§9 findings. Additive only.
 - If treatment-v3 did NOT eliminate CVEs (unexpected), record that faithfully and diagnose why the prescription was insufficient
+- §10.8 is the conclusion of the paper — write it last, after all §10.1–10.7 evidence is recorded
 
-**Commit message:** docs(white-paper): add §10 treatment-v3 dependency-registry results + prescriptive-at-all-levels synthesis
+**Commit message:** docs(white-paper): add §10 treatment-v3 results + Executable dimension + main conclusion I(S)≈1/S

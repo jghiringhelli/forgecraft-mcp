@@ -21,13 +21,19 @@ import type {
   CompositionConflict,
   ComposableSpec,
   BoundedSpec,
+  ExecutableResult,
 } from "../core/index.js";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 export const ADR_ARTIFACT_ID = "artifact:adr";
 
-const REQUIRED_ADR_SECTIONS = ["## Status", "## Context", "## Decision", "## Consequences"] as const;
+const REQUIRED_ADR_SECTIONS = [
+  "## Status",
+  "## Context",
+  "## Decision",
+  "## Consequences",
+] as const;
 const ADR_FILENAME_RE = /^\d{4}-[a-z0-9-]+\.md$/;
 
 /**
@@ -41,7 +47,8 @@ const ADR_FILENAME_RE = /^\d{4}-[a-z0-9-]+\.md$/;
  */
 export class AdrArtifact implements GenerativeSpec {
   readonly name = "Architectural Decision Records (ADRs)";
-  readonly purpose = "Records every structural decision with rationale so agents cannot contradict them without explicit supersession.";
+  readonly purpose =
+    "Records every structural decision with rationale so agents cannot contradict them without explicit supersession.";
   readonly covers = [
     "Technology choices (frameworks, databases, transports)",
     "Structural patterns (layered architecture, module boundaries)",
@@ -75,7 +82,11 @@ export class AdrArtifact implements GenerativeSpec {
         async run() {
           return existsSync(join(projectDir, "docs", "adrs"))
             ? { exitCode: 0, message: "docs/adrs/ found" }
-            : { exitCode: 1, message: "docs/adrs/ missing — create it and add ADR-0001 before the first commit" };
+            : {
+                exitCode: 1,
+                message:
+                  "docs/adrs/ missing — create it and add ADR-0001 before the first commit",
+              };
         },
       },
       {
@@ -85,42 +96,66 @@ export class AdrArtifact implements GenerativeSpec {
         async run() {
           const adrDir = join(projectDir, "docs", "adrs");
           if (!existsSync(adrDir)) return { exitCode: 0, message: "skipped" };
-          const invalid = readdirSync(adrDir)
-            .filter((f) => f.endsWith(".md") && f !== "template.md" && !ADR_FILENAME_RE.test(f));
+          const invalid = readdirSync(adrDir).filter(
+            (f) =>
+              f.endsWith(".md") &&
+              f !== "template.md" &&
+              !ADR_FILENAME_RE.test(f),
+          );
           return invalid.length === 0
             ? { exitCode: 0, message: "All ADR filenames valid" }
-            : { exitCode: 1, message: `Invalid ADR names: ${invalid.join(", ")}` };
+            : {
+                exitCode: 1,
+                message: `Invalid ADR names: ${invalid.join(", ")}`,
+              };
         },
       },
       {
         id: "adr-required-sections",
-        description: "Each ADR must contain: Status, Context, Decision, Consequences",
+        description:
+          "Each ADR must contain: Status, Context, Decision, Consequences",
         phase: "pre-commit",
         async run() {
           const adrDir = join(projectDir, "docs", "adrs");
           if (!existsSync(adrDir)) return { exitCode: 0, message: "skipped" };
           const failing: string[] = [];
-          for (const file of readdirSync(adrDir).filter((f) => ADR_FILENAME_RE.test(f))) {
+          for (const file of readdirSync(adrDir).filter((f) =>
+            ADR_FILENAME_RE.test(f),
+          )) {
             const content = readFileSync(join(adrDir, file), "utf-8");
-            const missing = REQUIRED_ADR_SECTIONS.filter((s) => !content.includes(s));
-            if (missing.length > 0) failing.push(`${file}: missing ${missing.join(", ")}`);
+            const missing = REQUIRED_ADR_SECTIONS.filter(
+              (s) => !content.includes(s),
+            );
+            if (missing.length > 0)
+              failing.push(`${file}: missing ${missing.join(", ")}`);
           }
           return failing.length === 0
             ? { exitCode: 0, message: "All ADRs well-formed" }
-            : { exitCode: 1, message: `Malformed ADRs:\n${failing.join("\n")}` };
+            : {
+                exitCode: 1,
+                message: `Malformed ADRs:\n${failing.join("\n")}`,
+              };
         },
       },
     ];
   }
 
   isInScope(artifactPath: string): boolean {
-    return artifactPath.startsWith("docs/adrs/") && artifactPath.endsWith(".md");
+    return (
+      artifactPath.startsWith("docs/adrs/") && artifactPath.endsWith(".md")
+    );
   }
 
   async verify(targetPath: string): Promise<ReadonlyArray<VerificationResult>> {
     const fullPath = join(this.projectDir, targetPath);
     if (!existsSync(fullPath)) {
-      return [{ passed: false, criterion: "file-exists", detail: `${targetPath} not found` }];
+      return [
+        {
+          passed: false,
+          criterion: "file-exists",
+          detail: `${targetPath} not found`,
+        },
+      ];
     }
     const content = readFileSync(fullPath, "utf-8");
     return REQUIRED_ADR_SECTIONS.map((section) => ({
@@ -138,13 +173,30 @@ export class AdrArtifact implements GenerativeSpec {
   }
 
   findDecision(topic: string): ArchDecision | undefined {
-    return this.decisions.find((d) =>
-      d.title.toLowerCase().includes(topic.toLowerCase()) ||
-      d.context.toLowerCase().includes(topic.toLowerCase()),
+    return this.decisions.find(
+      (d) =>
+        d.title.toLowerCase().includes(topic.toLowerCase()) ||
+        d.context.toLowerCase().includes(topic.toLowerCase()),
     );
   }
 
-  composeWith(_other: ComposableSpec & BoundedSpec): ReadonlyArray<CompositionConflict> {
-    return [];  // ADR corpus composes freely with all other specs
+  composeWith(
+    _other: ComposableSpec & BoundedSpec,
+  ): ReadonlyArray<CompositionConflict> {
+    return []; // ADR corpus composes freely with all other specs
+  }
+
+  async execute(
+    _targetPath: string,
+    _contractPath: string,
+  ): Promise<ExecutableResult> {
+    return {
+      passed: true,
+      passedCount: 0,
+      totalCount: 0,
+      executionEnvironment: "none",
+      detail:
+        "ADR artifacts are documentation — not applicable for runtime execution",
+    };
   }
 }

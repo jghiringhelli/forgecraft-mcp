@@ -19,6 +19,7 @@ import type {
   CompositionConflict,
   ComposableSpec,
   BoundedSpec,
+  ExecutableResult,
 } from "../core/index.js";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -36,7 +37,8 @@ export const CLAUDE_INSTRUCTIONS_ARTIFACT_ID = "artifact:claude-instructions";
  */
 export class ClaudeInstructionsArtifact implements GenerativeSpec {
   readonly name = "AI Instructions File (CLAUDE.md)";
-  readonly purpose = "Constrains agent behavior to project-specific coding standards, architecture, and commit discipline.";
+  readonly purpose =
+    "Constrains agent behavior to project-specific coding standards, architecture, and commit discipline.";
   readonly covers = [
     "Project identity and stack",
     "Code standards (fn length, file length, naming)",
@@ -65,7 +67,10 @@ export class ClaudeInstructionsArtifact implements GenerativeSpec {
       async run() {
         return existsSync("CLAUDE.md")
           ? { exitCode: 0, message: "CLAUDE.md found" }
-          : { exitCode: 1, message: "CLAUDE.md missing — run setup_project to generate" };
+          : {
+              exitCode: 1,
+              message: "CLAUDE.md missing — run setup_project to generate",
+            };
       },
     },
     {
@@ -73,29 +78,44 @@ export class ClaudeInstructionsArtifact implements GenerativeSpec {
       description: "CLAUDE.md must be ≤200 lines (token budget)",
       phase: "pre-commit",
       async run() {
-        if (!existsSync("CLAUDE.md")) return { exitCode: 0, message: "skipped" };
+        if (!existsSync("CLAUDE.md"))
+          return { exitCode: 0, message: "skipped" };
         const lines = readFileSync("CLAUDE.md", "utf-8").split("\n").length;
         return lines <= 200
           ? { exitCode: 0, message: `CLAUDE.md is ${lines} lines` }
-          : { exitCode: 1, message: `CLAUDE.md is ${lines} lines — over 200 line budget. Remove hook details and verbose explanations.` };
+          : {
+              exitCode: 1,
+              message: `CLAUDE.md is ${lines} lines — over 200 line budget. Remove hook details and verbose explanations.`,
+            };
       },
     },
   ];
 
-  constructor(readonly projectDir: string, version = "1.0.0") {
+  constructor(
+    readonly projectDir: string,
+    version = "1.0.0",
+  ) {
     this.version = version;
   }
 
   isInScope(artifactPath: string): boolean {
-    return artifactPath === "CLAUDE.md" ||
+    return (
+      artifactPath === "CLAUDE.md" ||
       artifactPath === ".github/copilot-instructions.md" ||
-      artifactPath === ".cursorrules";
+      artifactPath === ".cursorrules"
+    );
   }
 
   async verify(targetPath: string): Promise<ReadonlyArray<VerificationResult>> {
     const fullPath = join(this.projectDir, targetPath);
     if (!existsSync(fullPath)) {
-      return [{ passed: false, criterion: "file-exists", detail: `${targetPath} not found` }];
+      return [
+        {
+          passed: false,
+          criterion: "file-exists",
+          detail: `${targetPath} not found`,
+        },
+      ];
     }
 
     const content = readFileSync(fullPath, "utf-8");
@@ -113,9 +133,11 @@ export class ClaudeInstructionsArtifact implements GenerativeSpec {
         detail: `${lines.length}/200 lines`,
       },
       {
-        passed: !content.includes("pre-commit") && !content.includes(".claude/hooks"),
+        passed:
+          !content.includes("pre-commit") && !content.includes(".claude/hooks"),
         criterion: "no-hook-duplication",
-        detail: "Instruction files must not duplicate hook implementation details",
+        detail:
+          "Instruction files must not duplicate hook implementation details",
       },
     ];
   }
@@ -128,21 +150,41 @@ export class ClaudeInstructionsArtifact implements GenerativeSpec {
   }
 
   findDecision(topic: string): ArchDecision | undefined {
-    return this.decisions.find((d) =>
-      d.title.toLowerCase().includes(topic.toLowerCase()) ||
-      d.context.toLowerCase().includes(topic.toLowerCase()),
+    return this.decisions.find(
+      (d) =>
+        d.title.toLowerCase().includes(topic.toLowerCase()) ||
+        d.context.toLowerCase().includes(topic.toLowerCase()),
     );
   }
 
-  composeWith(other: ComposableSpec & BoundedSpec): ReadonlyArray<CompositionConflict> {
+  composeWith(
+    other: ComposableSpec & BoundedSpec,
+  ): ReadonlyArray<CompositionConflict> {
     if (other.isInScope("CLAUDE.md") && other.specId !== this.specId) {
-      return [{
-        specA: this.specId,
-        specB: other.specId,
-        conflictingProperty: "covers",
-        description: "Two specs both govern CLAUDE.md — only one instruction artifact spec may be active per project",
-      }];
+      return [
+        {
+          specA: this.specId,
+          specB: other.specId,
+          conflictingProperty: "covers",
+          description:
+            "Two specs both govern CLAUDE.md — only one instruction artifact spec may be active per project",
+        },
+      ];
     }
     return [];
+  }
+
+  async execute(
+    _targetPath: string,
+    _contractPath: string,
+  ): Promise<ExecutableResult> {
+    return {
+      passed: true,
+      passedCount: 0,
+      totalCount: 0,
+      executionEnvironment: "none",
+      detail:
+        "Instruction artifacts are documentation — not applicable for runtime execution",
+    };
   }
 }

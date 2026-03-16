@@ -3,12 +3,19 @@ section: verification
 title: "Contract-First Baseline Verification"
 description: >
   Applicable to every domain. Establishes type contracts, schema validation,
-  and unit-level assertions as the minimum completeness floor before any
-  domain-specific verification is applied. S = 0.4 is the best a project
-  can achieve with this strategy alone — domain strategies must layer on top.
+  unit-level assertions, and hardening gates as the completeness floor before
+  any domain-specific verification is applied.
+
+  Phases gate on release_phase: contract-definition + execution + evidence gates
+  are always active. pre-release-hardening gates are blocking at pre-release.
+  release-candidate gates are blocking at release-candidate.
+  deployment-gates and post-deployment gates are blocking at production.
+
+  S = 0.40 is achievable with the three base phases alone. Hardening phases
+  raise the ceiling to 0.90 — domain strategies supply the remaining 0.10.
 uncertainty_levels:
   - deterministic
-completeness_ceiling: 0.40
+completeness_ceiling: 0.90
 
 phases:
 
@@ -107,3 +114,244 @@ phases:
         tools: ["tsc --noEmit 2>&1 | grep 'error TS'"]
         expected_output: "Integer error count per pass"
         pass_criterion: "Error count = 0"
+
+  - id: pre-release-hardening
+    title: "Pre-Release Hardening Gates"
+    rationale: >
+      Before promoting to pre-release (beta/RC-candidate), the implementation
+      must survive adversarial conditions it will encounter in production:
+      mutant code that slips through tests, external attack vectors, load spikes,
+      and infrastructure failures. These gates are advisory during development
+      but blocking at release_phase = pre-release.
+    release_phase_gate: pre-release
+    steps:
+      - id: mutation-testing
+        instruction: >
+          Run mutation testing on changed files using Stryker (JS/TS) or mutmut (Python).
+          Mutation score on changed files must be ≥ 80%. A low mutation score means
+          tests pass but do not actually catch logic errors — the test suite is checking
+          the wrong things.
+          Configuration: stryker.config.json or .stryker.conf.json at project root.
+          Target only files modified in this release branch to keep runtime reasonable.
+        contract: >
+          Mutation score ≥ 80% on changed files. Stryker/mutmut exits with surviving-mutant
+          count below the 20% threshold for changed lines.
+        tools: ["stryker run", "mutmut run && mutmut results"]
+        expected_output: "Stryker HTML report or mutmut results table with mutation score"
+        pass_criterion: "Mutation score on changed files ≥ 80%"
+        requires_human_review: true
+
+      - id: dast-scan
+        instruction: >
+          Run OWASP ZAP dynamic analysis against a running instance of the service.
+          Use the baseline scan for APIs: `docker run -t owasp/zap2docker-stable
+          zap-api-scan.py -t <openapi-spec-url> -f openapi`.
+          All HIGH severity findings must be resolved before pre-release.
+          MEDIUM findings must be triaged (accepted with documented rationale or fixed).
+        contract: >
+          Zero HIGH severity findings from ZAP API scan.
+          Every MEDIUM finding has a documented disposition (fixed or accepted with ADR).
+        tools: ["owasp/zap2docker-stable", "zap-api-scan.py", "zap-baseline.py"]
+        expected_output: "ZAP HTML or JSON report with findings by severity"
+        pass_criterion: "Zero HIGH findings; all MEDIUM findings triaged"
+        requires_human_review: true
+
+      - id: load-test
+        instruction: >
+          Run a load test at 2× peak expected traffic using k6, Locust, or Artillery.
+          Peak is defined as the highest observed or projected request rate in the
+          production traffic model. Test duration: minimum 10 minutes.
+          Accept criteria: p95 latency ≤ SLA threshold; error rate < 1%.
+        contract: >
+          Under 2× peak load: p95 response time ≤ SLA; error rate < 1%;
+          no memory leak detected (heap stable across test duration).
+        tools: ["k6 run", "locust", "artillery run"]
+        expected_output: "k6/Locust/Artillery HTML or JSON summary with p50/p95/p99 and error rate"
+        pass_criterion: "p95 ≤ SLA; error rate < 1% sustained over test duration"
+        requires_human_review: true
+
+      - id: chaos-resilience
+        instruction: >
+          Inject one network failure and one dependency failure using Toxiproxy,
+          Chaos Monkey, or AWS Fault Injection Simulator.
+          The service must degrade gracefully: return 503 with Retry-After header
+          (not 500 or silent hang) when a downstream is unavailable.
+          Recovery time from injected failure must be ≤ 30 seconds.
+        contract: >
+          Service returns structured error response (not 500) when dependency fails.
+          Recovers automatically within 30 seconds of dependency restoration.
+          No data corruption or stuck transactions during failure window.
+        tools: ["toxiproxy-cli", "chaos-monkey", "aws fis"]
+        expected_output: "Chaos test report showing failure injection + recovery timeline"
+        pass_criterion: "Graceful degradation confirmed; recovery time ≤ 30s"
+        requires_human_review: true
+
+  - id: release-candidate
+    title: "Release Candidate Gates"
+    rationale: >
+      The release candidate is the last checkpoint before production. It must pass
+      security penetration testing, accessibility audit (if UI), full compatibility
+      matrix validation, and mutation testing at the overall (not just changed-files)
+      threshold. Human sign-off is required on all findings.
+    release_phase_gate: release-candidate
+    steps:
+      - id: penetration-testing
+        instruction: >
+          Perform OWASP Top 10 penetration testing. At minimum cover:
+          injection (SQL, command, LDAP), broken authentication (session fixation,
+          token leakage, brute-force), sensitive data exposure (TLS config, response
+          headers, error messages), broken access control (BOLA/IDOR, privilege
+          escalation, JWT algorithm confusion), security misconfiguration (default
+          creds, verbose errors), and XXE/XSS if a UI is present.
+          Use OWASP ZAP active scan + manual testing for BOLA/IDOR.
+        contract: >
+          Zero Critical or High CVSS ≥ 7.0 findings unresolved.
+          All Medium findings (CVSS 4.0–6.9) have documented disposition.
+          OWASP Top 10 categories fully covered in test plan.
+        tools: ["owasp/zap2docker-stable", "burpsuite", "sqlmap", "nikto"]
+        expected_output: "Penetration test report with CVSS scores, reproduction steps, and remediation status"
+        pass_criterion: "Zero unresolved High/Critical; all Medium triaged with ADR or fix"
+        requires_human_review: true
+
+      - id: mutation-testing-full
+        instruction: >
+          Run mutation testing against the full codebase (not just changed files).
+          Overall mutation score must be ≥ 80%. This validates that the entire
+          test suite is specification-grade, not just the code touched in this release.
+        contract: "Overall mutation score ≥ 80% across full codebase"
+        tools: ["stryker run --all-files", "mutmut run"]
+        expected_output: "Full mutation testing report with per-module scores"
+        pass_criterion: "Overall mutation score ≥ 80%"
+        requires_human_review: false
+
+      - id: compatibility-matrix
+        instruction: >
+          Validate the software against all supported runtime versions specified in
+          package.json engines field (Node.js), pyproject.toml (Python), or equivalent.
+          Run the full test suite against each supported major version.
+          If a database is used, validate against all supported DB major versions.
+        contract: >
+          Full test suite passes on every supported runtime version in the
+          declared compatibility matrix. Zero version-specific failures unreported.
+        tools: ["nvm use", "pyenv", "matrix CI strategy"]
+        expected_output: "CI matrix run report showing pass/fail per runtime version"
+        pass_criterion: "All tests pass on all declared runtime versions"
+        requires_human_review: false
+
+      - id: accessibility-audit
+        instruction: >
+          If the project has a user interface: run axe-core or Lighthouse accessibility
+          audit against all primary user journeys. WCAG 2.1 AA compliance required.
+          If no UI, mark this step as N/A with justification.
+        contract: "Zero WCAG 2.1 AA violations on primary user journeys, or step marked N/A with justification"
+        tools: ["axe-core", "lighthouse --only-categories=accessibility", "pa11y"]
+        expected_output: "axe/Lighthouse accessibility report or N/A justification"
+        pass_criterion: "Zero critical/serious axe violations; Lighthouse accessibility score ≥ 90"
+        requires_human_review: true
+
+  - id: deployment-gates
+    title: "Deployment Readiness Gates"
+    rationale: >
+      Before production deployment, the operational configuration must be validated:
+      canary or rolling deploy is configured, rollback threshold is defined and
+      tested, smoke tests cover the critical path, and observability is confirmed
+      active. These gates prevent deploying code that cannot be safely rolled back.
+    release_phase_gate: production
+    steps:
+      - id: canary-config
+        instruction: >
+          Confirm deployment strategy is configured (canary, blue-green, or rolling).
+          For canary: define the traffic split percentage and success threshold before
+          promoting to 100%. For rolling: define the max-surge and max-unavailable
+          settings. Document the rollback trigger condition (error rate threshold,
+          latency threshold, or health check failure count).
+        contract: >
+          Deployment strategy config present (k8s deployment, railway.json,
+          fly.toml, ECS service, or equivalent). Rollback trigger threshold
+          documented in runbook or infra config.
+        tools: ["kubectl", "fly", "railway", "aws ecs"]
+        expected_output: "Deployment config file + documented rollback threshold"
+        pass_criterion: "Deploy config present; rollback threshold defined and reachable in runbook"
+        requires_human_review: true
+
+      - id: smoke-tests
+        instruction: >
+          Define and run smoke tests covering the top 3–5 critical user journeys.
+          Smoke tests must be runnable against a live environment in < 60 seconds.
+          Use a tool that produces machine-readable output (Newman, Hurl, or k6).
+          These same tests will run automatically post-deploy.
+        contract: >
+          Smoke test suite exists, runs in < 60 seconds, and covers the critical path.
+          All smoke tests pass against staging before deploy to production.
+        tools: ["newman run", "hurl", "k6 run --vus 1"]
+        expected_output: "Smoke test results with pass/fail per scenario and total duration"
+        pass_criterion: "All smoke tests pass; total duration < 60s"
+        requires_human_review: false
+
+      - id: observability-verified
+        instruction: >
+          Confirm that structured logging, metrics, and alerting are active in the
+          target environment. Required: log aggregation (Datadog, Splunk, CloudWatch,
+          or equivalent), error rate alert (fires within 5 minutes of >1% error rate),
+          and latency alert (fires within 5 minutes of p95 > SLA). Run a synthetic
+          error and confirm the alert fires.
+        contract: >
+          Log aggregation active; error rate alert configured and tested;
+          latency alert configured and tested. Alert runbook linked in deploy notes.
+        tools: ["datadog", "cloudwatch", "grafana", "pagerduty"]
+        expected_output: "Screenshot or API response showing alerts active + test alert fired"
+        pass_criterion: "Synthetic error triggers alert within 5 minutes"
+        requires_human_review: true
+
+  - id: post-deployment
+    title: "Post-Deployment Health Verification"
+    rationale: >
+      After production deployment, synthetic probes and observability must confirm
+      that the new version is serving traffic correctly. The deployment is not
+      complete until post-deployment verification passes. If it fails, rollback
+      is the default response — not patching in production.
+    release_phase_gate: production
+    steps:
+      - id: synthetic-health-probes
+        instruction: >
+          Run the smoke test suite against the production environment within 5 minutes
+          of deploy completion. All smoke tests must pass against production.
+          If any smoke test fails, trigger rollback immediately without human intervention
+          (automate if possible; manual fallback: rollback within 10 minutes).
+        contract: >
+          All smoke tests pass against production within 5 minutes of deployment.
+          Rollback is initiated automatically or within 10 minutes if any smoke test fails.
+        tools: ["newman run", "hurl", "k6 run --vus 1"]
+        expected_output: "Post-deploy smoke test results with timestamp"
+        pass_criterion: "All smoke tests pass against production; timestamp within 5 min of deploy"
+        requires_human_review: false
+
+      - id: error-rate-monitoring
+        instruction: >
+          Monitor the error rate for 30 minutes after deployment. Error rate must stay
+          below the rollback threshold. Compare p95 latency against pre-deploy baseline
+          (from load test results). If error rate spikes above threshold or latency
+          degrades > 20% vs baseline, initiate rollback.
+        contract: >
+          Error rate stays below rollback threshold for 30 minutes post-deploy.
+          p95 latency does not degrade > 20% vs pre-deploy baseline.
+        tools: ["datadog", "cloudwatch", "grafana"]
+        expected_output: "30-minute error rate and latency time series with baseline comparison"
+        pass_criterion: "Error rate below threshold; latency within 20% of baseline for 30 min"
+        requires_human_review: true
+
+      - id: incident-runbook-verified
+        instruction: >
+          Confirm that the incident runbook for this service is current and accessible.
+          The runbook must cover: how to roll back this version, how to escalate,
+          how to check the canary status, and how to interpret the health dashboard.
+          Have one team member who was not involved in the deployment review and
+          confirm the runbook is complete.
+        contract: >
+          Incident runbook exists at docs/runbooks/<service>.md or equivalent.
+          Runbook covers rollback, escalation, canary status, and dashboard links.
+          Independent review confirmed by a second team member.
+        tools: ["docs/runbooks/"]
+        expected_output: "Runbook link + peer review confirmation"
+        pass_criterion: "Runbook current; independent reviewer confirms completeness"
+        requires_human_review: true

@@ -763,7 +763,8 @@ export type GsProperty =
   | "verifiable"
   | "defended"
   | "auditable"
-  | "composable";
+  | "composable"
+  | "executable";
 
 /** Score (0–2) for a single GS property with supporting evidence. */
 export interface GsPropertyScore {
@@ -799,7 +800,7 @@ export interface MissingTestFile {
 export interface VerifyResult {
   readonly testSuite: TestSuiteResult;
   readonly propertyScores: GsPropertyScore[];
-  /** Sum of all property scores (max 12). */
+  /** Sum of all property scores (max 14, 7 properties × 2). */
   readonly totalScore: number;
   readonly layerViolations: LayerViolation[];
   readonly missingTestFiles: MissingTestFile[];

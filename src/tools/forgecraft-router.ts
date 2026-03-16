@@ -49,6 +49,7 @@ import {
   recordVerificationHandler,
   getVerificationStatusHandler,
 } from "./verification-state.js";
+import { generateAdrHandler } from "./generate-adr.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -73,6 +74,7 @@ const ACTIONS = [
   "get_verification_strategy",
   "record_verification",
   "verification_status",
+  "generate_adr",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -95,20 +97,21 @@ export const forgecraftSchema = z.object({
         "generate (instruction files only), audit (check standards), review (code review checklist), " +
         "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
         "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
-        "verify (run tests + score §4.3 GS properties + report layer violations), " +
+        "verify (run tests + score all seven §4.3 GS properties 0–14 + report layer violations), " +
         "advice (quality cycle checklist + tool stack + example configs for your tags), " +
         "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation), " +
         "check_cascade (derivability gate: verify all 5 GS init cascade steps are complete before implementation begins), " +
         "generate_session_prompt (produce a bound, self-contained session prompt for a single roadmap item), " +
         "get_verification_strategy (uncertainty-aware verification plan: contracts + execution technique per domain — API=Hurl, WEB-REACT=Playwright+vision, GAME=headless sim+Aseprite, FINTECH=statistical sim, ML=warm runs+pruning), " +
         "record_verification (upsert acceptance decision for one verification step, returns updated S_realized), " +
-        "verification_status (full per-project acceptance report: S per tag, blocking items, aggregate S).",
+        "verification_status (full per-project acceptance report: S per tag, blocking items, aggregate S), " +
+        "generate_adr (emit a structured Architecture Decision Record file into docs/adrs/ with auto-sequenced number).",
     ),
   project_dir: z
     .string()
     .optional()
     .describe(
-      "Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify, metrics, record_verification, verification_status. Optional for: classify, advice, get_verification_strategy.",
+      "Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify, metrics, record_verification, verification_status, generate_adr. Optional for: classify, advice, get_verification_strategy.",
     ),
   tags: z
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
@@ -255,10 +258,10 @@ export const forgecraftSchema = z.object({
     .number()
     .int()
     .min(0)
-    .max(12)
+    .max(14)
     .optional()
     .describe(
-      "Minimum §4.3 GS score (0–12) required for overall pass. Used by: verify. Default: 10.",
+      "Minimum §4.3 GS score (0–14, 7 properties × 2) required for overall pass. Used by: verify. Default: 11.",
     ),
   include_mutation: z
     .boolean()
@@ -349,6 +352,36 @@ export const forgecraftSchema = z.object({
     .optional()
     .describe(
       "Evidence or justification for a verification decision. Used by: record_verification.",
+    ),
+  adr_title: z
+    .string()
+    .optional()
+    .describe(
+      "Short imperative title of the architectural decision (e.g. 'Use PostgreSQL for primary storage'). Used by: generate_adr.",
+    ),
+  adr_context: z
+    .string()
+    .optional()
+    .describe(
+      "The situation that forced this decision — constraints, requirements, forces at play. Used by: generate_adr.",
+    ),
+  adr_decision: z
+    .string()
+    .optional()
+    .describe(
+      "What was decided and why this option was chosen over alternatives. Used by: generate_adr.",
+    ),
+  adr_alternatives: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "List of alternatives considered and why each was rejected. Used by: generate_adr.",
+    ),
+  adr_consequences: z
+    .string()
+    .optional()
+    .describe(
+      "Positive and negative consequences of the decision — what becomes easier, harder, or constrained. Used by: generate_adr.",
     ),
 });
 
@@ -473,7 +506,7 @@ export async function forgecraftHandler(
         project_dir: requireParam(args.project_dir, "project_dir", "verify"),
         test_command: args.test_command,
         timeout_ms: args.timeout_ms ?? 120_000,
-        pass_threshold: args.pass_threshold ?? 10,
+        pass_threshold: args.pass_threshold ?? 11,
       });
 
     case "advice":
@@ -567,6 +600,20 @@ export async function forgecraftHandler(
         ),
         tags: args.tags as Tag[] | undefined,
         show_pending_only: args.show_pending_only ?? false,
+      });
+
+    case "generate_adr":
+      return generateAdrHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "generate_adr",
+        ),
+        title: requireParam(args.adr_title, "adr_title", "generate_adr"),
+        context: args.adr_context,
+        decision: args.adr_decision,
+        alternatives: args.adr_alternatives,
+        consequences: args.adr_consequences,
       });
 
     default:

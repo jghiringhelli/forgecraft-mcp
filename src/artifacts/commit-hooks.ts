@@ -21,6 +21,7 @@ import type {
   CompositionConflict,
   ComposableSpec,
   BoundedSpec,
+  ExecutableResult,
 } from "../core/index.js";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -45,7 +46,8 @@ const REQUIRED_HOOKS = [
  */
 export class CommitHooksArtifact implements GenerativeSpec {
   readonly name = "Pre-commit Hooks (Automated Enforcement)";
-  readonly purpose = "Rejects non-conforming commits before they enter the repository, making all other spec properties self-defending.";
+  readonly purpose =
+    "Rejects non-conforming commits before they enter the repository, making all other spec properties self-defending.";
   readonly covers = [
     "Temporary/draft file prevention",
     "Secret scanning",
@@ -67,7 +69,10 @@ export class CommitHooksArtifact implements GenerativeSpec {
 
   readonly gates: ReadonlyArray<QualityGate>;
 
-  constructor(readonly projectDir: string, version = "1.0.0") {
+  constructor(
+    readonly projectDir: string,
+    version = "1.0.0",
+  ) {
     this.version = version;
     this.gates = [
       {
@@ -77,7 +82,10 @@ export class CommitHooksArtifact implements GenerativeSpec {
         async run() {
           const hooksDir = join(projectDir, ".claude", "hooks");
           if (!existsSync(hooksDir)) {
-            return { exitCode: 1, message: ".claude/hooks/ not found — run scripts/setup-hooks.sh" };
+            return {
+              exitCode: 1,
+              message: ".claude/hooks/ not found — run scripts/setup-hooks.sh",
+            };
           }
           const present = new Set(readdirSync(hooksDir));
           const missing = REQUIRED_HOOKS.filter((h) => !present.has(h));
@@ -88,12 +96,17 @@ export class CommitHooksArtifact implements GenerativeSpec {
       },
       {
         id: "git-hooks-installed",
-        description: ".git/hooks/pre-commit must exist (hooks installed via setup-hooks.sh)",
+        description:
+          ".git/hooks/pre-commit must exist (hooks installed via setup-hooks.sh)",
         phase: "pre-commit",
         async run() {
           return existsSync(join(projectDir, ".git", "hooks", "pre-commit"))
             ? { exitCode: 0, message: ".git/hooks/pre-commit installed" }
-            : { exitCode: 1, message: ".git/hooks/pre-commit missing — run: bash scripts/setup-hooks.sh" };
+            : {
+                exitCode: 1,
+                message:
+                  ".git/hooks/pre-commit missing — run: bash scripts/setup-hooks.sh",
+              };
         },
       },
       {
@@ -103,16 +116,22 @@ export class CommitHooksArtifact implements GenerativeSpec {
         async run() {
           return existsSync(join(projectDir, "scripts", "setup-hooks.sh"))
             ? { exitCode: 0, message: "scripts/setup-hooks.sh present" }
-            : { exitCode: 1, message: "scripts/setup-hooks.sh missing — hooks cannot be installed on fresh clones" };
+            : {
+                exitCode: 1,
+                message:
+                  "scripts/setup-hooks.sh missing — hooks cannot be installed on fresh clones",
+              };
         },
       },
     ];
   }
 
   isInScope(artifactPath: string): boolean {
-    return artifactPath.startsWith(".claude/hooks/") ||
+    return (
+      artifactPath.startsWith(".claude/hooks/") ||
       artifactPath.startsWith(".git/hooks/") ||
-      artifactPath === "scripts/setup-hooks.sh";
+      artifactPath === "scripts/setup-hooks.sh"
+    );
   }
 
   async verify(targetPath: string): Promise<ReadonlyArray<VerificationResult>> {
@@ -133,10 +152,28 @@ export class CommitHooksArtifact implements GenerativeSpec {
   }
 
   findDecision(topic: string): ArchDecision | undefined {
-    return this.decisions.find((d) => d.title.toLowerCase().includes(topic.toLowerCase()));
+    return this.decisions.find((d) =>
+      d.title.toLowerCase().includes(topic.toLowerCase()),
+    );
   }
 
-  composeWith(_other: ComposableSpec & BoundedSpec): ReadonlyArray<CompositionConflict> {
-    return [];  // Hook artifacts never conflict; they compose additively
+  composeWith(
+    _other: ComposableSpec & BoundedSpec,
+  ): ReadonlyArray<CompositionConflict> {
+    return []; // Hook artifacts never conflict; they compose additively
+  }
+
+  async execute(
+    _targetPath: string,
+    _contractPath: string,
+  ): Promise<ExecutableResult> {
+    return {
+      passed: true,
+      passedCount: 0,
+      totalCount: 0,
+      executionEnvironment: "none",
+      detail:
+        "Hook artifacts are enforcement tooling — not applicable for runtime execution",
+    };
   }
 }

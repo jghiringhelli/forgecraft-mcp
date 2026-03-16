@@ -23,11 +23,13 @@ import type {
   CompositionConflict,
   ComposableSpec,
   BoundedSpec,
+  ExecutableResult,
 } from "../core/index.js";
 
 export const COMMIT_HISTORY_ARTIFACT_ID = "artifact:commit-history";
 
-const CONVENTIONAL_COMMIT_RE = /^(feat|fix|refactor|docs|test|chore|perf|ci|build|revert)(\([a-z0-9/-]+\))?(!)?: .{1,72}$/;
+const CONVENTIONAL_COMMIT_RE =
+  /^(feat|fix|refactor|docs|test|chore|perf|ci|build|revert)(\([a-z0-9/-]+\))?(!)?: .{1,72}$/;
 
 /**
  * Represents the git commit history discipline as a GenerativeSpec artifact.
@@ -39,7 +41,8 @@ const CONVENTIONAL_COMMIT_RE = /^(feat|fix|refactor|docs|test|chore|perf|ci|buil
  */
 export class CommitHistoryArtifact implements GenerativeSpec {
   readonly name = "Commit History (Conventional Commits + SemVer)";
-  readonly purpose = "Makes change history machine-readable so agents know what changed without reading diffs.";
+  readonly purpose =
+    "Makes change history machine-readable so agents know what changed without reading diffs.";
   readonly covers = [
     "Commit message format validation",
     "Semantic version bump rules",
@@ -70,7 +73,10 @@ export class CommitHistoryArtifact implements GenerativeSpec {
     },
   ];
 
-  constructor(readonly projectDir: string, version = "1.0.0") {
+  constructor(
+    readonly projectDir: string,
+    version = "1.0.0",
+  ) {
     this.version = version;
   }
 
@@ -82,8 +88,8 @@ export class CommitHistoryArtifact implements GenerativeSpec {
 
   /** Determine the required semver bump from a set of commit messages. */
   determineBump(messages: ReadonlyArray<string>): "major" | "minor" | "patch" {
-    const hasBreaking = messages.some((m) =>
-      m.includes("BREAKING CHANGE") || m.match(/^[a-z]+(\([^)]+\))?!:/),
+    const hasBreaking = messages.some(
+      (m) => m.includes("BREAKING CHANGE") || m.match(/^[a-z]+(\([^)]+\))?!:/),
     );
     if (hasBreaking) return "major";
     const hasFeat = messages.some((m) => m.startsWith("feat"));
@@ -92,12 +98,16 @@ export class CommitHistoryArtifact implements GenerativeSpec {
   }
 
   isInScope(artifactPath: string): boolean {
-    return artifactPath === "CHANGELOG.md" ||
+    return (
+      artifactPath === "CHANGELOG.md" ||
       artifactPath === ".commitlintrc.js" ||
-      artifactPath === "package.json";
+      artifactPath === "package.json"
+    );
   }
 
-  async verify(_targetPath: string): Promise<ReadonlyArray<VerificationResult>> {
+  async verify(
+    _targetPath: string,
+  ): Promise<ReadonlyArray<VerificationResult>> {
     return [
       {
         passed: true,
@@ -115,10 +125,28 @@ export class CommitHistoryArtifact implements GenerativeSpec {
   }
 
   findDecision(topic: string): ArchDecision | undefined {
-    return this.decisions.find((d) => d.title.toLowerCase().includes(topic.toLowerCase()));
+    return this.decisions.find((d) =>
+      d.title.toLowerCase().includes(topic.toLowerCase()),
+    );
   }
 
-  composeWith(_other: ComposableSpec & BoundedSpec): ReadonlyArray<CompositionConflict> {
+  composeWith(
+    _other: ComposableSpec & BoundedSpec,
+  ): ReadonlyArray<CompositionConflict> {
     return [];
+  }
+
+  async execute(
+    _targetPath: string,
+    _contractPath: string,
+  ): Promise<ExecutableResult> {
+    return {
+      passed: true,
+      passedCount: 0,
+      totalCount: 0,
+      executionEnvironment: "none",
+      detail:
+        "Commit history artifacts are documentation — not applicable for runtime execution",
+    };
   }
 }

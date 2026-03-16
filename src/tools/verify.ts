@@ -5,7 +5,7 @@
  *   1. Runs the project test suite
  *   2. Detects direct-DB calls in route/controller files (Bounded violations)
  *   3. Detects source modules without test files (Verifiable gaps)
- *   4. Scores all six §4.3 GS properties (0–2 each, max 12)
+ *   4. Scores all seven §4.3 GS properties (0–2 each, max 14)
  *   5. Returns a structured report with overall pass/fail
  */
 
@@ -13,7 +13,11 @@ import { z } from "zod";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { scoreGsProperties, findDirectDbCallsInRoutes, findMissingTestFiles } from "../analyzers/gs-scorer.js";
+import {
+  scoreGsProperties,
+  findDirectDbCallsInRoutes,
+  findMissingTestFiles,
+} from "../analyzers/gs-scorer.js";
 import { analyzeProject } from "../analyzers/package-json.js";
 import { loadUserOverrides } from "../registry/loader.js";
 import type { VerifyResult, GsPropertyScore, Tag } from "../shared/types.js";
@@ -29,21 +33,25 @@ export const verifySchema = z.object({
     .optional()
     .describe(
       "Test command to run. Defaults to the `test` script in package.json, " +
-      "or `npm test` if not found.",
+        "or `npm test` if not found.",
     ),
   timeout_ms: z
     .number()
     .int()
     .positive()
     .default(120_000)
-    .describe("Maximum milliseconds to wait for the test suite. Default: 120 000 (2 min)."),
+    .describe(
+      "Maximum milliseconds to wait for the test suite. Default: 120 000 (2 min).",
+    ),
   pass_threshold: z
     .number()
     .int()
     .min(0)
-    .max(12)
-    .default(10)
-    .describe("Minimum GS score (out of 12) required for overall pass. Default: 10."),
+    .max(14)
+    .default(11)
+    .describe(
+      "Minimum GS score (out of 14, 7 properties × 2) required for overall pass. Default: 11.",
+    ),
 });
 
 export type VerifyInput = z.infer<typeof verifySchema>;
@@ -109,7 +117,11 @@ function detectTagDrift(projectDir: string): string | null {
   if (!config?.tags || config.tags.length === 0) return null;
 
   const storedTags = new Set<string>(config.tags);
-  let detections: Array<{ tag: string; confidence: number; evidence: string[] }>;
+  let detections: Array<{
+    tag: string;
+    confidence: number;
+    evidence: string[];
+  }>;
   try {
     detections = analyzeProject(projectDir);
   } catch {
@@ -117,8 +129,11 @@ function detectTagDrift(projectDir: string): string | null {
   }
 
   const newTags = detections
-    .filter(d => d.confidence >= 0.8 && !storedTags.has(d.tag))
-    .map(d => `- \`${d.tag as Tag}\` (${Math.round(d.confidence * 100)}% confidence) — ${d.evidence.slice(0, 3).join(", ")}`);
+    .filter((d) => d.confidence >= 0.8 && !storedTags.has(d.tag))
+    .map(
+      (d) =>
+        `- \`${d.tag as Tag}\` (${Math.round(d.confidence * 100)}% confidence) — ${d.evidence.slice(0, 3).join(", ")}`,
+    );
 
   if (newTags.length === 0) return null;
 
@@ -145,7 +160,10 @@ function detectTagDrift(projectDir: string): string | null {
  * @param explicitCommand - User-provided override, if any
  * @returns Shell command string to execute
  */
-function resolveTestCommand(projectDir: string, explicitCommand: string | undefined): string {
+function resolveTestCommand(
+  projectDir: string,
+  explicitCommand: string | undefined,
+): string {
   if (explicitCommand) return explicitCommand;
 
   const pkgPath = join(projectDir, "package.json");
@@ -174,7 +192,10 @@ function runTestSuite(
 ): VerifyResult["testSuite"] {
   const start = Date.now();
 
-  const [cmd, ...cmdArgs] = command.split(/\s+/).filter(Boolean) as [string, ...string[]];
+  const [cmd, ...cmdArgs] = command.split(/\s+/).filter(Boolean) as [
+    string,
+    ...string[],
+  ];
 
   const result = spawnSync(cmd, cmdArgs, {
     cwd: projectDir,
@@ -185,7 +206,10 @@ function runTestSuite(
   });
 
   const durationMs = Date.now() - start;
-  const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+  const output = [result.stdout, result.stderr]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
   const timedOut = result.error?.message?.includes("ETIMEDOUT");
   const exitCode = timedOut ? -1 : (result.status ?? 1);
 
@@ -229,7 +253,9 @@ function formatReport(result: VerifyResult, threshold: number): string {
   // GS property scores
   lines.push("## §4.3 GS Property Scores");
   lines.push("");
-  lines.push(`**Total: ${result.totalScore}/12** (pass threshold: ${threshold})`);
+  lines.push(
+    `**Total: ${result.totalScore}/12** (pass threshold: ${threshold})`,
+  );
   lines.push("");
   lines.push("| Property | Score | Evidence |");
   lines.push("|---|---|---|");
@@ -251,7 +277,9 @@ function formatReport(result: VerifyResult, threshold: number): string {
     lines.push(`❌ ${result.layerViolations.length} violation(s):`);
     lines.push("");
     for (const v of result.layerViolations) {
-      lines.push(`- \`${v.file}:${v.line}\` — \`${v.snippet.trim().slice(0, 100)}\``);
+      lines.push(
+        `- \`${v.file}:${v.line}\` — \`${v.snippet.trim().slice(0, 100)}\``,
+      );
     }
   }
   lines.push("");
@@ -261,7 +289,9 @@ function formatReport(result: VerifyResult, threshold: number): string {
   if (result.missingTestFiles.length === 0) {
     lines.push("✅ All source modules have test counterparts");
   } else {
-    lines.push(`⚠️  ${result.missingTestFiles.length} module(s) without tests:`);
+    lines.push(
+      `⚠️  ${result.missingTestFiles.length} module(s) without tests:`,
+    );
     lines.push("");
     for (const m of result.missingTestFiles.slice(0, 20)) {
       lines.push(`- \`${m.sourceFile}\` → expected \`${m.expectedTestFile}\``);
@@ -274,7 +304,9 @@ function formatReport(result: VerifyResult, threshold: number): string {
 
   // Summary
   lines.push("---");
-  lines.push(`**Overall: ${result.overallPass ? "✅ PASS" : "❌ FAIL"}** · Score ${result.totalScore}/12 · Threshold ${threshold}/12`);
+  lines.push(
+    `**Overall: ${result.overallPass ? "✅ PASS" : "❌ FAIL"}** · Score ${result.totalScore}/12 · Threshold ${threshold}/12`,
+  );
 
   return lines.join("\n");
 }
@@ -297,5 +329,8 @@ function formatPropertyName(p: GsPropertyScore): string {
 function truncateLines(text: string, maxLines: number): string {
   const lines = text.split("\n");
   if (lines.length <= maxLines) return text;
-  return [...lines.slice(0, maxLines), `… (${lines.length - maxLines} more lines)`].join("\n");
+  return [
+    ...lines.slice(0, maxLines),
+    `… (${lines.length - maxLines} more lines)`,
+  ].join("\n");
 }
