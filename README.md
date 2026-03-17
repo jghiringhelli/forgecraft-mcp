@@ -1,7 +1,7 @@
 <p align="center">
   <h1 align="center">ForgeCraft</h1>
   <p align="center">
-    <strong>Production engineering standards for any AI coding assistant.</strong>
+    <strong>The quality contract your AI coding assistant works within.</strong>
   </p>
   <p align="center">
     <a href="https://www.npmjs.com/package/forgecraft-mcp"><img src="https://img.shields.io/npm/v/forgecraft-mcp.svg" alt="npm version"></a>
@@ -12,17 +12,115 @@
 
 ---
 
-An AI session starts stateless. Without an explicit, self-contained specification — a grammar the AI reads before every session — output drifts with every context boundary. Architecture erodes one generation at a time.
+> You hired an AI engineer. It's brilliant. It also installed the same 14 VS Code extensions twice today, spun up 6 Docker containers it will never clean up, and your disk went from 12 GB free to 0 KB in one session.
+>
+> A full disk doesn't fail gracefully. It kills VS Code, the terminal, Docker, and the database simultaneously.
 
-**[Generative Specification](https://github.com/jghiringhelli/forgecraft-mcp)** is the discipline that addresses this structurally. ForgeCraft is its toolchain: it writes the grammar your AI needs to produce coherent, standards-consistent output across every session — not just the first one.
-
-**Supports:** Claude (CLAUDE.md) · Cursor (.cursor/rules/) · GitHub Copilot (.github/copilot-instructions.md) · Windsurf (.windsurfrules) · Cline (.clinerules) · Aider (CONVENTIONS.md)
+ForgeCraft is the quality contract your AI coding assistant works within — so it builds fast **and** doesn't burn down the house.
 
 ```bash
 npx forgecraft-mcp setup .
 ```
 
+**Supports:** Claude (CLAUDE.md) · Cursor (.cursor/rules/) · GitHub Copilot (.github/copilot-instructions.md) · Windsurf (.windsurfrules) · Cline (.clinerules) · Aider (CONVENTIONS.md)
+
+---
+
+## The only formal quality framework built for AI-generated code
+
+Every session, every project, every AI assistant — measured against the same 7-property **Generative Specification** model. Not vibes. Not a linter score. A score out of 14 that tells you exactly where the gap is and why.
+
+```
+$ npx forgecraft-mcp verify .
+
+| Property        | Score | Evidence                                        |
+|-----------------|-------|-------------------------------------------------|
+| Self-Describing | ✅ 2/2 | CLAUDE.md — 352 non-empty lines                |
+| Bounded         | ✅ 2/2 | No direct DB calls in route files              |
+| Verifiable      | ✅ 2/2 | 64 test files — 87% coverage                   |
+| Defended        | ✅ 2/2 | Pre-commit hook + lint config present           |
+| Auditable       | ✅ 2/2 | 11 ADRs in docs/adrs/ + Status.md              |
+| Composable      | ✅ 2/2 | Service layer + repository layer detected       |
+| Executable      | ✅ 2/2 | Tests passed + CI pipeline configured           |
+
+Total: 14/14 ✅ PASS · Threshold 11/14
+```
+
+| Property | What it checks |
+|---|---|
+| **Self-Describing** | Does the codebase explain itself without you? |
+| **Bounded** | Is business logic leaking into your routes? |
+| **Verifiable** | Are there tests, and did they pass in a real runtime? |
+| **Defended** | Are hooks blocking bad commits before they land? |
+| **Auditable** | Is every architectural decision recorded and findable? |
+| **Composable** | Can you swap the database without touching the domain? |
+| **Executable** | Is there CI evidence this thing actually ran? |
+
+---
+
+## Dev environment hygiene — enforced by convention
+
+ForgeCraft injects enforceable rules into every project's AI instructions that make environment pollution a convention violation, not an incident.
+
+**VS Code extensions**
+Before installing: `code --list-extensions | grep -i <name>`. Only install if no version in the required major range is already present. The same extension doesn't get downloaded twice in the same day.
+
+**Docker containers**
+Check before creating: `docker ps -a --filter name=<service>`. If it exists, start it — don't create it. Prefer `docker compose up` (reuse) over bare `docker run` (always creates new). Logs capped at 500 MB. `docker system prune -f` is documented as a periodic maintenance step, not an emergency.
+
+**Python virtual environments**
+One `.venv` per project root. Reuse if the Python major.minor version matches. Never create a venv in a subdirectory unless it's a standalone installable package. Unused dependencies flagged by `pip list --not-required`.
+
+**Synthetic and time-series data**
+Before writing more than 100 MB of generated data, the AI asks: retain raw, condense statistically, or delete after the run? Synthetic datasets older than 7 days with no code reference: ask to delete.
+
+**General**
+If the workspace grows beyond 2 GB outside of known build artifacts (`node_modules/`, `.venv/`, `dist/`), surface a warning and stop. Never silently grow the workspace.
+
+---
+
+## Project setup in one sentence
+
+```
+Read the spec in docs/specs/, set up this project with ForgeCraft,
+scaffold it with the right tags, recommend the tech stack, start building.
+```
+
+That's the entire onboarding prompt. ForgeCraft reads the spec, picks the tags, writes the `CLAUDE.md`, emits `Status.md`, `docs/adrs/`, `docs/PRD.md`, `docs/TechSpec.md`, hooks, and skills. The AI has full context. You start building.
+
 ForgeCraft scans your project, auto-detects your stack, and generates tailored instruction files from 116 curated blocks — SOLID, hexagonal architecture, testing pyramids, CI/CD, and 24 domain-specific rule sets — in seconds.
+
+---
+
+## Quality gates that match your release phase
+
+Not a fixed checklist. Seven phases, each with gates that make sense for where you actually are.
+
+| Phase | Gates |
+|---|---|
+| **development** | Unit tests pass · lint clean · no layer violations · no hardcoded secrets |
+| **pre-release hardening** | Mutation testing ≥80% · DAST scan · 2× peak load · chaos (Toxiproxy) |
+| **release candidate** | OWASP Top 10 pentest · full mutation audit · compatibility matrix · accessibility |
+| **deployment gates** | Canary config verified · smoke tests pass · observability confirmed |
+| **post-deployment** | Synthetic probes live · 30-min error window monitored · incident runbook reviewed |
+
+Every hardening step is tagged `requires_human_review: true`. Some gates require a human. ForgeCraft knows which ones.
+
+---
+
+## ADRs, automatically sequenced
+
+Every non-obvious architectural decision gets recorded. ForgeCraft auto-sequences `docs/adrs/NNNN-slug.md` in MADR format — context, decision, alternatives, consequences. Your AI assistant reasons about past choices. Your team stops re-litigating them.
+
+```bash
+npx forgecraft-mcp generate_adr . --title "Use event sourcing for order history" \
+  --status Accepted \
+  --context "Order mutations need full audit trail for compliance" \
+  --decision "Append-only event log, project current state on read"
+# → docs/adrs/0004-use-event-sourcing-for-order-history.md
+```
+
+---
 
 ## `claude init` vs ForgeCraft
 
@@ -30,17 +128,17 @@ ForgeCraft scans your project, auto-detects your stack, and generates tailored i
 
 | | `claude init` | ForgeCraft |
 |---|---|---|
-| **Instruction file** | Generic, one-size-fits-all | 112 curated blocks matched to your stack |
+| **Instruction file** | Generic, one-size-fits-all | 116 curated blocks matched to your stack |
 | **AI assistants** | Claude only | Claude, Cursor, Copilot, Windsurf, Cline, Aider |
 | **Architecture** | None | SOLID, hexagonal, clean code, DDD |
-| **Testing** | Basic mention | Testing pyramid with coverage targets (80%+) |
-| **Domain rules** | None | 18 domains (fintech, healthcare, gaming…) |
-| **Commit standards** | None | Conventional commits, atomic changes |
-| **Quality gates** | None | Pre-commit hooks that enforce standards |
-| **CI/CD** | None | Pipeline stages, environments, deploy guidance |
+| **Testing** | Basic mention | Testing pyramid, coverage targets, mutation gates |
+| **Domain rules** | None | 24 domains (fintech, healthcare, gaming…) |
+| **Quality score** | None | GS score out of 14 — know exactly where the gap is |
+| **Release phases** | None | 7 phases from development through post-deployment |
+| **Dev hygiene** | None | VS Code, Docker, Python venv, disk guard |
+| **ADRs** | None | Auto-sequenced, MADR format |
 | **Session continuity** | None | `Status.md` + `forgecraft.yaml` persist context |
 | **Drift detection** | None | `refresh` detects scope changes |
-| **Compliance scoring** | None | `audit` scores 0-100 |
 
 ## How It Works
 
@@ -218,6 +316,27 @@ Add to `.claude/settings.json`:
 </details>
 
 > **Already ran `claude init`?** Use `npx forgecraft-mcp generate . --merge` to merge with your existing CLAUDE.md, keeping your custom sections while adding production standards.
+
+---
+
+## Pricing
+
+| | **Free** | **Pro** | **Teams** |
+|---|---|---|---|
+| Projects / month | 2 | Unlimited | Unlimited |
+| GS scoring (`verify`) | ✓ | ✓ | ✓ |
+| Dev hygiene gates | ✓ | ✓ | ✓ |
+| All 24 tags | ✓ | ✓ | ✓ |
+| ADR generation | ✓ | ✓ | ✓ |
+| Quality gate flywheel | Read-only | **Contribute** | Priority |
+| Custom tags & templates | — | ✓ | ✓ |
+| Org-wide standards | — | — | ✓ |
+| Audit dashboard | — | — | ✓ |
+| Priority support | — | — | ✓ |
+
+_Free is for individual devs who want to experience the model. Pro is for engineers who want to contribute gates and grow the library. Teams is where organizations pay for the quality guarantee._
+
+---
 
 ## Configuration
 
