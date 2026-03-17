@@ -19,13 +19,13 @@ blocks:
     title: "Code Standards"
     content: |
       ## Code Standards
-      - Maximum function/method length: {{max_function_length | default: 50}} lines (hook-enforced).
-      - Maximum file length: {{max_file_length | default: 300}} lines (hook-enforced).
+      - Maximum function/method length: {{max_function_length | default: 50}} lines. If a function reads like it does two things, decompose it.
+      - Split a file when you find yourself using "and" to describe what it does — not when it hits a line count.
       - Maximum function parameters: {{max_function_params | default: 5}}. If more, use a parameter object.
       - No circular imports — module dependency graph must be acyclic (hook-enforced).
-      - TypeScript projects: `tsconfig.json` must include `"strict": true` AND `"noUncheckedIndexedAccess": true`.
+      {{#if language_is_typescript}}- `tsconfig.json` must include `"strict": true` AND `"noUncheckedIndexedAccess": true`.
         `strict: true` alone does not narrow `process.env.*` from `string | undefined` — the second flag is required
-        to catch unguarded environment variable access at compile time.
+        to catch unguarded environment variable access at compile time.{{/if}}
       - Every public function/method must have {{#if language_is_typescript}}a JSDoc comment{{/if}}{{#if language_is_python}}a docstring (Google or NumPy style){{/if}} with typed params and returns.
       - Delete orphaned code. Do not comment it out. Git has history.
       - Before creating a new utility, search the entire codebase for existing ones.
@@ -33,6 +33,43 @@ blocks:
       - No abbreviations in names except universally understood ones (id, url, http, db, api).
       - All names must be intention-revealing. If you need a comment to explain what a variable
         holds, the name is wrong.
+
+  - id: dev-environment-hygiene
+    tier: core
+    title: "Dev Environment Hygiene"
+    content: |
+      ## Dev Environment Hygiene
+
+      AI-assisted development can silently fill disk space. These rules are non-negotiable.
+      A full disk kills every running tool simultaneously — VS Code, Docker, the terminal, the DB.
+
+      ### VS Code Extensions
+      - Before installing any extension: `code --list-extensions | grep -i <name>`.
+      - Only install if no version in the required major range is already present.
+      - Never run `code --install-extension` unconditionally in scripts or setup steps.
+      - Installing the same extension twice on the same day = a bug in your script.
+
+      ### Docker Containers & Volumes
+      - Check before creating: `docker ps -a --filter name=<service>` — if it exists, start it, don't create it.
+      - Prefer `docker compose up` (reuse) over bare `docker run` (always creates new).
+      - One Compose file per project. Split files for the same project = tech debt.
+      - Log pruning: run `docker system prune -f` periodically. Never let container logs exceed 500 MB total.
+      - Time-series or synthetic data volumes: before writing >100 MB, ask whether raw retention,
+        statistical condensation, or deletion after the run is preferred.
+      - Synthetic datasets older than 7 days with no code reference: ask to delete.
+
+      ### Python Virtual Environments
+      - One `.venv` per project root, one per standalone package subdirectory — never more.
+      - Before creating: check if `.venv/` exists and `python --version` matches the required major.minor.
+        Recreate only on major version mismatch or explicit user request.
+      - Never create a venv in a subdirectory unless that directory is a standalone installable package.
+      - Sanitize dependencies: if `pip list --not-required` reveals packages not in requirements, flag them.
+
+      ### General Install Hygiene
+      - Before any install/download: check version already installed. Skip if within the required range.
+      - If project directory disk usage outside of `node_modules/`, `.venv/`, `dist/`, `.next/`
+        exceeds 2 GB: surface a warning and ask before continuing any file-generating operation.
+      - Never silently grow the workspace. When uncertain about retention, ask.
 
   - id: dependency-registry
     tier: core
