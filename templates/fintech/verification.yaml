@@ -151,6 +151,74 @@ phases:
         expected_output: "oos-validation.json: {params, oos_sharpe, oos_VaR, oos_CVaR, oos_max_drawdown, all_contracts_pass}"
         pass_criterion: "all_contracts_pass = true in oos-validation.json"
 
+  - id: simulation-invariants
+    title: "Post-Run Simulation Invariants (Silent Bug Detection)"
+    rationale: >
+      Financial simulations fail in two directions, both silently.
+      Category A (Silent Loss): strategy runs, earns nothing — unlinked accounting, stuck state machine.
+      Category B (Silent Gain): inflated returns from accounting errors or look-ahead leaks.
+      These 6 invariants run at finalize() and print alongside standard metrics.
+    steps:
+      - id: pnl-decomposition
+        instruction: >
+          Assert: fee_income + price_income == total_pnl ± 1%.
+          A gap > 1% means an accounting component is unlinked — it exists in the ledger
+          but never flows into the reported total. Category A: Silent Loss Bug.
+        contract: "abs((fee_income + price_income) - total_pnl) / abs(total_pnl) < 0.01"
+        tools: ["simulation harness finalize()"]
+        expected_output: "[INVARIANT PASS] P&L decomposition: fee_income + price_income ≈ total_pnl"
+        pass_criterion: "Ratio within 1% tolerance; printed in finalize output"
+
+      - id: fee-time-ratio
+        instruction: >
+          Assert: total_fees / active_hours is above the minimum activity threshold.
+          Near-zero fees after 1000h of 'running' = instrument was never created.
+          The strategy ran against nothing. Category A: Silent Loss Bug.
+        contract: "total_fees / active_hours > min_fee_rate_per_hour (config)"
+        tools: ["simulation harness finalize()"]
+        expected_output: "[INVARIANT PASS] Fee-time ratio: fees proportional to active time"
+        pass_criterion: "Fee rate above threshold; flagged as [INVARIANT FAIL] if below"
+
+      - id: state-concentration
+        instruction: >
+          Assert: no single non-productive state consumes >80% of simulation time.
+          A stuck state machine is not a conservative strategy — it is a broken one.
+          Category A: Silent Loss Bug.
+        contract: "max(time_per_state[non_productive_states]) / total_time < 0.80"
+        tools: ["simulation harness finalize()"]
+        expected_output: "[INVARIANT PASS] State concentration: no stuck non-productive state"
+        pass_criterion: "All non-productive states below 80% time threshold"
+
+      - id: return-plausibility
+        instruction: >
+          For a market-neutral strategy, assert: annual_return < 200% AND
+          total_pnl / fee_income < 10×. Returns exceeding these bounds are almost
+          certainly bugs, not alpha. Category B: Silent Gain Bug.
+        contract: "annualized_return < 2.0 AND total_pnl / fee_income < 10.0"
+        tools: ["simulation harness finalize()"]
+        expected_output: "[INVARIANT PASS] Return plausibility: within market-neutral bounds"
+        pass_criterion: "Both bounds satisfied; failing bound printed with actual values"
+
+      - id: delta-neutrality
+        instruction: >
+          Assert: avg |net_delta| while in the primary running state is below the
+          delta tolerance threshold (config). High delta = hedge broken or bootstrap bypassed.
+          Category B: Silent Gain Bug — bootstrapping errors inflate returns mid-simulation.
+        contract: "mean(abs(net_delta) | state == primary_running_state) < delta_tolerance"
+        tools: ["simulation harness finalize()"]
+        expected_output: "[INVARIANT PASS] Delta neutrality: avg |net_delta| within tolerance"
+        pass_criterion: "Average absolute delta below configured tolerance"
+
+      - id: instrument-balance
+        instruction: >
+          Assert: max(instrument_notionals) / min(instrument_notionals) < 3×.
+          If one sub-strategy is 5× larger than another at finalize, allocation logic failed.
+          Category B: Silent Gain Bug — one instrument dominates and distorts aggregate returns.
+        contract: "max(instrument_notionals) / min(instrument_notionals) < 3.0"
+        tools: ["simulation harness finalize()"]
+        expected_output: "[INVARIANT PASS] Instrument balance: all sub-strategies within 3× of each other"
+        pass_criterion: "Notional ratio below 3×; actual ratio printed regardless"
+
   - id: evidence
     title: "Persist Backtests, Param Checkpoints, and Contract Reports"
     rationale: >
