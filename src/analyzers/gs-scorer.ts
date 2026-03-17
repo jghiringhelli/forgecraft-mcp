@@ -105,7 +105,7 @@ export function findDirectDbCallsInRoutes(
 ): LayerViolation[] {
   const allFiles = listAllFiles(projectDir);
   const routeFiles = allFiles.filter(
-    (f) => isRouteFile(f) && isSourceCodeFile(f),
+    (f) => isRouteFile(f) && isSourceCodeFile(f) && !isTestOrFixtureFile(f),
   );
   const violations: LayerViolation[] = [];
 
@@ -337,7 +337,9 @@ function scoreAuditable(
   allFiles: string[],
 ): GsPropertyScore {
   const adrFiles = allFiles.filter(
-    (f) => /docs\/(adrs?|decisions?|rfcs?)\//i.test(f) && f.endsWith(".md"),
+    (f) =>
+      /docs\/(adrs?|decisions?|rfcs?)\//i.test(f.replace(/\\/g, "/")) &&
+      f.endsWith(".md"),
   );
   const hasAdrs = adrFiles.length > 0;
 
@@ -393,6 +395,9 @@ function scoreAuditable(
 /**
  * Composable: service layer, repository pattern, and interface-first design.
  * 2 = services + repositories + interface files, 1 = services only, 0 = none.
+ *
+ * Recognizes both conventional CRUD patterns (services/repositories/) and
+ * CLI/LIBRARY patterns (tools/handlers/ as services, registry/adapters/ as repositories).
  */
 function scoreComposable(
   projectDir: string,
@@ -404,6 +409,11 @@ function scoreComposable(
   const serviceDir = [
     join(root, "services"),
     join(root, "service"),
+    // CLI / LIBRARY patterns
+    join(root, "tools"),
+    join(root, "handlers"),
+    join(root, "use-cases"),
+    join(root, "usecases"),
     "services",
     "service",
   ].find((d) => existsSync(join(projectDir, d)));
@@ -411,14 +421,20 @@ function scoreComposable(
   const repositoryDir = [
     join(root, "repositories"),
     join(root, "repository"),
+    // CLI / LIBRARY patterns: registry, adapters, loaders, providers
+    join(root, "registry"),
+    join(root, "adapters"),
+    join(root, "providers"),
+    join(root, "loaders"),
     "repositories",
     "repository",
   ].find((d) => existsSync(join(projectDir, d)));
 
   const hasInterfaces = allFiles.some(
     (f) =>
-      /\/(interfaces?|contracts?|ports?|types?)\//i.test(f) &&
-      isSourceCodeFile(f),
+      /\/(interfaces?|contracts?|ports?|types?|core)\//i.test(
+        f.replace(/\\/g, "/"),
+      ) && isSourceCodeFile(f),
   );
 
   if (serviceDir && repositoryDir) {
@@ -589,8 +605,9 @@ function isSourceCodeFile(filePath: string): boolean {
 
 /** True for test or fixture files (should not require their own test). */
 function isTestOrFixtureFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
   return /(\btest[_.]|\.test\.|\.spec\.|__tests__|\/tests\/|\/test\/|\/fixtures\/|\/mocks?\/|conftest|\.d\.ts)/.test(
-    filePath,
+    normalized,
   );
 }
 

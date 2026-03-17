@@ -253,8 +253,9 @@ function formatReport(result: VerifyResult, threshold: number): string {
   // GS property scores
   lines.push("## §4.3 GS Property Scores");
   lines.push("");
+  const maxScore = result.propertyScores.length * 2;
   lines.push(
-    `**Total: ${result.totalScore}/12** (pass threshold: ${threshold})`,
+    `**Total: ${result.totalScore}/${maxScore}** (pass threshold: ${threshold})`,
   );
   lines.push("");
   lines.push("| Property | Score | Evidence |");
@@ -304,8 +305,9 @@ function formatReport(result: VerifyResult, threshold: number): string {
 
   // Summary
   lines.push("---");
+  const maxScoreSummary = result.propertyScores.length * 2;
   lines.push(
-    `**Overall: ${result.overallPass ? "✅ PASS" : "❌ FAIL"}** · Score ${result.totalScore}/12 · Threshold ${threshold}/12`,
+    `**Overall: ${result.overallPass ? "✅ PASS" : "❌ FAIL"}** · Score ${result.totalScore}/${maxScoreSummary} · Threshold ${threshold}/${maxScoreSummary}`,
   );
 
   return lines.join("\n");

@@ -34,6 +34,11 @@ const SKIP_DIRS = new Set([
   "coverage",
   ".nyc_output",
   ".cache",
+  // Experiment and generated output directories — contain synthetic code
+  // that is not part of the project's own source and should not affect scoring
+  "experiments",
+  "generated",
+  ".forgecraft",
 ]);
 
 /**
@@ -57,7 +62,10 @@ function scanDirectory(
   depth: number,
   maxDepth: number,
 ): FolderNode {
-  const name = depth === 0 ? relative(join(rootDir, ".."), dir) || "." : relative(join(dir, ".."), dir);
+  const name =
+    depth === 0
+      ? relative(join(rootDir, ".."), dir) || "."
+      : relative(join(dir, ".."), dir);
   const relativePath = relative(rootDir, dir) || ".";
 
   if (depth >= maxDepth) {
@@ -85,9 +93,7 @@ function scanDirectory(
       const entryRelativePath = relative(rootDir, entryPath);
 
       if (entry.isDirectory()) {
-        children.push(
-          scanDirectory(entryPath, rootDir, depth + 1, maxDepth),
-        );
+        children.push(scanDirectory(entryPath, rootDir, depth + 1, maxDepth));
       } else {
         children.push({
           name: entry.name,
@@ -109,7 +115,10 @@ function scanDirectory(
 /**
  * Render a folder tree as an indented text representation.
  */
-export function renderFolderTree(node: FolderNode, indent: string = ""): string {
+export function renderFolderTree(
+  node: FolderNode,
+  indent: string = "",
+): string {
   const lines: string[] = [];
 
   if (indent === "") {
@@ -126,7 +135,11 @@ export function renderFolderTree(node: FolderNode, indent: string = ""): string 
       const suffix = child.type === "directory" ? "/" : "";
       lines.push(`${indent}${prefix}${child.name}${suffix}`);
 
-      if (child.type === "directory" && child.children && child.children.length > 0) {
+      if (
+        child.type === "directory" &&
+        child.children &&
+        child.children.length > 0
+      ) {
         lines.push(renderFolderTree(child, indent + childIndent));
       }
     }
@@ -183,7 +196,10 @@ function collectFiles(
 /**
  * Check if a directory exists in the project.
  */
-export function directoryExists(projectDir: string, relativePath: string): boolean {
+export function directoryExists(
+  projectDir: string,
+  relativePath: string,
+): boolean {
   const fullPath = join(projectDir, relativePath);
   return existsSync(fullPath) && statSync(fullPath).isDirectory();
 }

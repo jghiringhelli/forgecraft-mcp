@@ -188,14 +188,14 @@ describe("verifyHandler", () => {
     expect(result.content[0]!.text).toContain("❌");
   });
 
-  it("report includes total score out of 12", async () => {
+  it("report includes total score out of 14 (7 properties × 2)", async () => {
     const result = await verifyHandler({
       project_dir: CLEAN_DIR,
       test_command: "echo ok",
       timeout_ms: 10_000,
       pass_threshold: 10,
     });
-    expect(result.content[0]!.text).toMatch(/\d+\/12/);
+    expect(result.content[0]!.text).toMatch(/\d+\/14/);
   });
 
   it("layer violations section lists prisma calls from the violation fixture", async () => {
