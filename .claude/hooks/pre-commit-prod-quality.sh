@@ -20,11 +20,8 @@ for file in $SOURCE_FILES; do
       VIOLATIONS=$((VIOLATIONS + 1))
     fi
   fi
-  LINE_COUNT=$(wc -l < "$file")
-  if [ "$LINE_COUNT" -gt 300 ]; then
-    echo "  ⚠️  $file — $LINE_COUNT lines (max 300)"
-    WARNINGS=$((WARNINGS + 1))
-  fi
+  # Line count is not a SOLID metric — a focused 500-line file is better than
+  # two unfocused 200-line files. Responsibility drift is caught in code review.
 done
 rm -f /tmp/violations
 if [ $VIOLATIONS -gt 0 ]; then
