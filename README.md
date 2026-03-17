@@ -336,6 +336,26 @@ Add to `.claude/settings.json`:
 
 _Free is for individual devs who want to experience the model. Pro is for engineers who want to contribute gates and grow the library. Teams is where organizations pay for the quality guarantee._
 
+### Earn Pro by contributing
+
+Propose a quality gate that gets accepted into the library → earn Pro months.
+
+- **Founding period** (first 6 months): 3 months Pro per accepted gate
+- **After founding period**: 1 month Pro per accepted gate  
+- **3+ accepted gates ever**: Lifetime Pro
+
+[Open a gate proposal →](.github/ISSUE_TEMPLATE/quality-gate-proposal.md) · [See contributors →](CONTRIBUTORS.md)
+
+---
+
+## Theoretical foundation
+
+ForgeCraft implements the **Generative Specification** model — a formal 7-property framework for evaluating AI-generated code quality. The model, the S_realized convergence formula, and the release phase framework are documented in the white paper.
+
+> [Generative Specification White Paper](https://github.com/jghiringhelli/argos) — the academic foundation behind the `verify` score
+
+The white paper is the theory. ForgeCraft is the toolchain. Quality gates proposed for the library that generalize into theoretical insights may be incorporated into future white paper revisions.
+
 ---
 
 ## Configuration
