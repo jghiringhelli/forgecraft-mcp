@@ -8,9 +8,17 @@
 import { z } from "zod";
 import { mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { ALL_TAGS, ALL_OUTPUT_TARGETS, OUTPUT_TARGET_CONFIGS, DEFAULT_OUTPUT_TARGET } from "../shared/types.js";
+import {
+  ALL_TAGS,
+  ALL_OUTPUT_TARGETS,
+  OUTPUT_TARGET_CONFIGS,
+  DEFAULT_OUTPUT_TARGET,
+} from "../shared/types.js";
 import type { Tag, ScaffoldResult, OutputTarget } from "../shared/types.js";
-import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
+import {
+  loadAllTemplatesWithExtras,
+  loadUserOverrides,
+} from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import {
   renderInstructionFile,
@@ -35,9 +43,7 @@ export const scaffoldProjectSchema = z.object({
   project_dir: z
     .string()
     .describe("Absolute path to the project root directory."),
-  project_name: z
-    .string()
-    .describe("Human-readable project name."),
+  project_name: z.string().describe("Human-readable project name."),
   language: z
     .enum(["typescript", "python"])
     .default("typescript")
@@ -49,11 +55,15 @@ export const scaffoldProjectSchema = z.object({
   force: z
     .boolean()
     .default(false)
-    .describe("If true, overwrite existing files. Default: skip files that already exist."),
+    .describe(
+      "If true, overwrite existing files. Default: skip files that already exist.",
+    ),
   output_targets: z
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .default(["claude"])
-    .describe("AI assistant targets to generate instruction files for. Options: claude, cursor, copilot, windsurf, cline, aider."),
+    .describe(
+      "AI assistant targets to generate instruction files for. Options: claude, cursor, copilot, windsurf, cline, aider.",
+    ),
 });
 
 // ── Handler ──────────────────────────────────────────────────────────
@@ -82,10 +92,17 @@ export async function scaffoldProjectHandler(
     config: userConfig ?? undefined,
   });
 
-  const context = detectProjectContext(args.project_dir, args.project_name, args.language, tags);
+  const context = detectProjectContext(
+    args.project_dir,
+    args.project_name,
+    args.language,
+    tags,
+  );
 
   // Render content
-  const outputTargets = (args.output_targets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
+  const outputTargets = (args.output_targets ?? [
+    DEFAULT_OUTPUT_TARGET,
+  ]) as OutputTarget[];
   const statusMdContent = renderStatusMd(context);
   const prdContent = renderPrdSkeleton(context);
   const techSpecContent = renderTechSpecSkeleton(context);
@@ -102,7 +119,11 @@ export async function scaffoldProjectHandler(
   const filesSkipped: string[] = [];
 
   /** Track a safe write result. */
-  function trackWrite(relativePath: string, filePath: string, content: string): void {
+  function trackWrite(
+    relativePath: string,
+    filePath: string,
+    content: string,
+  ): void {
     const result = writeFileIfMissing(filePath, content, args.force);
     if (result === "skipped") {
       filesSkipped.push(relativePath);
@@ -123,12 +144,19 @@ export async function scaffoldProjectHandler(
   // Write instruction files for all output targets
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: userConfig?.compact });
+    const content = renderInstructionFile(
+      composed.instructionBlocks,
+      context,
+      target,
+      { compact: userConfig?.compact },
+    );
     const outputPath = targetConfig.directory
       ? join(args.project_dir, targetConfig.directory, targetConfig.filename)
       : join(args.project_dir, targetConfig.filename);
     mkdirSync(dirname(outputPath), { recursive: true });
-    const relativePath = targetConfig.directory ? `${targetConfig.directory}/${targetConfig.filename}` : targetConfig.filename;
+    const relativePath = targetConfig.directory
+      ? `${targetConfig.directory}/${targetConfig.filename}`
+      : targetConfig.filename;
     trackWrite(relativePath, outputPath, content);
   }
 
@@ -137,8 +165,26 @@ export async function scaffoldProjectHandler(
 
   // Write docs
   mkdirSync(join(args.project_dir, "docs"), { recursive: true });
-  trackWrite("docs/PRD.md", join(args.project_dir, "docs", "PRD.md"), prdContent);
-  trackWrite("docs/TechSpec.md", join(args.project_dir, "docs", "TechSpec.md"), techSpecContent);
+  trackWrite(
+    "docs/PRD.md",
+    join(args.project_dir, "docs", "PRD.md"),
+    prdContent,
+  );
+  trackWrite(
+    "docs/TechSpec.md",
+    join(args.project_dir, "docs", "TechSpec.md"),
+    techSpecContent,
+  );
+
+  // Create docs/adrs/ with README so the directory is tracked by git and
+  // the Auditable scorer finds it immediately (ADRs score 2/2 once populated).
+  const adrsDir = join(args.project_dir, "docs", "adrs");
+  mkdirSync(adrsDir, { recursive: true });
+  trackWrite(
+    "docs/adrs/README.md",
+    join(adrsDir, "README.md"),
+    renderAdrsReadme(context.projectName),
+  );
 
   // Write .env.example
   trackWrite(
@@ -229,13 +275,16 @@ function buildDryRunPlan(
 
   text += `## Directories to Create\n`;
   const dirs = composed.structureEntries.filter((e) => e.type === "directory");
-  text += dirs.map((d) => `- \`${d.path}/\`${d.description ? ` — ${d.description}` : ""}`).join("\n");
+  text += dirs
+    .map((d) => `- \`${d.path}/\`${d.description ? ` — ${d.description}` : ""}`)
+    .join("\n");
 
   text += `\n\n## Files to Generate\n`;
   text += `- CLAUDE.md (${composed.claudeMdBlocks.length} blocks)\n`;
   text += `- Status.md\n`;
   text += `- docs/PRD.md (skeleton)\n`;
   text += `- docs/TechSpec.md (skeleton with ${composed.nfrBlocks.length} NFR sections)\n`;
+  text += `- docs/adrs/README.md (ADR directory bootstrap — Auditable signal)\n`;
   text += `- .env.example\n`;
   text += `- .gitignore\n`;
 
@@ -247,10 +296,49 @@ function buildDryRunPlan(
   if (composed.skills.length > 0) {
     text += `\n\n## Skills to Install (${composed.skills.length})\n`;
     text += composed.skills
-      .map((s) => `- \`/project:${s.filename.replace(".md", "")}\` — ${s.description}`)
+      .map(
+        (s) =>
+          `- \`/project:${s.filename.replace(".md", "")}\` — ${s.description}`,
+      )
       .join("\n");
   }
 
   text += `\n\n_Run again with dry_run=false to write files._`;
   return text;
+}
+
+/**
+ * Render the bootstrap README for docs/adrs/.
+ * Its presence tells the Auditable scorer that the ADR convention is adopted.
+ * The first real ADR should supersede this file's instructions.
+ */
+function renderAdrsReadme(projectName: string): string {
+  return [
+    `# Architecture Decision Records — ${projectName}`,
+    ``,
+    `This directory contains Architecture Decision Records (ADRs) for ${projectName}.`,
+    ``,
+    `## Format`,
+    ``,
+    `Each ADR is a numbered Markdown file: \`NNNN-short-title.md\``,
+    ``,
+    `Use \`npx forgecraft-mcp generate_adr\` (or the \`generate_adr\` MCP action) to create a new ADR`,
+    `with automatic sequencing and the standard MADR template.`,
+    ``,
+    `## Status values`,
+    ``,
+    `- **Proposed** — under discussion`,
+    `- **Accepted** — decision taken, implementation may be pending`,
+    `- **Superseded by ADR-NNNN** — replaced by a later decision`,
+    `- **Deprecated** — no longer relevant`,
+    ``,
+    `## Why ADRs?`,
+    ``,
+    `Every non-obvious architectural choice must be recorded with context, alternatives`,
+    `considered, and consequences accepted. Without this record, the team re-litigates`,
+    `the same decisions and AI coding assistants cannot reason about past choices.`,
+    ``,
+    `---`,
+    `_This README was generated by ForgeCraft scaffold. Replace it with your first ADR._`,
+  ].join("\n");
 }
