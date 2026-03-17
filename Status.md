@@ -1,6 +1,58 @@
 # Status.md
 
-## Last Updated: 2026-03-14 (Session 26)
+## Last Updated: 2026-03-17 (Session 27)
+
+## Session 27 Summary
+
+Closed all white paper integration gaps and applied forgecraft to itself for the first time. Session in three acts:
+
+**Act 1 — White Paper Gap Audit**
+Audited `GenerativeSpecification_WhitePaper.md` against the codebase. Six gaps identified; two (release_phase, S_realized) were already implemented. Four required work.
+
+**Act 2 — Gap Closures (commit `c8a34b4`)**
+- Added 7th GS property `ExecutableSpec` to `core/properties.ts`; updated `GenerativeSpec` intersection type, `GsProperty` union, scorer, and all display strings
+- Max score updated 12 → **14** (7 properties × 2); default pass threshold 10 → **11**
+- Added `generate_adr` MCP tool: auto-sequences `docs/adrs/NNNN-slug.md` in MADR format, registered in unified router with 5 schema fields
+- Expanded `templates/universal/verification.yaml`: 3 phases → **7 phases**, ceiling 0.40 → **0.90**; four new phases: `pre-release-hardening` (mutation, DAST, load, chaos), `release-candidate` (pentest, compat matrix, a11y), `deployment-gates` (canary, smoke tests, observability), `post-deployment` (synthetic probes, error monitoring, runbook review)
+
+**Act 3 — Dogfooding: forgecraft verifying itself (commit `c52f06f`)**
+Ran `forgecraft verify .` against this repo. Score: **12/14 ✅ PASS**. Revealed 5 bugs + 2 false positives:
+
+| Bug | Fix |
+|-----|-----|
+| `formatReport` hardcoded `/12` | Dynamic `propertyScores.length × 2` |
+| CLI default threshold hardcoded `10` | Updated to `11` |
+| `isTestOrFixtureFile` regex used `/` separators (failed on Windows `\`) | Normalize with `.replace(/\\\\/g, '/')` before regex |
+| `scoreAuditable` ADR path regex used `/` | Same normalization fix |
+| Bounded scanner included `tests/fixtures/*/routes/*.ts` as violations | Added `!isTestOrFixtureFile(f)` guard |
+| Verifiable/Bounded scanned `experiments/` output dirs | Added `experiments`, `generated` to `SKIP_DIRS` |
+| `scoreComposable` only recognized `services/` + `repositories/` | Expanded to also recognize `tools/`, `handlers/`, `registry/`, `adapters/` (CLI/LIBRARY patterns) |
+
+Added three foundational ADRs:
+- `ADR-0001`: Use MCP protocol for AI assistant integration
+- `ADR-0002`: Use YAML templates as configuration-as-code
+- `ADR-0003`: Adopt the seven-property GS model
+
+### Self-Verify Scorecard (12/14)
+| Property | Score | Note |
+|----------|-------|------|
+| Self-Describing | 2/2 | CLAUDE.md 352 lines, all keywords |
+| Bounded | 2/2 | No violations (fixtures excluded) |
+| Verifiable | 1/2 | 77% coverage (11 modules without tests; target 80%) |
+| Defended | 2/2 | Pre-commit hook active |
+| Auditable | 1/2 | ADRs + Status.md present; missing commitlint config |
+| Composable | 2/2 | src/tools/ (service) + src/registry/ (repository) + src/core/ (interfaces) |
+| Executable | 2/2 | Tests pass + CI configured |
+
+### Path to 14/14
+1. **Verifiable → 2/2**: Add tests for 11 remaining modules (mostly `src/shared/`, `src/artifacts/schema.ts`, `src/registry/loader.ts` edge cases)
+2. **Auditable → 2/2**: Add commitlint config (`commitlint.config.js` + `.husky/commit-msg`)
+
+### Commits This Session
+- `c8a34b4` — `feat(core): add 7th Executable GS property + generate_adr tool + hardening verification phases`
+- `c52f06f` — `fix(scorer): self-verify dogfooding — 12/14 PASS`
+
+
 
 ## Session 26 Summary
 Closed the verify loop for treatment-v5. Runner was producing false 14/14 audit scores because (a) `prisma migrate deploy` silently no-ops when no migration files exist, leaving an empty DB that causes all 101 integration tests to ghost-fail, and (b) fix prompts omitted file contents so the model couldn't resolve interface drift or test setup bugs across 5 passes. Three runner fixes bring the verify loop to convergence in 2 passes (109/109 tests, 11 suites).
