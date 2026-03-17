@@ -10,7 +10,7 @@ Contributors listed here are eligible for Pro access under the [contribution pol
 
 | Contributor | Gate(s) | Merged |
 |---|---|---|
-| _(first accepted proposal goes here)_ | | |
+| @jghiringhelli | `simulation-invariants` (6 checks: P&L decomp, fee-time ratio, state concentration, return plausibility, delta neutrality, instrument balance) + `vol-unit-convention` hook | 2026-03-17 |
 
 ## Contributors (gates accepted after founding period — 1 month Pro each)
 
