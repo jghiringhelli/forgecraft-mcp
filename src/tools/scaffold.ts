@@ -27,6 +27,7 @@ import {
   renderPrdSkeleton,
   renderTechSpecSkeleton,
 } from "../registry/renderer.js";
+import { renderSentinelTree } from "../registry/sentinel-renderer.js";
 import { writeFileIfMissing, checkGitSafety } from "../shared/filesystem.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
@@ -63,6 +64,12 @@ export const scaffoldProjectSchema = z.object({
     .default(["claude"])
     .describe(
       "AI assistant targets to generate instruction files for. Options: claude, cursor, copilot, windsurf, cline, aider.",
+    ),
+  sentinel: z
+    .boolean()
+    .default(true)
+    .describe(
+      "If true (default), generate a 50-line sentinel CLAUDE.md + .claude/standards/ domain files instead of one large file. Set to false to generate the traditional monolithic CLAUDE.md.",
     ),
 });
 
@@ -144,20 +151,31 @@ export async function scaffoldProjectHandler(
   // Write instruction files for all output targets
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const content = renderInstructionFile(
-      composed.instructionBlocks,
-      context,
-      target,
-      { compact: userConfig?.compact },
-    );
-    const outputPath = targetConfig.directory
-      ? join(args.project_dir, targetConfig.directory, targetConfig.filename)
-      : join(args.project_dir, targetConfig.filename);
-    mkdirSync(dirname(outputPath), { recursive: true });
-    const relativePath = targetConfig.directory
-      ? `${targetConfig.directory}/${targetConfig.filename}`
-      : targetConfig.filename;
-    trackWrite(relativePath, outputPath, content);
+
+    // For claude target: use sentinel tree (default) or monolithic file
+    if (target === "claude" && args.sentinel !== false) {
+      const sentinelFiles = renderSentinelTree(composed.instructionBlocks, context);
+      for (const file of sentinelFiles) {
+        const fullPath = join(args.project_dir, file.relativePath);
+        mkdirSync(dirname(fullPath), { recursive: true });
+        trackWrite(file.relativePath, fullPath, file.content);
+      }
+    } else {
+      const content = renderInstructionFile(
+        composed.instructionBlocks,
+        context,
+        target,
+        { compact: userConfig?.compact },
+      );
+      const outputPath = targetConfig.directory
+        ? join(args.project_dir, targetConfig.directory, targetConfig.filename)
+        : join(args.project_dir, targetConfig.filename);
+      mkdirSync(dirname(outputPath), { recursive: true });
+      const relativePath = targetConfig.directory
+        ? `${targetConfig.directory}/${targetConfig.filename}`
+        : targetConfig.filename;
+      trackWrite(relativePath, outputPath, content);
+    }
   }
 
   // Write Status.md

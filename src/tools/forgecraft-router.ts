@@ -166,6 +166,12 @@ export const forgecraftSchema = z.object({
     .boolean()
     .optional()
     .describe("Overwrite existing files. Used by: scaffold."),
+  sentinel: z
+    .boolean()
+    .optional()
+    .describe(
+      "Generate sentinel CLAUDE.md (~50 lines) + .claude/standards/ domain files instead of one large file. Default: true. Set to false for traditional monolithic CLAUDE.md. Used by: scaffold, refresh.",
+    ),
   apply: z
     .boolean()
     .optional()
@@ -423,6 +429,7 @@ export async function forgecraftHandler(
         add_tags: args.add_tags,
         remove_tags: args.remove_tags,
         output_targets: args.output_targets,
+        sentinel: args.sentinel ?? true,
       });
 
     case "scaffold":
@@ -433,6 +440,7 @@ export async function forgecraftHandler(
         language: args.language ?? "typescript",
         dry_run: args.dry_run ?? false,
         force: args.force ?? false,
+        sentinel: args.sentinel ?? true,
         output_targets: args.output_targets ?? ["claude"],
       });
 

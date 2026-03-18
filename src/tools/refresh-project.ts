@@ -17,6 +17,7 @@ import { checkCompleteness } from "../analyzers/completeness.js";
 import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
+import { renderSentinelTree } from "../registry/sentinel-renderer.js";
 import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
@@ -52,10 +53,18 @@ export const refreshProjectSchema = z.object({
   output_targets: z
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .optional()
-    .describe("Override output targets. If omitted, uses current config value or defaults to ['claude']."),  release_phase: z
+    .describe("Override output targets. If omitted, uses current config value or defaults to ['claude']."),
+  sentinel: z
+    .boolean()
+    .default(true)
+    .describe(
+      "If true (default), generate a sentinel CLAUDE.md + .claude/standards/ domain files. Set to false to regenerate the traditional monolithic CLAUDE.md.",
+    ),
+  release_phase: z
     .enum(["development", "pre-release", "release-candidate", "production"])
     .optional()
-    .describe("Override current release cycle phase. If omitted, uses value from forgecraft.yaml or defaults to 'development'."),});
+    .describe("Override current release cycle phase. If omitted, uses value from forgecraft.yaml or defaults to 'development'."),
+});
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -144,17 +153,28 @@ export async function refreshProjectHandler(
 
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: updatedConfig.compact });
-    const outputPath = targetConfig.directory
-      ? join(projectDir, targetConfig.directory, targetConfig.filename)
-      : join(projectDir, targetConfig.filename);
-    writeInstructionFileWithMerge(outputPath, content);
+
+    // For claude target: use sentinel tree (default) or monolithic file
+    if (target === "claude" && args.sentinel !== false) {
+      const sentinelFiles = renderSentinelTree(composed.instructionBlocks, context);
+      for (const file of sentinelFiles) {
+        const fullPath = join(projectDir, file.relativePath);
+        // Use force-write for refresh — user expects an update
+        writeInstructionFileWithMerge(fullPath, file.content);
+      }
+    } else {
+      const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: updatedConfig.compact });
+      const outputPath = targetConfig.directory
+        ? join(projectDir, targetConfig.directory, targetConfig.filename)
+        : join(projectDir, targetConfig.filename);
+      writeInstructionFileWithMerge(outputPath, content);
+    }
   }
 
   return {
     content: [{
       type: "text",
-      text: buildAppliedOutput(drift, updatedTags, updatedConfig, composed, updatedTier as ContentTier),
+      text: buildAppliedOutput(drift, updatedTags, updatedConfig, composed, updatedTier as ContentTier, args.sentinel !== false),
     }],
   };
 }
@@ -354,6 +374,7 @@ function buildAppliedOutput(
   config: ForgeCraftConfig,
   composed: ReturnType<typeof composeTemplates>,
   tier: ContentTier,
+  usedSentinel = true,
 ): string {
   const configYaml = yaml.dump(config, { lineWidth: 100, noRefs: true });
 
@@ -363,7 +384,12 @@ function buildAppliedOutput(
 
   text += `## Changes Applied\n`;
   text += `- forgecraft.yaml — updated\n`;
-  text += `- Instruction files — regenerated (${composed.instructionBlocks.length} blocks)\n\n`;
+  if (usedSentinel) {
+    text += `- CLAUDE.md — sentinel (~50 lines)\n`;
+    text += `- .claude/standards/*.md — domain files generated (${composed.instructionBlocks.length} blocks distributed)\n\n`;
+  } else {
+    text += `- Instruction files — regenerated (${composed.instructionBlocks.length} blocks)\n\n`;
+  }
 
   if (drift.newTagSuggestions.length > 0) {
     const added = drift.newTagSuggestions.filter((s) => s.confidence >= 0.6);

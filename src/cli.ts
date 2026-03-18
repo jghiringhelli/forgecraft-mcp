@@ -154,6 +154,7 @@ async function cmdRefresh(pos: string[], flags: Flags): Promise<void> {
     add_tags: arr(flags, "add-tags") as Tag[] | undefined,
     remove_tags: arr(flags, "remove-tags") as Tag[] | undefined,
     output_targets: arr(flags, "targets") as OutputTarget[] | undefined,
+    sentinel: bool(flags, "sentinel", true),
   });
   printResult(result);
   if (checkMode) {
@@ -218,6 +219,7 @@ async function cmdScaffold(pos: string[], flags: Flags): Promise<void> {
       (str(flags, "language") as "typescript" | "python") ?? "typescript",
     dry_run: bool(flags, "dry-run", false),
     force: bool(flags, "force", false),
+    sentinel: bool(flags, "sentinel", true),
     output_targets: (arr(flags, "targets") as OutputTarget[] | undefined) ?? [
       "claude",
     ],
