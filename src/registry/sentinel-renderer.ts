@@ -174,18 +174,23 @@ const BLOCK_DOMAIN_MAP: Readonly<Record<string, string>> = {
 
 /** Human-readable descriptions for each domain used in the wayfinding table. */
 const DOMAIN_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  architecture: "Architecture, SOLID, hexagonal layers, DTOs, ports/adapters, production standards",
-  testing: "Tests, TDD, coverage, test doubles, property-based, mutation testing",
+  architecture:
+    "Architecture, SOLID, hexagonal layers, DTOs, ports/adapters, production standards",
+  testing:
+    "Tests, TDD, coverage, test doubles, property-based, mutation testing",
   cicd: "CI/CD, environments, deployment strategy, graceful shutdown, infra-as-code",
   api: "REST/GraphQL endpoints, auth, rate limiting, versioning, contracts",
-  frontend: "React components, state management, accessibility, performance, mobile",
+  frontend:
+    "React components, state management, accessibility, performance, mobile",
   realtime: "State machines, WebSockets, events, CQRS, real-time patterns",
   data: "ETL pipelines, data validation, lineage, data guardrails, medallion architecture",
   analytics: "Analytics architecture, dashboards, query optimization",
   ml: "ML training, experiment tracking, model versioning, inference, feature stores",
-  observability: "Logging, tracing, health checks, alerting, X-Ray instrumentation",
+  observability:
+    "Logging, tracing, health checks, alerting, X-Ray instrumentation",
   spec: "ADRs, artifact grammar, use cases, GS self-refinement, naming conventions",
-  protocols: "Clarification protocol, feature completion, code generation, known pitfalls",
+  protocols:
+    "Clarification protocol, feature completion, code generation, known pitfalls",
   security: "FINTECH invariants, HIPAA, SOC2, OWASP, zero-trust, audit gates",
   web3: "Smart contract patterns, gas optimization, wallet/off-chain integration",
   game: "Game loop, ECS architecture, asset management, WebGL, performance",
@@ -236,12 +241,26 @@ export function renderSentinelTree(
 
   // Sort domains for consistent wayfinding table order
   const domainOrder = [
-    "architecture", "testing", "cicd", "api", "frontend", "realtime",
-    "data", "analytics", "ml", "observability", "spec", "protocols",
-    "security", "web3", "game",
+    "architecture",
+    "testing",
+    "cicd",
+    "api",
+    "frontend",
+    "realtime",
+    "data",
+    "analytics",
+    "ml",
+    "observability",
+    "spec",
+    "protocols",
+    "security",
+    "web3",
+    "game",
   ];
   domainsWithContent.sort(
-    (a, b) => (domainOrder.indexOf(a.domain) ?? 99) - (domainOrder.indexOf(b.domain) ?? 99),
+    (a, b) =>
+      (domainOrder.indexOf(a.domain) ?? 99) -
+      (domainOrder.indexOf(b.domain) ?? 99),
   );
 
   // Generate sentinel CLAUDE.md (prepend so it's first in the list)
@@ -380,14 +399,21 @@ function renderSentinelClaudeMd(
     for (const { domain, description } of domains) {
       lines.push(`| ${description} | \`.claude/standards/${domain}.md\` |`);
     }
+    lines.push(
+      `| Project-specific rules, framework choices, corrections log | \`.claude/standards/project-specific.md\` |`,
+    );
     lines.push("");
     lines.push(`---`);
     lines.push("");
   }
 
   lines.push(`## Session Protocol`);
-  lines.push(`1. Read \`Status.md\` — know what's in progress before writing a line.`);
-  lines.push(`2. Load the relevant standards file(s) from the wayfinding table above.`);
+  lines.push(
+    `1. Read \`Status.md\` — know what's in progress before writing a line.`,
+  );
+  lines.push(
+    `2. Load the relevant standards file(s) from the wayfinding table above.`,
+  );
   lines.push(`3. Update \`Status.md\` before ending the session.`);
   lines.push("");
 

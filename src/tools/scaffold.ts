@@ -34,6 +34,23 @@ import { createLogger } from "../shared/logger/index.js";
 
 const logger = createLogger("tools/scaffold");
 
+/** Template for the user-owned project-specific rules file. Never overwritten. */
+const PROJECT_SPECIFIC_TEMPLATE = `# Project-Specific Rules
+<!-- This file is owned by YOU. ForgeCraft will never overwrite it. -->
+<!-- Add project-specific rules, framework choices, conventions, and corrections here. -->
+<!-- The sentinel CLAUDE.md links here so any AI reading your project can find it. -->
+
+## Framework & Stack Choices
+<!-- e.g. We use Prisma for ORM. Deploy target is Railway. Python 3.11+. -->
+
+## Custom Corrections Log
+<!-- Log AI corrections so the pattern isn't repeated. -->
+<!-- Format: - YYYY-MM-DD: [description of correction] -->
+
+## Project-Specific Gates
+<!-- Add quality rules specific to this project that don't belong in universal standards. -->
+`;
+
 // ── Schema ───────────────────────────────────────────────────────────
 
 export const scaffoldProjectSchema = z.object({
@@ -154,12 +171,27 @@ export async function scaffoldProjectHandler(
 
     // For claude target: use sentinel tree (default) or monolithic file
     if (target === "claude" && args.sentinel !== false) {
-      const sentinelFiles = renderSentinelTree(composed.instructionBlocks, context);
+      const sentinelFiles = renderSentinelTree(
+        composed.instructionBlocks,
+        context,
+      );
       for (const file of sentinelFiles) {
         const fullPath = join(args.project_dir, file.relativePath);
         mkdirSync(dirname(fullPath), { recursive: true });
         trackWrite(file.relativePath, fullPath, file.content);
       }
+      // Scaffold the user-owned project-specific.md (never overwritten after first creation)
+      const projectSpecificPath = join(
+        args.project_dir,
+        ".claude",
+        "standards",
+        "project-specific.md",
+      );
+      trackWrite(
+        ".claude/standards/project-specific.md",
+        projectSpecificPath,
+        PROJECT_SPECIFIC_TEMPLATE,
+      );
     } else {
       const content = renderInstructionFile(
         composed.instructionBlocks,
@@ -299,7 +331,9 @@ function buildDryRunPlan(
     .join("\n");
 
   text += `\n\n## Files to Generate\n`;
-  text += `- CLAUDE.md (${composed.claudeMdBlocks.length} blocks)\n`;
+  text += `- CLAUDE.md (~50-line sentinel)\n`;
+  text += `- .claude/standards/*.md (domain files — ForgeCraft-managed)\n`;
+  text += `- .claude/standards/project-specific.md (YOUR file — ForgeCraft never overwrites)\n`;
   text += `- Status.md\n`;
   text += `- docs/PRD.md (skeleton)\n`;
   text += `- docs/TechSpec.md (skeleton with ${composed.nfrBlocks.length} NFR sections)\n`;
