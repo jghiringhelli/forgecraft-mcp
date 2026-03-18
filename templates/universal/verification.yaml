@@ -180,6 +180,8 @@ phases:
           the wrong things.
           Configuration: stryker.config.json or .stryker.conf.json at project root.
           Target only files modified in this release branch to keep runtime reasonable.
+          If forgecraft.yaml has tools.mutation configured, run that command directly.
+          The pre-commit hook will check mutation score if the tool is configured.
         contract: >
           Mutation score ≥ 80% on changed files. Stryker/mutmut exits with surviving-mutant
           count below the 20% threshold for changed lines.

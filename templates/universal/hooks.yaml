@@ -325,6 +325,12 @@ hooks:
     trigger: pre-commit
     description: "Scan source files for production code anti-patterns. Respects .forgecraft/exceptions.json for recorded false positives."
     filename: pre-commit-prod-quality.sh
+    checks:
+      - Hardcoded URLs/hosts (localhost, 127.0.0.1)
+      - Mock/stub data in production code
+      - Direct DB calls in route/controller layer (layer violation)
+      - Bare Error throws (custom hierarchy recommended)
+      - .env vs .env.example drift (warns on missing variables)
     script: |
       #!/bin/bash
       STAGED=$(git diff --cached --name-only --diff-filter=ACM)

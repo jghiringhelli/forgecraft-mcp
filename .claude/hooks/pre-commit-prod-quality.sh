@@ -1,5 +1,29 @@
 #!/bin/bash
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+# Mutation gate: only on release/* or rc/* branches at pre-release phase
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+if echo "$CURRENT_BRANCH" | grep -qE '^(release|rc)/'; then
+  MUTATION_TOOL=$(node -e "
+    const fs = require('fs');
+    if (!fs.existsSync('forgecraft.yaml')) process.exit(0);
+    const raw = fs.readFileSync('forgecraft.yaml', 'utf-8');
+    const m = raw.match(/mutation:\s*(.+)/);
+    if (m) console.log(m[1].trim());
+  " 2>/dev/null)
+  if [ -n "$MUTATION_TOOL" ]; then
+    echo "🧬 Pre-release branch detected — running mutation gate..."
+    if ! eval "$MUTATION_TOOL" 2>/dev/null; then
+      echo "❌ Mutation testing failed — MSI below threshold. Fix before releasing."
+      VIOLATIONS=$((VIOLATIONS + 1))
+    else
+      echo "✅ Mutation gate passed"
+    fi
+  else
+    echo "⚠️  Pre-release branch — mutation tool not configured in forgecraft.yaml tools.mutation"
+    WARNINGS=$((WARNINGS + 1))
+  fi
+fi
 SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(py|ts|tsx|js|jsx)$' | grep -vE '(test_|\.test\.|\.spec\.|__tests__|tests/|fixtures/|mock|conftest)')
 if [ -z "$SOURCE_FILES" ]; then exit 0; fi
 VIOLATIONS=0
@@ -69,6 +93,25 @@ for file in $SOURCE_FILES; do
   # two unfocused 200-line files. Responsibility drift is caught in code review.
 done
 rm -f /tmp/violations
+
+# .env drift detection
+if [ -f ".env.example" ] && [ -f ".env" ]; then
+  MISSING_VARS=""
+  while IFS= read -r line; do
+    # Extract variable name from .env.example (skip comments and empty lines)
+    if echo "$line" | grep -qE '^[A-Z_]+='; then
+      VAR_NAME=$(echo "$line" | cut -d= -f1)
+      if ! grep -qE "^${VAR_NAME}=" .env 2>/dev/null; then
+        MISSING_VARS="$MISSING_VARS $VAR_NAME"
+      fi
+    fi
+  done < .env.example
+  if [ -n "$MISSING_VARS" ]; then
+    echo "  ⚠️  .env is missing variables from .env.example:$MISSING_VARS"
+    WARNINGS=$((WARNINGS + 1))
+  fi
+fi
+
 if [ $VIOLATIONS -gt 0 ]; then
   echo "❌ $VIOLATIONS violation(s) found — commit blocked."
   exit 1
