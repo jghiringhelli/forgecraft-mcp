@@ -1,0 +1,132 @@
+tag: API
+section: verification
+title: "Spec-Driven API Verification"
+description: >
+  API contracts are the highest-determinism domain. A formal Hurl spec or
+  OpenAPI schema covers every endpoint, method, status code, and response shape.
+  When this strategy is applied, S approaches 1.0 — enabling single-pass
+  automated verification with no human judgment required at execution time.
+uncertainty_levels:
+  - deterministic
+completeness_ceiling: 0.95
+
+phases:
+
+  - id: contract-definition
+    title: "Define the API Contract Before Code"
+    rationale: >
+      The OpenAPI spec is the source of truth. Types, validators, and tests
+      must be generated from it — never maintained in parallel. A spec written
+      before implementation is a contract; a spec written after implementation
+      is documentation.
+    steps:
+      - id: write-openapi-spec
+        instruction: >
+          Write the full OpenAPI 3.1 spec for every endpoint before implementation.
+          Every endpoint must define: path, method, request schema (body + query + path params),
+          all response codes with response schemas, and security requirements.
+          Use $ref for shared schemas — no inline duplication.
+        contract: >
+          openapi.yaml or openapi.json exists in the project root and passes
+          `openapi-spec-validator`. Every endpoint in the spec maps 1:1 to a route
+          in the implementation.
+        tools: ["openapi-spec-validator", "stoplight/spectral"]
+        expected_output: "openapi.yaml validated by openapi-spec-validator with 0 errors"
+        pass_criterion: "openapi-spec-validator openapi.yaml exits 0"
+
+      - id: generate-types-from-spec
+        instruction: >
+          Generate TypeScript types from the OpenAPI spec using openapi-typescript.
+          Use the generated types in route handlers and service layers — do not
+          hand-write types that duplicate the spec.
+        contract: >
+          src/types/api.ts (or equivalent) is generated, not hand-written.
+          A Makefile or package.json script exists to regenerate it.
+        tools: ["openapi-typescript", "npx openapi-typescript openapi.yaml -o src/types/api.ts"]
+        expected_output: "Generated src/types/api.ts with no manual edits"
+        pass_criterion: "File is generated; `npm run generate-types` succeeds"
+
+      - id: write-hurl-spec
+        instruction: >
+          Write a Hurl spec file for every endpoint. Each file covers:
+          the happy path, at least one error case (400/401/403/404/422),
+          and one edge case (e.g., empty list, max payload).
+          Variables use Hurl's {{variable}} syntax for base_url, tokens, etc.
+        contract: >
+          A .hurl file exists per endpoint group (auth, articles, users, etc.).
+          Total Hurl files ≥ number of resource groups. Every Hurl file runs
+          to completion without network errors.
+        tools: ["hurl --test", "hurl --variables-file .env.test"]
+        expected_output: "Hurl test output with pass/fail per file"
+        pass_criterion: "hurl --test *.hurl exits 0 with 0 failures"
+
+  - id: execution
+    title: "Run Hurl Spec Against Live Server"
+    rationale: >
+      The gap between GS Verifiable and Executable is closed here. The server must be
+      running with a test database. Hurl drives real HTTP — it catches route wiring gaps,
+      JWT issues, and normalization bugs that no unit test can detect.
+    steps:
+      - id: start-server
+        instruction: >
+          Start the API server with NODE_ENV=test and a clean test database.
+          Sync the schema with `prisma db push --accept-data-loss` (not `migrate deploy` —
+          migrate deploy silently no-ops when no migrations folder exists, leaving an empty DB).
+          Capture the server process and its port in a test fixture.
+        contract: >
+          Server health check endpoint returns HTTP 200 within 5 seconds.
+          Test database has 0 seed rows (clean state).
+        tools: ["docker-compose up -d", "npx prisma db push --accept-data-loss", "curl /health"]
+        expected_output: "HTTP 200 from /health or /api/health"
+        pass_criterion: "curl -s localhost:PORT/health returns 200"
+
+      - id: run-hurl-suite
+        instruction: >
+          Run all Hurl files in sequence. Record: total files, total assertions,
+          pass count, fail count. For every failure, capture: file name, step number,
+          expected vs actual response body and status code.
+        contract: >
+          ≥ 80% of Hurl files pass. 100% of auth-related files pass.
+          Zero 5xx responses on any happy-path request.
+        tools: ["hurl --test --report-junit junit-hurl.xml", "hurl --variables-file .env.test"]
+        expected_output: "JUnit XML + terminal summary: N files, M passed, K failed"
+        pass_criterion: "Pass rate ≥ 80%; 0 failures in auth.hurl"
+
+      - id: run-schema-validator
+        instruction: >
+          For every response captured by the Hurl run, validate the response body against
+          the OpenAPI spec's response schema. Use `openapi-backend` or `express-openapi-validator`
+          in strict mode. Treat schema mismatches as failures even if Hurl assertions passed.
+        contract: >
+          0 schema validation errors. Response shapes match spec exactly —
+          no extra undocumented fields, no missing required fields.
+        tools: ["openapi-backend", "express-openapi-validator"]
+        expected_output: "Validation report with 0 mismatches"
+        pass_criterion: "0 schema validation errors"
+
+  - id: evidence
+    title: "Record and Interpret Execution Results"
+    rationale: >
+      Hurl results feed directly into the Executable dimension score (0–2).
+      Results must be structured so the verify loop can detect regressions
+      across passes and determine whether the fix prompt improved things.
+    steps:
+      - id: record-hurl-results
+        instruction: >
+          Save the JUnit XML report to test-results/hurl-junit.xml.
+          Extract: total files count, pass count, fail count, failed file names.
+          Write a one-line summary to test-results/hurl-summary.txt.
+        contract: "test-results/hurl-junit.xml and hurl-summary.txt exist after run"
+        tools: ["hurl --report-junit", "xsltproc or python xml.etree"]
+        expected_output: "hurl-summary.txt: '13 files, 12 passed, 1 failed'"
+        pass_criterion: "Files exist; pass count parseable as integer"
+
+      - id: compute-executable-score
+        instruction: >
+          Compute the Executable score: 0 if server fails to start, 1 if 1–79% of Hurl files pass,
+          2 if ≥ 80% of Hurl files pass. Record this score in test-results/executable-score.json
+          with fields: score, pass_rate, total_files, passed_files, timestamp.
+        contract: "executable-score.json exists with integer score 0|1|2"
+        tools: ["node -e", "python -c", "jq"]
+        expected_output: '{"score": 2, "pass_rate": 0.92, "total_files": 13, "passed_files": 12}'
+        pass_criterion: "File parses as valid JSON with score field"

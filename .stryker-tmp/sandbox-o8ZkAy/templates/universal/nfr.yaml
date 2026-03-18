@@ -1,0 +1,197 @@
+tag: UNIVERSAL
+section: nfr
+blocks:
+  - id: security
+    tier: core
+    title: "Security"
+    content: |
+      ## NFR: Security
+
+      ### Authentication & Authorization
+      - Authentication mechanism: {{auth_mechanism}}
+      - Authorization model: {{auth_model}}
+      - Secret management: environment variables minimum, secrets manager preferred (AWS SSM, Vault)
+      - No secrets in code, config files, or git history. Ever.
+
+      ### Input Validation
+      - Validate and sanitize ALL external input at system boundary.
+      - Use allowlists, not denylists.
+      - Parameterized queries only — no string concatenation for SQL/commands.
+
+      ### Dependencies
+      - Automated dependency vulnerability scanning (Dependabot, Snyk, or equivalent).
+      - No dependencies with known critical CVEs.
+      - Lock file committed (package-lock.json, poetry.lock, Cargo.lock).
+
+      ### Transport
+      - TLS 1.2+ for all network communication.
+      - HSTS headers on all web responses.
+      - CORS configured to minimum necessary origins.
+
+  - id: observability
+    tier: recommended
+    title: "Observability"
+    content: |
+      ## NFR: Observability
+
+      ### Structured Logging
+      - JSON-formatted structured logs (structlog for Python, pino for Node).
+      - Every log entry includes: timestamp, level, service, trace_id, operation, context.
+      - Log levels used correctly: DEBUG for development, INFO for operations, WARN for degraded
+        state, ERROR for failures requiring attention.
+      - NO sensitive data in logs (PHI, PII, credentials, tokens).
+
+      ### Metrics
+      - RED metrics on all service boundaries: Rate, Errors, Duration.
+      - Business metrics for key operations.
+      - Alerting thresholds defined for all critical metrics.
+
+      ### Health Checks
+      - /health endpoint returning: status, version, uptime, dependency health.
+      - Readiness vs liveness probes (Kubernetes) or equivalent.
+
+  - id: reliability
+    tier: recommended
+    title: "Reliability"
+    content: |
+      ## NFR: Reliability
+
+      ### Graceful Degradation
+      - Circuit breakers on all external service calls.
+      - Timeout configured on every external call (no indefinite waits).
+      - Fallback behavior defined for each dependency failure.
+
+      ### Disaster Recovery
+      - Backup strategy: automated, tested, documented.
+      - Runbook for common failure scenarios.
+      - **RPO** (Recovery Point Objective): maximum acceptable data loss = {{rpo | default: 1 hour}}.
+      - **RTO** (Recovery Time Objective): maximum acceptable downtime = {{rto | default: 4 hours}}.
+      - Failover tested at least quarterly. Document time-to-recovery in post-mortems.
+      - Database point-in-time recovery enabled. Retention: {{backup_retention | default: 30 days}}.
+
+      ### Availability Targets
+      - Target uptime: {{uptime_target | default: 99.9%}} (≈ 8.7 hours downtime/year).
+      - Define SLIs (error rate, latency p99, availability) and SLOs per service.
+      - Error budget policy: when budget is exhausted, freeze feature releases until reliability improves.
+      - Maintenance windows communicated 48h in advance. Prefer zero-downtime deployments.
+
+  - id: scalability
+    tier: optional
+    title: "Scalability"
+    content: |
+      ## NFR: Scalability
+
+      ### Horizontal Scaling
+      - Application designed for horizontal scaling — no in-process state that can't be lost.
+      - Session/cache state externalized to Redis, Memcached, or equivalent.
+      - Connection pooling configured per environment. Pool exhaustion triggers alerts, not failures.
+
+      ### Data Layer
+      - Database queries support the expected data volume. Test with 10x expected load.
+      - Pagination on all list operations. No unbounded queries.
+      - Read replicas for read-heavy workloads. Write/read split documented.
+      - Index strategy reviewed quarterly. Slow query log monitored.
+
+      ### Queue & Async Processing
+      - CPU-intensive or long-running work offloaded to background queues.
+      - Queue depth monitored. Auto-scale workers based on queue backlog.
+      - Dead letter queues for failed messages. Alert and review DLQ weekly.
+
+  - id: compliance
+    tier: optional
+    title: "Compliance & Data Governance"
+    content: |
+      ## NFR: Compliance & Data Governance
+
+      ### Data Classification
+      - All data fields classified: Public, Internal, Confidential, Restricted.
+      - Restricted data (PII, PHI, financial) encrypted at rest and in transit.
+      - Access to restricted data logged and auditable.
+
+      ### GDPR / Privacy
+      - Data processing purposes documented. No collection beyond stated purpose.
+      - Right to access: user can export their data in machine-readable format.
+      - Right to erasure: user data deletable within {{deletion_sla | default: 30 days}} of request.
+      - Data retention schedules defined per data type. Auto-delete expired data.
+      - Cookie consent where required. No tracking before consent.
+
+      ### Audit Trail
+      - Security-relevant actions logged: authentication events, permission changes,
+        data access, admin operations.
+      - Audit logs immutable, retained for {{audit_retention | default: 1 year}}.
+      - Logs stored separately from application data.
+
+  - id: accessibility
+    tier: optional
+    title: "Accessibility"
+    content: |
+      ## NFR: Accessibility
+
+      ### Standards
+      - Target: WCAG 2.1 AA compliance minimum for all user-facing interfaces.
+      - Semantic HTML. Proper heading hierarchy. ARIA attributes where HTML semantics aren't sufficient.
+      - All interactive elements keyboard-accessible. Visible focus indicators.
+      - Color contrast: minimum 4.5:1 for normal text, 3:1 for large text.
+
+      ### Testing
+      - Automated accessibility audit in CI (axe-core, Lighthouse accessibility).
+      - Screen reader testing for critical user journeys (at least quarterly).
+      - No images without alt text. No videos without captions.
+
+      ### Universal Design
+      - Support reduced motion (`prefers-reduced-motion`).
+      - Support high contrast mode.
+      - Touch targets minimum 44x44px on mobile interfaces.
+
+  - id: internationalization
+    tier: optional
+    title: "Internationalization"
+    content: |
+      ## NFR: Internationalization (i18n)
+
+      ### Text & Content
+      - All user-facing text externalized to translation files from day one.
+      - No hardcoded strings in UI code. No string concatenation for translatable sentences.
+      - Translation keys namespaced by feature: `module.component.label`.
+
+      ### Formatting
+      - Dates, numbers, currencies formatted via `Intl` API or equivalent — never manual formatting.
+      - Time zones handled correctly. Store UTC, display in user's local zone.
+      - Support RTL layouts if right-to-left languages are in scope.
+
+      ### Workflow
+      - New strings automatically flagged for translation in CI.
+      - Missing translations fall back to default locale, never show raw keys to users.
+
+  - id: maintainability
+    tier: recommended
+    title: "Maintainability & Developer Experience"
+    content: |
+      ## NFR: Maintainability & Developer Experience
+
+      ### Onboarding
+      - New developer productive within 1 day: clone → install → run → make a change → test → commit.
+      - README.md with step-by-step local setup.
+      - .env.example with every variable documented.
+
+      ### Code Quality Metrics
+      - Cyclomatic complexity: flag functions > 10, block > 15.
+      - Dead code detection.
+      - Documentation coverage: all public APIs have {{#if language_is_typescript}}JSDoc{{/if}}{{#if language_is_python}}docstrings{{/if}}.
+
+      ### Technical Debt Tracking
+      - Tech debt items logged in Status.md.
+      - No "we'll fix it later" without a tracked item.
+
+  - id: cost-management
+    tier: optional
+    title: "Cost Management"
+    content: |
+      ## NFR: Cost Management
+
+      ### Resource Budgets
+      - Monthly cloud spend budget defined and alerted at 80% threshold.
+      - Cost per user/transaction tracked as a business KPI.
+
+      ### Optimization Cadence
+      - Monthly: review top 5 cost drivers, identify optimization opportunities.

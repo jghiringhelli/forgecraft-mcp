@@ -15,6 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:mutation": "stryker run",
+    "test:mutation:ci": "stryker run --reporters progress,clear-text",
+    "test:mutation:sentinel": "stryker run stryker.sentinel.json",
     "lint": "eslint src/",
     "clean": "rimraf dist",
     "prepare": "bash scripts/setup-hooks.sh",
@@ -65,6 +68,8 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^9.6.0",
+    "@stryker-mutator/vitest-runner": "^9.6.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.4",
     "@vitest/coverage-v8": "^3.2.4",

@@ -1,0 +1,156 @@
+tag: ML
+section: verification
+title: "Hyperparameter Tuning + Convergence Verification"
+description: >
+  ML model verification is primarily heuristic: the correct hyperparameter set
+  cannot be derived analytically and must be found by search. Verification must
+  confirm convergence (the search plateaued, not just stopped early), generalization
+  (the model works on held-out data), and that the training pipeline is deterministic
+  given a fixed seed. Without these contracts, ML outputs are unverifiable black boxes.
+uncertainty_levels:
+  - heuristic
+completeness_ceiling: 0.80
+
+phases:
+
+  - id: contract-definition
+    title: "Define Model Quality Contracts and Search Bounds"
+    rationale: >
+      ML contracts are metric bounds achieved on a fixed test set. They distinguish
+      a model that is "good enough for production" from one that merely overfit the
+      validation set. Contracts must be defined before any training run begins.
+    steps:
+      - id: define-evaluation-metrics
+        instruction: >
+          For the model's task, define:
+          - Primary metric (e.g., F1@0.5, AUROC, RMSE, mAP@0.5)
+          - Minimum acceptable threshold on the test set (e.g., F1 ≥ 0.85)
+          - Maximum acceptable inference latency (e.g., p99 ≤ 50ms on CPU)
+          - Maximum acceptable model size (e.g., ≤ 500MB on disk)
+          Store in docs/ml-contracts.md.
+        contract: "docs/ml-contracts.md with numeric threshold per metric"
+        tools: ["filesystem"]
+        expected_output: "| F1@0.5 | ≥ 0.85 | held-out test set | 1 run = 1 epoch on full test |"
+        pass_criterion: "File exists; all thresholds are numeric with direction (≥ or ≤)"
+
+      - id: fix-seeds-and-environment
+        instruction: >
+          Fix all randomness sources:
+          - Python: `random.seed(42); numpy.random.seed(42); torch.manual_seed(42)`
+          - TensorFlow: `tf.random.set_seed(42)`
+          - DataLoader: `worker_init_fn` + `generator=torch.Generator().manual_seed(42)`
+          Record the full environment: Python version, framework versions, CUDA version,
+          hardware (GPU model). Two runs with the same seed on the same hardware must
+          produce bit-identical model checkpoints.
+        contract: >
+          Determinism test: train for 3 epochs with seed=42, save checkpoint.
+          Re-train for 3 epochs with seed=42. Checkpoints are identical (sha256 match).
+        tools: ["torch.save", "sha256sum", "mlflow.log_artifact"]
+        expected_output: "Determinism verification: checkpoint_run1.sha256 == checkpoint_run2.sha256"
+        pass_criterion: "SHA-256 of both checkpoints match"
+
+  - id: hyperparameter-search
+    title: "Warm Runs + Pruned Search + Plateau Detection"
+    rationale: >
+      Naive grid search wastes GPU time. Bayesian search with pruning focuses on
+      promising regions. Warm runs avoid rescheduling known-good configurations.
+      Plateau detection terminates the search when additional trials stop improving
+      the primary metric — preventing overfitting the validation set via trial count.
+    steps:
+      - id: warm-run-from-checkpoint
+        instruction: >
+          Before launching the search, check for warm-run-checkpoint.json.
+          If present, load the best hyperparameters from the previous search as the
+          first trial of the new search. Compute baseline performance on the current
+          validation set. Record to warm-run-baseline.json.
+        contract: "warm-run-baseline.json exists with primary_metric_value before new search"
+        tools: ["optuna", "ray.tune", "wandb", "mlflow"]
+        expected_output: "warm-run-baseline.json: {hyperparams, primary_metric, dataset_split_hash}"
+        pass_criterion: "File exists; primary_metric > 0 (model not trivially broken)"
+
+      - id: run-pruned-bayesian-search
+        instruction: >
+          Run a Bayesian hyperparameter search:
+          - Sampler: TPE (Tree-structured Parzen Estimator)
+          - Pruner: HyperbandPruner (prune unpromising trials at 25% epoch mark)
+          - Max trials: min(200, budget); max wall-clock: configured via SEARCH_TIMEOUT_HOURS
+          - Log all trial results to MLflow or W&B experiment tracking
+          - Forbidden: learning_rate < 1e-6 or batch_size > GPU_VRAM / dtype_bytes
+        contract: >
+          Search runs to configured budget or plateau. Trial logs present.
+          No forbidden regions in top-10 trials.
+        tools: ["optuna", "optuna.integration.mlflow", "ray.tune", "wandb.sweep"]
+        expected_output: "search-results.json: {best_params, best_metric, n_trials, n_pruned, experiment_url}"
+        pass_criterion: "best_metric improves over warm-run-baseline or is within 1% (plateau)"
+
+      - id: detect-plateau
+        instruction: >
+          After the search, check for plateau:
+          - Compute the rolling best metric over the last 30 trials
+          - If max improvement in the last 30 < 0.1% relative, the search has plateaued
+          - Record plateau verdict in search-results.json as converged: true|false
+          If converged=false after the trial budget, flag it — the search space or prior
+          may be misconfigured. Escalate to human review.
+        contract: >
+          search-results.json contains converged field.
+          If converged=false, a human review note explains why additional trials are needed.
+        tools: ["pandas rolling max", "numpy", "optuna.study.best_trials"]
+        expected_output: '{"converged": true, "plateau_detected_at_trial": 142}'
+        pass_criterion: "converged field present; if false, requires_human_review escalation logged"
+        requires_human_review: false
+
+  - id: evaluation
+    title: "Test Set Evaluation Against Quality Contracts"
+    rationale: >
+      Validation set performance is used to tune hyperparameters and is therefore
+      optimistically biased. The test set is held out throughout the entire search.
+      Only after the best model is selected is the test set evaluated once.
+    steps:
+      - id: evaluate-on-test-set
+        instruction: >
+          Load the best checkpoint from the search. Run inference on the test set exactly once.
+          Do NOT use test set results to re-tune — doing so invalidates the test set.
+          Record all metrics contracted in docs/ml-contracts.md at inference time.
+        contract: >
+          All primary and secondary metrics from docs/ml-contracts.md are recorded.
+          Test evaluation runs exactly once (no multiple evaluation loops).
+          Each metric meets its contracted threshold.
+        tools: ["torch.no_grad()", "sklearn.metrics", "torchmetrics", "mlflow.log_metrics"]
+        expected_output: "test-evaluation.json: {metric, value, threshold, pass} per contracted metric"
+        pass_criterion: "All pass fields = true in test-evaluation.json"
+
+      - id: measure-inference-performance
+        instruction: >
+          Benchmark inference latency on the target deployment hardware (CPU if deployed on CPU).
+          Run 1,000 inference calls with the same input shape as production data.
+          Record: mean, p50, p95, p99 latency. Record model size on disk.
+        contract: >
+          p99 latency ≤ contracted max in docs/ml-contracts.md.
+          Model size ≤ contracted max.
+        tools: ["time.perf_counter", "torch.autocast", "ONNX Runtime", "locust"]
+        expected_output: "latency-report.json: {mean_ms, p50_ms, p95_ms, p99_ms, model_size_mb}"
+        pass_criterion: "p99_ms ≤ threshold; model_size_mb ≤ threshold"
+
+  - id: evidence
+    title: "Persist Model Artifacts and Experiment Logs"
+    rationale: >
+      ML models without reproducibility artifacts are not production-grade.
+      The exact checkpoint, the exact dataset split hash, and the exact code commit
+      that produced them must be committed or referenced in the experiment tracker.
+    steps:
+      - id: persist-experiment-artifacts
+        instruction: >
+          Log to MLflow / W&B:
+          - best_params.json (hyperparameters)
+          - test-evaluation.json (metric results)
+          - latency-report.json
+          - warm-run-checkpoint.json (updated with current best params for next run)
+          - model checkpoint (via log_artifact)
+          Tag the experiment run with the git commit SHA.
+        contract: >
+          Experiment tracker run exists with all artifacts.
+          Run is tagged with exact git commit SHA.
+          warm-run-checkpoint.json is updated for next run.
+        tools: ["mlflow.log_artifact", "wandb.log_artifact", "git rev-parse HEAD"]
+        expected_output: "MLflow run ID in experiment-run.json; all artifacts listed"
+        pass_criterion: "experiment-run.json exists; artifacts present in tracker"

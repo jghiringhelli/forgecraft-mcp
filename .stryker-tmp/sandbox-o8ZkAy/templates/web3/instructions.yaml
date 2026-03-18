@@ -1,0 +1,44 @@
+tag: WEB3
+section: instructions
+blocks:
+  - id: smart-contract-patterns
+    tier: recommended
+    title: "Smart Contract Design"
+    content: |
+      ## Smart Contract Design Patterns
+
+      - Follow the Checks-Effects-Interactions pattern in every state-mutating function: validate inputs, update state, then make external calls. This prevents reentrancy attacks.
+      - Use the proxy pattern (UUPS or Transparent Proxy) for upgradeable contracts. Separate storage layout from logic, and never change the order of existing storage variables.
+      - Minimize on-chain storage. Store large data off-chain (IPFS, Arweave) and keep only content hashes on-chain for verification.
+      - Emit events for every significant state change. Events are the primary mechanism for off-chain indexers and UIs to track contract activity.
+      - Use OpenZeppelin's audited base contracts for standard functionality (ERC-20, ERC-721, ERC-1155, AccessControl, ReentrancyGuard) rather than writing from scratch.
+      - Implement access control with role-based patterns. Use multi-sig or timelocks for admin operations to prevent single points of compromise.
+      - Write comprehensive Solidity NatSpec comments for every public and external function, including `@param`, `@return`, and `@notice` tags.
+      - Target 100% branch coverage in contract tests. Test edge cases: zero values, max uint values, unauthorized callers, reentrancy attempts, and contract self-destruction scenarios.
+
+  - id: gas-optimization
+    tier: recommended
+    title: "Gas Optimization"
+    content: |
+      ## Gas Optimization Strategies
+
+      - Pack struct fields by size to minimize storage slots. Group `uint128` pairs, `bool` clusters, and `address` + smaller types into single 32-byte slots.
+      - Use `calldata` instead of `memory` for read-only function parameters in external functions to avoid unnecessary copying.
+      - Prefer mappings over arrays for lookups. If iteration is needed, maintain a separate array of keys alongside the mapping.
+      - Batch operations where possible: multi-transfer, batch minting, and batch approvals reduce per-transaction overhead.
+      - Use custom errors (`error InsufficientBalance(uint256 available, uint256 required)`) instead of `require` strings to save deployment and runtime gas.
+      - Cache storage variables in local `memory` or `stack` variables when accessed multiple times within a function.
+      - Profile gas usage in tests using Hardhat's gas reporter. Set gas budgets per function and fail CI if a change exceeds the budget.
+
+  - id: wallet-offchain
+    tier: recommended
+    title: "Wallet Integration & Off-Chain Patterns"
+    content: |
+      ## Wallet Integration & Off-Chain Architecture
+
+      - Support multiple wallet providers (MetaMask, WalletConnect, Coinbase Wallet) via a unified connector abstraction. Never hard-code a single provider.
+      - Handle chain switching and network mismatch gracefully. Prompt users to switch networks and display clear error messages for unsupported chains.
+      - Use EIP-712 typed structured data for off-chain signature requests so users can read and understand what they are signing.
+      - Implement an off-chain indexer (The Graph, custom) to serve query-heavy read operations. Never query the blockchain directly from the frontend for list or aggregate views.
+      - Design for L2 and multi-chain: abstract chain-specific logic behind an interface so the application can deploy to new chains without rewriting business logic.
+      - Validate all inputs on-chain even if they were validated off-chain. Off-chain validation is a UX convenience; on-chain validation is the security boundary.

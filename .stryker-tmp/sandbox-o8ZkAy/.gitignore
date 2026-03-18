@@ -1,0 +1,32 @@
+node_modules/
+dist/
+.env
+*.tgz
+.coverage/
+coverage/
+*.log
+.venv/
+.DS_Store
+Thumbs.db
+.mcpregistry_*
+mcp-publisher*
+
+# Temp / draft / working files (blocked by pre-commit-no-temp-files hook)
+*.tmp
+*.bak
+*.swp
+*draft*
+*unofficial*
+*wip-*
+*.dump
+*.heap
+*.cpuprofile
+junit*.xml
+test-results.*
+
+# Experiment generated outputs — rebuildable via run-experiment.ts + materialize.ts
+# Keep: prompts/, docs/, CLAUDE.md, prisma/, evaluation/, README.md, Status.md (source + results)
+# Drop: output/ (generated code), session.log.json (raw CLI logs), *-response.md (raw Claude responses)
+experiments/*/output/
+experiments/failed-runs/*/
+experiments/*/session.log.json

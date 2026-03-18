@@ -1,0 +1,39 @@
+tag: DATA-PIPELINE
+section: nfr
+blocks:
+  - id: pipeline-reliability
+    tier: recommended
+    title: "Pipeline Reliability"
+    content: |
+      ## NFR: Pipeline Reliability
+
+      ### SLAs
+      - Data freshness SLA: {{freshness_sla | default: 1 hour}} from source to destination.
+      - Pipeline success rate: ≥ {{pipeline_success_rate | default: 99%}} per day.
+      - Alert on SLA breach within 15 minutes.
+
+      ### Idempotency
+      - Every pipeline step is idempotent — safe to rerun without duplicating data.
+      - Backfill supported: reprocess historical date ranges without manual intervention.
+      - Partial failures resume from last checkpoint, not from scratch.
+
+      ### Data Quality
+      - Schema validation at ingestion. Reject or quarantine malformed records.
+      - Row count, null rate, uniqueness, and distribution checks after each stage.
+      - Data quality metrics tracked over time. Alert on anomalies.
+
+  - id: pipeline-performance
+    tier: recommended
+    title: "Pipeline Performance"
+    content: |
+      ## NFR: Pipeline Performance
+
+      ### Throughput
+      - Target throughput: {{pipeline_throughput | default: 100K records/minute}}.
+      - Batch vs. streaming decision documented with rationale.
+      - Partitioning strategy aligned with query patterns.
+
+      ### Resource Management
+      - Compute resources auto-scale with data volume. No over-provisioning for peak.
+      - Cost per GB processed tracked. Budget alerts at 80% threshold.
+      - Temporary/staging data cleaned up automatically after pipeline completion.

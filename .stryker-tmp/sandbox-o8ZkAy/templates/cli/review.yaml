@@ -1,0 +1,53 @@
+tag: CLI
+section: review
+blocks:
+  - id: cli-architecture-review
+    tier: recommended
+    dimension: architecture
+    title: "CLI Architecture Review"
+    description: |
+      Evaluate CLI-specific patterns: argument parsing, output formatting, and exit codes.
+    checklist:
+      - id: cli-argument-parsing
+        description: "Arguments parsed with a proper library (yargs, commander, clap). No manual argv slicing."
+        severity: important
+      - id: cli-exit-codes
+        description: "Exit codes follow convention: 0 = success, 1 = general error, 2 = usage error. Documented."
+        severity: important
+      - id: cli-help-output
+        description: "--help flag yields clear usage with examples. Every subcommand has a description."
+        severity: important
+      - id: cli-stdin-stdout
+        description: "Supports stdin/stdout piping for composability. Machine-readable output (JSON) via --json flag."
+        severity: nice-to-have
+
+  - id: cli-code-quality-review
+    tier: recommended
+    dimension: code-quality
+    title: "CLI Code Quality Review"
+    description: |
+      Evaluate CLI UX and error handling.
+    checklist:
+      - id: cli-error-messages
+        description: "Errors show what went wrong, why, and how to fix it. Include the failing input value."
+        severity: critical
+      - id: cli-progress-feedback
+        description: "Long operations show progress (spinner, progress bar). Silent mode available via --quiet."
+        severity: important
+      - id: cli-destructive-confirm
+        description: "Destructive operations require confirmation unless --force or --yes flag is passed."
+        severity: important
+
+  - id: cli-test-review
+    tier: recommended
+    dimension: tests
+    title: "CLI Test Review"
+    description: |
+      Evaluate CLI-specific testing patterns.
+    checklist:
+      - id: cli-integration-tests
+        description: "End-to-end tests invoke the CLI binary and assert on stdout, stderr, and exit code."
+        severity: critical
+      - id: cli-snapshot-output
+        description: "Help text and formatted output tested via snapshots to catch unintended changes."
+        severity: nice-to-have

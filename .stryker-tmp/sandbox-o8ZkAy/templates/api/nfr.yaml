@@ -1,0 +1,23 @@
+tag: API
+section: nfr
+blocks:
+  - id: api-performance
+    tier: recommended
+    title: "API Performance"
+    content: |
+      ## NFR: API Performance
+
+      ### Response Time Targets
+      - p50: < {{p50_target | default: 50ms}}
+      - p95: < {{p95_target | default: 200ms}}
+      - p99: < {{p99_target | default: 500ms}}
+
+      ### Throughput
+      - Target requests/sec: {{target_rps}}
+      - Load test before launch at 2x expected peak.
+      - Auto-scaling configured with appropriate min/max.
+
+      ### Rate Limiting
+      - Per-client rate limits on all endpoints.
+      - Graduated response: 429 with Retry-After header before hard block.
+      - Rate limit bypass for internal services via separate auth.

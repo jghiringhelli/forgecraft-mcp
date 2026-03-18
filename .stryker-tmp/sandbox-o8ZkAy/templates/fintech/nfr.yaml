@@ -1,0 +1,46 @@
+tag: FINTECH
+section: nfr
+blocks:
+  - id: fintech-transaction-integrity
+    tier: recommended
+    title: "Transaction Integrity"
+    content: |
+      ## NFR: Transaction Integrity
+
+      ### ACID Compliance
+      - All financial operations wrapped in database transactions.
+      - Double-entry bookkeeping: every debit has a corresponding credit. Ledger always balances.
+      - Idempotency keys on all payment operations — retries must not duplicate charges.
+
+      ### Precision
+      - NO floating-point arithmetic for monetary values. Use integer cents, BigDecimal, or Decimal types.
+      - Currency stored alongside amount. No implicit currency assumptions.
+      - Rounding rules documented and consistent with regulatory requirements.
+
+      ### Reconciliation
+      - Automated reconciliation between internal ledger and external payment providers.
+      - Reconciliation frequency: {{reconciliation_frequency | default: daily}}.
+      - Discrepancies alerted within 1 hour. Unresolved discrepancies escalated.
+
+  - id: fintech-compliance
+    tier: recommended
+    title: "Financial Compliance"
+    content: |
+      ## NFR: Financial Compliance
+
+      ### Regulatory
+      - PCI DSS compliance for card data handling. No raw card numbers stored — tokenize.
+      - KYC/AML processes integrated where required. Document which regulations apply.
+      - SOC 2 Type II audit trail: all access to financial data logged and retained.
+
+      ### Audit Trail
+      - Immutable audit log for every financial transaction.
+      - Log contains: timestamp, actor, operation, before/after state, correlation ID.
+      - Retention: minimum {{audit_retention | default: 7 years}} per regulatory requirements.
+      - Audit logs stored separately, tamper-evident (append-only, hashed).
+
+      ### Disaster Recovery
+      - RPO for financial data: < {{fintech_rpo | default: 5 minutes}}.
+      - RTO: < {{fintech_rto | default: 1 hour}}.
+      - Point-in-time recovery to any second within retention window.
+      - DR drill: quarterly, documented, measured.

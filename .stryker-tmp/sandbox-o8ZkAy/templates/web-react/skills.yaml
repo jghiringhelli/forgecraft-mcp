@@ -1,0 +1,56 @@
+tag: WEB-REACT
+section: skills
+skills:
+  - id: react-add-component
+    name: Add React Component
+    filename: react-add-component.md
+    description: "Scaffold a new React component following project patterns"
+    tier: core
+    content: |
+      Create a new React component. $ARGUMENTS should contain the component name and description.
+
+      Steps:
+      1. Analyze existing component patterns:
+         - File naming convention (PascalCase, kebab-case, index.tsx barrel)
+         - Component style (function components, arrow functions)
+         - Styling approach (CSS modules, Tailwind, styled-components, etc.)
+         - State management pattern (hooks, context, store)
+         - Props pattern (inline types, separate interface, shared types)
+      2. Create the component matching discovered patterns:
+         - Component file with proper TypeScript props interface
+         - Styles file if the project uses co-located styles
+         - Index barrel export if the project uses them
+      3. Add tests:
+         - Renders without crashing
+         - Displays expected content with given props
+         - Handles user interaction (click, input) if applicable
+      4. Export from the nearest index file
+
+      Follow existing patterns. Do NOT introduce new styling or state management approaches.
+
+  - id: react-optimize-performance
+    name: Optimize React Performance
+    filename: react-optimize-performance.md
+    description: "Find and fix React performance issues"
+    tier: recommended
+    content: |
+      Analyze React components for performance issues. If $ARGUMENTS specifies a component, focus there. Otherwise, scan the project.
+
+      Check for:
+      1. **Unnecessary re-renders**:
+         - Components missing `React.memo` where props rarely change
+         - Inline object/array/function creation in JSX props
+         - Missing `useCallback` / `useMemo` for expensive operations
+      2. **State management**:
+         - State stored too high in the tree causing cascading renders
+         - Derived state that should be computed (not stored)
+         - Missing state colocation
+      3. **Data fetching**:
+         - Missing loading/error states
+         - No request deduplication or caching
+         - Waterfalls (sequential fetches that could be parallel)
+      4. **Bundle size**:
+         - Large imports that could be lazy-loaded
+         - Missing code splitting at route boundaries
+
+      For each issue found, provide the file, line, problem, and fix with code.

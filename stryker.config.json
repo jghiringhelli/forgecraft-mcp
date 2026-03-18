@@ -1,0 +1,33 @@
+{
+  "$schema": "https://stryker-mutator.io/schemas/stryker-schema.json#",
+  "testRunner": "vitest",
+  "testRunnerNodeArgs": ["--experimental-vm-modules"],
+  "mutate": [
+    "src/registry/sentinel-renderer.ts",
+    "src/tools/refresh-project.ts",
+    "src/tools/scaffold.ts"
+  ],
+  "testFiles": [
+    "tests/registry/sentinel-renderer.test.ts",
+    "tests/tools/refresh-project.test.ts",
+    "tests/tools/scaffold.test.ts"
+  ],
+  "reporters": ["progress", "html", "clear-text"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 50
+  },
+  "timeoutMS": 30000,
+  "concurrency": 2,
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true,
+  "coverageAnalysis": "perTest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  }
+}
+

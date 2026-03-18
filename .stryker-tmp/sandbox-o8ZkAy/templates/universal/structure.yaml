@@ -1,0 +1,67 @@
+tag: UNIVERSAL
+section: structure
+language: both
+entries:
+  - path: CLAUDE.md
+    type: file
+    description: "CC persistent instruction set"
+  - path: Status.md
+    type: file
+    description: "Session bridge — updated every session"
+  - path: .env.example
+    type: file
+    description: "All required env vars documented"
+  - path: .claude/hooks
+    type: directory
+    description: "Git quality gate scripts"
+  - path: docs
+    type: directory
+    description: "PRD, Tech Spec, ADRs"
+  - path: docs/PRD.md
+    type: file
+    description: "Product requirements document"
+  - path: DEVELOPMENT_PROMPTS.md
+    type: file
+    description: "Bound roadmap — session-scoped prompts with spec refs, preconditions, scope, acceptance criteria, and commit message. One entry per roadmap item. Procedural Memory."
+  - path: docs/TechSpec.md
+    type: file
+    description: "Technical specification"
+  - path: docs/adr
+    type: directory
+    description: "Architecture Decision Records"
+  - path: scripts
+    type: directory
+    description: "Project utility scripts"
+  - path: src
+    type: directory
+    description: "Application source code"
+  - path: src/shared/config
+    type: directory
+    description: "Env validation, fail-fast on startup"
+  - path: src/shared/exceptions
+    type: directory
+    description: "Base exception hierarchy"
+  - path: src/shared/logging
+    type: directory
+    description: "Structured logging setup"
+  - path: tests
+    type: directory
+    description: "Test suites"
+  - path: tests/unit
+    type: directory
+    description: "Unit tests"
+  - path: tests/integration
+    type: directory
+    description: "Integration tests"
+  - path: docs/adr
+    type: directory
+    description: "Architecture Decision Records — ADR-NNNN-short-title.md format"
+  - path: docs/diagrams
+    type: directory
+    description: "C4, sequence, state machine, and flow diagrams (PlantUML, Mermaid)"
+  - path: docs/use-cases
+    type: directory
+    description: "Precise use cases: actor, precondition, trigger, main flow, postcondition, acceptance criteria"
+  - path: specs
+    type: directory
+    description: "Platform-independent behavioral specs, session prompts, and generative asset acceptance criteria"

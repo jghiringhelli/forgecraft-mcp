@@ -1,0 +1,112 @@
+tag: FINTECH
+section: instructions
+blocks:
+  - id: transaction-integrity
+    tier: recommended
+    title: "Transaction Integrity & Data Precision"
+    content: |
+      ## Transaction Integrity & Financial Data Precision
+
+      - Never use floating-point types for monetary values. Use fixed-precision decimal types (e.g., `Decimal`, `BigDecimal`, `NUMERIC(19,4)`) or integer minor units (cents/pips) throughout the entire stack.
+      - Ensure all financial operations are ACID-compliant. Use database transactions with appropriate isolation levels (at minimum READ COMMITTED; use SERIALIZABLE for balance mutations).
+      - Implement double-entry bookkeeping: every transaction creates at least two ledger entries (debit and credit) that sum to zero. Validate this invariant on every write.
+      - Make all transaction processing idempotent using client-supplied idempotency keys. Retry-safe APIs prevent duplicate charges or transfers.
+      - Record immutable transaction history. Financial records are append-only; corrections are modeled as reversing entries, never as in-place updates or deletes.
+      - Perform end-of-day reconciliation between internal ledgers and external payment processor/bank records. Alert immediately on any discrepancy.
+      - Store and display all monetary amounts with their ISO 4217 currency code. Never assume a default currency.
+
+  - id: audit-compliance
+    tier: recommended
+    title: "Audit Trails & Regulatory Compliance"
+    content: |
+      ## Audit Trails & Regulatory Compliance
+
+      - Maintain a tamper-evident, append-only audit log for every state change to accounts, transactions, and user permissions. Include actor, timestamp, old value, new value, and IP address.
+      - Implement PCI-DSS controls if handling cardholder data: network segmentation, encryption, access logging, vulnerability scanning, and annual compliance assessments.
+      - Mask or tokenize sensitive financial identifiers (account numbers, SSNs, card PANs) in logs, error messages, and non-production environments.
+      - Enforce KYC/AML checks at onboarding and on an ongoing basis. Integrate with identity verification and sanctions screening providers via well-defined service boundaries.
+      - Retain financial records and audit logs for the period required by applicable regulations (typically 5-7 years). Automate archival and ensure archived data remains queryable for audits.
+      - Design for regulatory reporting: build data models and pipelines that can produce required reports (SAR, CTR, regulatory filings) with minimal manual intervention.
+
+  - id: security-resilience
+    tier: recommended
+    title: "Security & Operational Resilience"
+    content: |
+      ## Security & Operational Resilience
+
+      - Implement multi-factor authentication for all user-facing financial operations above a configurable threshold (e.g., transfers > $500).
+      - Apply velocity checks and fraud detection rules: flag unusual transaction volumes, amounts, geographies, or timing patterns for review before processing.
+      - Use cryptographic signing (HMAC or asymmetric signatures) for all webhook payloads, inter-service financial messages, and API requests to prevent tampering.
+      - Design for graceful degradation: if an external payment provider is unavailable, queue transactions for retry rather than failing the user experience entirely.
+      - Maintain a disaster recovery plan with RPO < 1 hour and RTO < 4 hours for critical financial services. Test failover procedures quarterly.
+      - Separate read and write paths for high-throughput systems. Use CQRS to ensure reporting queries never contend with transaction processing.
+
+  - id: simulation-invariants
+    tier: recommended
+    title: "Financial Simulation & Backtesting Invariants"
+    content: |
+      ## Financial Simulation & Backtesting Invariants
+
+      Financial simulations fail in two directions, both silently. Name them explicitly
+      so every engineer on the team recognizes the pattern immediately.
+
+      ### Category A — Silent Loss Bugs (strategy runs, earns nothing)
+
+      These bugs produce flat or zero P&L while the simulation completes without error.
+      The strategy appears to have run. It did not.
+
+      **1. P&L decomposition invariant**
+      At finalize: `fee_income + price_income == total_pnl ± 1%`.
+      A gap larger than 1% means an accounting component is unlinked — it exists
+      in the ledger but never flows into the reported total.
+
+      **2. Fee-time ratio**
+      Fees must be proportional to active simulation time. Near-zero fees after
+      1000 hours of "running" means the instrument was never created. The strategy
+      ran against nothing. Check: `total_fees / active_hours < threshold` → flag.
+
+      **3. State concentration**
+      If >80% of simulation time is spent in a single non-productive state
+      (e.g. `crash_short`, `emergency`, `waiting`), the state machine is stuck.
+      A stuck machine is not a conservative strategy — it is a broken one.
+      Surface this in finalize as a warning, not a footnote.
+
+      ### Category B — Silent Gain Bugs (inflated returns from accounting errors)
+
+      These bugs produce plausible-looking positive returns. They are harder to catch
+      because the output looks like a win.
+
+      **4. Return plausibility**
+      For a market-neutral strategy: annual return >200% or `total_pnl / fee_income >10×`
+      is almost certainly a bug, not alpha. Fee income is ground truth of actual activity.
+      A strategy that earns 10× its fees in price income has a broken hedge or look-ahead leak.
+
+      **5. Delta neutrality**
+      Track `avg |net_delta|` while in the primary running state.
+      High average delta = the hedge is broken, bootstrapped incorrectly, or bypassed.
+      This check surfaces bootstrap order bugs that only appear mid-simulation.
+
+      **6. Instrument balance**
+      Sub-strategies should be sized proportionally per the allocation spec.
+      If one instrument is 5× larger than another at finalize, allocation logic failed.
+      Check: `max(instrument_notionals) / min(instrument_notionals) > 3× → warn`.
+
+      ### Integration requirements
+
+      - All 6 checks run in the harness `finalize()` step, printing alongside standard metrics.
+      - Failed invariants logged as `[INVARIANT FAIL]` — not swallowed as warnings.
+      - Checks are parameterized: thresholds in config, not hardcoded.
+      - All 6 checks have unit tests with synthetic data that triggers each failure mode.
+
+      ### Volatility unit convention
+
+      Unit confusion in vol calculations is the single most common source of both false crash
+      triggers and missed recovery conditions in DeFi and market-neutral strategies.
+
+      - Vol fields stored as `percentage_per_period` must never be re-transformed with
+        `/ sqrt(N)` or `* 100` after storage. Storing already-scaled vol and scaling again
+        = off by 10×–100× with no runtime error.
+      - Label every vol field with its unit in the variable name or type alias:
+        `vol_pct_per_day`, `sigma_annual` — never just `vol` or `sigma`.
+      - Annualization convention must be a named constant: `TRADING_DAYS_PER_YEAR = 252`
+        (or 365, or actual — choose one, name it, use it everywhere).

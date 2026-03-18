@@ -1,0 +1,16 @@
+tag: CLI
+section: structure
+language: typescript
+entries:
+  - path: src/index.ts
+    type: file
+    description: "Entry point with shebang (#!/usr/bin/env node)"
+  - path: src/cli
+    type: directory
+    description: "CLI command definitions and argument parsing"
+  - path: src/shared/config
+    type: directory
+    description: "CLI configuration and env handling"
+  - path: src/shared/errors
+    type: directory
+    description: "Error hierarchy with user-friendly messages"

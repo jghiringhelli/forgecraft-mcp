@@ -1,0 +1,39 @@
+tag: ML
+section: nfr
+blocks:
+  - id: ml-performance
+    tier: recommended
+    title: "ML Model Performance"
+    content: |
+      ## NFR: ML Model Performance
+
+      ### Inference Latency
+      - p50 inference latency: < {{ml_p50_ms | default: 50ms}}.
+      - p99 inference latency: < {{ml_p99_ms | default: 200ms}}.
+      - Batch inference throughput: process {{batch_throughput | default: 10000}} samples/minute.
+
+      ### Model Quality
+      - Primary metric: {{primary_metric | default: accuracy}} ≥ {{primary_threshold | default: 0.90}}.
+      - Model quality regression blocks deployment — automated evaluation in CI/CD.
+      - A/B testing framework for comparing model versions in production.
+
+      ### Data Quality
+      - Data drift detection on model inputs. Alert when distribution shifts beyond threshold.
+      - Schema validation on training and inference data. Reject malformed inputs.
+      - Feature freshness monitored. Stale features flagged.
+
+  - id: ml-reproducibility
+    tier: recommended
+    title: "ML Reproducibility"
+    content: |
+      ## NFR: ML Reproducibility
+
+      ### Experiment Tracking
+      - Every training run logged: hyperparameters, metrics, dataset version, code version.
+      - Experiment tracker (MLflow, Weights & Biases, Neptune) mandatory — not optional.
+      - Model lineage: trace any deployed model back to its training data and code.
+
+      ### Versioning
+      - Datasets versioned (DVC, Delta Lake, or artifact store).
+      - Models versioned with metadata: training date, dataset hash, performance metrics.
+      - Random seeds set and logged for reproducibility.

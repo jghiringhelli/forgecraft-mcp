@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e:*)",
+      "Bash(npm test)",
+      "Bash(npm run build:*)",
+      "Bash(gh run list:*)"
+    ]
+  }
+}

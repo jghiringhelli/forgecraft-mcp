@@ -1,0 +1,20 @@
+tag: LIBRARY
+section: mcp-servers
+servers:
+  - name: filesystem
+    description: "Secure file operations — read, write, search, and directory management with configurable access controls"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/"]
+    tags: [CLI, LIBRARY]
+    category: general
+    tier: recommended
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
+
+  - name: npm-search
+    description: "Search npm registry for packages, check versions, and inspect dependencies"
+    command: npx
+    args: ["-y", "mcp-server-npm-search"]
+    tags: [LIBRARY]
+    category: documentation
+    tier: optional
+    url: "https://github.com/nicholasgriffintn/npm-search-mcp-server"

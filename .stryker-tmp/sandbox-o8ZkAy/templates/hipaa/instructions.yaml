@@ -1,0 +1,41 @@
+tag: HIPAA
+section: instructions
+blocks:
+  - id: pii-masking
+    tier: recommended
+    title: "PII Masking & Data Protection"
+    content: |
+      ## PII Masking & Data Protection
+
+      - Identify all Personally Identifiable Information (PII) fields at design time using the 18 HIPAA identifiers as a baseline.
+      - Implement masking templates for every PII field: full mask for display, partial mask for verification, tokenized for logging.
+      - Apply dynamic masking based on user role — clinicians see full data, billing sees partial, analytics sees only de-identified data.
+      - Never store raw PII in caches, message queues, or temporary files. Use tokenized references that resolve through a secure lookup service.
+      - Validate masking coverage with automated tests: no PII field should reach a log sink, error report, or analytics pipeline unmasked.
+      - Maintain a PII field registry as a living document — every new field must be classified before it enters the data model.
+
+  - id: encryption-checks
+    tier: recommended
+    title: "Encryption Verification & Key Management"
+    content: |
+      ## Encryption Verification & Key Management
+
+      - Enforce AES-256 encryption at rest for all data stores containing PII. Verify encryption status in CI with infrastructure-as-code checks.
+      - Require TLS 1.2+ for all data in transit. Reject connections using older protocols at the load balancer level.
+      - Use envelope encryption with a managed KMS (AWS KMS, Azure Key Vault, GCP KMS). Never store encryption keys alongside encrypted data.
+      - Rotate encryption keys on a defined schedule (90 days minimum). Automate rotation and re-encryption of affected data.
+      - Include encryption verification in deployment checklists: database encryption enabled, TLS certificates valid, KMS policies correct.
+      - Test encryption boundaries: verify that data crossing service boundaries remains encrypted and that decryption only occurs in authorized services.
+
+  - id: audit-logging-hipaa
+    tier: recommended
+    title: "HIPAA Audit Logging"
+    content: |
+      ## HIPAA Audit Logging
+
+      - Log every access to PII: who, when, what data, from where, and the business justification.
+      - Store audit logs in an append-only, tamper-evident store separate from application databases.
+      - Retain audit logs for a minimum of 6 years per HIPAA requirements.
+      - Generate automated audit reports: access frequency per user, unusual patterns, after-hours access.
+      - Implement real-time alerting for anomalous access: bulk record access, out-of-role access, VIP record access.
+      - Include a unique correlation ID in every request touching PII for end-to-end traceability across services.

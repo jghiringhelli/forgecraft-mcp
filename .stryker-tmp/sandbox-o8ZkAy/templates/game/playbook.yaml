@@ -1,0 +1,214 @@
+tag: GAME
+section: playbook
+title: "Game Design, Balance & Art Pipeline"
+description: >
+  An agent-driven pipeline for game design, mechanics balancing, and art production.
+  Covers headless balance simulation, economy tuning, and art asset generation
+  via both local (Stable Diffusion) and paid API providers (DALL·E, Midjourney-compatible).
+  Run this playbook when designing new systems, balancing existing ones, or bootstrapping
+  art assets before a dedicated artist is available.
+
+phases:
+
+  - id: mechanics-specification
+    title: "Mechanics Specification"
+    rationale: >
+      Balance simulation is meaningless without a precise formal specification of the
+      mechanics. Vague descriptions produce misleading sim results. Define the system
+      mathematically before writing a single line of simulation code.
+    steps:
+      - id: identify-systems
+        instruction: >
+          List every game system that affects player power or economy
+          (combat, progression, crafting, trading, cooldowns, resource generation, etc.).
+          For each system, describe: inputs, outputs, and how it interacts with other systems.
+        expected_output: "System map: Name | Inputs | Outputs | Dependencies"
+
+      - id: formalise-formulas
+        instruction: >
+          For each system, write the governing formula in explicit mathematical notation.
+          Include all variables, their types, valid ranges, and units.
+          Example: damage = (base_attack × weapon_multiplier) / (1 + armor / 100) × crit_factor
+          where crit_factor ∈ {1.0, 2.5}.
+        expected_output: "Formula sheet: System | Formula | Variables with units and ranges"
+
+      - id: identify-balance-axes
+        instruction: >
+          Identify the axes you are balancing against:
+          - Time-to-kill (TTK) for combat
+          - Catch-up mechanics for progression
+          - Sink/source ratio for economy
+          - Win rate variance for competitive
+          For each axis, define: target value, acceptable range, and measurement method.
+        expected_output: "Balance axes table: Axis | Target | Acceptable Range | Measurement"
+
+  - id: headless-balance-simulation
+    title: "Headless Balance Simulation"
+    rationale: >
+      Running simulations headlessly (no renderer, no input, scripted AI agents)
+      over thousands of iterations surfaces balance issues that playtesting would
+      take months to discover. Automate this before any content ship.
+    steps:
+      - id: build-sim-harness
+        instruction: >
+          Build or configure a headless simulation harness:
+          - For browser/Node games: use a pure-logic module with no DOM/WebGL dependencies
+          - For Unity/Godot: use headless build mode with a scripted test runner
+          - For Python sims: write a standalone module with no display imports
+          Output: a function runSimulation(config, seed) → SimResult that is deterministic
+          given the same seed.
+        expected_output: "Simulation harness code + test proving determinism (same seed → same result)"
+        tools: ["run_in_terminal"]
+
+      - id: define-ai-agents
+        instruction: >
+          Define scripted AI agent strategies for simulation:
+          - Greedy (always picks highest immediate reward)
+          - Balanced (follows optimal build order)
+          - Adversarial (maximises disruption to other players)
+          Agents should be configurable via the sim config, not hardcoded.
+        expected_output: "Agent strategy implementations + config schema"
+
+      - id: run-baseline-sim
+        instruction: >
+          Run 10,000 iterations with baseline parameters and default agents.
+          Collect per-run stats: TTK, resource peaks, win rates, average game length,
+          P99 outliers. Check all balance axes against their targets.
+        expected_output: "Baseline stats report: mean/median/P99 per axis; pass/fail vs targets"
+        tools: ["run_in_terminal"]
+
+      - id: sweep-parameters
+        instruction: >
+          Run parameter sweeps over the 3–5 most sensitive balance parameters.
+          For each sweep: vary the parameter ±50% in 10 steps while holding others constant.
+          Produce a sweep chart showing how each axis responds to the knob.
+        expected_output: "Sweep results: one line chart per parameter showing axis response curve"
+        tools: ["run_in_terminal"]
+
+      - id: identify-degenerate-strategies
+        instruction: >
+          Run the adversarial agent against all others across parameter ranges.
+          Identify dominant strategies (win rate > 70% consistently) and degenerate
+          combos (interactions that break intended constraints).
+          Document each finding with the exact parameter values that trigger it.
+        expected_output: "Degenerate strategy report: Strategy | Trigger Conditions | Win Rate | Fix Hypothesis"
+
+  - id: economy-tuning
+    title: "Economy Tuning"
+    rationale: >
+      Game economies follow the same dynamics as real economies: inflation, deflation,
+      sink/source imbalance, and wealth concentration. Model them explicitly to prevent
+      end-game economic collapse or hyperinflation.
+    steps:
+      - id: model-flow-graph
+        instruction: >
+          Build a resource flow graph: nodes are resource types, directed edges are
+          production (source) or consumption (sink) flows with rates.
+          Generate a Mermaid flowchart of the economy.
+        expected_output: "Mermaid flowchart of resource flows + rate table: Resource | Sources | Sinks | Net Rate"
+        tools: ["run_in_terminal"]
+
+      - id: equilibrium-analysis
+        instruction: >
+          Calculate equilibrium supply for each resource at steady-state play rates.
+          Flag any resource with no sink (inflation bomb) or no source (progress blocker).
+          Propose corrective sinks/sources for imbalanced resources.
+        expected_output: "Equilibrium table: Resource | Steady-State Supply | Balanced? | Fix Proposal"
+
+      - id: simulate-economy-over-time
+        instruction: >
+          Run a time-series simulation of the economy over the equivalent of 30, 90, and 180
+          days of average play. Track wealth Gini coefficient, resource stockpile growth,
+          and price indicators if a player-driven market exists.
+        expected_output: "Time-series charts (data) + Gini trend + inflation rate per resource"
+        tools: ["run_in_terminal"]
+
+  - id: art-asset-generation
+    title: "Art Asset Generation"
+    rationale: >
+      AI art generation can bootstrap placeholder and concept art before a dedicated
+      artist joins. The choice between local (Stable Diffusion) and paid API depends
+      on volume, quality requirements, and cost. Both paths are covered here.
+    steps:
+      - id: define-style-guide
+        instruction: >
+          Define the visual style guide: art style (pixel, painterly, cartoon, photorealistic),
+          colour palette (hex codes for primary/secondary/accent), perspective (top-down, isometric, 
+          side-scroll, 3D), and mood keywords.
+          This becomes the base prompt prefix for all generation.
+        expected_output: "style_guide.yaml: style, palette, perspective, mood_keywords, base_prompt_prefix"
+
+      - id: choose-generation-path
+        instruction: >
+          Decide generation approach based on constraints:
+          - Local (Stable Diffusion / ComfyUI): use when volume > 500 images, need fine-tuned
+            LoRA on game style, or budget is constrained. Requires GPU (8GB+ VRAM).
+          - DALL·E 3 API: use when quality > quantity, no local GPU, or fast concept iteration.
+          - Replicate / Stability API: use for scalable cloud generation with model flexibility.
+          Document the choice, cost estimate, and rate limits.
+        expected_output: "Generation path decision: provider, cost model, rate limits, integration approach"
+
+      - id: scaffold-generation-pipeline
+        instruction: >
+          Scaffold the asset generation pipeline:
+          - Input: asset_spec.yaml (asset_id, category, description, style overrides)
+          - Processing: build full prompt from spec + style_guide, call provider API (or local endpoint)
+          - Output: named PNG files in assets/generated/{category}/
+          - Metadata: generation_log.json mapping asset_id → prompt, provider, seed, timestamp
+          Include retry logic and error handling for rate limits.
+        expected_output: "Pipeline code + asset_spec.yaml schema + generation_log.json schema"
+        tools: ["run_in_terminal"]
+
+      - id: generate-asset-set
+        instruction: >
+          Using asset_spec.yaml, generate the first batch of game assets:
+          UI elements, character concepts, environment tiles, and icon set.
+          Review outputs and iteratively refine prompts for any assets below quality bar.
+          Document effective prompt patterns and anti-patterns for the style guide.
+        expected_output: "Generated asset set in assets/generated/ + prompt_patterns.md"
+        tools: ["run_in_terminal"]
+
+      - id: local-sd-setup
+        instruction: >
+          (If local path was chosen) Set up Stable Diffusion with ComfyUI:
+          - Install ComfyUI and required model checkpoints (SDXL or SD 1.5)
+          - Configure a custom workflow JSON for the game's style
+          - Train or source a LoRA checkpoint for the art style if available
+          - Expose a local REST endpoint at localhost:8188 consumable by the pipeline
+        expected_output: "ComfyUI running locally with workflow exported; pipeline integration test passing"
+        tools: ["run_in_terminal"]
+
+  - id: content-validation
+    title: "Content Validation & Shipping Checklist"
+    rationale: >
+      Before any balance changes or art assets ship, they must pass automated
+      validation checks. Manual review of thousands of generated assets is not scalable.
+    steps:
+      - id: automated-balance-gating
+        instruction: >
+          Write a balance gate script that runs the headless sim and fails CI if any
+          balance axis falls outside its acceptable range. This script must run in < 60s
+          (use fewer iterations if needed; label it as a fast-gate vs. full-gate).
+        expected_output: "CI balance gate script + target run time verified < 60s"
+        tools: ["run_in_terminal"]
+
+      - id: asset-review-pipeline
+        instruction: >
+          Build an asset review script that:
+          - Checks all generated PNGs have correct dimensions and colour depth
+          - Flags assets with generation metadata missing (prompt, seed)
+          - Generates a review HTML gallery for human sign-off
+          Run it on the current asset batch.
+        expected_output: "Asset review script + gallery HTML for current batch"
+        tools: ["run_in_terminal"]
+
+      - id: commit-artefacts
+        instruction: >
+          Commit all approved artefacts:
+          - docs/balance/baseline-sim-YYYY-MM-DD.md (simulation results)
+          - docs/balance/economy-analysis.md (flow graph + equilibrium)
+          - assets/generated/ (approved art assets)
+          - config/balance.yaml (tuned parameter set)
+          Use commit format: feat(balance): initial parameter set vX.Y
+        expected_output: "Clean git status; all artefacts committed; CI passing"
+        tools: ["run_in_terminal"]

@@ -1,0 +1,25 @@
+tag: ML
+section: structure
+entries:
+  - path: notebooks/
+    description: "Exploration notebooks — never used in production code"
+  - path: src/data/
+    description: "Data loading, validation, and preprocessing pipelines"
+  - path: src/features/
+    description: "Feature engineering: transformations, feature store connectors"
+  - path: src/models/
+    description: "Model definitions, training loops, evaluation"
+  - path: src/serving/
+    description: "Model serving: API wrappers, batch inference scripts"
+  - path: src/config/
+    description: "Hyperparameters, feature configs, experiment configs (YAML)"
+  - path: tests/
+    description: "Unit tests for data transforms, feature logic, model contracts"
+  - path: tests/data_validation/
+    description: "Data quality tests: schema checks, distribution tests"
+  - path: models/
+    description: "Serialized models and metadata (gitignored, stored in artifact registry)"
+  - path: data/
+    description: "Local data cache (gitignored). Source of truth is remote storage."
+  - path: pipelines/
+    description: "Orchestration definitions: Airflow DAGs, Kubeflow pipelines, or Prefect flows"

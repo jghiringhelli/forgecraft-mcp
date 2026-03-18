@@ -1,0 +1,34 @@
+tag: API
+section: structure
+language: typescript
+entries:
+  - path: src/index.ts
+    type: file
+    description: "Composition root — only place concretes are instantiated"
+  - path: src/shared/config/index.ts
+    type: file
+    description: "Env validation with fail-fast"
+  - path: src/shared/errors/index.ts
+    type: file
+    description: "Error class hierarchy"
+  - path: src/shared/logger/index.ts
+    type: file
+    description: "Structured logging (pino)"
+  - path: src/shared/middleware
+    type: directory
+    description: "Auth, error handler, request ID"
+  - path: src/shared/types
+    type: directory
+    description: "Shared interfaces and type definitions"
+  - path: src/modules
+    type: directory
+    description: "Feature modules"
+  - path: tests/unit
+    type: directory
+    description: "Unit tests"
+  - path: tests/integration
+    type: directory
+    description: "Integration tests"
+  - path: tests/e2e
+    type: directory
+    description: "End-to-end tests"

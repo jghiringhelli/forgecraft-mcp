@@ -391,21 +391,19 @@ function renderSentinelClaudeMd(
     "",
   ];
 
-  // Wayfinding table
-  if (domains.length > 0) {
-    lines.push(`## Wayfinding — Load Standards on Demand`);
-    lines.push(`| When working on… | Read |`);
-    lines.push(`|---|---|`);
-    for (const { domain, description } of domains) {
-      lines.push(`| ${description} | \`.claude/standards/${domain}.md\` |`);
-    }
-    lines.push(
-      `| Project-specific rules, framework choices, corrections log | \`.claude/standards/project-specific.md\` |`,
-    );
-    lines.push("");
-    lines.push(`---`);
-    lines.push("");
+  // Wayfinding table — always rendered; project-specific.md is always present
+  lines.push(`## Wayfinding — Load Standards on Demand`);
+  lines.push(`| When working on… | Read |`);
+  lines.push(`|---|---|`);
+  for (const { domain, description } of domains) {
+    lines.push(`| ${description} | \`.claude/standards/${domain}.md\` |`);
   }
+  lines.push(
+    `| Project-specific rules, framework choices, corrections log | \`.claude/standards/project-specific.md\` |`,
+  );
+  lines.push("");
+  lines.push(`---`);
+  lines.push("");
 
   lines.push(`## Session Protocol`);
   lines.push(

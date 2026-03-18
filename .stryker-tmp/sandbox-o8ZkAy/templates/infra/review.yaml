@@ -1,0 +1,65 @@
+tag: INFRA
+section: review
+blocks:
+  - id: infra-architecture-review
+    tier: recommended
+    dimension: architecture
+    title: "Infrastructure Architecture Review"
+    description: |
+      Evaluate IaC patterns, resource organization, and environment management.
+    checklist:
+      - id: iac-all-resources
+        description: "All production resources defined in IaC. No manually created resources."
+        severity: critical
+      - id: module-reuse
+        description: "Common patterns (VPC, database, service) extracted into reusable modules, not copy-pasted."
+        severity: important
+      - id: environment-isolation
+        description: "Environments fully isolated: separate state files, separate accounts/projects where possible."
+        severity: critical
+      - id: blast-radius
+        description: "Stacks/modules scoped to limit blast radius. A bad deploy to one stack doesn't affect others."
+        severity: important
+
+  - id: infra-security-review
+    tier: recommended
+    dimension: code-quality
+    title: "Infrastructure Security Review"
+    description: |
+      Evaluate network security, access control, and secrets management.
+    checklist:
+      - id: least-privilege
+        description: "IAM roles use minimum required permissions. No wildcard actions on production."
+        severity: critical
+      - id: no-public-exposure
+        description: "Databases and application servers in private subnets. Only load balancers are publicly accessible."
+        severity: critical
+      - id: secrets-managed
+        description: "All secrets in a secrets manager with rotation. No hardcoded credentials in IaC files."
+        severity: critical
+      - id: encryption-at-rest
+        description: "Storage volumes, databases, and backups encrypted at rest. KMS keys managed per environment."
+        severity: important
+
+  - id: infra-ops-review
+    tier: recommended
+    dimension: performance
+    title: "Infrastructure Operations Review"
+    description: |
+      Evaluate monitoring, cost management, and operational readiness.
+    checklist:
+      - id: resource-limits
+        description: "CPU and memory limits defined for all containers. No unbounded resource consumption."
+        severity: critical
+      - id: auto-scaling
+        description: "Auto-scaling configured with sensible min/max. Tested under load."
+        severity: important
+      - id: cost-tagging
+        description: "Every resource tagged with Environment, Service, Owner. Untagged resources flagged in CI."
+        severity: important
+      - id: monitoring-alerting
+        description: "Dashboards and alerts for all services. Every alert has a runbook link and clear ownership."
+        severity: important
+      - id: backup-tested
+        description: "Backup and restore procedures tested. RPO/RTO validated against targets."
+        severity: critical

@@ -1,0 +1,46 @@
+tag: INFRA
+section: nfr
+blocks:
+  - id: infra-reliability
+    tier: recommended
+    title: "Infrastructure Reliability"
+    content: |
+      ## NFR: Infrastructure Reliability
+
+      ### Availability
+      - Target uptime for infrastructure platform: {{infra_uptime | default: 99.95%}}.
+      - Multi-AZ deployment for all production workloads. Single-AZ acceptable for dev/staging.
+      - Automated failover tested quarterly. Document actual recovery time.
+
+      ### Change Management
+      - All infrastructure changes go through code review (IaC PR).
+      - Plan/diff output reviewed before apply. No blind applies.
+      - Rollback procedure documented and tested for every change type.
+      - Change windows for breaking changes. Emergency changes require post-mortem.
+
+      ### Drift Detection
+      - Scheduled drift detection (weekly minimum). Alert on any manual changes.
+      - Drift remediation: either update code to match reality or re-apply to match code.
+      - No resources outside IaC management in production.
+
+  - id: infra-security
+    tier: recommended
+    title: "Infrastructure Security"
+    content: |
+      ## NFR: Infrastructure Security
+
+      ### Network
+      - Least-privilege security groups / firewall rules. No 0.0.0.0/0 ingress except load balancers.
+      - Private subnets for application and database tiers. Public subnets only for load balancers.
+      - VPC flow logs enabled. Anomaly detection on network patterns.
+
+      ### Access Control
+      - IAM roles with minimum required permissions. No wildcard (*) actions on production resources.
+      - MFA required for all human access to cloud consoles and CI/CD pipelines.
+      - Service-to-service auth via IAM roles or mTLS, not shared API keys.
+      - Access reviewed quarterly. Revoke unused permissions.
+
+      ### Secrets
+      - All secrets in a secrets manager (Vault, AWS Secrets Manager, GCP Secret Manager).
+      - Secrets rotated on schedule (90 days max). Auto-rotation preferred.
+      - Pre-commit hooks block secret commits (gitleaks, detect-secrets).

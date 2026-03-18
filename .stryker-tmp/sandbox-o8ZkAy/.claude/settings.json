@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Write(**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "run_in_terminal",
+        "hook": "bash .claude/hooks/pre-exec-safety.sh"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "create_file|write_file|edit_file|replace_string|multi_replace|create_directory",
+        "hook": "bash .claude/hooks/post-edit-commit-reminder.sh"
+      }
+    ]
+  },
+  "mcpServers": {
+    "forgecraft": {
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    }
+  }
+}

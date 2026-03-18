@@ -1,0 +1,23 @@
+tag: DATA-PIPELINE
+section: structure
+entries:
+  - path: dags/
+    description: "Pipeline orchestration definitions (Airflow DAGs, Prefect flows, Dagster jobs)"
+  - path: src/extractors/
+    description: "Data source connectors: API, database, file extractors"
+  - path: src/transformers/
+    description: "Data transformation logic: cleaning, enrichment, aggregation"
+  - path: src/loaders/
+    description: "Data sinks: warehouse loaders, file writers, API publishers"
+  - path: src/validators/
+    description: "Data quality checks: schema validation, business rules, anomaly detection"
+  - path: src/config/
+    description: "Pipeline configuration: sources, schedules, thresholds (YAML)"
+  - path: tests/
+    description: "Unit tests for transformers, validators, and business logic"
+  - path: tests/fixtures/
+    description: "Sample data files for deterministic testing"
+  - path: sql/
+    description: "SQL transformations and DDL for warehouse tables"
+  - path: scripts/
+    description: "Operational scripts: backfill, reprocess, data repair"

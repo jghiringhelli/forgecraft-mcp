@@ -1,0 +1,94 @@
+tag: WEB-REACT
+section: review
+blocks:
+  - id: react-architecture-review
+    tier: recommended
+    dimension: architecture
+    title: "React Architecture Review"
+    description: |
+      Evaluate component hierarchy, state management, and rendering patterns.
+    checklist:
+      - id: component-hierarchy
+        description: "Atomic Design followed: atoms → molecules → organisms → templates → pages."
+        severity: important
+      - id: component-purity
+        description: "Components are pure UI. No API calls or business logic inside components."
+        severity: critical
+      - id: state-management
+        description: "State management follows hierarchy: local → context → global store. No prop drilling > 2 levels."
+        severity: important
+      - id: route-structure
+        description: "Routes organized by feature. Lazy loading for non-critical routes."
+        severity: nice-to-have
+
+  - id: react-code-quality-review
+    tier: recommended
+    dimension: code-quality
+    title: "React Code Quality Review"
+    description: |
+      Evaluate component patterns, hooks usage, and i18n compliance.
+    checklist:
+      - id: i18n-compliance
+        description: "Every user-facing string goes through the i18n system. No hardcoded text in JSX."
+        severity: critical
+      - id: accessibility
+        description: "WCAG 2.1 AA compliance: semantic HTML, ARIA labels, keyboard navigation, focus management."
+        severity: critical
+      - id: hooks-patterns
+        description: "Custom hooks extract reusable logic. No complex useEffect chains. Dependencies arrays are correct."
+        severity: important
+      - id: key-props
+        description: "List renderings use stable, unique keys. No array index as key for dynamic lists."
+        severity: important
+      - id: error-boundaries
+        description: "Feature areas wrapped in Error Boundaries. Crash in one widget doesn’t take down the page."
+        severity: critical
+      - id: suspense-loading
+        description: "Every async operation has loading, success, and error states. No blank screens. Skeleton loaders for layout stability."
+        severity: important
+
+  - id: react-performance-review
+    tier: recommended
+    dimension: performance
+    title: "React Performance Review"
+    description: |
+      Evaluate rendering efficiency, bundle size, and lazy loading.
+    checklist:
+      - id: unnecessary-rerenders
+        description: "No unnecessary re-renders. React.memo, useMemo, useCallback used where measurably impactful."
+        severity: important
+      - id: bundle-size
+        description: "Bundle size monitored. No full-library imports (use tree-shakeable named imports)."
+        severity: important
+      - id: image-optimization
+        description: "Images optimized: lazy loading, responsive srcset, modern formats (WebP/AVIF)."
+        severity: nice-to-have
+      - id: core-web-vitals
+        description: "Core Web Vitals tracked: LCP < 2.5s, FID < 100ms, CLS < 0.1."
+        severity: important
+      - id: bundle-budget
+        description: "JavaScript bundle within budget. Initial load under 200 KB compressed. Lighthouse CI enforced in pipeline."
+        severity: important
+      - id: preview-deployments
+        description: "PR preview deployments enabled. URL posted in PR comments for stakeholder review."
+        severity: nice-to-have
+      - id: cache-headers
+        description: "Hashed assets use immutable cache headers. HTML uses short-lived cache with stale-while-revalidate."
+        severity: important
+
+  - id: react-test-review
+    tier: recommended
+    dimension: tests
+    title: "React Test Review"
+    description: |
+      Evaluate React-specific testing patterns.
+    checklist:
+      - id: error-boundary-coverage
+        description: "Error boundaries tested: verify fallback UI renders on component errors. Error reporting verified."
+        severity: important
+      - id: loading-error-states
+        description: "All async operations tested in three states: loading, success, error. No untested blank screens."
+        severity: critical
+      - id: user-interaction-tests
+        description: "Key user flows tested via integration tests (Testing Library). Tests interact as a user would, not via implementation details."
+        severity: critical

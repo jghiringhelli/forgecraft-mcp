@@ -1,0 +1,43 @@
+tag: SOCIAL
+section: instructions
+blocks:
+  - id: ugc-moderation
+    tier: recommended
+    title: "User-Generated Content & Moderation"
+    content: |
+      ## User-Generated Content & Moderation
+
+      - Treat all user-generated content (UGC) as untrusted input. Sanitize HTML, validate file types and sizes, and strip EXIF metadata from uploaded images to prevent data leakage.
+      - Implement a multi-layer moderation pipeline: automated filters (keyword blocklists, ML classifiers) → queue for human review → final disposition (approve, reject, escalate).
+      - Use a content status model: all UGC transitions through states (pending → approved / rejected / flagged). Only approved content is visible to other users by default.
+      - Implement user-driven reporting with structured categories (spam, harassment, misinformation, illegal content). Deduplicate reports and escalate based on volume and severity.
+      - Apply rate limiting on content creation: new accounts should have stricter limits (e.g., max 5 posts/day) that relax as the account ages and builds trust.
+      - Maintain appeal workflows: users whose content is removed should be notified with the reason and given a clear path to appeal the decision.
+      - Log all moderation actions (who, what, when, why) for accountability and to train automated classifiers over time.
+
+  - id: feeds-notifications
+    tier: recommended
+    title: "Feeds & Notification Systems"
+    content: |
+      ## Feed Generation & Notifications
+
+      - Use a fan-out-on-write strategy for small-to-medium scale: when a user posts, push the post ID to each follower's feed cache (e.g., Redis sorted set by timestamp).
+      - For high-follower accounts (celebrities), use fan-out-on-read: merge their posts into the feed at read time to avoid writing to millions of follower feeds.
+      - Implement cursor-based pagination for feeds (`?after=<post_id>&limit=20`). Never use offset-based pagination—it produces inconsistent results as new content is inserted.
+      - Separate notification delivery from notification generation. Generate notifications as events, then deliver them through multiple channels (in-app, push, email) based on user preferences.
+      - Batch and debounce notifications to avoid spamming: "5 people liked your post" rather than 5 individual notifications within a minute.
+      - Store notification read/unread state per user. Provide a "mark all as read" endpoint and support real-time badge count updates via WebSocket or SSE.
+
+  - id: privacy-social-graph
+    tier: recommended
+    title: "Privacy & Social Graph"
+    content: |
+      ## Privacy Controls & Social Graph
+
+      - Default to private. New accounts should have restrictive visibility settings that users explicitly open up, not the reverse.
+      - Model privacy as a per-resource, per-audience policy: each piece of content can be visible to `public`, `followers`, `mutual_follows`, `specific_list`, or `only_me`.
+      - Enforce privacy at the data access layer (query filters), not just the UI. A direct API call with a content ID must still respect the viewer's permission relative to the content owner.
+      - Support account blocking and muting as first-class features. Blocked users cannot view the blocker's content, send messages, or appear in their feeds—enforced server-side.
+      - Store the social graph (follow/friend relationships) in a structure optimized for common queries: "does A follow B?" (O(1) lookup), "who does A follow?" (paginated list), "mutual friends of A and B" (set intersection).
+      - Implement data export (GDPR Article 20) and account deletion (GDPR Article 17) as automated, auditable processes. Deletion must cascade to all content, messages, and derived data.
+      - Rate-limit follow/friend actions to prevent spam following. Detect and flag accounts exhibiting bot-like social graph manipulation patterns.

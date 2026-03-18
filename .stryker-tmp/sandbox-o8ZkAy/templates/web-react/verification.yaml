@@ -1,0 +1,126 @@
+tag: WEB-REACT
+section: verification
+title: "Behavioral Navigation Verification"
+description: >
+  UI behavior cannot be verified by type checks or unit tests alone. Correct
+  behavior means: the right elements are visible at the right URLs, interactions
+  produce the right state transitions, and the UI matches the design spec visually.
+  This strategy uses Playwright for navigational path execution and Claude Vision
+  for visual contract assertion — closing the behavioral uncertainty dimension.
+uncertainty_levels:
+  - behavioral
+completeness_ceiling: 0.85
+
+phases:
+
+  - id: contract-definition
+    title: "Define Navigation Contracts and Visual Expectations"
+    rationale: >
+      A behavioral contract is a precise description of: which URL renders which component,
+      which user actions trigger which state transitions, and what the page looks like at
+      each checkpoint. Without explicit contracts, visual regressions and interaction bugs
+      are invisible to the automated verify loop.
+    steps:
+      - id: define-use-case-paths
+        instruction: >
+          For every user-facing feature, write a use-case navigational path as a numbered list:
+          1. Starting URL and initial state
+          2. Each user action (click, fill, submit, navigate) in order
+          3. Expected URL and visible DOM elements after each action
+          4. Terminal state (e.g., "success toast visible, redirect to /dashboard")
+          Store in docs/use-cases/{feature}.md. Minimum one path per route group.
+        contract: >
+          docs/use-cases/ directory exists with one file per feature.
+          Each file has a numbered step list with URL, action, and assertion per step.
+        tools: ["filesystem"]
+        expected_output: "docs/use-cases/auth.md, docs/use-cases/articles.md, etc."
+        pass_criterion: "File count in docs/use-cases/ ≥ number of route groups"
+
+      - id: define-visual-snapshots
+        instruction: >
+          For every major page state (empty state, loaded state, error state), define a
+          visual expectation in plain English that Claude Vision can assert against a screenshot:
+          e.g., "The navbar shows the user avatar. The feed contains at least one article card.
+          The sidebar is absent on mobile viewport."
+          Store expectations in docs/visual-contracts/{page}.md.
+        contract: >
+          docs/visual-contracts/ exists. Each file lists named states with prose
+          visual expectations that are unambiguous.
+        tools: ["filesystem"]
+        expected_output: "docs/visual-contracts/feed.md with 'loaded_state', 'empty_state', 'error_state' sections"
+        pass_criterion: "File count in docs/visual-contracts/ ≥ number of pages"
+
+  - id: execution
+    title: "Run Playwright Paths + Claude Vision Assertions"
+    rationale: >
+      Playwright drives the browser headlessly and captures screenshots at each checkpoint.
+      Claude Vision asserts the screenshot against the visual contract — this is the only
+      technique that catches layout breakage, missing elements, and wrong copy in one pass.
+    steps:
+      - id: run-playwright-navigation
+        instruction: >
+          For each use-case path in docs/use-cases/, write a Playwright test that:
+          1. Navigates to the starting URL
+          2. Executes each action in the numbered list
+          3. Takes a screenshot after every state transition
+          4. Asserts on DOM elements cited in the contract (getByRole, getByText, toBeVisible)
+          Run with `npx playwright test` in headless mode.
+        contract: >
+          Playwright test file exists per use-case. All DOM assertions in the contract
+          are expressed as Playwright locators. Test run exits 0.
+        tools: ["npx playwright test", "npx playwright codegen"]
+        expected_output: "Playwright HTML report + screenshots in test-results/playwright/"
+        pass_criterion: "playwright test exits 0; 0 failing tests"
+
+      - id: assert-screenshots-with-vision
+        instruction: >
+          For each screenshot taken by Playwright, call Claude Vision with:
+          - The screenshot file path
+          - The visual contract from docs/visual-contracts/{page}.md for that state
+          - The prompt: "Assert this screenshot against the following visual contract.
+            List every contract item that FAILS. If all items pass, respond: PASS."
+          Record the response. Any response other than PASS is a failure.
+        contract: >
+          Every screenshot has a corresponding vision assertion result.
+          All results are PASS for the final verify loop iteration.
+        tools: ["claude --vision", "anthropic vision API", "openai vision API"]
+        expected_output: "vision-assertions.json: [{screenshot, contract_state, result: PASS|FAIL, failures: [...]}]"
+        pass_criterion: "All vision assertion results = PASS"
+        requires_human_review: true
+
+      - id: run-accessibility-check
+        instruction: >
+          Run axe-core or @axe-core/playwright on every page visited.
+          Zero critical or serious violations are allowed.
+          Document all moderate violations for backlog.
+        contract: "0 critical or serious axe violations on any page"
+        tools: ["@axe-core/playwright", "axe-core"]
+        expected_output: "axe-report.json per page with violations array"
+        pass_criterion: "critical + serious violation count = 0 across all pages"
+
+  - id: evidence
+    title: "Persist Screenshots, Vision Results, and Traces"
+    rationale: >
+      Screenshots and vision assertion results are the ground truth for behavioral
+      verification. They must be persisted so regressions are detectable across
+      Playwright test runs, CI runs, and GS loop passes.
+    steps:
+      - id: persist-playwright-report
+        instruction: >
+          Save Playwright HTML report to test-results/playwright/index.html.
+          Save all screenshots to test-results/playwright/screenshots/{test-name}/{step}.png.
+          On failure, save the Playwright trace zip for each failing test.
+        contract: "test-results/playwright/ exists with report and screenshots"
+        tools: ["playwright --reporter=html"]
+        expected_output: "HTML report + PNG per checkpoint + trace.zip on failure"
+        pass_criterion: "test-results/playwright/index.html exists"
+
+      - id: persist-vision-assertions
+        instruction: >
+          Save vision-assertions.json to test-results/vision-assertions.json.
+          Summary: total assertions, pass count, fail count, list of failed contracts.
+          If any assertion fails, the FAIL details become the fix prompt input for next pass.
+        contract: "vision-assertions.json exists with integer pass and fail counts"
+        tools: ["jq", "node"]
+        expected_output: '{"total": 12, "passed": 11, "failed": 1, "failures": [...]}'
+        pass_criterion: "File parses; failed count = 0 for strategy to be complete"

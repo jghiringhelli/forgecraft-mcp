@@ -1,0 +1,13 @@
+tag: HEALTHCARE
+section: mcp-servers
+servers:
+  - name: postgres
+    description: "PostgreSQL database inspection, queries, and schema management — common backend for EHR/clinical data"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-postgres"]
+    tags: [DATA-PIPELINE, API, HEALTHCARE]
+    category: database
+    tier: recommended
+    env:
+      POSTGRES_CONNECTION_STRING: ""
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres"

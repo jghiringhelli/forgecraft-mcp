@@ -1,0 +1,47 @@
+tag: HEALTHCARE
+section: nfr
+blocks:
+  - id: hipaa-requirements
+    tier: recommended
+    title: "HIPAA Technical Requirements"
+    content: |
+      ## NFR: HIPAA Technical Requirements
+
+      ### Data Protection
+      - PHI (Protected Health Information) encrypted at rest (AES-256) and in transit (TLS 1.2+).
+      - PHI access requires authentication + authorization + audit log entry.
+      - Database columns containing PHI tagged and documented in data dictionary.
+      - PHI never appears in logs, error messages, URLs, or analytics events.
+
+      ### Access Control
+      - Role-based access: minimum necessary access for each role.
+      - Break-glass emergency access with mandatory post-access review.
+      - Session timeout: {{session_timeout | default: 15 minutes}} of inactivity for PHI-accessible sessions.
+      - Access audit reviewed {{access_review_frequency | default: monthly}}.
+
+      ### Audit
+      - All PHI access logged: WHO accessed WHAT data, WHEN, from WHERE, for what PURPOSE.
+      - Audit logs immutable, retained for minimum {{hipaa_audit_retention | default: 6 years}}.
+      - Audit log integrity verified (checksums, append-only storage).
+      - Anomaly detection on access patterns (unusual hours, volume, or scope).
+
+  - id: hipaa-operational
+    tier: recommended
+    title: "HIPAA Operational Requirements"
+    content: |
+      ## NFR: HIPAA Operational
+
+      ### Business Associate Agreements
+      - BAA in place with every vendor that touches PHI (cloud provider, analytics, logging).
+      - Vendor compliance status tracked and reviewed annually.
+
+      ### Incident Response
+      - Breach notification process documented. HIPAA requires notification within 60 days.
+      - Incident response team identified. Contact list current.
+      - Breach detection mechanisms: anomalous access patterns, data exfiltration monitoring.
+
+      ### Backup & Recovery
+      - PHI backups encrypted, stored in HIPAA-compliant storage.
+      - RPO: < {{healthcare_rpo | default: 1 hour}}. RTO: < {{healthcare_rto | default: 4 hours}}.
+      - Backup restoration tested quarterly. Results documented.
+      - Data retention and destruction policies per HIPAA requirements.

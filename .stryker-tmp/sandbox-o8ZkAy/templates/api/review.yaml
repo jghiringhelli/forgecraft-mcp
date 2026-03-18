@@ -1,0 +1,103 @@
+tag: API
+section: review
+blocks:
+  - id: api-architecture-review
+    tier: recommended
+    dimension: architecture
+    title: "API Architecture Review"
+    description: |
+      Evaluate API design, endpoint structure, middleware pipeline, and service boundaries.
+    checklist:
+      - id: endpoint-design
+        description: "RESTful conventions followed: proper HTTP methods, status codes, resource naming."
+        severity: critical
+      - id: middleware-pipeline
+        description: "Middleware pipeline is ordered correctly: auth → validation → rate-limit → handler."
+        severity: important
+      - id: service-layer-separation
+        description: "Handlers are thin (validation + delegation). Business logic lives in service layer."
+        severity: critical
+      - id: api-versioning
+        description: "API versioning strategy defined and enforced (URL prefix, header, or content negotiation)."
+        severity: important
+      - id: database-migrations
+        description: "Schema changes managed through versioned migration files. Every migration is reversible. No manual DDL."
+        severity: critical
+      - id: owasp-injection
+        description: "Parameterized queries only. No string concatenation for SQL, commands, or LDAP queries."
+        severity: critical
+      - id: owasp-access-control
+        description: "Ownership checks enforced — users cannot access other users' resources. No IDOR vulnerabilities."
+        severity: critical
+      - id: security-headers
+        description: "Security headers set: CSP, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy."
+        severity: important
+      - id: audit-logging
+        description: "Security-relevant actions logged: WHO did WHAT to WHICH resource, WHEN. Immutable, separate from app logs."
+        severity: important
+      - id: graceful-shutdown
+        description: "SIGTERM handled: stop accepting requests, drain in-flight work, close connections, exit cleanly."
+        severity: important
+      - id: container-best-practices
+        description: "Dockerfile uses multi-stage build, non-root user, pinned base image digest. Image scanned for CVEs."
+        severity: important
+      - id: health-endpoint
+        description: "/health endpoint returns status, version, uptime, and dependency connectivity. Used by orchestrator probes."
+        severity: critical
+      - id: migration-auto-deploy
+        description: "Database migrations run automatically on deploy (pre-deploy hook or init container). Never manually applied."
+        severity: important
+
+  - id: api-code-quality-review
+    tier: recommended
+    dimension: code-quality
+    title: "API Code Quality Review"
+    description: |
+      Evaluate input validation, response contracts, and error response consistency.
+    checklist:
+      - id: input-validation
+        description: "All endpoint inputs validated with schema (Zod, Joi, class-validator). No trust of client data."
+        severity: critical
+      - id: response-consistency
+        description: "All responses follow a consistent envelope: { data, error, meta }."
+        severity: important
+      - id: error-responses
+        description: "Error responses include: status code, error code, human message, request ID. No stack traces in production."
+        severity: critical
+
+  - id: api-performance-review
+    tier: recommended
+    dimension: performance
+    title: "API Performance Review"
+    description: |
+      Evaluate query efficiency, pagination, and rate limiting.
+    checklist:
+      - id: n-plus-one-queries
+        description: "No N+1 query patterns in list endpoints. Use eager loading or DataLoader."
+        severity: critical
+      - id: pagination
+        description: "List endpoints paginated. No unbounded result sets."
+        severity: critical
+      - id: rate-limiting
+        description: "Rate limiting configured on all public-facing endpoints."
+        severity: important
+      - id: response-caching
+        description: "Cacheable responses use Cache-Control headers or application-level caching."
+        severity: nice-to-have
+
+  - id: api-test-review
+    tier: recommended
+    dimension: tests
+    title: "API Test Review"
+    description: |
+      Evaluate API-specific testing patterns including contract tests and migration testing.
+    checklist:
+      - id: migration-testing
+        description: "Database migrations tested: up + down both verified. Migration tests run in CI."
+        severity: critical
+      - id: api-contract-tests
+        description: "API contracts tested: request/response shapes match OpenAPI spec. Breaking changes caught early."
+        severity: important
+      - id: auth-path-testing
+        description: "Auth paths thoroughly tested: valid token, expired token, missing token, insufficient permissions."
+        severity: critical

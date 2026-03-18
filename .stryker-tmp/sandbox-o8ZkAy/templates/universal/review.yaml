@@ -1,0 +1,204 @@
+tag: UNIVERSAL
+section: review
+blocks:
+  - id: architecture-review
+    tier: core
+    dimension: architecture
+    title: "Architecture Review"
+    description: |
+      Evaluate the system's structural integrity, coupling, and scalability.
+      Focus on component boundaries, dependency flow, and failure modes.
+    checklist:
+      - id: component-boundaries
+        description: "Component boundaries are well-defined with clear public APIs (module exports)."
+        severity: critical
+      - id: dependency-graph
+        description: "Dependency graph is acyclic. No circular imports between modules."
+        severity: critical
+      - id: layer-violations
+        description: "No layer violations — dependencies point downward only. Handlers never import from infrastructure."
+        severity: critical
+      - id: coupling-concerns
+        description: "Modules communicate through interfaces, not concrete implementations."
+        severity: important
+      - id: data-flow
+        description: "Data flow patterns are clear and documented. No hidden side channels."
+        severity: important
+      - id: single-point-of-failure
+        description: "No single points of failure in critical paths. External calls have timeouts and fallbacks."
+        severity: important
+      - id: security-boundaries
+        description: "Auth, data access, and API boundaries are explicitly defined and enforced."
+        severity: critical
+      - id: hexagonal-ports
+        description: "Port interfaces (Repository, Gateway) defined in the domain layer, implemented by adapters. Adapters are swappable."
+        severity: important
+      - id: dto-boundaries
+        description: "DTOs used at layer boundaries. Domain entities never leaked to API responses or persisted directly."
+        severity: important
+      - id: bounded-contexts
+        description: "If multiple domains exist, each has its own bounded context with separate models. No shared DB tables across contexts."
+        severity: important
+      - id: domain-events-decoupling
+        description: "Cross-module communication uses domain events or defined interfaces — no direct imports between unrelated modules."
+        severity: nice-to-have
+
+  - id: code-quality-review
+    tier: core
+    dimension: code-quality
+    title: "Code Quality Review"
+    description: |
+      Evaluate code organization, DRY compliance, error handling, and technical debt.
+      Flag repetition aggressively. Call out missing edge cases explicitly.
+    checklist:
+      - id: module-structure
+        description: "Code is organized by feature, not by layer. Each module owns its models, service, and types."
+        severity: critical
+      - id: dry-violations
+        description: "No duplicated logic across modules. Shared utilities extracted to shared/."
+        severity: important
+      - id: error-handling-patterns
+        description: "Custom error hierarchy used consistently. No bare Error throws. Errors carry context (IDs, timestamps, operation)."
+        severity: critical
+      - id: missing-edge-cases
+        description: "Edge cases handled: empty inputs, null/undefined, boundary values, concurrent access."
+        severity: important
+      - id: technical-debt
+        description: "No TODO/FIXME without a tracked item. No commented-out code."
+        severity: important
+      - id: naming-quality
+        description: "All names are intention-revealing. No abbreviations except universally understood ones (id, url, http)."
+        severity: nice-to-have
+      - id: over-under-engineering
+        description: "Code is 'engineered enough' — no premature abstractions, no fragile shortcuts."
+        severity: important
+      - id: cqs-compliance
+        description: "Functions either change state (command) or return data (query), not both. Exceptions are documented."
+        severity: important
+      - id: guard-clauses
+        description: "No deep nesting. Invalid cases handled first with early returns. Happy path runs at shallowest indentation."
+        severity: important
+      - id: composition-over-inheritance
+        description: "Prefer composition via interfaces and delegation. Class inheritance used only for genuine is-a relationships."
+        severity: important
+      - id: law-of-demeter
+        description: "No long method chains through objects (a.b().c().d()). Objects expose only the information their callers need."
+        severity: nice-to-have
+      - id: immutability
+        description: "Immutable by default — prefer constants and frozen structures. Mutable state restricted to smallest possible scope."
+        severity: important
+      - id: pure-functions
+        description: "Domain logic, validation, and transformations are pure (same input → same output, no side effects). Side effects pushed to adapters."
+        severity: important
+      - id: primitive-obsession
+        description: "Domain concepts wrapped in typed Value Objects (EmailAddress, Money) instead of raw strings/numbers."
+        severity: nice-to-have
+
+  - id: test-review
+    tier: recommended
+    dimension: tests
+    title: "Test Review"
+    description: |
+      Evaluate test coverage, assertion quality, and edge case thoroughness.
+      Well-tested code is non-negotiable. Rather too many tests than too few.
+    checklist:
+      - id: coverage-gaps
+        description: "Minimum 80% line coverage overall. 90% on new/changed code. 95% on critical paths."
+        severity: critical
+      - id: test-pyramid
+        description: "Test distribution follows pyramid: 60-75% unit, 20-30% integration, 5-10% E2E."
+        severity: important
+      - id: assertion-strength
+        description: "Assertions are specific and meaningful. No assert(true), no empty catch blocks, no tests that can't fail."
+        severity: critical
+      - id: edge-case-coverage
+        description: "Tests cover edge cases: empty collections, boundary values, error paths, concurrent scenarios."
+        severity: important
+      - id: test-naming
+        description: "Every test name is a specification: 'rejects_unknown_tag' not 'test_validation'."
+        severity: nice-to-have
+      - id: failure-modes
+        description: "Failure modes and error paths are tested, not just happy paths."
+        severity: critical
+      - id: test-isolation
+        description: "Tests are independent — no shared mutable state, no order dependencies. Each test sets up its own data."
+        severity: important
+      - id: test-data-builders
+        description: "Test data constructed via factories/builders, not copy-pasted literals. Shared fixtures for common objects."
+        severity: nice-to-have
+
+  - id: performance-review
+    tier: recommended
+    dimension: performance
+    title: "Performance Review"
+    description: |
+      Evaluate query patterns, memory usage, caching opportunities, and algorithmic complexity.
+      Focus on measurable bottlenecks, not micro-optimizations.
+    checklist:
+      - id: n-plus-one
+        description: "No N+1 query or I/O patterns. Batch operations where possible."
+        severity: critical
+      - id: memory-usage
+        description: "No unbounded collections or memory leaks. Large data sets streamed, not loaded in full."
+        severity: important
+      - id: caching
+        description: "Repeated expensive operations have caching. Cache invalidation strategy documented."
+        severity: nice-to-have
+      - id: algorithmic-complexity
+        description: "No O(n²) or worse algorithms on unbounded data. Complexity documented for non-obvious paths."
+        severity: important
+      - id: startup-time
+        description: "Application startup is fast. Heavy initialization is lazy or async."
+        severity: nice-to-have
+      - id: graceful-shutdown
+        description: "Application handles SIGTERM/SIGINT gracefully: drains connections, finishes in-flight work, then exits."
+        severity: important
+      - id: ci-pipeline
+        description: "CI pipeline runs lint, type-check, tests, and build on every push. Failures block merge."
+        severity: critical
+      - id: deployment-automation
+        description: "Deploy is one command or one button. No multi-step manual runbooks. Rollback is equally simple."
+        severity: important
+      - id: environment-parity
+        description: "Staging mirrors production: same provider, same DB engine, same services. No 'works on staging' surprises."
+        severity: important
+
+  - id: artifact-completeness-review
+    tier: recommended
+    dimension: artifact-completeness
+    title: "Generative Specification Artifact Completeness"
+    description: |
+      Verify the project's generative specification grammar is complete. An absent artifact
+      is a specification gap — not documentation debt. Each item below is a production rule
+      that AI agents rely on for correct, constrained output.
+    checklist:
+      - id: architectural-constitution
+        description: "CLAUDE.md / AGENTS.md / .cursor/rules / copilot-instructions exists, is non-trivial (>50 lines), contains layered architecture description, naming conventions per layer, and at least one explicit forbidden pattern."
+        severity: critical
+      - id: adr-directory
+        description: "docs/adr/ (or docs/adrs/) exists with at least one ADR per non-obvious architectural decision. Each ADR has status, context, decision, alternatives, and consequences."
+        severity: critical
+      - id: status-file
+        description: "Status.md exists at repo root and was updated in the most recent session. Contains: completed work, current state, open questions, and next steps."
+        severity: critical
+      - id: naming-conventions
+        description: "Architectural constitution contains explicit, layer-scoped naming vocabulary. At least repository, service, and controller layers are covered. No layer uses verbs from another layer."
+        severity: important
+      - id: schema-definitions
+        description: "All DB schemas, API contracts, and inter-service event schemas are formally stated (Prisma schema, Zod schemas, OpenAPI, AsyncAPI, or equivalent). No implicit contracts."
+        severity: important
+      - id: structural-diagrams
+        description: "At least one C4 or equivalent structural diagram exists in docs/diagrams/ or rendered in a markdown file. Sequence diagrams exist for all flows crossing more than two service boundaries."
+        severity: important
+      - id: use-cases
+        description: "Critical user flows have formal use cases with precondition, trigger, main flow, and postcondition. Each use case has machine-checkable acceptance criteria."
+        severity: nice-to-have
+      - id: commit-discipline
+        description: "Git log follows conventional commits (feat|fix|refactor|docs|test|chore). Last 10 commits are atomic, scoped, and meaningful. No 'WIP', 'fix', or 'update' messages."
+        severity: important
+      - id: living-documentation
+        description: "API reference, schema docs, or component catalog is generated from code artifacts (OpenAPI, TypeDoc, Storybook), not manually authored. Documentation is derived, not maintained separately."
+        severity: nice-to-have
+      - id: wrong-spec-risk
+        description: "Architectural constitution has been revised through commit history (not written once and untouched). At least one ADR records a change to a prior architectural decision."
+        severity: nice-to-have

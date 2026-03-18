@@ -1,0 +1,64 @@
+tag: GAME
+section: nfr
+blocks:
+  - id: web-game-frame-rate
+    tier: recommended
+    title: "Frame Rate & Loop"
+    content: |
+      ## NFR: Frame Rate & Game Loop
+
+      ### Targets
+      - Desktop: stable 60 FPS with < 1% frame drop rate during 10-minute sessions.
+      - Mobile web: stable 30 FPS with graceful quality reduction; 60 FPS on flagship devices.
+      - Frame budget: < 6ms JavaScript CPU time per 16ms frame (Chrome Performance panel).
+
+      ### Measurement
+      - Instrument `Stats.js` (or FPS overlay) in development builds. Log frame overruns > 20ms.
+      - Automated frame-rate regression test: headless Chromium via Puppeteer records 300 frames; test fails if p95 frame time > 20ms.
+
+  - id: web-game-memory
+    tier: recommended
+    title: "Memory Management"
+    content: |
+      ## NFR: Memory Management
+
+      ### Targets
+      - JS heap: < 256 MB on mobile, < 512 MB on desktop.
+      - GPU VRAM: < 128 MB texture budget for mobile-targeted games.
+      - Zero texture / geometry leaks across scene transitions (verified with WeakRef probes).
+
+      ### Rules
+      - All GPU resources disposed on scene exit: textures, geometries, materials, render targets, audio nodes.
+      - Object pools for all frequently-allocated game objects: bullets, particles, tweens, sound instances.
+      - GC-free hot path: no array spread, no object construction in the update loop critical section.
+
+  - id: web-game-loading
+    tier: recommended
+    title: "Asset Loading & Time-to-Play"
+    content: |
+      ## NFR: Asset Loading
+
+      ### Targets
+      - Initial load to main menu: < 5 seconds on a 10 Mbps connection.
+      - Level transition: < 2 seconds (background loading during gameplay).
+      - First interactive frame: < 1 second (boot scene, no heavy assets).
+
+      ### Asset Compression
+      - Atlas textures in KTX2 / Basis Universal: 4–8× smaller GPU upload + lower VRAM than PNG.
+      - Audio in Opus (ogg container) + AAC (mp4 fallback) — 20–40% smaller than MP3 at equivalent quality.
+      - All static assets served with `Cache-Control: public, max-age=31536000, immutable` from CDN.
+
+  - id: web-game-input-latency
+    tier: recommended
+    title: "Input Latency"
+    content: |
+      ## NFR: Input Latency
+
+      ### Targets
+      - Input-to-frame response: ≤ 1 frame (~16ms) for keyboard and gamepad input.
+      - Touch gesture registration: < 50ms from `pointerdown` event to visual feedback.
+
+      ### Rules
+      - `pointer` events only — no separate mouse/touch dual handlers.
+      - Canvas CSS: `touch-action: none; user-select: none` to prevent browser gesture interference.
+      - Input polling happens at start of each fixed update, not in event callbacks (prevents frame-split input state).
