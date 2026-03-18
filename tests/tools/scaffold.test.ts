@@ -249,4 +249,61 @@ describe("scaffoldProjectHandler", () => {
       expect(content).toContain("project-specific.md");
     });
   });
+
+  // ── exceptions.json scaffolding ───────────────────────────────────────
+
+  describe("exceptions.json scaffolding", () => {
+    it("creates .forgecraft/exceptions.json when it does not exist", async () => {
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "ExceptionsTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+
+      const exceptionsPath = join(tempDir, ".forgecraft", "exceptions.json");
+      expect(existsSync(exceptionsPath)).toBe(true);
+      const content = JSON.parse(readFileSync(exceptionsPath, "utf-8"));
+      expect(content.version).toBe("1");
+      expect(content.exceptions).toEqual([]);
+    });
+
+    it("does NOT overwrite existing .forgecraft/exceptions.json", async () => {
+      const forgecraftDir = join(tempDir, ".forgecraft");
+      mkdirSync(forgecraftDir, { recursive: true });
+      const exceptionsPath = join(forgecraftDir, "exceptions.json");
+      const existing = {
+        version: "1",
+        exceptions: [
+          {
+            id: "exc-001",
+            hook: "layer-boundary",
+            pattern: "src/migrations/**",
+            reason: "Custom exception",
+            addedAt: "2024-01-01T00:00:00.000Z",
+            addedBy: "human",
+          },
+        ],
+      };
+      writeFileSync(exceptionsPath, JSON.stringify(existing, null, 2) + "\n", "utf-8");
+
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "ExceptionsTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+
+      const after = JSON.parse(readFileSync(exceptionsPath, "utf-8"));
+      expect(after.exceptions).toHaveLength(1);
+      expect(after.exceptions[0].id).toBe("exc-001");
+      expect(after.exceptions[0].reason).toBe("Custom exception");
+    });
+  });
 });

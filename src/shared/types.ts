@@ -57,6 +57,72 @@ export interface ClassifyResult {
   readonly requiresConfirmation: boolean;
 }
 
+/**
+ * Language-agnostic tool command configuration.
+ * Each field is the shell command to run for that gate.
+ * If absent, the corresponding hook warns but does not block.
+ */
+export interface ProjectToolsConfig {
+  /** Run the test suite. e.g. "npm test", "pytest", "go test ./...", "cargo test" */
+  readonly test?: string;
+  /** Type check / compile. e.g. "npx tsc --noEmit", "mypy src/", "go build ./...", "cargo check" */
+  readonly typecheck?: string;
+  /** Lint. e.g. "npm run lint", "ruff check .", "golangci-lint run", "clippy" */
+  readonly lint?: string;
+  /** Mutation testing. e.g. "npx stryker run", "mutmut run", "pitest", "gremlins.io" */
+  readonly mutation?: string;
+  /** Dependency audit. e.g. "npm audit --audit-level=high", "pip-audit", "govulncheck ./...", "cargo audit" */
+  readonly audit?: string;
+  /** Layer boundary check. e.g. "npx madge --circular src/" or language-equivalent */
+  readonly layercheck?: string;
+}
+
+/**
+ * Deployment environment configuration for a single environment.
+ */
+export interface DeploymentEnvironmentConfig {
+  /** Provider name. e.g. "railway", "fly", "render", "aws-ecs", "k8s", "custom" */
+  readonly provider: string;
+  /** Base URL of the deployed service. e.g. "https://myapp.railway.app" */
+  readonly url?: string;
+  /** Health check endpoint path. Defaults to "/health". */
+  readonly health?: string;
+}
+
+/**
+ * Load test parameters — stated before the test runs, not after.
+ */
+export interface LoadTestConfig {
+  /** Tool to use. e.g. "k6", "artillery", "locust", "custom" */
+  readonly tool?: string;
+  /** Target concurrent users / virtual users */
+  readonly concurrentUsers?: number;
+  /** Target requests per second */
+  readonly targetRps?: number;
+  /** p99 latency ceiling in milliseconds */
+  readonly p99CeilingMs?: number;
+  /** Test duration in seconds. Defaults to 600 (10 min). */
+  readonly durationSeconds?: number;
+}
+
+/**
+ * Deployment and full-cycle testing configuration.
+ * When present, scaffold generates smoke/load test stubs and a deployment domain in sentinel.
+ */
+export interface ProjectDeploymentConfig {
+  readonly environments?: Record<string, DeploymentEnvironmentConfig>;
+  readonly testing?: {
+    /** Smoke test tool. e.g. "newman", "hurl", "k6", "custom" */
+    readonly smokeTool?: string;
+    readonly load?: LoadTestConfig;
+    readonly syntheticData?: {
+      readonly enabled: boolean;
+      /** Path to synthetic data spec. e.g. "docs/synthetic-data-spec.md" */
+      readonly specPath?: string;
+    };
+  };
+}
+
 /** Configuration for scaffolding a project. */
 export interface ScaffoldOptions {
   readonly tags: Tag[];
@@ -579,6 +645,10 @@ export interface ForgeCraftConfig {
     | "pre-release"
     | "release-candidate"
     | "production";
+  /** Language-agnostic tool commands. Used by hooks to avoid hardcoding npm/npx. */
+  readonly tools?: ProjectToolsConfig;
+  /** Deployment environments and full-cycle testing config. When present, scaffold generates test stubs. */
+  readonly deployment?: ProjectDeploymentConfig;
 }
 
 // ── Verification Strategy ───────────────────────────────────────────
