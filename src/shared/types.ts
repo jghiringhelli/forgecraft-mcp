@@ -597,6 +597,76 @@ export interface McpDiscoveryOptions {
   readonly remoteTimeoutMs?: number;
 }
 
+/**
+ * A project-specific quality gate defined by the team.
+ * Gates with generalizable: true are candidates for community contribution.
+ */
+export interface ProjectGate {
+  /** Unique identifier within this project. e.g. "check-pnl-decomposition" */
+  readonly id: string;
+  /** Human-readable title. */
+  readonly title: string;
+  /** What this gate checks and why. */
+  readonly description: string;
+  /**
+   * Category for grouping. e.g. "simulation-integrity", "financial-invariants",
+   * "state-machine", "concurrency", "data-lineage"
+   */
+  readonly category: string;
+  /**
+   * Which GS property this gate defends.
+   * One of: self-describing, bounded, verifiable, defended, auditable, composable, executable
+   */
+  readonly gsProperty: string;
+  /**
+   * When this gate runs.
+   * development: on every commit; pre-release: before env promotion;
+   * rc: release candidate; deployment: production gate; continuous: ongoing
+   */
+  readonly phase:
+    | "development"
+    | "pre-release"
+    | "rc"
+    | "deployment"
+    | "continuous";
+  /**
+   * Hook trigger: pre-commit, post-run, pre-push, pr, release, scheduled
+   */
+  readonly hook: string;
+  /**
+   * The check to run. Language-agnostic description of what to verify.
+   * May include pseudocode, specific commands, or prose instructions.
+   * Avoid hardcoding tool names — use process descriptions.
+   */
+  readonly check: string;
+  /** What constitutes a pass. */
+  readonly passCriterion: string;
+  /**
+   * Tags this gate applies to. e.g. ["FINTECH", "SIMULATION"]
+   * Empty or absent means UNIVERSAL.
+   */
+  readonly tags?: string[];
+  /**
+   * If true, this gate may be useful to other projects and is queued for community contribution.
+   * Requires opt-in contribute_gates: true in forgecraft.yaml.
+   */
+  readonly generalizable?: boolean;
+  /**
+   * Real-world evidence: the bug, incident, or near-miss this gate would have caught.
+   * Required if generalizable: true. This is what makes the gate credible to reviewers.
+   */
+  readonly evidence?: string;
+  /** ISO timestamp when added. */
+  readonly addedAt?: string;
+}
+
+/** The .forgecraft/project-gates.yaml file schema. */
+export interface ProjectGatesFile {
+  readonly version: "1";
+  readonly projectName?: string;
+  readonly gates: ProjectGate[];
+}
+
 /** User override configuration from forgecraft.yaml / .forgecraft.json. */
 export interface ForgeCraftConfig {
   /** Human-readable project name. */
@@ -649,6 +719,8 @@ export interface ForgeCraftConfig {
   readonly tools?: ProjectToolsConfig;
   /** Deployment environments and full-cycle testing config. When present, scaffold generates test stubs. */
   readonly deployment?: ProjectDeploymentConfig;
+  /** If true, gates marked generalizable: true are queued for community contribution. */
+  readonly contribute_gates?: boolean;
 }
 
 // ── Verification Strategy ───────────────────────────────────────────

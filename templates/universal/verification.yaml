@@ -13,6 +13,35 @@ description: >
 
   S = 0.40 is achievable with the three base phases alone. Hardening phases
   raise the ceiling to 0.90 — domain strategies supply the remaining 0.10.
+cycle_model: |
+  ForgeCraft verification maps to the GS paper's 4 loops + 1 independent cycle:
+
+  LOOP 1 — INITIALIZATION (once per project)
+    Runs: spec → architecture → constitution → ADRs → use cases
+    Gate: derivability — stateless agent can build system from artifacts alone
+    OWASP: N/A (no running service yet)
+
+  LOOP 2 — INCREMENTAL / SHORT LOOP (per roadmap item, agile-style)
+    Runs: partial spec → implement → verify → Status.md → human review
+    Gate: tests pass + feature exercised at boundary + cascade complete
+    OWASP ASVS Level 1: static checks enforced at every commit (execution.owasp-l1-static)
+    Less deterministic — human in the loop guides direction at each iteration
+
+  LOOP 3 — PRE-RELEASE (before environment promotion)
+    Runs: mutation testing + DAST + load test + chaos resilience
+    Gate: MSI ≥ 80%, zero HIGH DAST findings, p95 ≤ SLA
+    OWASP ASVS Level 2: dynamic analysis, systematic verification (pre-release-hardening phase)
+
+  LOOP 4 — HOTFIX (emergency patches)
+    Runs: minimal fix → smoke tests → ADR + cascade immediately after stabilization
+    Gate: smoke tests pass; ADR filed within 24h of stabilization
+    OWASP ASVS Level 1 minimum; Level 2 if auth/data path affected
+
+  LOOP 5 — DEPLOYMENT/HARDENING (independent, longer cadence)
+    Runs: post-implementation, on its own schedule (weekly/monthly/per-major)
+    Gate: pentest, full mutation, compatibility matrix, accessibility audit
+    OWASP ASVS Level 3: penetration testing, BOLA/IDOR, session fixation
+    Managed independently from feature loops — see deployment-gates and release-candidate phases
 uncertainty_levels:
   - deterministic
 completeness_ceiling: 0.90
@@ -88,6 +117,24 @@ phases:
         expected_output: "Test results JSON + coverage report"
         pass_criterion: "Exit code 0; coverage ≥ 80% overall"
 
+      - id: owasp-l1-static
+        instruction: >
+          Run static security analysis as part of the development loop.
+          OWASP ASVS Level 1 checks that run at commit time:
+          (1) Secrets detection — no credentials, tokens, or keys in source (pre-commit-secrets hook)
+          (2) Dependency audit — no HIGH/CRITICAL CVEs in direct dependencies (audit command from forgecraft.yaml tools.audit)
+          (3) Injection pattern scan — grep for string-concatenated SQL, shell exec with user input, eval() patterns
+          (4) Hardcoded config scan — no URLs, IPs, ports, credentials in non-config files
+          These run automatically via pre-commit hooks (see .claude/hooks/). No manual action required
+          unless a finding is reported.
+        contract: >
+          Zero secrets detected. Zero HIGH/CRITICAL CVEs in dependencies.
+          Zero string-concatenated SQL queries. Zero eval() with dynamic input.
+        tools: ["pre-commit-secrets.sh", "forgecraft.yaml tools.audit", "pre-commit-prod-quality.sh"]
+        expected_output: "Hook output: PASS or list of violations with file:line"
+        pass_criterion: "All pre-commit hooks exit 0 on staged files"
+        owasp_asvs_level: 1
+
   - id: evidence
     title: "Persist and Interpret Results"
     rationale: >
@@ -155,6 +202,7 @@ phases:
         expected_output: "ZAP HTML or JSON report with findings by severity"
         pass_criterion: "Zero HIGH findings; all MEDIUM findings triaged"
         requires_human_review: true
+        owasp_asvs_level: 2
 
       - id: load-test
         instruction: >
@@ -212,6 +260,7 @@ phases:
         expected_output: "Penetration test report with CVSS scores, reproduction steps, and remediation status"
         pass_criterion: "Zero unresolved High/Critical; all Medium triaged with ADR or fix"
         requires_human_review: true
+        owasp_asvs_level: 3
 
       - id: mutation-testing-full
         instruction: >

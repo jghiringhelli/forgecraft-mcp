@@ -21,7 +21,8 @@
     "lint": "eslint src/",
     "clean": "rimraf dist",
     "prepare": "bash scripts/setup-hooks.sh",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "export:taxonomy": "npx ts-node --esm scripts/export-taxonomy.ts"
   },
   "keywords": [
     "mcp",

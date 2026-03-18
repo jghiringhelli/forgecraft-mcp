@@ -288,7 +288,11 @@ describe("scaffoldProjectHandler", () => {
           },
         ],
       };
-      writeFileSync(exceptionsPath, JSON.stringify(existing, null, 2) + "\n", "utf-8");
+      writeFileSync(
+        exceptionsPath,
+        JSON.stringify(existing, null, 2) + "\n",
+        "utf-8",
+      );
 
       await scaffoldProjectHandler({
         tags: ["UNIVERSAL"],
@@ -304,6 +308,49 @@ describe("scaffoldProjectHandler", () => {
       expect(after.exceptions).toHaveLength(1);
       expect(after.exceptions[0].id).toBe("exc-001");
       expect(after.exceptions[0].reason).toBe("Custom exception");
+    });
+  });
+
+  // ── project-gates.yaml scaffolding ────────────────────────────────
+
+  describe("project-gates.yaml scaffolding", () => {
+    it("creates .forgecraft/project-gates.yaml when it does not exist", async () => {
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "GatesTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+
+      const gatesPath = join(tempDir, ".forgecraft", "project-gates.yaml");
+      expect(existsSync(gatesPath)).toBe(true);
+      const content = readFileSync(gatesPath, "utf-8");
+      expect(content).toContain('version: "1"');
+      expect(content).toContain("gates: []");
+    });
+
+    it("does NOT overwrite existing .forgecraft/project-gates.yaml", async () => {
+      const forgecraftDir = join(tempDir, ".forgecraft");
+      mkdirSync(forgecraftDir, { recursive: true });
+      const gatesPath = join(forgecraftDir, "project-gates.yaml");
+      const existingContent = `version: "1"\ngates:\n  - id: my-custom-gate\n    title: My Gate\n`;
+      writeFileSync(gatesPath, existingContent, "utf-8");
+
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "GatesTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+
+      const after = readFileSync(gatesPath, "utf-8");
+      expect(after).toContain("my-custom-gate");
     });
   });
 });

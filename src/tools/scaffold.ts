@@ -66,8 +66,17 @@ const EXCEPTIONS_TEMPLATE =
       exceptions: [],
     },
     null,
-    2
+    2,
   ) + "\n";
+
+/** Template for project-specific quality gates. Never overwritten once created. */
+const PROJECT_GATES_TEMPLATE = `version: "1"
+# Project-specific quality gates.
+# Gates you discover while working that should be enforced for this project.
+# Set generalizable: true + fill in evidence to contribute to the community registry.
+# See: https://github.com/genspec-dev/quality-gates/issues/new?template=quality-gate-proposal.md
+gates: []
+`;
 
 /** README stub for smoke tests directory. */
 const SMOKE_TESTS_README = `# Smoke Tests
@@ -354,6 +363,14 @@ export async function scaffoldProjectHandler(
     filesSkipped.push(".forgecraft/exceptions.json");
   }
 
+  const projectGatesPath = join(forgecraftDir, "project-gates.yaml");
+  if (!existsSync(projectGatesPath)) {
+    writeFileSync(projectGatesPath, PROJECT_GATES_TEMPLATE, "utf-8");
+    filesCreated.push(".forgecraft/project-gates.yaml");
+  } else {
+    filesSkipped.push(".forgecraft/project-gates.yaml");
+  }
+
   // If deployment config is present, scaffold smoke/load test stubs and reports dir.
   if (userConfig?.deployment) {
     const smokeDir = join(args.project_dir, "tests", "smoke");
@@ -566,7 +583,9 @@ function renderGsDisclosure(): string {
  * Render smoke tests README, substituting deployment config values where available.
  */
 function renderSmokeTestsReadme(deployment: ProjectDeploymentConfig): string {
-  const smokeTool = deployment.testing?.smokeTool ?? "[TODO: set smokeTool in forgecraft.yaml deployment.testing]";
+  const smokeTool =
+    deployment.testing?.smokeTool ??
+    "[TODO: set smokeTool in forgecraft.yaml deployment.testing]";
   return SMOKE_TESTS_README.replace(
     "deployment.testing.smokeTool (or default to HTTP assertions)",
     `deployment.testing.smokeTool: ${smokeTool}`,
@@ -580,18 +599,31 @@ function renderLoadTestsReadme(deployment: ProjectDeploymentConfig): string {
   const load = deployment.testing?.load;
   let readme = LOAD_TESTS_README;
   if (load?.concurrentUsers !== undefined) {
-    readme = readme.replace("[TODO: concurrentUsers from forgecraft.yaml]", String(load.concurrentUsers));
+    readme = readme.replace(
+      "[TODO: concurrentUsers from forgecraft.yaml]",
+      String(load.concurrentUsers),
+    );
   }
   if (load?.targetRps !== undefined) {
-    readme = readme.replace("[TODO: targetRps from forgecraft.yaml]", String(load.targetRps));
+    readme = readme.replace(
+      "[TODO: targetRps from forgecraft.yaml]",
+      String(load.targetRps),
+    );
   }
   if (load?.p99CeilingMs !== undefined) {
-    readme = readme.replace("[TODO: p99CeilingMs ms]", `${load.p99CeilingMs}ms`);
+    readme = readme.replace(
+      "[TODO: p99CeilingMs ms]",
+      `${load.p99CeilingMs}ms`,
+    );
   }
   if (load?.durationSeconds !== undefined) {
-    readme = readme.replace("[TODO: durationSeconds seconds minimum]", `${load.durationSeconds} seconds`);
+    readme = readme.replace(
+      "[TODO: durationSeconds seconds minimum]",
+      `${load.durationSeconds} seconds`,
+    );
   }
-  const tool = load?.tool ?? "[TODO: set deployment.testing.load.tool in forgecraft.yaml]";
+  const tool =
+    load?.tool ?? "[TODO: set deployment.testing.load.tool in forgecraft.yaml]";
   readme = readme.replace(
     "deployment.testing.load.tool (k6, Artillery, Locust, etc.)",
     `deployment.testing.load.tool: ${tool}`,
