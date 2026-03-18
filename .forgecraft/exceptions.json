@@ -1,0 +1,14 @@
+{
+  "version": "1",
+  "exceptions": [
+    {
+      "pattern": "templates/universal/hooks.yaml",
+      "hook": "secrets-scanner",
+      "addedAt": "2026-03-18",
+      "reason": "hooks.yaml contains regex pattern examples for detecting secrets (e.g. ghp_[a-zA-Z0-9]{36}). These are scanner patterns, not real tokens.",
+      "id": "hooks-yaml-token-pattern",
+      "addedBy": "Copilot",
+      "adr": null
+    }
+  ]
+}

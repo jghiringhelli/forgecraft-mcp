@@ -50,6 +50,7 @@ import {
   getVerificationStatusHandler,
 } from "./verification-state.js";
 import { generateAdrHandler } from "./generate-adr.js";
+import { contributeGates } from "./contribute-gate.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ const ACTIONS = [
   "record_verification",
   "verification_status",
   "generate_adr",
+  "contribute_gate",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -105,7 +107,8 @@ export const forgecraftSchema = z.object({
         "get_verification_strategy (uncertainty-aware verification plan: contracts + execution technique per domain — API=Hurl, WEB-REACT=Playwright+vision, GAME=headless sim+Aseprite, FINTECH=statistical sim, ML=warm runs+pruning), " +
         "record_verification (upsert acceptance decision for one verification step, returns updated S_realized), " +
         "verification_status (full per-project acceptance report: S per tag, blocking items, aggregate S), " +
-        "generate_adr (emit a structured Architecture Decision Record file into docs/adrs/ with auto-sequenced number).",
+        "generate_adr (emit a structured Architecture Decision Record file into docs/adrs/ with auto-sequenced number), " +
+        "contribute_gate (submit generalizable project gates to the community registry — respects contribute_gates setting in forgecraft.yaml).",
     ),
   project_dir: z
     .string()
@@ -623,6 +626,24 @@ export async function forgecraftHandler(
         alternatives: args.adr_alternatives,
         consequences: args.adr_consequences,
       });
+
+    case "contribute_gate": {
+      const result = await contributeGates({
+        projectRoot: requireParam(args.project_dir, "project_dir", "contribute_gate"),
+        dryRun: args.dry_run ?? false,
+      });
+      const lines = [
+        `Contribution complete.`,
+        `  Submitted: ${result.submitted.length}`,
+        `  Skipped:   ${result.skipped.length}`,
+        ...(result.pendingFile ? [`  Pending queue: ${result.pendingFile}`] : []),
+        ...result.skipped.map((s) => `  ↷ ${s.gateId}: ${s.reason}`),
+        ...result.submitted.map((s) =>
+          s.issueUrl ? `  ✓ ${s.gateId} → ${s.issueUrl}` : `  ⏳ ${s.gateId} queued`
+        ),
+      ];
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
 
     default:
       return errorResult(
