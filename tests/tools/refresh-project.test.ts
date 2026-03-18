@@ -7,7 +7,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { refreshProjectHandler } from "../../src/tools/refresh-project.js";
@@ -38,8 +44,12 @@ function writeForgecraftYaml(
 describe("refreshProjectHandler", () => {
   let tempDir: string;
 
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 
   // ── missing config ────────────────────────────────────────────────
 
@@ -115,7 +125,10 @@ describe("refreshProjectHandler", () => {
         add_tags: ["CLI"],
         output_targets: ["claude"],
       });
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
       expect(yamlContent).toContain("CLI");
     });
 
@@ -128,7 +141,10 @@ describe("refreshProjectHandler", () => {
         output_targets: ["claude"],
       });
       // API should not remain after removal (forgecraft.yaml updated)
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
       expect(yamlContent).not.toContain("- API");
     });
 
@@ -143,15 +159,151 @@ describe("refreshProjectHandler", () => {
     });
 
     it("respects tier override in apply mode", async () => {
-      writeForgecraftYaml(tempDir, ["UNIVERSAL"], { tier: "\"recommended\"" });
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"], { tier: '"recommended"' });
       await refreshProjectHandler({
         project_dir: tempDir,
         apply: true,
         tier: "core",
         output_targets: ["claude"],
       });
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
       expect(yamlContent).toContain("core");
+    });
+  });
+
+  // ── sentinel mode ─────────────────────────────────────────────────
+
+  describe("sentinel mode (apply=true, sentinel default)", () => {
+    it("writes a short CLAUDE.md when sentinel mode is active", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      const lineCount = content.split("\n").length;
+      expect(lineCount).toBeLessThan(100);
+    });
+
+    it("CLAUDE.md contains the ForgeCraft sentinel comment", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      expect(content).toContain("ForgeCraft sentinel");
+    });
+
+    it("writes domain standards files into .claude/standards/", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      expect(existsSync(join(tempDir, ".claude", "standards"))).toBe(true);
+      const architectureFile = join(
+        tempDir,
+        ".claude",
+        "standards",
+        "architecture.md",
+      );
+      expect(existsSync(architectureFile)).toBe(true);
+    });
+
+    it("replaces a large monolithic CLAUDE.md instead of appending to it", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      // Simulate a 200-line monolithic CLAUDE.md
+      const monolithic = Array.from(
+        { length: 200 },
+        (_, i) => `Line ${i + 1} of monolithic content`,
+      ).join("\n");
+      writeFileSync(join(tempDir, "CLAUDE.md"), monolithic, "utf-8");
+
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+
+      const after = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      const lineCount = after.split("\n").length;
+      // Must be sentinel-length (< 100), NOT monolithic + appended (~300)
+      expect(lineCount).toBeLessThan(100);
+      expect(after).toContain("ForgeCraft sentinel");
+    });
+
+    it("creates project-specific.md as a user-owned placeholder", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      const psPath = join(
+        tempDir,
+        ".claude",
+        "standards",
+        "project-specific.md",
+      );
+      expect(existsSync(psPath)).toBe(true);
+      const content = readFileSync(psPath, "utf-8");
+      expect(content).toContain("ForgeCraft will never overwrite");
+    });
+
+    it("does NOT overwrite an existing project-specific.md with user content", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      const psPath = join(
+        tempDir,
+        ".claude",
+        "standards",
+        "project-specific.md",
+      );
+      mkdirSync(join(tempDir, ".claude", "standards"), { recursive: true });
+      writeFileSync(
+        psPath,
+        "# My custom rules\n- Use Prisma\n- Deploy to Railway\n",
+        "utf-8",
+      );
+
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+
+      const after = readFileSync(psPath, "utf-8");
+      expect(after).toContain("Use Prisma");
+      expect(after).toContain("Deploy to Railway");
+    });
+
+    it("CLAUDE.md wayfinding table links to project-specific.md", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      expect(content).toContain("project-specific.md");
+    });
+
+    it("response text indicates sentinel was used and explains scaffold scope", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
+      const result = await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("sentinel");
+      expect(text).toContain("scaffold");
     });
   });
 });

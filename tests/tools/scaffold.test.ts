@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, existsSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  writeFileSync,
+  readFileSync,
+  rmSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { scaffoldProjectHandler } from "../../src/tools/scaffold.js";
@@ -20,8 +26,12 @@ function makeTempDir(): string {
 describe("scaffoldProjectHandler", () => {
   let tempDir: string;
 
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 
   // ── dry_run ───────────────────────────────────────────────────────
 
@@ -144,6 +154,99 @@ describe("scaffoldProjectHandler", () => {
       const content = readFileSync(claudeMdPath, "utf-8");
       // New content should include standard CLAUDE.md header
       expect(content).toContain("CLAUDE.md");
+    });
+  });
+
+  // ── sentinel scaffolding ───────────────────────────────────────────
+
+  describe("sentinel scaffolding (default)", () => {
+    it("creates a short sentinel CLAUDE.md (< 100 lines)", async () => {
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "SentinelTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+      const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      expect(content.split("\n").length).toBeLessThan(100);
+      expect(content).toContain("ForgeCraft sentinel");
+    });
+
+    it("creates .claude/standards/ domain files", async () => {
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "SentinelTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+      const standardsDir = join(tempDir, ".claude", "standards");
+      expect(existsSync(standardsDir)).toBe(true);
+      expect(existsSync(join(standardsDir, "architecture.md"))).toBe(true);
+    });
+
+    it("creates project-specific.md as user-owned placeholder", async () => {
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "SentinelTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+      const psPath = join(
+        tempDir,
+        ".claude",
+        "standards",
+        "project-specific.md",
+      );
+      expect(existsSync(psPath)).toBe(true);
+      const content = readFileSync(psPath, "utf-8");
+      expect(content).toContain("ForgeCraft will never overwrite");
+    });
+
+    it("does NOT overwrite existing project-specific.md (user-owned)", async () => {
+      const psPath = join(
+        tempDir,
+        ".claude",
+        "standards",
+        "project-specific.md",
+      );
+      mkdirSync(join(tempDir, ".claude", "standards"), { recursive: true });
+      writeFileSync(psPath, "# My custom rules\n- Deploy to Fly.io\n", "utf-8");
+
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "SentinelTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+
+      const after = readFileSync(psPath, "utf-8");
+      expect(after).toContain("Deploy to Fly.io");
+    });
+
+    it("CLAUDE.md wayfinding table includes project-specific.md link", async () => {
+      await scaffoldProjectHandler({
+        tags: ["UNIVERSAL"],
+        project_dir: tempDir,
+        project_name: "SentinelTest",
+        language: "typescript",
+        dry_run: false,
+        force: false,
+        output_targets: ["claude"],
+      });
+      const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      expect(content).toContain("project-specific.md");
     });
   });
 });
