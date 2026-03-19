@@ -1,0 +1,35 @@
+tag: HEALTHCARE
+section: skills
+skills:
+  - id: healthcare-phi-audit
+    name: PHI Audit
+    filename: healthcare-phi-audit.md
+    description: "Scan codebase for PHI exposure risks"
+    tier: core
+    content: |
+      Audit the codebase for Protected Health Information (PHI) exposure risks.
+
+      Scan for:
+      1. **Logging**: Search for log statements that might include PHI fields:
+         - Patient name, DOB, SSN, MRN, address, phone, email
+         - Diagnosis codes, treatment plans, lab results
+         - Any field from a patient/member/encounter model
+      2. **Error messages**: Check that error responses don't leak PHI in:
+         - API error bodies
+         - Exception messages
+         - Stack traces exposed to clients
+      3. **Storage**: Verify PHI at rest is protected:
+         - Database fields containing PHI are identified and encrypted
+         - File uploads with PHI use encrypted storage
+         - Temporary files are cleaned up
+      4. **Transmission**: Verify PHI in transit:
+         - All endpoints serving PHI require HTTPS
+         - No PHI in URL query parameters (use POST body)
+         - No PHI in client-side analytics or tracking
+
+      Report each finding with:
+      - **File**: path
+      - **Line**: number
+      - **Risk**: HIGH | MEDIUM | LOW
+      - **PHI type**: what data is exposed
+      - **Fix**: recommended remediation

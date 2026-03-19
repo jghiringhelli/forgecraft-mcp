@@ -1,0 +1,27 @@
+tag: MOBILE
+section: structure
+entries:
+  - path: src/screens/
+    description: "Screen-level components — one directory per screen"
+  - path: src/components/
+    description: "Shared UI components: buttons, cards, inputs, modals"
+  - path: src/navigation/
+    description: "Navigation configuration: stack, tab, drawer navigators"
+  - path: src/services/
+    description: "API client, storage, auth, push notifications, analytics"
+  - path: src/hooks/
+    description: "Custom React Native hooks"
+  - path: src/store/
+    description: "State management: slices, selectors, async thunks"
+  - path: src/utils/
+    description: "Platform-agnostic utilities and helpers"
+  - path: src/theme/
+    description: "Design tokens, colors, typography, spacing"
+  - path: src/locales/
+    description: "Translation JSON files per locale"
+  - path: assets/
+    description: "Images, fonts, animations (Lottie)"
+  - path: __tests__/
+    description: "Unit and integration tests"
+  - path: e2e/
+    description: "End-to-end tests (Detox, Maestro, or Appium)"

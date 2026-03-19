@@ -1,0 +1,9 @@
+projectName: Generative Specification Framework
+tags:
+  - UNIVERSAL
+  - LIBRARY
+  - CLI
+  - API
+tier: recommended
+variables: {}
+releasePhase: development

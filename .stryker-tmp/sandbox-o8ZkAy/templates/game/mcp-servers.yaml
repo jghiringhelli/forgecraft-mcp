@@ -1,0 +1,38 @@
+tag: GAME
+section: mcp-servers
+servers:
+  - name: unity-mcp
+    description: "Unity Editor integration — scene management, asset control, code generation"
+    command: npx
+    args: ["-y", "@anthropic/unity-mcp"]
+    tags: [GAME]
+    category: game-engine
+    tier: recommended
+    url: "https://github.com/CoplayDev/unity-mcp"
+
+  - name: playwright-mcp
+    description: "Headless browser automation for web game integration testing — input simulation, screenshot comparison, frame-rate capture"
+    command: npx
+    args: ["-y", "@playwright/mcp"]
+    tags: [GAME]
+    category: testing
+    tier: recommended
+    url: "https://github.com/microsoft/playwright-mcp"
+
+  - name: puppeteer-mcp
+    description: "Chrome DevTools Protocol access for web game profiling — CPU flame charts, heap snapshots, GPU memory audits"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-puppeteer"]
+    tags: [GAME]
+    category: testing
+    tier: recommended
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer"
+
+  - name: filesystem-mcp
+    description: "Local asset pipeline access — read/write texture atlases, tilemaps, GLTF files, and audio assets"
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem"]
+    tags: [GAME]
+    category: filesystem
+    tier: recommended
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"

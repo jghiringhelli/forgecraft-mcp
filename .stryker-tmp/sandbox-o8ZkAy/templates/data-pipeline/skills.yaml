@@ -1,0 +1,56 @@
+tag: DATA-PIPELINE
+section: skills
+skills:
+  - id: pipeline-validate-schema
+    name: Validate Pipeline Schema
+    filename: pipeline-validate-schema.md
+    description: "Validate data pipeline schemas and detect drift"
+    tier: core
+    content: |
+      Validate data pipeline schemas for consistency and detect drift.
+
+      Steps:
+      1. **Find schema definitions**: Search for schema files, model definitions, or DDL:
+         - SQL migration files
+         - ORM models (SQLAlchemy, Prisma, TypeORM, etc.)
+         - Avro/Protobuf/JSON Schema definitions
+         - DataFrame column definitions
+      2. **Check for drift**: Compare schemas across pipeline stages:
+         - Source schema vs. ingestion schema
+         - Ingestion schema vs. transformation output
+         - Transformation output vs. serving layer
+      3. **Validate contracts**:
+         - All nullable fields explicitly marked
+         - Default values defined for new columns
+         - Breaking changes (column removal, type change) flagged
+         - Backward/forward compatibility for event schemas
+      4. **Report**:
+         - Schema location and version
+         - Drift detected between stages
+         - Breaking changes that need migration
+
+      If $ARGUMENTS specifies a pipeline or table name, focus on that. Otherwise, scan all schemas.
+
+  - id: pipeline-trace-lineage
+    name: Trace Data Lineage
+    filename: pipeline-trace-lineage.md
+    description: "Trace data lineage from source to destination"
+    tier: recommended
+    content: |
+      Trace the data lineage for the field or table specified in $ARGUMENTS.
+
+      Steps:
+      1. Start from the target field/table
+      2. Trace backward through transformations:
+         - Which upstream tables/sources feed into it?
+         - What transformations are applied (joins, filters, aggregations)?
+         - What business logic modifies the values?
+      3. Trace forward to consumers:
+         - Which downstream tables/reports/APIs consume it?
+         - What would break if the source schema changed?
+      4. Document the lineage:
+         - Source → Transform → Target chain
+         - Data freshness (batch frequency, streaming lag)
+         - Owner/team for each stage
+
+      Output a text-based lineage diagram showing the data flow.

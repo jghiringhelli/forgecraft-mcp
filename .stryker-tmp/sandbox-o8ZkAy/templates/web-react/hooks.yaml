@@ -1,0 +1,44 @@
+tag: WEB-REACT
+section: hooks
+hooks:
+  - name: i18n-enforcement
+    trigger: pre-commit
+    description: "Scan JSX/TSX for hardcoded user-facing strings not wrapped in t()"
+    filename: pre-commit-i18n.sh
+    script: |
+      #!/bin/bash
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(tsx|jsx)$')
+      if [ -z "$STAGED" ]; then exit 0; fi
+      VIOLATIONS=0
+      for file in $STAGED; do
+        # Find string literals in JSX that aren't in t() calls, className, data-testid, etc.
+        if grep -nE '>\s*[A-Z][a-z]+(\s+[a-z]+)+\s*<' "$file" | grep -vE '(className|data-testid|aria-|console\.)' > /tmp/i18n_violations 2>/dev/null; then
+          if [ -s /tmp/i18n_violations ]; then
+            echo "  ⚠️  $file — possible untranslated string:"
+            cat /tmp/i18n_violations | head -3
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+        fi
+      done
+      rm -f /tmp/i18n_violations
+      if [ $VIOLATIONS -gt 0 ]; then
+        echo "⚠️  $VIOLATIONS file(s) may have untranslated strings. Use t() wrapper."
+      fi
+
+  - name: a11y-lint
+    trigger: pre-commit
+    description: "Run accessibility checks on staged JSX/TSX files"
+    filename: pre-commit-a11y.sh
+    script: |
+      #!/bin/bash
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(tsx|jsx)$')
+      if [ -z "$STAGED" ]; then exit 0; fi
+      # Check for div used as button without role
+      for file in $STAGED; do
+        if grep -nE '<div\s+onClick' "$file" | grep -v 'role=' > /tmp/a11y_violations 2>/dev/null; then
+          if [ -s /tmp/a11y_violations ]; then
+            echo "  ⚠️  $file — clickable div without role attribute. Use <button> or add role=\"button\""
+          fi
+        fi
+      done
+      rm -f /tmp/a11y_violations

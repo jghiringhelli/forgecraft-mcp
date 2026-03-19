@@ -1,0 +1,97 @@
+tag: GAME
+section: review
+blocks:
+  - id: game-architecture-review
+    tier: recommended
+    dimension: architecture
+    title: "Game Architecture Review"
+    description: |
+      Evaluate scene structure, ECS separation, and dependency flow.
+    checklist:
+      - id: scene-responsibility
+        description: "Each Scene has a single responsibility. No god-scenes mixing physics, AI, UI, and audio logic."
+        severity: critical
+      - id: ecs-separation
+        description: "Entities are IDs, components are plain data, systems have no state. No logic in component structs."
+        severity: important
+      - id: no-scene-coupling
+        description: "Scenes communicate via EventEmitter or registry only. No direct scene-to-scene instance references."
+        severity: critical
+      - id: dependency-injection
+        description: "Services (audio manager, save system, analytics) injected via game registry. No module-level singletons."
+        severity: important
+      - id: worker-offload
+        description: "CPU-heavy tasks (pathfinding, procedural gen, physics sim) run in Web Workers, not the main thread."
+        severity: nice-to-have
+
+  - id: game-code-quality-review
+    tier: recommended
+    dimension: code-quality
+    title: "Game Code Quality Review"
+    description: |
+      Evaluate update loop cleanliness, resource handling, and input abstraction.
+    checklist:
+      - id: no-alloc-in-hot-path
+        description: "Zero object allocations in the update() hot path. Object pools used for bullets, particles, tweens."
+        severity: critical
+      - id: resource-disposal
+        description: "All GPU resources (textures, geometries, materials, render targets) explicitly disposed on scene exit."
+        severity: critical
+      - id: input-abstraction
+        description: "Physical inputs mapped to logical actions via a config-driven action map. No raw key codes in game logic."
+        severity: important
+      - id: asset-manifest
+        description: "All asset paths and keys defined in a central manifest (assets.ts). No inline path strings scattered across scenes."
+        severity: important
+      - id: magic-numbers
+        description: "No magic numbers in game logic. Physics constants, speeds, and thresholds are named constants in config.ts."
+        severity: important
+      - id: fixed-timestep
+        description: "Game logic uses a fixed timestep. Rendering interpolates. No deltaTime passed directly into physics equations."
+        severity: critical
+
+  - id: game-performance-review
+    tier: recommended
+    dimension: performance
+    title: "Game Performance Review"
+    description: |
+      Evaluate draw-call count, GPU memory, and frame-time budget.
+    checklist:
+      - id: draw-call-budget
+        description: "Draw calls per frame within budget: < 50 for mobile web, < 200 for desktop. Verified via renderer stats overlay."
+        severity: critical
+      - id: atlas-usage
+        description: "Sprites use texture atlases. No individual per-sprite texture binds in hot rendering paths."
+        severity: critical
+      - id: gpu-resource-leaks
+        description: "Scene transition profile shows GPU memory returning to baseline after 3+ transitions (no accumulating leaks)."
+        severity: critical
+      - id: frame-budget-profiled
+        description: "JS CPU time < 6ms per frame on target hardware (profiled with Chrome DevTools, not emulation)."
+        severity: important
+      - id: mobile-tested
+        description: "Tested on real mid-range Android device (not DevTools emulation). Frame rate meets mobile NFR target."
+        severity: important
+      - id: instanced-rendering
+        description: "Repeated geometry (tiles, crowds, bullets) uses InstancedMesh (Three.js) or ParticleContainer (PixiJS)."
+        severity: important
+
+  - id: game-test-review
+    tier: recommended
+    dimension: tests
+    title: "Game Test Review"
+    description: |
+      Evaluate test coverage for deterministic systems and scene lifecycle.
+    checklist:
+      - id: system-unit-tests
+        description: "Game systems (movement, collision, AI state machine) have unit tests that run without a canvas or DOM."
+        severity: critical
+      - id: fixed-timestep-determinism
+        description: "Determinism test: same input sequence produces identical game state across 10 simulated minutes."
+        severity: important
+      - id: scene-lifecycle-tests
+        description: "Integration tests cover scene create → update → destroy lifecycle, verifying no resource leaks."
+        severity: important
+      - id: input-replay-tests
+        description: "Critical game scenarios (player death, level completion) covered by recorded input replay tests."
+        severity: nice-to-have

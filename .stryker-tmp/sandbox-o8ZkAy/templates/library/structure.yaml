@@ -1,0 +1,19 @@
+tag: LIBRARY
+section: structure
+language: typescript
+entries:
+  - path: src/index.ts
+    type: file
+    description: "Public API barrel — exports only what consumers need"
+  - path: src/shared
+    type: directory
+    description: "Shared internal utilities"
+  - path: dist
+    type: directory
+    description: "Compiled output (not committed)"
+  - path: README.md
+    type: file
+    description: "Install, quick start, API reference"
+  - path: CHANGELOG.md
+    type: file
+    description: "Release history"

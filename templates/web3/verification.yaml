@@ -1,0 +1,159 @@
+tag: WEB3
+section: verification
+title: "Smart Contract Formal Test + Gas Simulation"
+description: >
+  Web3 verification has two dimensions. Deterministic: smart contract function
+  behavior is formally specifiable — ABI types, state transition invariants,
+  and revert conditions are exact contracts checkable by automated tests.
+  Stochastic: gas costs vary with network congestion and state size; they must
+  be simulated at scale to identify DoS vectors and confirm cost bounds remain
+  within user-acceptable thresholds under adversarial conditions.
+uncertainty_levels:
+  - deterministic
+  - stochastic
+completeness_ceiling: 0.88
+
+phases:
+
+  - id: contract-definition
+    title: "Define ABI Contracts, Invariants, and Gas Bounds"
+    rationale: >
+      A smart contract is immutable once deployed. Verification contracts must be
+      more rigorous than any other domain: post-deployment bugs cannot be patched,
+      only mitigated. State machine invariants, access control rules, and gas bounds
+      must be written as formal properties before a single line of Solidity is written.
+    steps:
+      - id: define-abi-contracts
+        instruction: >
+          For every public and external function, define:
+          - Preconditions: all require() and revert() conditions with natural-language meaning
+          - Postconditions: what state changes are guaranteed on success
+          - Events emitted: name, indexed fields, non-indexed fields
+          - Reentrancy status: is this function safe to call while executing?
+          Store in docs/abi-contracts.md. One section per function.
+        contract: >
+          docs/abi-contracts.md exists with one section per public/external function.
+          Every function has preconditions, postconditions, and reentrancy status.
+        tools: ["filesystem", "natspec comments in Solidity"]
+        expected_output: "## transfer(address to, uint256 amount)\n**Pre:** caller balance ≥ amount\n**Post:** balances[caller] -= amount; balances[to] += amount"
+        pass_criterion: "File exists; every public function in the ABI has a corresponding section"
+
+      - id: define-invariants
+        instruction: >
+          Write the global invariants that must hold after every transaction:
+          - Conservation: totalSupply == sum(balances) (for token contracts)
+          - Access control: only owner can call admin functions
+          - State machine: cannot transition from COMPLETED to ACTIVE
+          - Economic: protocol fee ≤ 3% of any individual transaction
+          These become the property tests run after every state transition in Foundry.
+        contract: >
+          docs/invariants.md lists all global invariants with formal notation.
+          Each invariant has: name, condition, and a counterexample that would violate it.
+        tools: ["filesystem"]
+        expected_output: "| conservation | totalSupply == sum(all balances) | minting without incrementing supply |"
+        pass_criterion: "File exists with ≥1 invariant per contract with counterexample"
+
+      - id: define-gas-bounds
+        instruction: >
+          For each function, define maximum acceptable gas consumption:
+          - Simple reads: ≤ 30,000 gas
+          - Simple writes (single SSTORE): ≤ 50,000 gas
+          - Complex operations: document the formula and ceiling with justification
+          Store in docs/gas-contracts.md. Include adversarial scenarios:
+          e.g., "calling batchTransfer with 500 recipients must cost ≤ 5,000,000 gas."
+        contract: "docs/gas-contracts.md with numeric gas ceiling per function and adversarial scenario"
+        tools: ["filesystem"]
+        expected_output: "| batchTransfer(500) | 5,000,000 gas | adversarial max recipients |"
+        pass_criterion: "File exists; every user-callable function has a numeric gas ceiling"
+
+  - id: execution
+    title: "Foundry Test Suite + Gas Simulation"
+    rationale: >
+      Foundry runs Solidity tests at EVM speed. Property-based tests (invariant tests)
+      automatically generate counterexamples to global invariants. Forge gas reports
+      provide exact gas consumption per function. Hardhat fork simulation tests
+      behavior under mainnet state to detect integration assumptions.
+    steps:
+      - id: run-foundry-unit-tests
+        instruction: >
+          Write and run Foundry unit tests for every function. Each test covers:
+          - Happy path
+          - Each revert/require condition (expect the revert with the specific error)
+          - Edge cases (zero values, max uint256, zero address, self-transfer)
+          Run with `forge test -vvv`. All tests must pass with 0 failures.
+        contract: >
+          forge test exits 0. Every function has ≥3 test cases covering happy path,
+          revert conditions, and edge cases. Coverage ≥ 95% branch coverage.
+        tools: ["forge test -vvv", "forge coverage --report lcov"]
+        expected_output: "forge test: 0 failed, N passed. Coverage: branch 97%"
+        pass_criterion: "forge test exits 0; branch coverage ≥ 95%"
+
+      - id: run-invariant-property-tests
+        instruction: >
+          Write Foundry invariant tests for each invariant in docs/invariants.md.
+          Foundry will call random sequences of functions and assert the invariant
+          holds after each call. Configure minimum 10,000 runs per invariant.
+          Any counterexample found by Foundry is a critical bug.
+        contract: >
+          One Foundry invariant test function per invariant.
+          All invariants hold after 10,000 random call sequences.
+          Zero counterexamples found.
+        tools: ["forge test --mt invariant --runs 10000"]
+        expected_output: "No counterexamples found. Invariant tests: all PASS"
+        pass_criterion: "forge test exits 0 with no counterexample output"
+
+      - id: run-gas-simulation
+        instruction: >
+          Run `forge snapshot` to record gas usage per test. Compare against the
+          gas ceilings in docs/gas-contracts.md. For adversarial scenarios (max batch size,
+          unbounded loops), run explicit gas-measurement tests using `gasleft()` instrumentation.
+          Any function exceeding its gas ceiling is a FAIL — gas is a security invariant.
+        contract: >
+          Gas usage per function ≤ ceiling in docs/gas-contracts.md.
+          forge snapshot diff vs. main shows no O(N) growth in single-SLOAD functions.
+        tools: ["forge snapshot", "forge test --gas-report", "gasleft() instrumentation"]
+        expected_output: "gas-report.json: {function, actual_gas, ceiling, pass}"
+        pass_criterion: "All pass fields = true in gas-report.json"
+
+      - id: run-fork-simulation
+        instruction: >
+          Fork mainnet (or the target network) at a recent block using a public RPC.
+          Deploy the contract to the fork. Run integration scenarios that depend on
+          mainnet state (e.g., oracle prices, existing token balances, DEX liquidity).
+          Assert that stochastic outputs (gas variation under network congestion,
+          slippage under low liquidity) remain within the gas bounds defined.
+        contract: >
+          Forked tests pass on the mainnet fork.
+          Gas variation under congestion simulation ≤ 15% above baseline.
+        tools: ["forge test --fork-url $MAINNET_RPC", "anvil --fork-url"]
+        expected_output: "Fork test results: all PASS. Gas variance report under load."
+        pass_criterion: "forge test exits 0 on fork; gas variance ≤ 15%"
+
+  - id: evidence
+    title: "Persist Audit Trail and Gas Snapshots"
+    rationale: >
+      Smart contract audit evidence must be immutable and versioned. Gas snapshots
+      committed to git make regressions visible in pull request diffs.
+    steps:
+      - id: commit-gas-snapshot
+        instruction: >
+          Commit the Foundry gas snapshot (.gas-snapshot) to the repository.
+          In CI, run `forge snapshot --check` which exits non-zero if gas has
+          regressed from the committed snapshot. This makes gas regressions
+          visible in every pull request.
+        contract: ".gas-snapshot exists in repository root; CI runs forge snapshot --check"
+        tools: ["forge snapshot", "git add .gas-snapshot"]
+        expected_output: ".gas-snapshot file committed; CI job 'gas-regression-check' passes"
+        pass_criterion: ".gas-snapshot present; forge snapshot --check exits 0 in CI"
+
+      - id: persist-test-reports
+        instruction: >
+          Save to docs/audit/:
+          - forge-test-report.json (all test results)
+          - gas-report.json (function gas vs ceiling)
+          - invariant-results.json (which invariants tested, how many runs)
+          Include git commit SHA and Solidity compiler version in each file.
+        contract: "docs/audit/ exists with all 3 JSON files after every test run"
+        tools: ["forge test --json", "jq"]
+        expected_output: "docs/audit/forge-test-report.json with timestamp and commit SHA"
+        pass_criterion: "Files exist and parse; commit SHA present"

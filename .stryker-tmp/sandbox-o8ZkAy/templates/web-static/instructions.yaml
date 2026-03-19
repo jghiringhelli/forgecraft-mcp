@@ -1,0 +1,115 @@
+tag: WEB-STATIC
+section: instructions
+blocks:
+  - id: static-site-architecture
+    tier: recommended
+    title: "Static Site Architecture"
+    content: |
+      ## Static Site & Jamstack Patterns
+
+      - Use Static Site Generation (SSG) as the default rendering strategy; reserve SSR or ISR only for pages requiring dynamic data at request time.
+      - Pre-render all content pages at build time. Ensure the build pipeline fails fast on broken links, missing assets, or template errors.
+      - Separate content from presentation: store structured content in Markdown, MDX, or a headless CMS, and consume it via build-time data fetching.
+      - Implement incremental builds where supported to keep build times under 60 seconds for content-heavy sites.
+      - Use content hashing for all emitted assets (JS, CSS, images) to enable aggressive, immutable caching (`Cache-Control: public, max-age=31536000, immutable`).
+      - Serve the site behind a CDN. Configure cache invalidation on deploy so users never see stale HTML entry points.
+      - Generate a `sitemap.xml` and `robots.txt` at build time. Include canonical URLs and Open Graph meta tags on every page.
+      - Keep JavaScript payload minimal. Audit bundle size on every PR; set a performance budget (e.g., < 100 KB compressed JS for the critical path).
+
+  - id: asset-optimization
+    tier: recommended
+    title: "Asset Optimization"
+    content: |
+      ## Asset Optimization & Performance
+
+      - Serve images in modern formats (WebP/AVIF) with `<picture>` fallbacks. Use responsive `srcset` and `sizes` attributes to deliver appropriately sized images.
+      - Inline critical CSS for above-the-fold content and defer non-critical stylesheets. Avoid render-blocking resources.
+      - Enable Brotli or gzip compression on the CDN/server for all text-based assets (HTML, CSS, JS, SVG, JSON).
+      - Lazy-load below-the-fold images and iframes using `loading="lazy"` or Intersection Observer.
+      - Preload key resources (`<link rel="preload">`) such as fonts and hero images. Use `font-display: swap` to prevent FOIT.
+      - Minimize third-party scripts. Load analytics and tracking asynchronously and after the main content is interactive.
+      - Run Lighthouse CI in the build pipeline; fail the build if performance score drops below the agreed threshold (e.g., 90).
+
+  - id: html-css-best-practices
+    tier: recommended
+    title: "HTML & CSS Best Practices"
+    content: |
+      ## HTML & CSS Quality Standards
+
+      - Write semantic HTML5 markup. Use `<header>`, `<nav>`, `<main>`, `<article>`, `<section>`, and `<footer>` to convey document structure.
+      - Ensure all pages pass WCAG 2.1 AA. Provide alt text for images, proper heading hierarchy, sufficient color contrast, and keyboard navigability.
+      - Use CSS custom properties (variables) for theming. Maintain a design-token file as the single source of truth for colors, spacing, and typography.
+      - Prefer utility-first or modular CSS methodologies (e.g., Tailwind, CSS Modules) to avoid specificity conflicts and dead CSS accumulation.
+      - Validate HTML output with the W3C validator in CI. Fix all errors; treat warnings as errors in new code.
+      - Support dark mode via `prefers-color-scheme` media query or a user-togglable theme that persists in `localStorage`.
+
+  - id: static-deployment
+    tier: recommended
+    title: "Static Site Deployment"
+    content: |
+      ## Static Site Deployment
+
+      ### Platforms
+      - **Netlify**: Git-push deploy, instant rollbacks, form handling, edge functions, split testing.
+        Free tier generous for static sites. Build plugins for Lighthouse, broken link detection.
+      - **Vercel**: Zero-config for Next.js/Astro/SvelteKit. Preview deployments per PR.
+      - **Cloudflare Pages**: Unlimited bandwidth, global edge network, Pages Functions for dynamic routes.
+      - **GitHub Pages**: Free for open-source. Limited (no server functions, no redirects file natively).
+        Suitable for docs sites and project landing pages only.
+      - **AWS S3 + CloudFront**: Maximum control, lowest cost at scale. Use `aws-cdk` or Terraform
+        to define the stack: S3 bucket (private) → CloudFront distribution → Route53 DNS → ACM cert.
+
+      ### Build Pipeline
+      - Build locally mirrors CI exactly (same Node version, same env vars). Use `.nvmrc` or `.node-version`.
+      - Build output is a static directory (`dist/`, `out/`, `public/`). No server process.
+      - Atomic deploys: new version fully uploaded before traffic switches. No partial states.
+      - Rollback = redeploy previous build artifact. Must complete in < 30 seconds.
+
+      ### Cache Strategy
+      - HTML: `Cache-Control: public, max-age=300, stale-while-revalidate=86400`.
+        Short-lived so deploys take effect quickly.
+      - Hashed assets (JS, CSS, images): `Cache-Control: public, max-age=31536000, immutable`.
+        Filename changes on content change — cache forever.
+      - Invalidate CDN cache on deploy (automatic on Netlify/Vercel/CF Pages; manual on CloudFront).
+
+  - id: web-static-smoke-testing
+    tier: recommended
+    title: "Static Site Smoke Testing (Post-Deploy)"
+    content: |
+      ## Static Site Smoke Testing
+
+      ### Required: Playwright Full Browser
+      Tag all smoke tests `@smoke` for isolated execution:
+      ```
+      npx playwright test --config playwright.smoke.config.ts --grep @smoke
+      ```
+
+      Minimum smoke suite:
+      - **Key pages load**: home + primary section pages render, no console errors, title present
+      - **No broken assets**: no 404 network requests (images, JS, CSS)
+      - **404 handling**: non-existent path returns 404, custom error page renders (not browser default)
+      - **HTTPS redirect**: `http://` redirects to `https://` (if applicable)
+
+      ```typescript
+      // tests/smoke/site.smoke.ts
+      import { test, expect } from '@playwright/test';
+
+      const KEY_PAGES = ['/', '/about', '/contact'];
+
+      for (const path of KEY_PAGES) {
+        test(`@smoke ${path} loads without broken assets`, async ({ page }) => {
+          const failed: string[] = [];
+          page.on('requestfailed', r => failed.push(r.url()));
+          page.on('response', r => { if (r.status() === 404) failed.push(r.url()); });
+          await page.goto(path);
+          await expect(page).toHaveTitle(/.+/);
+          expect(failed).toHaveLength(0);
+        });
+      }
+
+      test('@smoke 404 renders custom page', async ({ page }) => {
+        const res = await page.goto('/this-path-does-not-exist-smoke-xyz');
+        expect(res?.status()).toBe(404);
+        await expect(page.locator('body')).not.toBeEmpty();
+      });
+      ```

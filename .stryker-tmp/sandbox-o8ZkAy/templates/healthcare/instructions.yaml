@@ -1,0 +1,42 @@
+tag: HEALTHCARE
+section: instructions
+blocks:
+  - id: hipaa-compliance
+    tier: recommended
+    title: "HIPAA Compliance & PHI Handling"
+    content: |
+      ## HIPAA Compliance & Protected Health Information
+
+      - Classify all data fields at design time. Identify the 18 HIPAA identifiers and ensure any field containing PHI is tagged, encrypted, and access-controlled.
+      - Apply the minimum necessary principle: every API endpoint, database query, and UI view must expose only the PHI fields required for the specific use case.
+      - Encrypt PHI at rest (AES-256) and in transit (TLS 1.2+). Use envelope encryption with a KMS for key management; never store encryption keys alongside data.
+      - Implement role-based access control (RBAC) with the principle of least privilege. Map roles to specific PHI access levels and review permissions quarterly.
+      - Maintain a Business Associate Agreement (BAA) with every third-party service that processes, stores, or transmits PHI—including cloud providers, analytics tools, and logging services.
+      - Never log PHI in application logs, error messages, or stack traces. Use tokenized or surrogate identifiers in logs and map them back to PHI only through a secured, audited lookup service.
+      - Implement automatic session timeout (≤ 15 minutes of inactivity) for any interface displaying PHI. Require re-authentication to resume.
+
+  - id: audit-logging
+    tier: recommended
+    title: "Audit Logging & Access Tracking"
+    content: |
+      ## Audit Logging & Accountability
+
+      - Log every access to PHI: who accessed it, when, what data was viewed or modified, from which IP/device, and the business justification (if applicable).
+      - Store audit logs in an append-only, tamper-evident store separate from application databases. Retain logs for a minimum of 6 years per HIPAA requirements.
+      - Generate automated audit reports for compliance reviews. Include access frequency per user, unusual access patterns, and after-hours access events.
+      - Implement real-time alerting for suspicious access patterns: bulk record access, access outside normal role scope, or access to VIP/employee records.
+      - Include a unique correlation ID in every request that touches PHI, so a single patient interaction can be traced across all microservices and data stores.
+      - Conduct periodic access reviews where data stewards verify that each user's access level is still appropriate for their current role.
+
+  - id: consent-management
+    tier: recommended
+    title: "Consent & Data Governance"
+    content: |
+      ## Consent Management & Data Governance
+
+      - Model patient consent as a first-class entity with versioned consent records, effective dates, scope (which data, which purposes), and revocation timestamps.
+      - Enforce consent at the data access layer, not just the UI. Before any query returns PHI, verify that a valid, non-revoked consent exists for the requested purpose.
+      - Support granular consent: patients may consent to treatment data sharing but not to research use. The system must enforce these distinctions consistently.
+      - Implement a data retention policy engine that automatically de-identifies or purges records when the retention period expires or consent is revoked.
+      - Provide patients with a self-service portal to view who has accessed their data, download their records (in standard formats like FHIR/C-CDA), and update consent preferences.
+      - Use HL7 FHIR as the interoperability standard for data exchange. Validate all inbound and outbound FHIR resources against the relevant profiles.

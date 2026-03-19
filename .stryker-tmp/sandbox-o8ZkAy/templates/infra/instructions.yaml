@@ -1,0 +1,104 @@
+tag: INFRA
+section: instructions
+blocks:
+  - id: iac-containers
+    tier: recommended
+    title: "Infrastructure as Code & Containers"
+    content: |
+      ## Infrastructure as Code & Container Orchestration
+
+      - Define all infrastructure declaratively using IaC tools (Terraform, Pulumi, CloudFormation, CDK). No manual resource creation—if it's not in code, it doesn't exist.
+      - Version IaC alongside application code. Use separate state files/workspaces per environment (dev, staging, prod) and lock state to prevent concurrent modifications.
+      - Write minimal, single-purpose Dockerfiles. Use multi-stage builds to keep production images small. Pin base image digests (not just tags) for reproducibility.
+      - Run containers as non-root users. Drop all Linux capabilities except those explicitly needed. Use read-only root filesystems where possible.
+      - Use container orchestration (Kubernetes, ECS, Nomad) for production workloads. Define resource requests and limits for every container to prevent noisy-neighbor issues.
+      - Implement health checks (liveness, readiness, startup probes) for every service. The orchestrator should not route traffic to unhealthy instances.
+      - Store environment-specific configuration in environment variables or a secrets manager—never bake secrets or environment config into container images.
+
+  - id: cicd-pipelines
+    tier: recommended
+    title: "CI/CD & Deployment Patterns"
+    content: |
+      ## CI/CD & Deployment
+
+      - Automate the full path from commit to production: lint → test → build → security scan → deploy to staging → integration test → promote to production.
+      - Keep CI pipelines fast (< 10 minutes for the inner loop). Parallelize test suites, cache dependencies aggressively, and use incremental builds.
+      - Use blue-green or canary deployments for zero-downtime releases. Automate rollback by monitoring error rates and latency during the canary window.
+      - Implement GitOps for Kubernetes: declare the desired cluster state in a Git repository and use a reconciliation controller (ArgoCD, Flux) to converge actual state to desired state.
+      - Scan container images for CVEs in CI using tools like Trivy or Grype. Block deployment of images with critical or high-severity vulnerabilities.
+      - Tag every deployment artifact with the git SHA, build number, and timestamp. Maintain a deployment log that records what was deployed, when, by whom, and the rollback procedure.
+
+  - id: observability-secrets
+    tier: recommended
+    title: "Observability & Secrets Management"
+    content: |
+      ## Observability, Monitoring & Secrets
+
+      - Implement the three pillars of observability: structured logs (JSON with correlation IDs), metrics (counters, gauges, histograms via Prometheus/OpenTelemetry), and distributed traces (OpenTelemetry spans).
+      - Define SLIs (error rate, latency p99, availability) and set SLOs (e.g., 99.9% availability, p99 latency < 200ms). Create error budget policies that slow down releases when the budget is exhausted.
+      - Set up actionable alerts: every alert must have a runbook link, clear ownership, and a defined severity level. Eliminate noisy alerts ruthlessly—alert fatigue is a reliability risk.
+      - Use a centralized secrets manager (Vault, AWS Secrets Manager, GCP Secret Manager) for all credentials, API keys, and certificates. Rotate secrets automatically on a schedule.
+      - Never commit secrets to version control. Use pre-commit hooks (e.g., detect-secrets, gitleaks) to block accidental secret commits. Scan git history periodically for leaked secrets.
+      - Follow the 12-factor app methodology: externalize config, treat logs as event streams, maximize dev/prod parity, and design for stateless, disposable processes.
+      - Implement dashboards for each service covering the RED metrics (Rate, Errors, Duration) and the USE metrics (Utilization, Saturation, Errors) for infrastructure resources.
+
+  - id: iac-cdk-patterns
+    tier: recommended
+    title: "CDK, Pulumi & IaC Patterns"
+    content: |
+      ## CDK, Pulumi & Advanced IaC
+
+      ### AWS CDK
+      - Define infrastructure in TypeScript/Python — real programming language, not HCL.
+        Enables loops, conditionals, type checking, and IDE support.
+      - Organize stacks by lifecycle: networking stack, database stack, application stack.
+        Stacks that change together should be in the same stack.
+      - Use L2/L3 Constructs for common patterns (ApplicationLoadBalancedFargateService, etc.).
+        Drop to L1 (CfnResource) only when L2 doesn't expose what you need.
+      - `cdk diff` before every deploy. Review change sets. Never deploy blind.
+      - Use CDK Aspects for compliance: tag enforcement, encryption-at-rest checks, public access blocking.
+
+      ### Pulumi
+      - Same benefits as CDK (real language) but multi-cloud.
+        TypeScript, Python, Go, or C#. Choose the team's strongest language.
+      - Use ComponentResources to create reusable infrastructure modules.
+      - State in Pulumi Cloud or self-managed S3 backend. Lock state to prevent concurrent modifications.
+
+      ### IaC Best Practices (All Tools)
+      - **Modules**: Don't repeat resource definitions. Create reusable modules for VPC, ECS service, RDS cluster, etc.
+      - **Environments**: Same IaC, different configs. Use variables/parameters per environment, not separate code.
+      - **State**: Remote state with locking. Never local state files in production.
+      - **Drift detection**: Run periodic plan/diff against production. Alert on manual changes.
+      - **Cost tagging**: Every resource tagged with `Environment`, `Service`, `Owner`, `CostCenter`.
+        Untagged resources are flagged and blocked in CI.
+      - **Blast radius**: Small, independently deployable stacks. A bad deploy to one stack doesn't affect others.
+
+  - id: cloud-platform-guidance
+    tier: recommended
+    title: "Cloud Platform & Deployment Targets"
+    content: |
+      ## Cloud Platform Guidance
+
+      ### Cloud vs. Local
+      - **Local development**: Docker Compose for all backing services (DB, cache, queue, storage).
+        Use LocalStack or MinIO for cloud service emulation when needed.
+      - **Managed cloud**: Prefer managed services (RDS over self-hosted Postgres, SQS over self-hosted RabbitMQ)
+        unless cost, latency, or compliance requires self-hosted.
+      - **Serverless**: Consider for event-driven, bursty, or low-traffic workloads.
+        Lambda/Cloud Functions: cold start < 1s, function duration < 15 min, stateless.
+        Not suitable for: long-running processes, WebSockets, high-throughput steady-state.
+      - **Edge compute**: Cloudflare Workers, Vercel Edge Functions, Lambda@Edge.
+        Use for: auth, redirects, A/B testing, geo-routing. Keep logic simple and fast.
+
+      ### Multi-Cloud Considerations
+      - **Default**: single cloud provider. Multi-cloud adds operational complexity.
+      - **When to go multi-cloud**: regulatory requirements, vendor negotiation leverage, or
+        specific best-of-breed services (e.g., GCP for ML, AWS for general infra).
+      - Abstract cloud-specific APIs behind interfaces if multi-cloud is a real possibility.
+      - Use provider-agnostic services where cost-effective: Terraform, Pulumi, containers, S3-compatible storage.
+
+      ### Cost Control
+      - Set budget alerts at 50%, 80%, 100% of monthly target.
+      - Reserved instances / savings plans for steady-state workloads. Spot/preemptible for batch jobs.
+      - Right-size: review instance utilization monthly. Downsize over-provisioned resources.
+      - Auto-sleep non-production environments outside business hours.

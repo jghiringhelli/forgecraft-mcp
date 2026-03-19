@@ -1,0 +1,31 @@
+tag: CLI
+section: instructions
+blocks:
+  - id: cli-standards
+    tier: recommended
+    title: "CLI Standards"
+    content: |
+      ## CLI Standards
+
+      ### User Experience
+      - Clear, concise help text for every command and option.
+      - Consistent flag naming: --verbose, --output, --format across all commands.
+      - Exit codes: 0 for success, 1 for general error, 2 for usage error.
+      - Colored output for terminals that support it, plain text fallback.
+      - Progress indicators for long-running operations.
+
+      ### Input/Output
+      - Accept input from stdin, arguments, and config files.
+      - Support --json flag for machine-readable output.
+      - Support --quiet flag to suppress non-essential output.
+      - Never prompt for input in non-interactive mode (CI/CD).
+
+      ### Distribution
+      - Single binary or npx-invocable package.
+      - Minimal dependencies — fast install.
+      - Version command: --version prints version and exits.
+
+      ### Error Messages
+      - Errors include: what went wrong, why, and how to fix it.
+      - Suggest the correct command when user mistypes.
+      - Link to documentation for complex errors.

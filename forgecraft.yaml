@@ -6,3 +6,12 @@ tags:
   - API
 tier: recommended
 variables: {}
+releasePhase: development
+tools:
+  test: npm test
+  typecheck: npx tsc --noEmit
+  lint: npm run lint
+  mutation: npx stryker run stryker.sentinel.json
+  audit: npm audit --audit-level=high
+gates_registry_url: https://raw.githubusercontent.com/jghiringhelli/quality-gates/master/index.json
+server_url: https://forgecraft-server-production.up.railway.app

@@ -41,7 +41,9 @@ describe("findDirectDbCallsInRoutes", () => {
 
   it("does not flag prisma imports (import statements)", () => {
     const violations = findDirectDbCallsInRoutes(VIOLATION_DIR);
-    const importLines = violations.filter((v) => v.snippet.trim().startsWith("import"));
+    const importLines = violations.filter((v) =>
+      v.snippet.trim().startsWith("import"),
+    );
     expect(importLines).toHaveLength(0);
   });
 });
@@ -74,7 +76,7 @@ describe("findMissingTestFiles", () => {
 // ── scoreGsProperties ───────────────────────────────────────────────
 
 describe("scoreGsProperties", () => {
-  it("returns exactly six properties in canonical §4.3 order", () => {
+  it("returns exactly seven properties in canonical §4.3 order", () => {
     const scores = scoreGsProperties(CLEAN_DIR, true, [], []);
     const names = scores.map((s) => s.property);
     expect(names).toEqual([
@@ -84,6 +86,7 @@ describe("scoreGsProperties", () => {
       "defended",
       "auditable",
       "composable",
+      "executable",
     ]);
   });
 
@@ -178,21 +181,21 @@ describe("verifyHandler", () => {
   it("reports FAIL when test command exits non-zero", async () => {
     const result = await verifyHandler({
       project_dir: CLEAN_DIR,
-      test_command: "node -e \"process.exit(1)\"",
+      test_command: 'node -e "process.exit(1)"',
       timeout_ms: 10_000,
       pass_threshold: 1,
     });
     expect(result.content[0]!.text).toContain("❌");
   });
 
-  it("report includes total score out of 12", async () => {
+  it("report includes total score out of 14 (7 properties × 2)", async () => {
     const result = await verifyHandler({
       project_dir: CLEAN_DIR,
       test_command: "echo ok",
       timeout_ms: 10_000,
       pass_threshold: 10,
     });
-    expect(result.content[0]!.text).toMatch(/\d+\/12/);
+    expect(result.content[0]!.text).toMatch(/\d+\/14/);
   });
 
   it("layer violations section lists prisma calls from the violation fixture", async () => {

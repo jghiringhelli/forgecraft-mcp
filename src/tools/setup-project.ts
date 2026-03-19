@@ -59,6 +59,10 @@ export const setupProjectSchema = z.object({
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .default(["claude"])
     .describe("AI assistant targets to generate instruction files for. Options: claude, cursor, copilot, windsurf, cline, aider. Defaults to ['claude']."),
+  release_phase: z
+    .enum(["development", "pre-release", "release-candidate", "production"])
+    .default("development")
+    .describe("Current release cycle phase. Controls which test gates are active in generated instructions. Options: development, pre-release, release-candidate, production."),
 });
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -93,7 +97,7 @@ export async function setupProjectHandler(
   const finalTags = determineTags(args.tags as Tag[] | undefined, analysis);
 
   // ── Step 3: Load or build config ───────────────────────────────
-  const config = buildConfig(analysis.existingConfig, finalTags, tier, projectName);
+  const config = buildConfig(analysis.existingConfig, finalTags, tier, projectName, args.release_phase);
 
   // ── Step 4: Load templates (with community dirs if configured) ─
   const allTemplates = await loadAllTemplatesWithExtras(
@@ -116,7 +120,7 @@ export async function setupProjectHandler(
   writeFileSync(configPath, configYaml, "utf-8");
 
   // ── Step 8: Generate instruction files for all targets ─────────
-  const context = detectProjectContext(projectDir, projectName, detectLanguage(projectDir), finalTags, args.description);
+  const context = { ...detectProjectContext(projectDir, projectName, detectLanguage(projectDir), finalTags, args.description), releasePhase: args.release_phase };
   const filesWritten: Array<{ path: string; action: "created" | "merged" }> = [];
 
   for (const target of outputTargets) {
@@ -250,6 +254,7 @@ function buildConfig(
   tags: Tag[],
   tier: ContentTier,
   projectName: string,
+  releasePhase?: string,
 ): ForgeCraftConfig {
   return {
     projectName: existing?.projectName ?? projectName,
@@ -257,6 +262,7 @@ function buildConfig(
     tier,
     // compact on by default — reduces token usage ~20-40% without loss of content
     compact: existing?.compact ?? true,
+    releasePhase: (releasePhase ?? existing?.releasePhase ?? "development") as ForgeCraftConfig["releasePhase"],
     templateDirs: existing?.templateDirs,
     include: existing?.include,
     exclude: existing?.exclude,

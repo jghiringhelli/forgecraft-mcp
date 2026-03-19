@@ -1,0 +1,85 @@
+tag: ML
+section: instructions
+blocks:
+  - id: training-pipelines
+    tier: recommended
+    title: "Model Training & Experiment Tracking"
+    content: |
+      ## Model Training & Experiment Tracking
+
+      - Track every experiment with a tool like MLflow, Weights & Biases, or DVC. Log hyperparameters, metrics, dataset versions, and the git commit hash for full reproducibility.
+      - Pin all dependencies (Python version, library versions, CUDA version) in a lockfile or Docker image. A training run from six months ago must be reproducible today.
+      - Separate data preprocessing, feature engineering, model training, and evaluation into distinct pipeline stages with clear interfaces.
+      - Use configuration files (YAML/TOML) for hyperparameters rather than hard-coding them. Support overrides via CLI arguments for sweep runs.
+      - Always hold out a test set that is never used during training or hyperparameter tuning. Report final metrics exclusively on this set.
+      - Version datasets alongside code. Use content-addressable storage or DVC to track dataset lineage and detect drift between training runs.
+      - Set random seeds for all sources of non-determinism (NumPy, PyTorch, TensorFlow, data shuffling) to ensure reproducible results on the same hardware.
+
+  - id: feature-engineering
+    tier: recommended
+    title: "Feature Engineering & Data Preparation"
+    content: |
+      ## Feature Engineering & Data Preparation
+
+      - Build a centralized feature store (or at minimum a shared feature module) to avoid duplicating feature logic across training and serving.
+      - Document every feature: its definition, data source, expected range, update frequency, and any known caveats or biases.
+      - Compute feature statistics (mean, std, min, max, null rate) on the training set and persist them. Apply the same transformations at inference time using these saved statistics—never recompute from inference data.
+      - Handle missing values explicitly. Choose an imputation strategy per feature (mean, median, mode, sentinel value, or model-based) and document the rationale.
+      - Detect and handle data leakage: ensure no future information leaks into features, and that train/validation/test splits respect temporal or entity boundaries.
+      - Monitor feature distributions in production. Alert when serving-time distributions diverge significantly from training-time distributions (data/concept drift).
+
+  - id: model-deployment
+    tier: recommended
+    title: "Model Versioning & Deployment"
+    content: |
+      ## Model Versioning & Serving
+
+      - Store trained model artifacts in a model registry with semantic versioning. Tag each artifact with the training run ID, dataset version, and evaluation metrics.
+      - Serve models behind a versioned API endpoint. Support A/B testing and canary rollouts by routing a percentage of traffic to a new model version.
+      - Define minimum performance thresholds (accuracy, latency p99, throughput) as promotion gates. A model must pass automated evaluation before being promoted to production.
+      - Implement shadow mode: run a new model in parallel with the current production model, compare outputs, and alert on significant divergence before cutting over.
+      - Log all predictions with input features, model version, and timestamp. This enables debugging, bias auditing, and retraining on production data.
+      - Set up automated retraining triggers based on performance degradation, data drift detection, or a fixed schedule. Ensure the retraining pipeline is fully automated end-to-end.
+
+  - id: ml-testing
+    tier: recommended
+    title: "ML-Specific Testing Requirements"
+    content: |
+      ## ML-Specific Testing Requirements
+
+      ### Data Distribution Tests
+      Assert dataset integrity before any model trains on it:
+      - Train/val/test split ratios are within configured tolerances.
+      - Class balance in classification tasks is within acceptable imbalance threshold (document the threshold and the chosen mitigation — oversampling, class weights, threshold tuning).
+      - No temporal leakage: all records in the validation set postdate all records in the training set for time-series problems.
+      - Feature null rates are within threshold per column. Schema types match declared types.
+      These assertions run as a pre-training gate, not as an afterthought during debugging.
+
+      ### Model Regression Tests
+      A model deployment must not silently degrade the evaluation metric baseline:
+      - Persist the baseline metric (accuracy, F1, AUC, RMSE, etc.) for the current production model in the model registry.
+      - On each candidate model: evaluate on the held-out test set; compare to baseline.
+      - Define the minimum acceptable delta (e.g., F1 must not drop more than 0.01 from baseline).
+      - A regression below threshold is a failing CI gate. It does not block deployment only if an ADR explicitly accepts the tradeoff.
+
+      ### Inference Latency Tests
+      Model serving has an SLA. Test it:
+      - At staging: send representative input at the defined peak request rate.
+      - Assert p95 latency ≤ SLA threshold (document the threshold).
+      - Assert throughput ≥ minimum requests/second.
+      - Assert memory footprint under sustained load stays within spec.
+      Latency tests run post-deploy to staging, not pre-deploy. They are a promotion gate, not a build gate.
+
+      ### Adversarial Input Tests
+      Models fail in unexpected ways on distribution-edge inputs:
+      - **Out-of-distribution inputs**: feature values well outside training range; entirely unseen categories.
+      - **Corrupted inputs**: nulls in required fields, wrong types, empty sequences, extreme numeric values.
+      - **Edge-case inputs**: minimum/maximum sequence length, single-token inputs, very long inputs if applicable.
+      Assert: the model does not crash; output is within plausible range; uncertainty (if modeled) is high for OOD inputs.
+
+      ### Bias / Fairness Assertions
+      Where the model's output affects people and protected attributes are present in the data:
+      - Define the protected attributes and the fairness metric (demographic parity, equalized odds, calibration by group).
+      - Evaluate the fairness metric on the test set per protected-attribute group.
+      - Assert the fairness gap is within the documented acceptable threshold.
+      - If no protected attributes are present but the output has downstream human impact, document this determination and its rationale in an ADR.

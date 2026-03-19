@@ -1,0 +1,28 @@
+{
+  "$schema": "https://stryker-mutator.io/schemas/stryker-schema.json#",
+  "testRunner": "vitest",
+  "mutate": [
+    "src/registry/sentinel-renderer.ts"
+  ],
+  "testFiles": [
+    "tests/registry/sentinel-renderer.test.ts"
+  ],
+  "reporters": ["progress", "clear-text"],
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 50
+  },
+  "timeoutMS": 30000,
+  "concurrency": 4,
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true,
+  "coverageAnalysis": "perTest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "ignoreStatic": true,
+  "mutator": {
+    "excludedMutations": ["StringLiteral", "ObjectLiteral"]
+  }
+}

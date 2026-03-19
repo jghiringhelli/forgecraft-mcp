@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "forgecraft": {
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"],
+      "env": {}
+    }
+  }
+}

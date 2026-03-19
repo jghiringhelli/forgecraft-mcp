@@ -1,0 +1,191 @@
+# Changelog
+
+All notable changes to `forgecraft-mcp` are documented here.
+
+Format: [Conventional Commits](https://conventionalcommits.org). Dates reflect merge to main.
+Breaking changes are marked **BREAKING**.
+
+---
+
+## [1.0.0] — 2026-03-13
+
+First stable release. This version ships the complete Generative Specification
+toolchain — the CLI, the sentinel, and the on-demand guidance resource — alongside
+the published white paper and practitioner protocol.
+
+### Architecture
+
+- **BREAKING — MCP server is sentinel-only.** The MCP server now exposes a single
+  `forgecraft` tool (~200 tokens) that reads project state and returns CLI commands.
+  The full 21-action router is CLI-only. This is a deliberate design: the sentinel
+  *is* the methodology made visible — a stateless reader that checks three artifacts
+  (`forgecraft.yaml`, `CLAUDE.md`, `.claude/hooks`), derives the correct action, and
+  steps aside. Remove the MCP server after initial setup to reclaim token budget.
+- Full 21-action CLI router (`setup`, `refresh`, `audit`, `scaffold`, `review`,
+  `classify`, `add-hook`, `add-module`, `configure-mcp`, `get-reference`, `get-nfr`,
+  `get-playbook`, `convert`, `verify`, `advice`, `metrics`, `check-cascade`,
+  `generate-session-prompt`, `list`) exposed via `npx forgecraft-mcp <command>`.
+
+### Added
+
+- **`get_reference(resource: guidance)`** — on-demand GS procedure dispatch. Returns
+  5 Practitioner Protocol procedure blocks (Session Loop, Context Loading Strategy,
+  Incremental Cascade, Bound Roadmap format, Diagnostic Checklist) fetched only
+  when needed, not inlined into every CLAUDE.md. Closes the token-budget pressure
+  that caused the pointer architecture.
+- **`check_cascade`** — derivability gate. Verifies all 5 GS initialization cascade
+  steps are complete before implementation begins. Reads project artifacts, not just
+  file existence.
+- **`generate_session_prompt`** — bound prompt generator. Produces a self-contained
+  session prompt from a roadmap item description, acceptance criteria, and scope note.
+  Output format matches the Practitioner Protocol §5 bound prompt template exactly.
+- **`verify`** — GS §4.3 property scorer. Runs the test suite, scores 12 GS
+  properties, reports layer violations and anti-pattern coverage. Combines unit
+  results with structural analysis.
+- **`metrics`** — external code quality report. LOC breakdown, test coverage parsing
+  (LCOV/Istanbul/Cobertura), layer violation detection, dead code scan, optional
+  Stryker mutation testing.
+- **`advice`** — quality cycle checklist + tool stack + example configs for detected
+  tags. No project analysis; pure reference output.
+- **`get_playbook`** — phased delivery playbook for active tags. Phase-gated
+  implementation sequence aligned to the initialization cascade order.
+- **`DEVELOPMENT_PROMPTS.md`** — Procedural Memory artifact. Three bound prompt
+  exemplars demonstrating the P-001/P-002/P-003 task shapes (documentation,
+  verification+fix, additive implementation). Included as `Appendix A` of the
+  Practitioner Protocol.
+- **GS experiment scaffold** (`experiments/`) — controlled vs treatment design for
+  the April 2026 Solera developer experiment. Pre-registration, Docker compose for
+  dual-DB isolation, automated audit runner.
+- **9 new project tags:** `DATA-LINEAGE`, `MEDALLION-ARCHITECTURE`,
+  `OBSERVABILITY-XRAY`, `HIPAA`, `SOC2`, `ZERO-TRUST`, `ANALYTICS`, `MOBILE`,
+  `GAME` — each with `instructions.yaml` and `mcp-servers.yaml`.
+- **ADRs 0002–0006** documenting: TypeScript stack selection, templates-as-YAML-data,
+  orthogonal tag composition model, dual CLI+MCP entrypoints, merge-not-overwrite
+  generation strategy.
+- **C4 context and container diagrams** + domain model in `docs/diagrams/`.
+- **`forgecraft.yaml`** config file — persists tag selection, tier, output targets,
+  compact mode, variable overrides, and custom template directories.
+- **`.github/copilot-instructions.md`** generation target — ForgeCraft now generates
+  for 6 AI assistants: Claude, Cursor, GitHub Copilot, Windsurf, Cline, Aider.
+- **`compact` mode** — strips explanatory tail clauses and deduplicates bullet lines;
+  ~20–40% smaller instruction output for projects with tight context budgets.
+- **`refresh` preview mode** (default) — shows before/after diff without writing
+  files; `--apply` flag applies changes.
+- **Anti-pattern scanner** — `scanAntiPatterns` checks source files for hardcoded
+  URLs (anchored comment exclusion), mock data in production code, bare exception
+  catches, and hardcoded credentials. Runs as part of `audit`.
+- **MCP server budget guidance** — CLAUDE.md template blocks include the ≤3 active
+  servers constraint with rationale.
+
+### Changed
+
+- `instructions.yaml` — 5 verbose GS procedure blocks removed from inline content,
+  replaced with pointer to `get_reference(resource: guidance)`. CLAUDE.md output
+  reduced from ~400 lines to <200 lines target. Procedures still available at full
+  fidelity on demand.
+- `ReferenceBlock` interface — added `readonly topic?: string` to enable guidance
+  block segregation from design-pattern blocks.
+- `getDesignReferenceHandler` — filters out blocks with `topic: guidance` so design
+  patterns remain exactly 3 blocks.
+- Test suite: 571 → 610 passing tests across 42 test files. Coverage: 84.67% →
+  87.07% overall; `src/analyzers` 73.47% → 81.64% (gate: 80%+).
+
+### Fixed
+
+- **Anti-pattern false positive on `http://` URLs.** Comment-exclusion regex `\/\/`
+  was also matching `http://localhost` URLs in source files, silently passing
+  violations. Anchored to line-start: `^\s*(\/\/|\/\*|\*|#)`.
+- **`guidance` resource no longer requires `tags` param.** Router previously required
+  `tags` before the switch dispatch; `guidance` case now reached tags-free.
+- **Windows `spawnSync` shell resolution for `claude.cmd`.** Added `shell: true` to
+  experiment runner `spawnSync` calls.
+- **`pool: "threads"` in `vitest.config.ts`** to fix Windows fork-spawn error in CI.
+
+---
+
+## [0.5.1] — 2026-03-12
+
+### Fixed
+
+- Coverage gate failures in `src/analyzers` (73.47% → addressed in 1.0.0).
+- Additional unit tests for `scanAntiPatterns`, `probeLoc`, `probeCoverage`,
+  `probeLayerViolations`.
+
+---
+
+## [0.5.0] — 2026-02-28
+
+### Changed — BREAKING
+
+- **MCP server reduced to sentinel only.** Prior versions exposed 15+ tools via the
+  MCP protocol. The server now registers one tool: the sentinel. All other tools
+  are CLI commands. Token footprint: ~1,500 → ~200 tokens per MCP request.
+
+### Added
+
+- Sentinel handler: reads `forgecraft.yaml`, `CLAUDE.md`, `.claude/hooks`; returns
+  targeted CLI recommendation for the project's current state.
+- CLI entry point (`src/cli.ts`) with full command surface.
+- `convert` command — generates phased migration plan for legacy code.
+- `verify` command — GS §4.3 property scoring (initial version).
+
+---
+
+## [0.4.0] — 2026-02-15
+
+### Added
+
+- `configure-mcp` — generates `.claude/settings.json` with recommended MCP servers
+  matched to active tags. Includes remote registry support.
+- `refresh-project` — detects tag drift, regenerates instruction files, shows diff.
+- `get-nfr`, `get-reference`, `get-playbook` — on-demand reference resources.
+- `review` — structured code review checklist across 4 dimensions.
+- `advice` — quality cycle checklist + tool stack for active tags.
+- `metrics` — external code quality report.
+- 24-tag library complete: all template directories populated with `instructions.yaml`,
+  `mcp-servers.yaml`, and domain-specific `nfr.yaml` / `review.yaml` / `structure.yaml`.
+
+---
+
+## [0.3.0] — 2026-01-31
+
+### Added
+
+- Dual entrypoint: same binary runs as CLI (`npx forgecraft-mcp setup .`) or as MCP
+  server (no subcommand). ADR-0005 documents this decision.
+- `add-hook` and `add-module` commands.
+- `classify` — analyzes project to suggest tags.
+- `list tags|hooks|skills` sub-commands.
+- `forgecraft.yaml` config file format with variable overrides.
+- Merge-not-overwrite strategy for instruction file generation (ADR-0006): custom
+  sections in existing `CLAUDE.md` survive regeneration.
+
+---
+
+## [0.2.0] — 2026-01-15
+
+### Added
+
+- Tag composition model (ADR-0004): tags are orthogonal, additive, conflict-free.
+  `UNIVERSAL` always included. Combining `API` + `WEB-REACT` merges both sets without
+  conflicts.
+- Templates refactored to pure YAML data files (ADR-0003). Never imported as code.
+- `scaffold` command — generates full folder structure + instruction files.
+- `audit` command — scores compliance 0–100.
+- `setup_project` MCP tool.
+- 10 initial tags: `UNIVERSAL`, `API`, `WEB-REACT`, `CLI`, `LIBRARY`, `DATA-PIPELINE`,
+  `ML`, `FINTECH`, `HEALTHCARE`, `INFRA`.
+
+---
+
+## [0.1.0] — 2026-01-01
+
+### Added
+
+- Initial release. MCP server with `setup_project`, `scaffold_project`,
+  `classify_project`, `add_hook`, `add_module`, `configure_mcp` tools.
+- TypeScript 5, Node 18+, `@modelcontextprotocol/sdk`.
+- `UNIVERSAL` tag with initial instruction blocks covering SOLID, testing pyramid,
+  commit protocol, error handling.
+- ADR-0001: Generative Specification methodology adopted as the governing framework
+  for ForgeCraft's own development.

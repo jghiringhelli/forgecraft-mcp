@@ -1,0 +1,164 @@
+# Tools Registry — Recommended tools by process + language/tag
+# Gates reference process IDs. This registry says what tool to use for each process
+# given the project's tech stack. Language-agnostic gates + stack-specific tool recommendations.
+# This is a RECOMMENDATION, not a requirement. Teams choose their own tools.
+version: "1"
+
+processes:
+  - id: mutation-testing
+    description: "Verify test quality by injecting synthetic bugs and checking that tests catch them"
+    gsProperty: verifiable
+    phase: pre-release
+    recommended:
+      - stack: ["TYPESCRIPT", "JAVASCRIPT"]
+        tool: stryker
+        package: "@stryker-mutator/core"
+        config: stryker.config.json
+        install: "npm install --save-dev @stryker-mutator/core @stryker-mutator/vitest-runner"
+        run: "npx stryker run"
+        threshold: "MSI ≥ 80% on changed files"
+      - stack: ["PYTHON"]
+        tool: mutmut
+        package: mutmut
+        config: "setup.cfg [mutmut] section"
+        install: "pip install mutmut"
+        run: "mutmut run && mutmut results"
+        threshold: "MSI ≥ 80% on changed files"
+      - stack: ["JAVA", "KOTLIN"]
+        tool: pitest
+        package: "org.pitest:pitest-maven"
+        config: pom.xml
+        install: "Add pitest-maven plugin"
+        run: "mvn test-compile org.pitest:pitest-maven:mutationCoverage"
+        threshold: "mutation coverage ≥ 80%"
+      - stack: ["RUST"]
+        tool: cargo-mutants
+        package: cargo-mutants
+        install: "cargo install cargo-mutants"
+        run: "cargo mutants"
+        threshold: "All mutants caught or documented as equivalent"
+      - stack: ["GO"]
+        tool: gremlins
+        package: gremlins
+        install: "go install github.com/go-gremlins/gremlins/cmd/gremlins@latest"
+        run: "gremlins unleash"
+        threshold: "MSI ≥ 80%"
+
+  - id: dast-scanning
+    description: "Dynamic application security testing against a running service"
+    gsProperty: defended
+    phase: pre-release
+    owasp_asvs_level: 2
+    recommended:
+      - stack: ["API", "WEB-REACT", "UNIVERSAL"]
+        tool: owasp-zap
+        package: "owasp/zap2docker-stable (Docker)"
+        install: "docker pull owasp/zap2docker-stable"
+        run: "docker run -t owasp/zap2docker-stable zap-api-scan.py -t <openapi-url> -f openapi"
+        threshold: "Zero HIGH findings; all MEDIUM triaged"
+      - stack: ["API"]
+        tool: nuclei
+        package: nuclei
+        install: "go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+        run: "nuclei -u <target-url> -severity high,critical"
+        threshold: "Zero HIGH/CRITICAL findings"
+
+  - id: static-analysis
+    description: "OWASP ASVS Level 1 static security checks run at commit time"
+    gsProperty: defended
+    phase: development
+    owasp_asvs_level: 1
+    recommended:
+      - stack: ["TYPESCRIPT", "JAVASCRIPT"]
+        tool: semgrep
+        install: "pip install semgrep"
+        run: "semgrep --config=p/owasp-top-ten ."
+        threshold: "Zero HIGH findings"
+      - stack: ["PYTHON"]
+        tool: bandit
+        install: "pip install bandit"
+        run: "bandit -r src/ -ll"
+        threshold: "Zero HIGH/CRITICAL findings"
+      - stack: ["JAVA"]
+        tool: spotbugs
+        install: "Add spotbugs-maven-plugin"
+        run: "mvn spotbugs:check"
+        threshold: "Zero HIGH findings"
+      - stack: ["GO"]
+        tool: gosec
+        install: "go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest"
+        run: "gosec ./..."
+        threshold: "Zero HIGH findings"
+
+  - id: load-testing
+    description: "Verify system behavior under stated load parameters"
+    gsProperty: verifiable
+    phase: pre-release
+    recommended:
+      - stack: ["UNIVERSAL"]
+        tool: k6
+        install: "brew install k6 / choco install k6 / apt install k6"
+        run: "k6 run load-test.js"
+        threshold: "p95 ≤ SLA; error rate < 1%"
+      - stack: ["PYTHON"]
+        tool: locust
+        install: "pip install locust"
+        run: "locust -f locustfile.py --headless -u <users> -r <spawn-rate>"
+        threshold: "p95 ≤ SLA; error rate < 1%"
+      - stack: ["API"]
+        tool: artillery
+        install: "npm install -g artillery"
+        run: "artillery run load-test.yml"
+        threshold: "p95 ≤ SLA; error rate < 1%"
+
+  - id: dependency-audit
+    description: "Check direct and transitive dependencies for known CVEs"
+    gsProperty: defended
+    phase: development
+    owasp_asvs_level: 1
+    recommended:
+      - stack: ["TYPESCRIPT", "JAVASCRIPT"]
+        tool: npm-audit
+        run: "npm audit --audit-level=high"
+        threshold: "Zero HIGH/CRITICAL"
+      - stack: ["PYTHON"]
+        tool: pip-audit
+        install: "pip install pip-audit"
+        run: "pip-audit --fail-on-severity high"
+        threshold: "Zero HIGH/CRITICAL"
+      - stack: ["RUST"]
+        tool: cargo-audit
+        install: "cargo install cargo-audit"
+        run: "cargo audit"
+        threshold: "Zero HIGH/CRITICAL"
+      - stack: ["GO"]
+        tool: govulncheck
+        install: "go install golang.org/x/vuln/cmd/govulncheck@latest"
+        run: "govulncheck ./..."
+        threshold: "Zero directly-imported vulnerabilities"
+      - stack: ["JAVA"]
+        tool: owasp-dependency-check
+        install: "Add dependency-check-maven plugin"
+        run: "mvn dependency-check:check -DfailBuildOnCVSS=7"
+        threshold: "Zero CVSS ≥ 7"
+
+  - id: smoke-testing
+    description: "Fast verification that critical paths work in a live environment"
+    gsProperty: executable
+    phase: deployment
+    recommended:
+      - stack: ["API"]
+        tool: hurl
+        install: "curl -LO https://github.com/Orange-OpenSource/hurl/releases/latest"
+        run: "hurl tests/smoke/*.hurl --test"
+        threshold: "All requests return expected status codes in < 60s total"
+      - stack: ["API"]
+        tool: newman
+        install: "npm install -g newman"
+        run: "newman run tests/smoke/collection.json"
+        threshold: "Zero failed requests in < 60s total"
+      - stack: ["WEB-REACT", "WEB-STATIC"]
+        tool: playwright
+        install: "npm install -D @playwright/test && npx playwright install"
+        run: "npx playwright test tests/smoke/"
+        threshold: "All smoke scenarios pass in < 60s"

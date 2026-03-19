@@ -1,0 +1,25 @@
+tag: INFRA
+section: structure
+entries:
+  - path: terraform/
+    description: "Terraform root — one directory per stack/environment"
+  - path: terraform/modules/
+    description: "Reusable Terraform modules (VPC, ECS, RDS, etc.)"
+  - path: terraform/environments/
+    description: "Per-environment tfvars: dev.tfvars, staging.tfvars, prod.tfvars"
+  - path: cdk/
+    description: "CDK app (if using CDK instead of Terraform)"
+  - path: cdk/lib/
+    description: "CDK stack definitions — one file per stack"
+  - path: cdk/bin/
+    description: "CDK app entry point"
+  - path: docker/
+    description: "Dockerfiles and docker-compose for local development"
+  - path: docker/docker-compose.yml
+    description: "Local development stack: app + backing services"
+  - path: scripts/
+    description: "Operational scripts: deploy, migrate, seed, rotate-secrets"
+  - path: .github/workflows/
+    description: "CI/CD pipeline definitions (GitHub Actions)"
+  - path: docs/runbooks/
+    description: "Operational runbooks: incident response, failover, scaling"

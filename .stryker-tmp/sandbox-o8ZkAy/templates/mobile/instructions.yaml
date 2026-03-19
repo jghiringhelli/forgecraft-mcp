@@ -1,0 +1,44 @@
+tag: MOBILE
+section: instructions
+blocks:
+  - id: responsive-offline
+    tier: recommended
+    title: "Responsive Design & Offline-First"
+    content: |
+      ## Responsive Design & Offline-First Patterns
+
+      - Design mobile-first: start with the smallest viewport and progressively enhance for larger screens. Use CSS media queries or container queries to adapt layout, not separate mobile pages.
+      - Implement an offline-first architecture: the app should be functional without a network connection, using locally cached data, and sync when connectivity is restored.
+      - Use a local database (SQLite, IndexedDB, Realm, WatermelonDB) as the primary data source for the UI. Sync with the server in the background using a conflict resolution strategy (last-write-wins, CRDTs, or manual merge).
+      - Queue mutations (writes, updates, deletes) locally when offline. Process the queue in order when connectivity resumes, handling conflicts and failures for each operation.
+      - Implement a network status indicator in the UI. Clearly communicate to users when they are offline and which features are unavailable or operating on stale data.
+      - Cache API responses with appropriate TTLs. Use stale-while-revalidate patterns to show cached data immediately while fetching fresh data in the background.
+      - Test all user flows in airplane mode and on throttled connections (3G, high latency). Offline behavior should feel intentional, not broken.
+
+  - id: push-lifecycle
+    tier: recommended
+    title: "Push Notifications & App Lifecycle"
+    content: |
+      ## Push Notifications & App Lifecycle
+
+      - Request notification permission contextually—explain the value before prompting. Never request permission on first launch without context; wait until the user encounters a feature that benefits from notifications.
+      - Implement a server-side notification preferences model. Users should control notification categories (marketing, transactional, social) independently, and preferences must be enforced server-side.
+      - Handle notification payloads gracefully in all app states: foreground (in-app banner), background (system notification), and terminated (cold start with deep link to relevant screen).
+      - Use silent/data notifications for background data sync. Keep background execution time under OS limits (< 30 seconds on iOS) to avoid being throttled.
+      - Manage app lifecycle transitions (active → background → suspended → terminated) explicitly. Save unsaved state on `onPause`/`onBackground`, restore it on `onResume`, and release expensive resources (camera, GPS, Bluetooth) when backgrounded.
+      - Handle deep links and universal links with a centralized routing mechanism. Every screen reachable by deep link must handle being the entry point (no assumed navigation stack).
+      - Implement token refresh for push notification services (FCM, APNs). Re-register the device token on every app launch and update the server if it changes.
+
+  - id: platform-performance
+    tier: recommended
+    title: "Platform Patterns & Performance"
+    content: |
+      ## Platform-Specific Patterns & Mobile Performance
+
+      - Respect platform conventions: use platform-native navigation patterns (bottom tabs on iOS, drawer on Android), system fonts, haptic feedback, and gesture behaviors that users expect.
+      - Optimize list rendering: use virtualized/recycled lists (FlatList, RecyclerView, UICollectionView) for any list longer than ~20 items. Never render hundreds of items in a scroll view.
+      - Minimize main thread work. Move file I/O, JSON parsing, image decoding, and network calls off the main/UI thread. Jank-free scrolling requires < 16ms per frame on the UI thread.
+      - Reduce app binary size: use tree shaking, asset compression, on-demand resource loading, and avoid bundling unused native libraries. Monitor binary size in CI and set growth budgets.
+      - Implement graceful permission handling: check permission status before requesting, explain why the permission is needed, handle denial gracefully, and provide a path to re-enable via system settings.
+      - Cache images in memory and on disk with size limits. Use progressive loading (blur placeholder → thumbnail → full resolution) for a smooth visual experience.
+      - Test on real devices across OS versions, screen sizes, and memory configurations. Emulators miss real-world issues like thermal throttling, low memory kills, and vendor-specific OS behaviors.

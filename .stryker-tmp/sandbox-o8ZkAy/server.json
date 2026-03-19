@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.jghiringhelli/forgecraft",
+  "title": "ForgeCraft",
+  "description": "Production engineering standards for AI coding assistants. Setup once, remove when done.",
+  "repository": {
+    "url": "https://github.com/jghiringhelli/forgecraft-mcp",
+    "source": "github"
+  },
+  "version": "0.5.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "forgecraft-mcp",
+      "version": "0.5.1",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

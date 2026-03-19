@@ -1,0 +1,25 @@
+tag: ANALYTICS
+section: structure
+language: typescript
+entries:
+  - path: src/analytics/events
+    type: directory
+    description: "Event type definitions, emitter, validator"
+  - path: src/analytics/events/schema.ts
+    type: file
+    description: "Typed, versioned event definitions"
+  - path: src/analytics/events/emitter.ts
+    type: file
+    description: "Event emission interface"
+  - path: src/analytics/pipeline
+    type: directory
+    description: "Event collection, processing, dead-letter"
+  - path: src/analytics/aggregations
+    type: directory
+    description: "Aggregation definitions and scheduling"
+  - path: src/analytics/signals
+    type: directory
+    description: "Pre-computed signal service"
+  - path: src/analytics/dashboards
+    type: directory
+    description: "Dashboard config as code"

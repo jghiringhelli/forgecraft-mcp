@@ -12,16 +12,20 @@ blocks:
       - **Domain**: {{domain}}
       - **Sensitive Data**: {{sensitive_data}}
       - **Project Tags**: {{tags}}
+      - **Release Phase**: {{release_phase | default: development}}
 
   - id: code-standards
     tier: core
     title: "Code Standards"
     content: |
       ## Code Standards
-      - Maximum function/method length: {{max_function_length | default: 50}} lines (hook-enforced).
-      - Maximum file length: {{max_file_length | default: 300}} lines (hook-enforced).
+      - Maximum function/method length: {{max_function_length | default: 50}} lines. If a function reads like it does two things, decompose it.
+      - Split a file when you find yourself using "and" to describe what it does — not when it hits a line count.
       - Maximum function parameters: {{max_function_params | default: 5}}. If more, use a parameter object.
       - No circular imports — module dependency graph must be acyclic (hook-enforced).
+      {{#if language_is_typescript}}- `tsconfig.json` must include `"strict": true` AND `"noUncheckedIndexedAccess": true`.
+        `strict: true` alone does not narrow `process.env.*` from `string | undefined` — the second flag is required
+        to catch unguarded environment variable access at compile time.{{/if}}
       - Every public function/method must have {{#if language_is_typescript}}a JSDoc comment{{/if}}{{#if language_is_python}}a docstring (Google or NumPy style){{/if}} with typed params and returns.
       - Delete orphaned code. Do not comment it out. Git has history.
       - Before creating a new utility, search the entire codebase for existing ones.
@@ -29,6 +33,165 @@ blocks:
       - No abbreviations in names except universally understood ones (id, url, http, db, api).
       - All names must be intention-revealing. If you need a comment to explain what a variable
         holds, the name is wrong.
+
+  - id: dev-environment-hygiene
+    tier: core
+    title: "Dev Environment Hygiene"
+    content: |
+      ## Dev Environment Hygiene
+
+      AI-assisted development can silently fill disk space. These rules are non-negotiable.
+      A full disk kills every running tool simultaneously — VS Code, Docker, the terminal, the DB.
+
+      ### VS Code Extensions
+      - Before installing any extension: `code --list-extensions | grep -i <name>`.
+      - Only install if no version in the required major range is already present.
+      - Never run `code --install-extension` unconditionally in scripts or setup steps.
+      - Installing the same extension twice on the same day = a bug in your script.
+
+      ### Docker Containers & Volumes
+      - Check before creating: `docker ps -a --filter name=<service>` — if it exists, start it, don't create it.
+      - Prefer `docker compose up` (reuse) over bare `docker run` (always creates new).
+      - One Compose file per project. Split files for the same project = tech debt.
+      - Log pruning: run `docker system prune -f` periodically. Never let container logs exceed 500 MB total.
+      - Time-series or synthetic data volumes: before writing >100 MB, ask whether raw retention,
+        statistical condensation, or deletion after the run is preferred.
+      - Synthetic datasets older than 7 days with no code reference: ask to delete.
+
+      ### Python Virtual Environments
+      - One `.venv` per project root, one per standalone package subdirectory — never more.
+      - Before creating: check if `.venv/` exists and `python --version` matches the required major.minor.
+        Recreate only on major version mismatch or explicit user request.
+      - Never create a venv in a subdirectory unless that directory is a standalone installable package.
+      - Sanitize dependencies: if `pip list --not-required` reveals packages not in requirements, flag them.
+
+      ### General Install Hygiene
+      - Before any install/download: check version already installed. Skip if within the required range.
+      - If project directory disk usage outside of `node_modules/`, `.venv/`, `dist/`, `.next/`
+        exceeds 2 GB: surface a warning and ask before continuing any file-generating operation.
+      - Never silently grow the workspace. When uncertain about retention, ask.
+
+  - id: dependency-registry
+    tier: core
+    title: "Dependency Registry"
+    content: |
+      ## Dependency Registry — AI-Maintained Security Contract
+
+      The project's approved dependency set is a **living GS artifact maintained by the AI
+      assistant**. It is not a template rule — template authors cannot predict which library
+      will gain a CVE next quarter. The AI can run an audit at the moment a dependency is
+      about to be added. This block prescribes that it must.
+
+      ### The registry artifact
+
+      File: **`docs/approved-packages.md`** — emit in P1 alongside schema, tsconfig, package.json.
+      Update it every time a dependency is added or upgraded. If it exists only in prose or a
+      README reference, it does not exist.
+
+      ```markdown
+      # Approved Packages
+
+      | Package | Version range | Purpose | Alternatives rejected | Rationale | Audit status |
+      |---|---|---|---|---|---|
+      | example-pkg | ^2.4 | HTTP client | axios (larger bundle), node-fetch (no TS types) | Wide adoption, zero known CVEs | 0 HIGH/CRITICAL |
+      ```
+
+      The AI populates every row. The registry is the authoritative record of WHY each
+      dependency was chosen and that it was clean at the time of addition.
+
+      ### Process rules — stack-agnostic
+
+      1. **Before adding any package**: run the project's audit command (see table below)
+         with `--dry-run` or equivalent to check the candidate for known CVEs.
+         - If HIGH or CRITICAL found: choose an alternative and document the rejection.
+         - If no CVE-free alternative exists: document the accepted risk and create an ADR
+           naming the approver. Zero-tolerance is the default; exceptions require a record.
+      2. **After adding a package**: add a row to `docs/approved-packages.md` with audit status.
+      3. **Commit gate**: the pre-commit hook runs the audit command. HIGH or CRITICAL blocks
+         the commit. If audit is not in the pre-commit hook, the gate does not exist.
+      4. **Version pins**: approved version ranges are locked in the lockfile (package-lock.json,
+         uv.lock, Cargo.lock). The lockfile is committed. Ranges without a lockfile are not pins.
+
+      ### Audit commands by ecosystem
+
+      | Ecosystem | Audit command | Threshold |
+      |---|---|---|
+      | npm / Node.js | `npm audit --audit-level=high` | HIGH or CRITICAL |
+      | pnpm | `pnpm audit --audit-level=high` | HIGH or CRITICAL |
+      | yarn | `yarn npm audit --severity high` | HIGH or CRITICAL |
+      | Python / pip | `pip-audit --fail-on-severity high` | HIGH or CRITICAL |
+      | Python / uv | `uv audit` | HIGH or CRITICAL |
+      | Rust | `cargo audit` | HIGH or CRITICAL |
+      | Go | `govulncheck ./...` | Any directly imported |
+      | Java / Maven | `mvn dependency-check:check -DfailBuildOnCVSS=7` | CVSS ≥ 7 |
+      | Ruby | `bundle audit` | HIGH or CRITICAL |
+
+      The correct command for **this project's ecosystem** must appear in the pre-commit hook
+      emitted in P1. Discovering CVEs at code review is too late.
+
+  - id: language-stack-constraints
+    tier: core
+    title: "Language Stack Constraints"
+    content: |
+      ## Language Stack Constraints — Seed Defaults
+
+      These are **starting defaults for {{language}} projects** — use them to populate the
+      initial rows of `docs/approved-packages.md` in P1. They are not a permanent approved
+      list: the AI maintains the registry from here forward, keeps versions current, and
+      replaces any entry that develops a known CVE. The Dependency Registry block above
+      governs the process.
+
+      Before adding any dependency not listed here, apply the audit-before-add process.
+
+      {{#if language_is_typescript}}
+      ### TypeScript / Node.js — Approved Toolchain
+
+      **Runtime & compiler**
+      - Node.js: `^20 LTS` minimum. NOT `^16` or `^18` (EOL or near-EOL).
+      - TypeScript: `^5.4` minimum. `tsconfig.json` must include `"strict": true` AND
+        `"noUncheckedIndexedAccess": true`. The second flag is required to narrow
+        `process.env.*` from `string | undefined` at compile time.
+
+      **Linting**
+      - `eslint@^9` + `@typescript-eslint/eslint-plugin@^8` + `@typescript-eslint/parser@^8`
+      - NOT `@typescript-eslint@^5` or `^6` — old `minimatch` transitive dep has known CVEs.
+      - NOT `tslint` — deprecated.
+
+      **Test runner**
+      - `vitest@^2` (preferred — native ESM, fast, Jest-compatible API) or `jest@^29`.
+      - NOT `mocha` + `chai` for new projects (weaker TypeScript support).
+      - NOT `jasmine` (no active maintenance for Node.js use).
+
+      **Formatting**
+      - `prettier@^3` — configured via `.prettierrc`, integrated with ESLint via
+        `eslint-config-prettier`. NOT separate manual formatting.
+      {{/if}}
+
+      {{#if language_is_python}}
+      ### Python — Approved Toolchain
+
+      **Runtime**
+      - Python `^3.11` minimum. NOT `3.8` or `3.9` for new projects — `3.11+` brings
+        `tomllib` builtin, `ExceptionGroup`, and significant performance improvements.
+
+      **Linting / formatting**
+      - `ruff@^0.4` — replaces `flake8` + `isort` + `black` with a single 10–100× faster tool.
+      - NOT separate `flake8` + `isort` + `black` for new projects.
+
+      **Type checking**
+      - `pyright@^1.1` (strict mode) — same engine as Pylance, best TypedDict support.
+      - `mypy@^1.9` is acceptable. Strict mode required in both cases.
+      - NOT unchecked Python — all public functions must be typed.
+
+      **Test runner**
+      - `pytest@^8` — NOT `unittest` for new projects.
+      - Async tests: `pytest-asyncio@^0.23`.
+
+      **Dependency management**
+      - `uv@^0.1` (recommended — fastest resolver) or `poetry@^1.7`.
+      - ALL dependencies pinned in lockfile (`uv.lock` or `poetry.lock`). Lockfile committed.
+      - `pip-tools` acceptable for library projects.
+      {{/if}}
 
   - id: production-code-standards
     tier: core
@@ -45,7 +208,12 @@ blocks:
       - **Liskov Substitution**: Any interface implementation must be fully swappable. No isinstance checks.
       - **Interface Segregation**: Small focused interfaces. No god-interfaces.
       - **Dependency Inversion**: Depend on abstractions. Concrete classes are injected, never instantiated
-        inside business logic.
+        inside business logic. **In practice**: define `IUserRepository`, `IOrderRepository`,
+        `IEmailSender` etc. as interfaces in the domain/service layer first. Services depend on
+        the interface. The Prisma/SQL/HTTP concrete implementation lives in the adapter layer and
+        is injected at the composition root. Emit these interfaces in P1 alongside the schema —
+        a service that imports a concrete class cannot be unit-tested, cannot be swapped, and
+        is not Composable.
 
       ### Zero Hardcoded Values
       - ALL configuration through environment variables or config files. No exceptions.
@@ -283,12 +451,20 @@ blocks:
       - Overall minimum: {{coverage_minimum | default: 80}}% line coverage (blocks commit)
       - New/changed code: {{coverage_new_code_min | default: 90}}% minimum (measured on diff)
       - Critical paths: 95%+ (data pipelines, auth, PHI handling, financial calculations)
+      - Mutation score (MSI) — overall: ≥ 65% (blocks PR merge)
+      - Mutation score (MSI) — new/changed code: ≥ 70% (measured on diff)
+      - Note: Line coverage and mutation score are both required. 80% line coverage can coexist
+        with 58% MSI when tests execute code without asserting its behavior (confirmed in Shattered
+        Stars). Run stryker-mutator immediately after writing each test batch, not only pre-release.
+        Tooling: stryker-mutator (JS/TS), mutmut (Python), Pitest (Java).
 
       ### Test Rules
       - Every test name is a specification: `test_rejects_duplicate_member_ids` not `test_validation`
       - No empty catch blocks. No `assert True`. No tests that can't fail.
       - Test files colocated: `[module].test.[ext]` or in `tests/` mirroring src structure.
       - Flaky tests are bugs — fix or quarantine, never ignore.
+      - After writing tests for any module, run Stryker on that module before moving on.
+        Surviving mutants = missing assertions. Fix before proceeding.
 
       ### Test Doubles Taxonomy
       Use the correct double for the job:
@@ -416,6 +592,111 @@ blocks:
         because the failure messages are not in the training distribution for this specific code.
       These gates transform TDD from a discipline into a constraint.
 
+  - id: adversarial-testing
+    tier: core
+    title: "Adversarial Testing Posture"
+    content: |
+      ## Adversarial Testing Posture
+
+      Tests are not documentation of what the code does. Tests are adversarial assertions
+      that the code does the right thing even when given inputs designed to break it.
+
+      ### The adversarial posture
+      - Design every test as if the implementation is wrong until proven otherwise.
+      - Write tests that FAIL on incorrect code — not tests that pass on any reasonable implementation.
+      - If a test is hard to make fail, the specification is underspecified, not the test.
+
+      ### Name tests as behaviors, not paths
+      - `rejects_expired_tokens` not `test_validate_token`
+      - `throws_on_missing_required_field` not `test_error_handling`
+      - `returns_empty_list_not_null_when_no_results` not `test_query`
+
+      ### Cover the adversarial surface
+      For every public function or API endpoint, write tests for:
+      1. **Valid boundary values**: minimum, maximum, exact-zero, single-element
+      2. **Invalid boundary values**: below-minimum, above-maximum, empty, null/undefined
+      3. **Constraint violations**: values that look valid but break invariants (negative balance, future birth date)
+      4. **Ordering and concurrency**: does order matter? what if called twice?
+      5. **Authorization boundaries**: can a user access another user's resource?
+
+      A test suite that only exercises the happy path is documentation, not specification.
+      Every mutation that survives is a missing adversarial test.
+
+  - id: property-based-testing
+    tier: recommended
+    title: "Property-Based Testing"
+    content: |
+      ## Property-Based Testing
+
+      Example-based tests verify that `f(x) = y` for specific known pairs.
+      Property-based tests verify that invariants hold for ALL inputs the generator can produce.
+      Both are required. Neither replaces the other.
+
+      ### When to add property tests
+      - Pure functions with wide input domains (serialization, parsing, math, sorting)
+      - Functions where "same inputs → same outputs" must hold across edge cases
+      - Any encoder/decoder pair: `decode(encode(x)) === x` must hold for all x
+      - Any sort or ranking: `sort(sort(xs))` must equal `sort(xs)` (idempotence)
+      - Any financial calculation: results must be within bounds for all valid inputs
+
+      ### Ecosystem tools (language-agnostic principle)
+      Use whatever property testing library matches the project's language:
+      - TypeScript / JavaScript: `fast-check`
+      - Python: `hypothesis`
+      - Java / Kotlin: `jqwik` or `kotest`
+      - Go: `gopter` or `rapid`
+      - Rust: `proptest`
+      - Scala: `scalacheck`
+
+      ### Template invariant structure
+      ```
+      property("encode-decode round trip", () => {
+        forAll(arbitrary_valid_input(), (input) => {
+          expect(decode(encode(input))).toEqual(input);
+        });
+      });
+      ```
+
+      If a property test fails with an unexpected input, add that input as a regression example test.
+      Property failures are bugs, not edge cases to suppress.
+
+  - id: spec-meta-query
+    tier: recommended
+    title: "Specification Completeness Meta-Query"
+    content: |
+      ## Specification Completeness Meta-Query
+
+      Before writing implementation code, ask the model:
+
+      > "What dimensions of correctness does this specification not yet address?"
+
+      This activates domain depth and returns the surface that is missing. A complete answer
+      identifies gaps before they become bugs — not after.
+
+      ### Six dimensions to probe systematically
+
+      1. **Concurrency behavior** — What happens when two users modify the same resource simultaneously?
+         Are there race conditions? What is the consistency model (eventual, strong, linearizable)?
+
+      2. **Partial failure handling** — What state is the system in if the operation fails halfway?
+         Is the operation idempotent? Is retry safe? Is rollback possible? Who cleans up?
+
+      3. **Authorization edge cases** — What happens with an expired token? A revoked role?
+         Can a user with partial permissions complete a multi-step operation?
+         What does "no access" mean vs "resource does not exist"?
+
+      4. **Observable side effects** — Does this operation send emails, fire webhooks, publish events,
+         write audit logs? Are those effects specified? Are they retryable? Can they duplicate?
+
+      5. **Performance constraints** — Is there an SLA? A timeout? A maximum payload size?
+         What is the expected order of magnitude of inputs? What degrades gracefully?
+
+      6. **Backwards compatibility** — If this changes an existing interface, what breaks?
+         Is there a migration path? Who depends on the current behavior?
+
+      Each unanswered dimension is a test to write before implementation begins.
+      If the specification has no answer, the answer must be decided now — not discovered during an incident.
+
   - id: data-guardrails
     tier: core
     title: "Data Guardrails"
@@ -431,11 +712,101 @@ blocks:
     title: "Commit Protocol"
     content: |
       ## Commit Protocol
-      - Conventional commits: feat|fix|refactor|docs|test|chore(scope): description
-      - Commits must pass: compilation, lint, tests, coverage gate, anti-pattern scan.
+
+      A commit is a **verified state** of the system — not a save point, not a checkpoint.
+      A valid commit requires all three: test suite passes, delta is bounded and coherent,
+      no new anti-patterns introduced.
+
+      - Conventional commits: `feat|fix|refactor|docs|test|chore(scope): description`
+      - Commits must pass: compilation, lint, tests, coverage gate, mutation score gate (Stryker on changed modules), anti-pattern scan.
       - Keep commits atomic — one logical change per commit.
       - Commit BEFORE any risky refactor. Tag stable states.
       - Update Status.md at the end of every session.
+
+      ### Commit Hooks — Emit, Don't Reference
+      Commit hooks, commit-message linting, and the CI pipeline must be **emitted as fenced
+      code blocks** in the first session response — not merely referenced in prose or README
+      text. A hook that exists only as "you should add a pre-commit hook" in documentation
+      provides zero enforcement. If the file is not written to disk, the gate does not exist.
+
+      The following files must be emitted for any new project:
+
+      **`package.json`** — add to `scripts` and `devDependencies`:
+      ```json
+      "scripts": { "prepare": "husky install" },
+      "devDependencies": {
+        "husky": "^9.0.0",
+        "@commitlint/cli": "^19.0.0",
+        "@commitlint/config-conventional": "^19.0.0"
+      }
+      ```
+
+      **`.husky/pre-commit`**:
+      ```bash
+      #!/usr/bin/env sh
+      . "$(dirname -- "$0")/_/husky.sh"
+      npx tsc --noEmit && npm run lint && npm test -- --passWithNoTests
+      ```
+
+      **`.husky/commit-msg`**:
+      ```bash
+      #!/usr/bin/env sh
+      . "$(dirname -- "$0")/_/husky.sh"
+      npx commitlint --edit "$1"
+      ```
+
+      **`commitlint.config.js`**:
+      ```js
+      module.exports = { extends: ['@commitlint/config-conventional'] };
+      ```
+
+      ### CI Pipeline — Emit, Don't Reference
+      `.github/workflows/ci.yml` must be emitted as a fenced code block in the first response.
+      A CI configuration described only in documentation does not enforce anything.
+      Adapt service blocks, branch names, and language-specific commands to the project stack.
+      The mutation gate step (`npx stryker run` for JS/TS, `mutmut run` for Python, `pitest` for
+      Java) is non-negotiable — it is the only gate that verifies test quality, not just
+      test execution. Line coverage at 80% can coexist with 58% mutation score; the mutation
+      gate catches the difference.
+
+      Minimum CI for a Node.js/TypeScript project:
+      ```yaml
+      name: CI
+      on:
+        push:
+          branches: [main, develop]
+        pull_request:
+          branches: [main, develop]
+      jobs:
+        ci:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                node-version: '20'
+                cache: 'npm'
+            - run: npm ci
+            - run: npx tsc --noEmit
+            - run: npm run lint
+            - run: npm test -- --coverage --passWithNoTests
+            - name: Mutation gate
+              run: npx stryker run
+      ```
+
+      ### Commit Message Precision
+      The commit message is the sentence describing this state in the project's typed corpus.
+      - ❌ `fix bug` — not a sentence; not queryable; useless as episodic memory.
+      - ✅ `fix(auth): reject expired tokens at middleware boundary before service layer invocation`
+      The AI uses commit history as context in future sessions. Typed, scoped conventional
+      messages are a queryable episodic record. `wip` and `changes` are not.
+
+      ### What Constitutes One Logical Change
+      - A new feature and its tests: one commit.
+      - A refactor of an existing module that does not change behavior: one commit.
+      - A spec update (constitution change + the code change it governs): one commit.
+      - A bug fix with the reproducing test included: one commit.
+      Never combine a behavior change with a refactor in the same commit.
 
   - id: clarification-protocol
     tier: core
@@ -520,6 +891,62 @@ blocks:
       - **Bias toward explicit over clever** — readability wins over brevity.
       - When in doubt, ask rather than assume.
 
+  - id: code-generation-verification
+    tier: core
+    title: "Code Generation — Self-Verify Loop"
+    content: |
+      ## Code Generation — Verify Before Returning
+
+      When emitting implementation code across one or more files, the response is not complete
+      until the following are true. Show the evidence in your response — do not claim without running.
+
+      ### Verification steps (in order)
+      1. **Compile check**: Run `tsc --noEmit` (TypeScript), `mypy` (Python), or equivalent.
+         Zero errors required. Do not return with type errors outstanding.
+      2. **Test suite**: Run the full test suite (`jest --runInBand`, `pytest`, etc.).
+         Zero failures required. Fix every failure before returning.
+      3. **Interface consistency**: When fixing a compile error in file A, check ALL callers of
+         the changed interface. Fixing one side without seeing the other causes oscillation:
+         the model fixes `service.ts` (3-param signature) but `routes.ts` still calls it with
+         an object — same error reappears inverted next pass.
+
+      ### Required evidence in the final response
+      ```
+      tsc --noEmit: 0 errors
+      Jest: 109 passed, 0 failed, 11 suites
+      ```
+
+      ### Common test setup pitfalls (TypeScript / Prisma)
+      - **`prisma db push`, not `prisma migrate deploy`** in test environments.
+        `migrate deploy` silently no-ops when no `prisma/migrations/` folder exists,
+        leaving all tables absent. `db push --accept-data-loss` syncs `schema.prisma` directly.
+      - **`deleteMany` in FK order, not `DROP SCHEMA`**.
+        `$executeRawUnsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')` throws
+        error 42601 — pg rejects multi-statement queries in prepared statements.
+        Use ordered `deleteMany()` calls in `beforeEach` instead.
+      - **JWT_SECRET minimum length**: HS256 requires ≥ 32 characters.
+        Test secrets like `"test-secret"` (11 chars) cause startup errors.
+        Use `"test-secret-that-is-at-least-32-chars"` in test env.
+
+  - id: known-pitfalls
+    tier: core
+    title: "Known Pitfalls"
+    content: |
+      ## Known Pitfalls
+      Recurring type errors and runtime traps specific to this project's stack.
+      Resolve exactly as documented — no `any` casts, ignore directives, or unlisted workarounds.
+      ### [Add project-specific pitfalls here]
+      <!-- Entry format:
+      ### Library — trap description
+      What goes wrong and why, then:
+      ```
+      // ❌ wrong
+      ```
+      ```
+      // ✅ correct
+      ```
+      -->
+
   - id: corrections-log
     tier: core
     title: "Corrections Log"
@@ -528,6 +955,20 @@ blocks:
       When I correct your output, record the correction pattern here so you don't repeat it.
       ### Learned Corrections
       - [AI assistant appends corrections here with date and description]
+
+  - id: techniques-registry
+    tier: core
+    title: "Techniques"
+    content: |
+      ## Techniques
+      Named techniques, algorithms, and domain frameworks active in this project.
+      Each name activates the AI's full training on that technique — no explanation needed.
+      A technique named here is available at the full depth of the model's training on it.
+      ### Active Techniques
+      <!-- Add project-specific techniques below.
+           Examples: RAPTOR indexing · BM25+vector hybrid with RRF fusion ·
+           PCA geometric validation · deontic modal logic · CQRS · Saga pattern -->
+      - [Add named techniques here]
 
   - id: test-taxonomy
     tier: recommended
@@ -601,6 +1042,30 @@ blocks:
       | **Production deploy** | Canary deploy + synthetic monitoring + A/B if applicable | Continuous |
 
       > Mutation score gate: minimum 70% at PR, 80% at RC on changed code. Stryker/mutmut reports block promotion below threshold.
+
+  - id: release-phase-gate
+    tier: core
+    title: "Active Release Phase Gate"
+    content: |
+      ## Active Release Phase: {{release_phase | default: development}}
+
+      Your current phase determines which test gates are **required now**, not advisory.
+      The full taxonomy and trigger mapping are in the Testing section above.
+      Read your phase row below and apply every requirement listed.
+
+      | Phase | Required now — blocking | Not required yet |
+      |---|---|---|
+      | **development** | Unit + integration + lint + tsc --noEmit + npm audit (no HIGH/CRITICAL) | DAST, load/stress, penetration, mutation score gate |
+      | **pre-release / staging** | All development requirements + smoke → DAST (OWASP ZAP / Burp Suite) + load test at 2× peak (k6 / Locust) + chaos/resilience (Toxiproxy) + mutation score ≥ 80% on changed code | Manual penetration test, full a11y audit |
+      | **release-candidate** | All staging requirements + manual penetration test (OWASP Top 10, JWT vectors, BOLA/IDOR) + full a11y audit (if UI) + compatibility matrix + mutation score ≥ 80% overall + zero unresolved HIGH/CRITICAL CVEs | Production canary |
+      | **production** | Canary deploy + automatic rollback on error rate spike + synthetic health probes + incident runbook verified | — |
+
+      **Current active phase: `{{release_phase | default: development}}`**
+
+      > If the phase is `pre-release` or `release-candidate`:
+      > Hardening tests (load, DAST, penetration) are REQUIRED in this session, not deferred.
+      > Do not proceed to merge without completing the required gate for your phase.
+      > The Testing section above maps each gate to its tooling and target duration.
 
   - id: gs-test-techniques
     tier: recommended
@@ -724,6 +1189,11 @@ blocks:
       - **Auditable**: Is the current state and full history recoverable from artifacts alone? Would the AI treat an intentional decision as a defect to correct?
       - **Composable**: Can units be combined without unexpected coupling? Can the AI work on any unit in isolation because isolation is structural?
 
+      > **GS Protocol on demand:** call `get_reference(resource: guidance)` for the full
+      > session-loop procedure, context-loading strategy, incremental cascade, bound roadmap
+      > format, and diagnostic checklist. These procedures are NOT inlined here to preserve
+      > the token budget of this instruction file.
+
   - id: naming-as-grammar
     tier: core
     title: "Names Are Production Rules"
@@ -803,10 +1273,45 @@ blocks:
       - Any change to the architectural constitution itself
 
       ### ADR Directory
-      - Path: `docs/adr/` (or `docs/adrs/`)
-      - Naming: `ADR-0001-short-title.md` (zero-padded, kebab-case)
+      - Path: `docs/adrs/` (zero-padded, kebab-case: `ADR-0001-short-title.md`)
       - ADRs are immutable once Accepted. To change a decision: write a new ADR that supersedes the old one.
       - The old ADR is updated only to add `Superseded by ADR-NNNN` to its status.
+
+      ### ADR Stubs — Emit in P1
+      When starting a new project, emit ADR stub files as **fenced code blocks** in the first
+      response alongside `prisma/schema.prisma`, `tsconfig.json`, and `package.json`.
+      ADRs referenced only in a README but not written as files are not present in the project.
+      The model cannot reference a file that does not exist. Emit the file.
+
+      **Minimum ADRs to emit in P1** (adapt titles to the actual stack chosen):
+      - `docs/adrs/ADR-0001-stack.md` — language, runtime, framework, ORM selection and rationale
+      - `docs/adrs/ADR-0002-authentication.md` — auth strategy (JWT/session), hashing algorithm and why
+      - `docs/adrs/ADR-0003-architecture.md` — layered/hexagonal architecture decision and boundary rules
+
+      Each ADR stub must contain real content in `Status`, `Context`, `Decision`, and `Consequences`
+      fields — not placeholder text. A stub that says "TBD" is not an ADR.
+
+      **ADR reference check:** If your README mentions `docs/adrs/ADR-0001-stack.md`, that file
+      must appear as a fenced code block in the same response. A reference to a non-emitted file
+      is an Auditable violation — it creates the appearance of traceability without the substance.
+
+      Also emit **`CHANGELOG.md`** in P1 with initial content documenting the P1 decisions:
+      ```markdown
+      # Changelog
+      All notable changes to this project will be documented here.
+      Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+
+      ## [Unreleased]
+      ### Added
+      - Initial project scaffold: layered architecture, Prisma schema, repository interfaces
+      - Authentication: JWT + Argon2 (see ADR-0002)
+      - Dependency registry: docs/approved-packages.md with audit baseline
+      - CI pipeline: lint, type-check, test, npm audit, mutation gate
+      - Pre-commit hooks: tsc, lint, audit, test gates
+      ```
+      A CHANGELOG that exists only as "we will add one" is not Auditable. Write the file.
+      Document the P1 decisions immediately — the first entry is not a release entry, it is the
+      architectural record of what was built in this session.
 
       ### Session Protocol
       Every session begins by reading the open ADRs. The status of each ADR is the authoritative
@@ -997,3 +1502,71 @@ blocks:
         (The ADR is missing or was not included in the session context.)
       - Two modules with different responsibilities share a boundary that is not explicitly stated.
         (The Bounded property is violated; the constitution needs explicit module boundaries.)
+
+  - id: gs-five-memory-types
+    tier: core
+    title: "GS — Five Memory Types"
+    content: |
+      ## Generative Specification: The Five Memory Types
+
+      An AI assistant has no persistent memory across sessions. The methodology distributes
+      memory across five artifact classes, each serving a distinct cognitive function. Every
+      artifact in a well-formed specification belongs to exactly one type. When an artifact
+      is ambiguous about which type it serves, it is trying to do too much and will do none well.
+
+      | Memory Type | Cognitive Function | Primary Artifacts |
+      |---|---|---|
+      | **Semantic** | What the system *is* — identity, contracts, constraints | `CLAUDE.md`, tech spec, domain models, glossary |
+      | **Procedural** | *How* things are done — execution rules, pipelines, bound prompts | `DEVELOPMENT_PROMPTS.md`, roadmap, CI/CD spec, commit hooks |
+      | **Episodic** | What *happened* — decisions, sessions completed, history | ADRs, `Status.md`, session summaries, git commit log |
+      | **Relationship** | *How things connect* — topology, flows, protocols | C4 diagrams, sequence diagrams, state machines, use cases |
+      | **Working** | What is *active now* — current task, loaded context, scope | Session prompt, loaded artifacts, clarification state |
+
+      ### Missing Types = Compounding Failure
+      - **Semantic absent** → no grammar; output is locally correct and globally incoherent.
+      - **Procedural absent** → each session starts from scratch; nothing is reproducible.
+      - **Episodic absent** → decisions are repeated or overwritten; intentional choices become drift.
+      - **Relationship absent** → inter-component contracts are implicit; integration points drift.
+      - **Working absent (not loaded)** → the current session inherits no context; practitioner re-narrates everything.
+
+      A project missing all five types is using interactive prompting with no structural discipline.
+      Use the five types as a diagnostic before beginning any session on an inherited project.
+
+  - id: gs-status-format
+    tier: core
+    title: "GS — Status.md Format"
+    content: |
+      ## Status.md — Required Format
+
+      Status.md is the episodic artifact closest to working memory. Updated at the close of
+      every session, without exception. The "Next" section is the handoff: specific enough
+      that an agent could begin from it alone, without any narration.
+
+      ```markdown
+      # [Project Name] — Status
+
+      **Last updated:** YYYY-MM-DD
+      **Current version / branch:**
+
+      ## Completed (this session)
+      - [What was done, with commit hashes where relevant]
+
+      ## In Progress
+      - [Partial state — what the immediate next step is]
+
+      ## Next
+      - [The immediate next action — specific enough to begin from this line alone]
+      - Example: "Implement `updateConnectionStatus` in `src/connections/service.ts`,
+        write tests for the three state transition paths, verify against `/connections/:id/status`"
+
+      ## Decisions made (this session)
+      - [Any choice not yet in an ADR — these are ADR candidates]
+
+      ## Blockers / Dependencies
+      - [What is waiting on an external input or a parallel workstream]
+      ```
+
+      A vague "Next" entry ("continue working on the feature") forces the next session to
+      reconstruct intent. A specific "Next" entry enables a cold start from the artifact alone.
+      The "Next" section is the primary quality measure of Status.md.
+

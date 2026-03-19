@@ -7,16 +7,31 @@
  */
 
 import { z } from "zod";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+import { join, dirname } from "node:path";
 import yaml from "js-yaml";
-import { ALL_TAGS, CONTENT_TIERS, ALL_OUTPUT_TARGETS, OUTPUT_TARGET_CONFIGS, DEFAULT_OUTPUT_TARGET } from "../shared/types.js";
-import type { Tag, ContentTier, ForgeCraftConfig, OutputTarget } from "../shared/types.js";
+import {
+  ALL_TAGS,
+  CONTENT_TIERS,
+  ALL_OUTPUT_TARGETS,
+  OUTPUT_TARGET_CONFIGS,
+  DEFAULT_OUTPUT_TARGET,
+} from "../shared/types.js";
+import type {
+  Tag,
+  ContentTier,
+  ForgeCraftConfig,
+  OutputTarget,
+} from "../shared/types.js";
 import { analyzeProject } from "../analyzers/package-json.js";
 import { checkCompleteness } from "../analyzers/completeness.js";
-import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
+import {
+  loadAllTemplatesWithExtras,
+  loadUserOverrides,
+} from "../registry/loader.js";
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
+import { renderSentinelTree } from "../registry/sentinel-renderer.js";
 import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
@@ -36,7 +51,9 @@ export const refreshProjectSchema = z.object({
   apply: z
     .boolean()
     .default(false)
-    .describe("If true, apply recommended changes to forgecraft.yaml and CLAUDE.md."),
+    .describe(
+      "If true, apply recommended changes to forgecraft.yaml and CLAUDE.md.",
+    ),
   tier: z
     .enum(CONTENT_TIERS as unknown as [string, ...string[]])
     .optional()
@@ -52,14 +69,32 @@ export const refreshProjectSchema = z.object({
   output_targets: z
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .optional()
-    .describe("Override output targets. If omitted, uses current config value or defaults to ['claude']."),
+    .describe(
+      "Override output targets. If omitted, uses current config value or defaults to ['claude'].",
+    ),
+  sentinel: z
+    .boolean()
+    .default(true)
+    .describe(
+      "If true (default), generate a sentinel CLAUDE.md + .claude/standards/ domain files. Set to false to regenerate the traditional monolithic CLAUDE.md.",
+    ),
+  release_phase: z
+    .enum(["development", "pre-release", "release-candidate", "production"])
+    .optional()
+    .describe(
+      "Override current release cycle phase. If omitted, uses value from forgecraft.yaml or defaults to 'development'.",
+    ),
 });
 
 // ── Types ────────────────────────────────────────────────────────────
 
 interface DriftReport {
   readonly currentTags: Tag[];
-  readonly newTagSuggestions: Array<{ tag: Tag; confidence: number; evidence: string[] }>;
+  readonly newTagSuggestions: Array<{
+    tag: Tag;
+    confidence: number;
+    evidence: string[];
+  }>;
   readonly droppedTagCandidates: Tag[];
   readonly completenessGaps: string[];
   readonly completenessFixed: string[];
@@ -80,10 +115,12 @@ export async function refreshProjectHandler(
   const existingConfig = loadUserOverrides(projectDir);
   if (!existingConfig) {
     return {
-      content: [{
-        type: "text",
-        text: buildNoConfigOutput(projectDir),
-      }],
+      content: [
+        {
+          type: "text",
+          text: buildNoConfigOutput(projectDir),
+        },
+      ],
     };
   }
 
@@ -103,6 +140,9 @@ export async function refreshProjectHandler(
     ...existingConfig,
     tags: updatedTags,
     tier: updatedTier as ContentTier,
+    releasePhase: (args.release_phase ??
+      existingConfig.releasePhase ??
+      "development") as ForgeCraftConfig["releasePhase"],
   };
 
   // ── Step 4: Compose with updated config ────────────────────────
@@ -110,15 +150,25 @@ export async function refreshProjectHandler(
     undefined,
     updatedConfig.templateDirs,
   );
-  const composed = composeTemplates(updatedTags, allTemplates, { config: updatedConfig });
+  const composed = composeTemplates(updatedTags, allTemplates, {
+    config: updatedConfig,
+  });
 
   // ── Step 5: Apply or preview ───────────────────────────────────
   if (!args.apply) {
     return {
-      content: [{
-        type: "text",
-        text: buildPreviewOutput(drift, updatedTags, updatedConfig, composed, updatedTier as ContentTier),
-      }],
+      content: [
+        {
+          type: "text",
+          text: buildPreviewOutput(
+            drift,
+            updatedTags,
+            updatedConfig,
+            composed,
+            updatedTier as ContentTier,
+          ),
+        },
+      ],
     };
   }
 
@@ -127,28 +177,89 @@ export async function refreshProjectHandler(
   writeFileSync(join(projectDir, "forgecraft.yaml"), configYaml, "utf-8");
 
   // Regenerate instruction files for all targets
-  const outputTargets = (args.output_targets ?? updatedConfig.outputTargets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
-  const context = detectProjectContext(
-    projectDir,
-    updatedConfig.projectName ?? inferProjectName(projectDir),
-    detectLanguage(projectDir),
-    updatedTags,
-  );
+  const outputTargets = (args.output_targets ??
+    updatedConfig.outputTargets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
+  const releasePhase =
+    args.release_phase ?? updatedConfig.releasePhase ?? "development";
+  const context = {
+    ...detectProjectContext(
+      projectDir,
+      updatedConfig.projectName ?? inferProjectName(projectDir),
+      detectLanguage(projectDir),
+      updatedTags,
+    ),
+    releasePhase,
+  };
+
+  let migrationWarning: string | undefined;
 
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: updatedConfig.compact });
-    const outputPath = targetConfig.directory
-      ? join(projectDir, targetConfig.directory, targetConfig.filename)
-      : join(projectDir, targetConfig.filename);
-    writeInstructionFileWithMerge(outputPath, content);
+
+    // For claude target: use sentinel tree (default) or monolithic file
+    if (target === "claude" && args.sentinel !== false) {
+      const sentinelFiles = renderSentinelTree(
+        composed.instructionBlocks,
+        context,
+      );
+
+      // Detect migration: does the existing CLAUDE.md look like a monolithic ForgeCraft file?
+      const claudeMdPath = join(projectDir, "CLAUDE.md");
+      if (existsSync(claudeMdPath)) {
+        const existing = readFileSync(claudeMdPath, "utf-8");
+        const lineCount = existing.split("\n").length;
+        const isSentinel = existing.includes("ForgeCraft sentinel");
+        const isForgeCraftGenerated =
+          existing.includes("ForgeCraft |") || isSentinel;
+
+        if (!isSentinel && lineCount > 100) {
+          // Large non-sentinel CLAUDE.md: extract custom content to project-specific.md
+          migrationWarning = extractCustomContent(
+            projectDir,
+            existing,
+            isForgeCraftGenerated,
+          );
+        }
+      }
+
+      // Replace all sentinel files (don't merge — they're always ForgeCraft-generated)
+      for (const file of sentinelFiles) {
+        const fullPath = join(projectDir, file.relativePath);
+        mkdirSync(dirname(fullPath), { recursive: true });
+        writeFileSync(fullPath, file.content, "utf-8");
+      }
+
+      // Ensure project-specific.md exists (never overwrite — user-owned)
+      ensureProjectSpecific(projectDir);
+    } else {
+      const content = renderInstructionFile(
+        composed.instructionBlocks,
+        context,
+        target,
+        { compact: updatedConfig.compact },
+      );
+      const outputPath = targetConfig.directory
+        ? join(projectDir, targetConfig.directory, targetConfig.filename)
+        : join(projectDir, targetConfig.filename);
+      writeInstructionFileWithMerge(outputPath, content);
+    }
   }
 
   return {
-    content: [{
-      type: "text",
-      text: buildAppliedOutput(drift, updatedTags, updatedConfig, composed, updatedTier as ContentTier),
-    }],
+    content: [
+      {
+        type: "text",
+        text: buildAppliedOutput(
+          drift,
+          updatedTags,
+          updatedConfig,
+          composed,
+          updatedTier as ContentTier,
+          args.sentinel !== false,
+          migrationWarning,
+        ),
+      },
+    ],
   };
 }
 
@@ -163,18 +274,27 @@ function analyzeDrift(
   args: z.infer<typeof refreshProjectSchema>,
 ): DriftReport {
   const currentTags: Tag[] = config.tags ?? ["UNIVERSAL"];
-  const currentTier: ContentTier = (config.tier ?? "recommended") as ContentTier;
+  const currentTier: ContentTier = (config.tier ??
+    "recommended") as ContentTier;
   const requestedTier = (args.tier ?? currentTier) as ContentTier;
 
   // Re-detect tags from code
   const detections = analyzeProject(projectDir);
-  const newTagSuggestions: Array<{ tag: Tag; confidence: number; evidence: string[] }> = [];
+  const newTagSuggestions: Array<{
+    tag: Tag;
+    confidence: number;
+    evidence: string[];
+  }> = [];
   const detectedTagSet = new Set<Tag>();
 
   for (const d of detections) {
     detectedTagSet.add(d.tag);
     if (d.confidence >= SUGGEST_THRESHOLD && !currentTags.includes(d.tag)) {
-      newTagSuggestions.push({ tag: d.tag, confidence: d.confidence, evidence: d.evidence });
+      newTagSuggestions.push({
+        tag: d.tag,
+        confidence: d.confidence,
+        evidence: d.evidence,
+      });
     }
   }
 
@@ -189,13 +309,19 @@ function analyzeDrift(
   const completenessFixed = completeness.passing.map((p) => p.check);
 
   // Tier change
-  const tierChange = requestedTier !== currentTier
-    ? { from: currentTier, to: requestedTier }
-    : null;
+  const tierChange =
+    requestedTier !== currentTier
+      ? { from: currentTier, to: requestedTier }
+      : null;
 
   // Block count comparison (before vs after)
-  const allTemplates = loadAllTemplatesWithExtras(undefined, config.templateDirs);
-  const beforeComposed = composeTemplates(currentTags, allTemplates, { config });
+  const allTemplates = loadAllTemplatesWithExtras(
+    undefined,
+    config.templateDirs,
+  );
+  const beforeComposed = composeTemplates(currentTags, allTemplates, {
+    config,
+  });
   const proposedTags = computeUpdatedTags(
     currentTags,
     newTagSuggestions,
@@ -203,7 +329,9 @@ function analyzeDrift(
     args.remove_tags as Tag[] | undefined,
   );
   const afterConfig = { ...config, tags: proposedTags, tier: requestedTier };
-  const afterComposed = composeTemplates(proposedTags, allTemplates, { config: afterConfig });
+  const afterComposed = composeTemplates(proposedTags, allTemplates, {
+    config: afterConfig,
+  });
 
   return {
     currentTags,
@@ -338,6 +466,134 @@ function buildPreviewOutput(
   return text;
 }
 
+const PROJECT_SPECIFIC_PLACEHOLDER = `# Project-Specific Rules
+<!-- This file is owned by YOU. ForgeCraft will never overwrite it. -->
+<!-- Add project-specific rules, framework choices, conventions, and custom corrections here. -->
+<!-- The sentinel CLAUDE.md links here for any AI reading your project. -->
+
+## Framework & Stack Choices
+<!-- e.g. We use Prisma for ORM. Deploy target is Railway. -->
+
+## Custom Corrections
+<!-- Log corrections here so the AI learns from them. -->
+<!-- Format: - YYYY-MM-DD: [description of correction] -->
+
+## Project-Specific Gates
+<!-- Add any quality rules specific to this project that don't belong in universal standards. -->
+`;
+
+/**
+ * Ensures .claude/standards/project-specific.md exists.
+ * Never overwrites an existing file — this file is user-owned.
+ */
+function ensureProjectSpecific(projectDir: string): void {
+  const filePath = join(
+    projectDir,
+    ".claude",
+    "standards",
+    "project-specific.md",
+  );
+  if (!existsSync(filePath)) {
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, PROJECT_SPECIFIC_PLACEHOLDER, "utf-8");
+  }
+}
+
+/**
+ * Migrates content from a large monolithic CLAUDE.md to project-specific.md.
+ * Extracts sections that look like user-added content (not ForgeCraft template output).
+ * Returns a migration warning message.
+ */
+function extractCustomContent(
+  projectDir: string,
+  existingContent: string,
+  isForgeCraftGenerated: boolean,
+): string {
+  const projectSpecificPath = join(
+    projectDir,
+    ".claude",
+    "standards",
+    "project-specific.md",
+  );
+
+  if (existsSync(projectSpecificPath)) {
+    const existing = readFileSync(projectSpecificPath, "utf-8");
+    if (!existing.includes(PROJECT_SPECIFIC_PLACEHOLDER.slice(0, 40))) {
+      // User has already edited project-specific.md — don't touch it
+      return isForgeCraftGenerated
+        ? "Your existing CLAUDE.md was a ForgeCraft-generated monolithic file. It has been replaced with a sentinel. Custom content was NOT migrated because `.claude/standards/project-specific.md` already contains your edits."
+        : "Your existing CLAUDE.md appears to be custom. It has been replaced with the sentinel. Back up any custom rules you need into `.claude/standards/project-specific.md`.";
+    }
+  }
+
+  // Extract sections that look custom (not standard ForgeCraft headers)
+  const forgecraftHeaders = new Set([
+    "Code Standards",
+    "Production Code Standards",
+    "SOLID Principles",
+    "Zero Hardcoded Values",
+    "Zero Mocks in Application Code",
+    "Interfaces First",
+    "Dependency Injection",
+    "Error Handling",
+    "Modular from Day One",
+    "Layered Architecture",
+    "Clean Code Principles",
+    "CI/CD",
+    "Testing Pyramid",
+    "Data Guardrails",
+    "Commit Protocol",
+    "MCP-Powered Tooling",
+    "Engineering Preferences",
+    "Library / Package Standards",
+    "CLI Standards",
+    "API Standards",
+    "Security",
+    "Graceful Shutdown",
+    "Project Identity",
+  ]);
+
+  const lines = existingContent.split("\n");
+  const customSections: string[] = [];
+  let inCustomSection = false;
+  let currentSection: string[] = [];
+  let currentHeader = "";
+
+  for (const line of lines) {
+    const headerMatch = line.match(/^#{1,3}\s+(.+)/);
+    if (headerMatch) {
+      if (inCustomSection && currentSection.length > 2) {
+        customSections.push(currentSection.join("\n").trim());
+      }
+      currentHeader = headerMatch[1].trim();
+      inCustomSection = !Array.from(forgecraftHeaders).some((h) =>
+        currentHeader.toLowerCase().includes(h.toLowerCase()),
+      );
+      currentSection = [line];
+    } else {
+      currentSection.push(line);
+    }
+  }
+  if (inCustomSection && currentSection.length > 2) {
+    customSections.push(currentSection.join("\n").trim());
+  }
+
+  if (customSections.length > 0) {
+    const extracted = `# Project-Specific Rules
+<!-- Migrated from monolithic CLAUDE.md by ForgeCraft sentinel upgrade -->
+<!-- Review and clean up — some content below may have been incorrectly classified as custom -->
+
+${customSections.join("\n\n")}
+`;
+    mkdirSync(dirname(projectSpecificPath), { recursive: true });
+    writeFileSync(projectSpecificPath, extracted, "utf-8");
+    return `Your CLAUDE.md (${existingContent.split("\n").length} lines) has been converted to a sentinel. ${customSections.length} custom section(s) were extracted to \`.claude/standards/project-specific.md\` — please review that file and clean it up.`;
+  }
+
+  ensureProjectSpecific(projectDir);
+  return `Your CLAUDE.md (${existingContent.split("\n").length} lines) has been converted to a sentinel. No custom sections were detected. Review \`.claude/standards/project-specific.md\` and add any project-specific rules you need.`;
+}
+
 /**
  * Build the output after applying changes.
  */
@@ -347,6 +603,8 @@ function buildAppliedOutput(
   config: ForgeCraftConfig,
   composed: ReturnType<typeof composeTemplates>,
   tier: ContentTier,
+  usedSentinel = true,
+  migrationWarning?: string,
 ): string {
   const configYaml = yaml.dump(config, { lineWidth: 100, noRefs: true });
 
@@ -356,16 +614,33 @@ function buildAppliedOutput(
 
   text += `## Changes Applied\n`;
   text += `- forgecraft.yaml — updated\n`;
-  text += `- Instruction files — regenerated (${composed.instructionBlocks.length} blocks)\n\n`;
+  if (usedSentinel) {
+    text += `- CLAUDE.md — replaced with sentinel (~50 lines)\n`;
+    text += `- .claude/standards/*.md — domain files generated (${composed.instructionBlocks.length} blocks distributed)\n`;
+    text += `- .claude/standards/project-specific.md — preserved (user-owned, never overwritten)\n\n`;
+  } else {
+    text += `- Instruction files — regenerated (${composed.instructionBlocks.length} blocks)\n\n`;
+  }
+
+  if (migrationWarning) {
+    text += `## Migration Notice\n`;
+    text += migrationWarning + "\n\n";
+  }
 
   if (drift.newTagSuggestions.length > 0) {
     const added = drift.newTagSuggestions.filter((s) => s.confidence >= 0.6);
     if (added.length > 0) {
       text += `## New Tags Added\n`;
-      text += added.map((s) => `- [${s.tag}] — ${s.evidence.join(", ")}`).join("\n");
+      text += added
+        .map((s) => `- [${s.tag}] — ${s.evidence.join(", ")}`)
+        .join("\n");
       text += "\n\n";
     }
   }
+
+  text += `## What refresh does NOT create\n`;
+  text += `Run \`scaffold .\` (without --force) to create any missing artifacts:\n`;
+  text += `Status.md, docs/PRD.md, docs/TechSpec.md, docs/adrs/, .env.example, hooks, skills, .gitignore\n\n`;
 
   text += `## Updated Config\n`;
   text += `\`\`\`yaml\n${configYaml}\`\`\`\n\n`;

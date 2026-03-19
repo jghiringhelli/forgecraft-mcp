@@ -1,0 +1,67 @@
+tag: GAME
+section: structure
+language: typescript
+entries:
+  - path: src/scenes
+    type: directory
+    description: "One file per game scene (Boot, Preload, Menu, Game, UI, GameOver)"
+  - path: src/scenes/BootScene.ts
+    type: file
+    description: "Registry setup, global config injection, first scene"
+  - path: src/scenes/PreloadScene.ts
+    type: file
+    description: "All asset loading with progress bar; transitions to MenuScene"
+  - path: src/scenes/GameScene.ts
+    type: file
+    description: "Core gameplay loop; delegates to systems, not self-contained"
+  - path: src/scenes/UIScene.ts
+    type: file
+    description: "HUD overlay launched in parallel with GameScene"
+  - path: src/systems
+    type: directory
+    description: "Stateless systems operating on entities (physics, AI, collision)"
+  - path: src/systems/MovementSystem.ts
+    type: file
+    description: "Processes velocity and position components each tick"
+  - path: src/systems/CollisionSystem.ts
+    type: file
+    description: "Broad + narrow phase collision; emits collision events"
+  - path: src/entities
+    type: directory
+    description: "Entity factory functions and typed component interfaces"
+  - path: src/entities/Player.ts
+    type: file
+    description: "Player entity factory — assembles components, registers with world"
+  - path: src/components
+    type: directory
+    description: "Plain-data component interfaces (Position, Velocity, Health, Sprite)"
+  - path: src/assets.ts
+    type: file
+    description: "Central asset manifest — all keys, paths, and atlas definitions"
+  - path: src/config.ts
+    type: file
+    description: "Game config constants (canvas size, physics gravity, scene keys)"
+  - path: src/shaders
+    type: directory
+    description: "GLSL shader source files (Three.js / raw WebGL projects)"
+  - path: src/workers
+    type: directory
+    description: "Web Workers for physics, pathfinding, or procedural generation"
+  - path: public/assets
+    type: directory
+    description: "Raw game assets (atlases, audio, tilemaps) served at /assets/"
+  - path: public/assets/atlases
+    type: directory
+    description: "Texture atlas PNG + JSON descriptor files"
+  - path: public/assets/audio
+    type: directory
+    description: "SFX and music in ogg + mp3 pairs for cross-browser support"
+  - path: public/assets/tilemaps
+    type: directory
+    description: "Tiled map JSON exports and associated tilesets"
+  - path: tests/systems
+    type: directory
+    description: "Unit tests for deterministic game systems (no DOM / canvas required)"
+  - path: tests/integration
+    type: directory
+    description: "Scene lifecycle and input simulation integration tests"

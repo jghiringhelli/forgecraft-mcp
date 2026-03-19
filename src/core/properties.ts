@@ -117,15 +117,22 @@ export interface DefendedSpec {
    * Run all gates and return aggregate result.
    * A defender spec fails if ANY gate fails.
    */
-  defend(): Promise<{ allPassed: boolean; results: ReadonlyArray<{ gate: QualityGate; exitCode: number; message: string }> }>;
+  defend(): Promise<{
+    allPassed: boolean;
+    results: ReadonlyArray<{
+      gate: QualityGate;
+      exitCode: number;
+      message: string;
+    }>;
+  }>;
 }
 
 // ── 5. Auditable ──────────────────────────────────────────────────────────────
 
 /** An immutable record of a structural decision and its rationale. */
 export interface ArchDecision {
-  readonly id: string;            // ADR-NNNN
-  readonly date: string;          // ISO 8601
+  readonly id: string; // ADR-NNNN
+  readonly date: string; // ISO 8601
   readonly title: string;
   readonly status: "proposed" | "accepted" | "deprecated" | "superseded";
   readonly context: string;
@@ -136,7 +143,7 @@ export interface ArchDecision {
 
 /** A recorded change to this spec — forms the spec's change history. */
 export interface SpecChange {
-  readonly timestamp: string;     // ISO 8601
+  readonly timestamp: string; // ISO 8601
   readonly author: string;
   readonly description: string;
   readonly specVersionBefore: string;
@@ -189,5 +196,52 @@ export interface ComposableSpec {
    * @param other - The spec to compose with
    * @returns Empty array if composable, conflict list otherwise
    */
-  composeWith(other: ComposableSpec & BoundedSpec): ReadonlyArray<CompositionConflict>;
+  composeWith(
+    other: ComposableSpec & BoundedSpec,
+  ): ReadonlyArray<CompositionConflict>;
+}
+
+// ── 7. Executable ─────────────────────────────────────────────────────────────
+
+/** Result of executing generated output against its runtime specification. */
+export interface ExecutableResult {
+  readonly passed: boolean;
+  readonly passedCount: number;
+  readonly totalCount: number;
+  /** The environment the output was executed against (e.g. "postgresql", "browser", "node"). */
+  readonly executionEnvironment: string;
+  readonly detail?: string;
+}
+
+/**
+ * The generated output satisfies its behavioral contracts when exercised
+ * against a real execution environment — not merely compiles or passes
+ * static analysis, but runs correctly against a live database, external API,
+ * or runtime target.
+ *
+ * Verifiable establishes that correctness checks exist and are structurally
+ * enforced. Executable establishes that the implementation actually passes
+ * them at runtime.
+ *
+ * Scored conditional on specification availability: a formal contract
+ * (Hurl suite, OpenAPI diff, HL7 FHIR runner) enables automated measurement;
+ * goal-directed programs require human acceptance criteria and are scored N/A.
+ */
+export interface ExecutableSpec {
+  /**
+   * Execute the generated output against its runtime specification.
+   *
+   * Optional: artifacts that represent meta-level content (ADRs, instructions)
+   * need not implement this — the scorer measures Executable from the outside via
+   * test-suite results and CI evidence. Implementation artifacts (generated code,
+   * API specs) should provide this for automated contract verification.
+   *
+   * @param targetPath - Path to the artifact under test
+   * @param contractPath - Path to the formal contract (Hurl file, OpenAPI spec, etc.)
+   * @returns Execution result with pass/fail counts and environment context
+   */
+  execute?(
+    targetPath: string,
+    contractPath?: string,
+  ): Promise<ExecutableResult>;
 }

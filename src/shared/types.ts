@@ -57,6 +57,72 @@ export interface ClassifyResult {
   readonly requiresConfirmation: boolean;
 }
 
+/**
+ * Language-agnostic tool command configuration.
+ * Each field is the shell command to run for that gate.
+ * If absent, the corresponding hook warns but does not block.
+ */
+export interface ProjectToolsConfig {
+  /** Run the test suite. e.g. "npm test", "pytest", "go test ./...", "cargo test" */
+  readonly test?: string;
+  /** Type check / compile. e.g. "npx tsc --noEmit", "mypy src/", "go build ./...", "cargo check" */
+  readonly typecheck?: string;
+  /** Lint. e.g. "npm run lint", "ruff check .", "golangci-lint run", "clippy" */
+  readonly lint?: string;
+  /** Mutation testing. e.g. "npx stryker run", "mutmut run", "pitest", "gremlins.io" */
+  readonly mutation?: string;
+  /** Dependency audit. e.g. "npm audit --audit-level=high", "pip-audit", "govulncheck ./...", "cargo audit" */
+  readonly audit?: string;
+  /** Layer boundary check. e.g. "npx madge --circular src/" or language-equivalent */
+  readonly layercheck?: string;
+}
+
+/**
+ * Deployment environment configuration for a single environment.
+ */
+export interface DeploymentEnvironmentConfig {
+  /** Provider name. e.g. "railway", "fly", "render", "aws-ecs", "k8s", "custom" */
+  readonly provider: string;
+  /** Base URL of the deployed service. e.g. "https://myapp.railway.app" */
+  readonly url?: string;
+  /** Health check endpoint path. Defaults to "/health". */
+  readonly health?: string;
+}
+
+/**
+ * Load test parameters — stated before the test runs, not after.
+ */
+export interface LoadTestConfig {
+  /** Tool to use. e.g. "k6", "artillery", "locust", "custom" */
+  readonly tool?: string;
+  /** Target concurrent users / virtual users */
+  readonly concurrentUsers?: number;
+  /** Target requests per second */
+  readonly targetRps?: number;
+  /** p99 latency ceiling in milliseconds */
+  readonly p99CeilingMs?: number;
+  /** Test duration in seconds. Defaults to 600 (10 min). */
+  readonly durationSeconds?: number;
+}
+
+/**
+ * Deployment and full-cycle testing configuration.
+ * When present, scaffold generates smoke/load test stubs and a deployment domain in sentinel.
+ */
+export interface ProjectDeploymentConfig {
+  readonly environments?: Record<string, DeploymentEnvironmentConfig>;
+  readonly testing?: {
+    /** Smoke test tool. e.g. "newman", "hurl", "k6", "custom" */
+    readonly smokeTool?: string;
+    readonly load?: LoadTestConfig;
+    readonly syntheticData?: {
+      readonly enabled: boolean;
+      /** Path to synthetic data spec. e.g. "docs/synthetic-data-spec.md" */
+      readonly specPath?: string;
+    };
+  };
+}
+
 /** Configuration for scaffolding a project. */
 export interface ScaffoldOptions {
   readonly tags: Tag[];
@@ -108,7 +174,11 @@ export interface HookInfo {
 export type ContentTier = "core" | "recommended" | "optional";
 
 /** All valid content tiers as a constant array for schema validation. */
-export const CONTENT_TIERS: readonly ContentTier[] = ["core", "recommended", "optional"] as const;
+export const CONTENT_TIERS: readonly ContentTier[] = [
+  "core",
+  "recommended",
+  "optional",
+] as const;
 
 // ── Output Targets ───────────────────────────────────────────────────
 
@@ -196,7 +266,10 @@ export const DEFAULT_OUTPUT_TARGET: OutputTarget = "claude";
  * @param target - The output target
  * @returns Absolute path to the instruction file
  */
-export function resolveOutputPath(projectDir: string, target: OutputTarget): string {
+export function resolveOutputPath(
+  projectDir: string,
+  target: OutputTarget,
+): string {
   const config = OUTPUT_TARGET_CONFIGS[target];
   if (config.directory) {
     return `${projectDir}/${config.directory}/${config.filename}`;
@@ -267,6 +340,8 @@ export interface ReferenceBlock {
   readonly id: string;
   readonly title: string;
   readonly content: string;
+  /** Optional topic grouping. 'guidance' blocks are GS practitioner protocol procedures. */
+  readonly topic?: string;
 }
 
 /** A reference template for a tag. */
@@ -434,6 +509,8 @@ export interface TagTemplateSet {
   readonly mcpServers?: McpServersTemplate;
   readonly reference?: ReferenceTemplate;
   readonly playbook?: PlaybookTemplate;
+  /** Verification strategy: uncertainty-level-aware contracts + execution plan. On-demand only. */
+  readonly verification?: VerificationStrategy;
   /**
    * @deprecated Use `instructions` instead. Alias kept for backward compatibility.
    */
@@ -520,6 +597,76 @@ export interface McpDiscoveryOptions {
   readonly remoteTimeoutMs?: number;
 }
 
+/**
+ * A project-specific quality gate defined by the team.
+ * Gates with generalizable: true are candidates for community contribution.
+ */
+export interface ProjectGate {
+  /** Unique identifier within this project. e.g. "check-pnl-decomposition" */
+  readonly id: string;
+  /** Human-readable title. */
+  readonly title: string;
+  /** What this gate checks and why. */
+  readonly description: string;
+  /**
+   * Category for grouping. e.g. "simulation-integrity", "financial-invariants",
+   * "state-machine", "concurrency", "data-lineage"
+   */
+  readonly category: string;
+  /**
+   * Which GS property this gate defends.
+   * One of: self-describing, bounded, verifiable, defended, auditable, composable, executable
+   */
+  readonly gsProperty: string;
+  /**
+   * When this gate runs.
+   * development: on every commit; pre-release: before env promotion;
+   * rc: release candidate; deployment: production gate; continuous: ongoing
+   */
+  readonly phase:
+    | "development"
+    | "pre-release"
+    | "rc"
+    | "deployment"
+    | "continuous";
+  /**
+   * Hook trigger: pre-commit, post-run, pre-push, pr, release, scheduled
+   */
+  readonly hook: string;
+  /**
+   * The check to run. Language-agnostic description of what to verify.
+   * May include pseudocode, specific commands, or prose instructions.
+   * Avoid hardcoding tool names — use process descriptions.
+   */
+  readonly check: string;
+  /** What constitutes a pass. */
+  readonly passCriterion: string;
+  /**
+   * Tags this gate applies to. e.g. ["FINTECH", "SIMULATION"]
+   * Empty or absent means UNIVERSAL.
+   */
+  readonly tags?: string[];
+  /**
+   * If true, this gate may be useful to other projects and is queued for community contribution.
+   * Requires opt-in contribute_gates: true in forgecraft.yaml.
+   */
+  readonly generalizable?: boolean;
+  /**
+   * Real-world evidence: the bug, incident, or near-miss this gate would have caught.
+   * Required if generalizable: true. This is what makes the gate credible to reviewers.
+   */
+  readonly evidence?: string;
+  /** ISO timestamp when added. */
+  readonly addedAt?: string;
+}
+
+/** The .forgecraft/project-gates.yaml file schema. */
+export interface ProjectGatesFile {
+  readonly version: "1";
+  readonly projectName?: string;
+  readonly gates: ProjectGate[];
+}
+
 /** User override configuration from forgecraft.yaml / .forgecraft.json. */
 export interface ForgeCraftConfig {
   /** Human-readable project name. */
@@ -558,6 +705,199 @@ export interface ForgeCraftConfig {
    * Reduces token count by ~20-40%. Recommended for projects with 3+ tags.
    */
   readonly compact?: boolean;
+  /**
+   * Current release cycle phase. Controls which test gates are shown as required
+   * vs. advisory in generated instruction files.
+   * Options: development (default), pre-release, release-candidate, production.
+   */
+  readonly releasePhase?:
+    | "development"
+    | "pre-release"
+    | "release-candidate"
+    | "production";
+  /** Language-agnostic tool commands. Used by hooks to avoid hardcoding npm/npx. */
+  readonly tools?: ProjectToolsConfig;
+  /** Deployment environments and full-cycle testing config. When present, scaffold generates test stubs. */
+  readonly deployment?: ProjectDeploymentConfig;
+  /** If true, gates marked generalizable: true are queued for community contribution. */
+  readonly contribute_gates?: boolean;
+  /** URL for the remote quality-gates registry. Defaults to the public genspec-dev registry. */
+  readonly gates_registry_url?: string;
+  /** URL for the forgecraft-server API. Used by contribute-gate tool. */
+  readonly server_url?: string;
+}
+
+// ── Verification Strategy ───────────────────────────────────────────
+
+/**
+ * Uncertainty level for a domain — how well-defined the expected output is
+ * from specification alone. Determines which verification techniques close the gap.
+ *
+ * - deterministic: formal spec exists (schema, Hurl suite, type contracts) → automated loop
+ * - behavioral: UI/navigation behavior → Playwright paths + screenshot + vision assertion
+ * - stochastic: balance, statistical, simulation outputs → Monte Carlo + convergence bounds
+ * - heuristic: hyperparameter search, optimization → warm runs + pruning + plateau detection
+ * - generative: art, content, animation → MCP tool output + diff-based human approval
+ */
+export type UncertaintyLevel =
+  | "deterministic"
+  | "behavioral"
+  | "stochastic"
+  | "heuristic"
+  | "generative";
+
+/** A single executable verification step within a phase. */
+export interface VerificationStep {
+  /** Unique identifier for this step. */
+  readonly id: string;
+  /** What the step does in one line. */
+  readonly instruction: string;
+  /** What artifact, output, or assertion constitutes a pass. */
+  readonly contract: string;
+  /** Tools or commands to use (MCP tool names, CLI commands, test frameworks). */
+  readonly tools: string[];
+  /** Expected output format or schema that the next step can consume. */
+  readonly expected_output: string;
+  /** Hard pass/fail criterion. If this is not met, the phase does not advance. */
+  readonly pass_criterion: string;
+  /** Whether human review is required before advancing to the next step. */
+  readonly requires_human_review?: boolean;
+}
+
+/** A phase within a verification strategy. */
+export interface VerificationPhase {
+  /** Phase identifier (e.g., contract-definition, execution, evidence). */
+  readonly id: string;
+  /** Human-readable phase title. */
+  readonly title: string;
+  /**
+   * Why this phase exists in this domain.
+   * Maps to a specific uncertainty dimension being closed.
+   */
+  readonly rationale: string;
+  /** Ordered steps to execute within this phase. */
+  readonly steps: VerificationStep[];
+}
+
+/** Full verification strategy for a tag. On-demand — not emitted into instruction files. */
+export interface VerificationStrategy {
+  /** Tag this strategy applies to. */
+  readonly tag: Tag;
+  /** section discriminator for YAML loading. */
+  readonly section: "verification";
+  /** Human-readable title. */
+  readonly title: string;
+  /**
+   * Description of what type of uncertainty this domain has and
+   * what the strategy closes.
+   */
+  readonly description: string;
+  /** One or more uncertainty levels this strategy addresses. */
+  readonly uncertainty_levels: UncertaintyLevel[];
+  /**
+   * Specification completeness score S ∈ [0.0, 1.0] achievable after running
+   * this strategy for this domain. Used to estimate I(S) ≈ 1/S.
+   */
+  readonly completeness_ceiling: number;
+  /** Ordered verification phases. */
+  readonly phases: VerificationPhase[];
+}
+
+// ── Verification Acceptance State ───────────────────────────────────
+
+/**
+ * Acceptance status for a single verification step within a project.
+ * - pending: not yet executed or reviewed
+ * - pass: automated criterion met (or human approved for requires_human_review steps)
+ * - fail: criterion not met — blocks S advancement for this phase
+ * - skipped: explicitly excluded from this project (with required justification)
+ */
+export type VerificationStepStatus = "pending" | "pass" | "fail" | "skipped";
+
+/** Persisted record of one step's acceptance decision for a specific project. */
+export interface VerificationStepRecord {
+  /** Tag the strategy belongs to (e.g., "API", "GAME"). */
+  readonly strategyTag: Tag;
+  /** Phase ID within that strategy (e.g., "contract-definition"). */
+  readonly phaseId: string;
+  /** Step ID within that phase (e.g., "write-hurl-spec"). */
+  readonly stepId: string;
+  /** Acceptance status. */
+  readonly status: VerificationStepStatus;
+  /** ISO 8601 timestamp of the last status change. */
+  readonly recordedAt: string;
+  /**
+   * Free-form notes: tool output excerpt, vision assertion result,
+   * human approval comment, or skip justification.
+   */
+  readonly notes?: string;
+  /** Identifier of who recorded this (e.g., "claude-sonnet-4-5", "human"). */
+  readonly recordedBy?: string;
+}
+
+/**
+ * Per-tag summary of realized specification completeness based on
+ * accepted steps vs total steps in the strategy.
+ * S_realized = (passing steps) / (total non-skipped steps)
+ */
+export interface VerificationTagSummary {
+  readonly tag: Tag;
+  /** Number of steps with status=pass. */
+  readonly passedSteps: number;
+  /** Number of steps with status=fail. */
+  readonly failedSteps: number;
+  /** Number of steps with status=pending. */
+  readonly pendingSteps: number;
+  /** Number of steps with status=skipped. */
+  readonly skippedSteps: number;
+  /** Total steps in the strategy (all phases). */
+  readonly totalSteps: number;
+  /**
+   * Realized S value: passedSteps / (totalSteps - skippedSteps).
+   * S = 0.0 if all steps are pending or failed.
+   * S = 1.0 if all non-skipped steps are passing.
+   */
+  readonly s_realized: number;
+  /**
+   * Maximum achievable S given the strategy's completeness_ceiling.
+   * s_realized is always ≤ completeness_ceiling.
+   */
+  readonly completeness_ceiling: number;
+  /** Whether any step with requires_human_review is still pending. */
+  readonly awaitingHumanReview: boolean;
+}
+
+/**
+ * Project-level verification state file.
+ * Stored at {projectDir}/.forgecraft/verification-state.json.
+ * Created on first `record_verification` call; updated on every subsequent call.
+ * Community-extensible: any tag with a verification.yaml can contribute records.
+ */
+export interface VerificationStateFile {
+  /** Schema version for forward compatibility. */
+  readonly version: "1";
+  /** Project root path (absolute). Used for context, not for path resolution. */
+  readonly projectDir: string;
+  /** Active project tags at the time of last update. */
+  readonly tags: Tag[];
+  /** Primary language of the project. */
+  readonly language: string;
+  /** ISO 8601 timestamp of file creation. */
+  readonly createdAt: string;
+  /** ISO 8601 timestamp of last update. */
+  readonly updatedAt: string;
+  /** All step records, one per (strategyTag, phaseId, stepId) combination. */
+  readonly steps: VerificationStepRecord[];
+  /**
+   * Per-tag summary computed from steps at read time.
+   * Stored as a cache — always recomputed from steps when writing.
+   */
+  readonly summary: VerificationTagSummary[];
+  /**
+   * Aggregate realized S across all active tags:
+   * weighted mean of per-tag s_realized, weight = completeness_ceiling.
+   */
+  readonly aggregate_s: number;
 }
 
 // ── Verify / GS Scorer ──────────────────────────────────────────────
@@ -569,7 +909,8 @@ export type GsProperty =
   | "verifiable"
   | "defended"
   | "auditable"
-  | "composable";
+  | "composable"
+  | "executable";
 
 /** Score (0–2) for a single GS property with supporting evidence. */
 export interface GsPropertyScore {
@@ -605,7 +946,7 @@ export interface MissingTestFile {
 export interface VerifyResult {
   readonly testSuite: TestSuiteResult;
   readonly propertyScores: GsPropertyScore[];
-  /** Sum of all property scores (max 12). */
+  /** Sum of all property scores (max 14, 7 properties × 2). */
   readonly totalScore: number;
   readonly layerViolations: LayerViolation[];
   readonly missingTestFiles: MissingTestFile[];

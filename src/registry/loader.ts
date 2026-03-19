@@ -23,6 +23,7 @@ import type {
   McpServersTemplate,
   ReferenceTemplate,
   PlaybookTemplate,
+  VerificationStrategy,
   ForgeCraftConfig,
 } from "../shared/types.js";
 
@@ -118,6 +119,7 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
   let mcpServers: McpServersTemplate | undefined;
   let reference: ReferenceTemplate | undefined;
   let playbook: PlaybookTemplate | undefined;
+  let verification: VerificationStrategy | undefined;
 
   // Load instructions.yaml (formerly claude-md.yaml)
   const instructionsPath = join(tagDir, "instructions.yaml");
@@ -183,7 +185,13 @@ function loadTagTemplateSet(tag: Tag, tagDir: string): TagTemplateSet {
     playbook = loadYamlFile<PlaybookTemplate>(playbookPath);
   }
 
-  return { tag, instructions, nfr, structure, hooks, skills, review, mcpServers, reference, playbook };
+  // Load verification.yaml (on-demand uncertainty-aware verification strategy, not included in instruction files)
+  const verificationPath = join(tagDir, "verification.yaml");
+  if (existsSync(verificationPath)) {
+    verification = loadYamlFile<VerificationStrategy>(verificationPath);
+  }
+
+  return { tag, instructions, nfr, structure, hooks, skills, review, mcpServers, reference, playbook, verification };
 }
 
 /**

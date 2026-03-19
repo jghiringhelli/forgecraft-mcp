@@ -18,6 +18,7 @@ import type {
   ReviewBlock,
   ReferenceBlock,
   PlaybookTemplate,
+  VerificationStrategy,
   ContentTier,
   ForgeCraftConfig,
 } from "../shared/types.js";
@@ -51,6 +52,8 @@ export interface ComposedTemplates {
   readonly referenceBlocks: ReferenceBlock[];
   /** Playbooks for each active tag that has one. On-demand expert workflow sequences. */
   readonly playbooks: PlaybookTemplate[];
+  /** Verification strategies for each active tag that has one. On-demand uncertainty-aware verification plans. */
+  readonly verificationStrategies: VerificationStrategy[];
   /**
    * @deprecated Use `instructionBlocks` instead. Alias for backward compatibility.
    */
@@ -132,6 +135,7 @@ export function composeTemplates(
   const reviewBlocks: ReviewBlock[] = [];
   const referenceBlocks: ReferenceBlock[] = [];
   const playbooks: PlaybookTemplate[] = [];
+  const verificationStrategies: VerificationStrategy[] = [];
 
   const seenBlockIds = new Set<string>();
   const seenPaths = new Set<string>();
@@ -239,6 +243,11 @@ export function composeTemplates(
     if (templateSet.playbook) {
       playbooks.push(templateSet.playbook);
     }
+
+    // Collect verification strategies (one per tag, on-demand — no deduplication needed)
+    if (templateSet.verification) {
+      verificationStrategies.push(templateSet.verification);
+    }
   }
 
   logger.info("Templates composed", {
@@ -252,6 +261,7 @@ export function composeTemplates(
     reviewBlocks: reviewBlocks.length,
     referenceBlocks: referenceBlocks.length,
     playbooks: playbooks.length,
+    verificationStrategies: verificationStrategies.length,
   });
 
   return {
@@ -263,6 +273,7 @@ export function composeTemplates(
     reviewBlocks,
     referenceBlocks,
     playbooks,
+    verificationStrategies,
     // Backward-compat alias
     claudeMdBlocks: instructionBlocks,
   };

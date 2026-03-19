@@ -1,0 +1,56 @@
+tag: LIBRARY
+section: review
+blocks:
+  - id: library-architecture-review
+    tier: recommended
+    dimension: architecture
+    title: "Library Architecture Review"
+    description: |
+      Evaluate public API surface, backward compatibility, and consumer ergonomics.
+    checklist:
+      - id: public-api-surface
+        description: "Public API is minimal and intentional. Every export has a reason. Internal modules are not leaked."
+        severity: critical
+      - id: backward-compatibility
+        description: "Semantic versioning enforced. Breaking changes gated behind major version bumps."
+        severity: critical
+      - id: tree-shaking
+        description: "Package supports tree-shaking: named exports, sideEffects: false, ESM output."
+        severity: important
+      - id: type-exports
+        description: "TypeScript types exported and documented. Declaration files (.d.ts) ship with the package."
+        severity: important
+
+  - id: library-code-quality-review
+    tier: recommended
+    dimension: code-quality
+    title: "Library Code Quality Review"
+    description: |
+      Evaluate API consistency, documentation, and error messages for consumers.
+    checklist:
+      - id: api-consistency
+        description: "Consistent naming conventions and parameter ordering across all public methods."
+        severity: important
+      - id: jsdoc-coverage
+        description: "100% JSDoc coverage on all public APIs with typed params, returns, and examples."
+        severity: critical
+      - id: error-messages
+        description: "Error messages are actionable for consumers: what went wrong, what they should do."
+        severity: important
+
+  - id: library-test-review
+    tier: recommended
+    dimension: tests
+    title: "Library Test Review"
+    description: |
+      Evaluate public API contract tests and cross-environment compatibility.
+    checklist:
+      - id: contract-tests
+        description: "Every public API method has contract tests verifying inputs, outputs, and error cases."
+        severity: critical
+      - id: cross-env-testing
+        description: "Tests run in target environments (Node versions, browser if applicable)."
+        severity: important
+      - id: example-tests
+        description: "README examples are executable tests that stay in sync with the API."
+        severity: nice-to-have

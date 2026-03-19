@@ -1,0 +1,49 @@
+tag: MOBILE
+section: nfr
+blocks:
+  - id: mobile-performance
+    tier: recommended
+    title: "Mobile Performance"
+    content: |
+      ## NFR: Mobile Performance
+
+      ### App Size
+      - Initial download: < {{app_size_mb | default: 30}} MB.
+      - On-demand asset downloading for heavy content (maps, ML models, media packs).
+      - Monitor app size in CI — PRs that increase binary > 5% require justification.
+
+      ### Startup
+      - Cold start to interactive: < {{cold_start_ms | default: 2000}} ms.
+      - Lazy-initialize non-critical services. Show skeleton UI immediately.
+      - Splash screen is not a crutch — measure time-to-interactive, not time-to-splash.
+
+      ### Battery & Network
+      - Background work budgeted. No unnecessary wake-locks, polling, or GPS.
+      - Network requests batched where possible. Respect low-data mode settings.
+      - Offline-first: core features work without connectivity. Sync on reconnect.
+
+      ### Runtime
+      - 60 FPS for scrolling and animations. Profile and fix jank.
+      - Memory budget per screen. Monitor for leaks (LeakCanary, Instruments).
+      - No main-thread blocking operations > 16ms.
+
+  - id: mobile-ux
+    tier: recommended
+    title: "Mobile UX Quality"
+    content: |
+      ## NFR: Mobile UX Quality
+
+      ### Platform Compliance
+      - Follow platform guidelines: Material Design (Android), Human Interface Guidelines (iOS).
+      - Support system dark mode, dynamic type / font scaling, and accessibility features.
+      - Deep links and universal links configured and tested.
+
+      ### Crash Rate
+      - Target crash-free rate: ≥ {{crash_free_target | default: 99.5%}}.
+      - Crash reporting (Crashlytics, Sentry) integrated. Crashes triaged within 24 hours.
+      - ANR (Application Not Responding) rate: < 0.5%.
+
+      ### Updates
+      - Over-the-air updates for JS layer (CodePush, Expo Updates) where appropriate.
+      - Force-update mechanism for critical security patches.
+      - Backward-compatible API versioning — old app versions must gracefully degrade.

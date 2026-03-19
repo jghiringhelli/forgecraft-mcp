@@ -1,0 +1,46 @@
+tag: WEB-REACT
+section: structure
+language: typescript
+entries:
+  - path: src/app
+    type: directory
+    description: "App shell, providers, router config"
+  - path: src/app/App.tsx
+    type: file
+    description: "Root component with providers"
+  - path: src/app/router.tsx
+    type: file
+    description: "ALL routes defined here as config"
+  - path: src/app/providers
+    type: directory
+    description: "Context providers (auth, theme, i18n)"
+  - path: src/app/layouts
+    type: directory
+    description: "Layout components (sidebar, header, etc.)"
+  - path: src/features
+    type: directory
+    description: "Feature modules (self-contained)"
+  - path: src/shared/api
+    type: directory
+    description: "Centralized API client"
+  - path: src/shared/components
+    type: directory
+    description: "Reusable UI components (atoms, molecules)"
+  - path: src/shared/hooks
+    type: directory
+    description: "Shared hooks (useDebounce, useMediaQuery, etc.)"
+  - path: src/shared/config
+    type: directory
+    description: "Nav config, env access, constants"
+  - path: src/locales
+    type: directory
+    description: "i18n translation files"
+  - path: src/locales/en
+    type: directory
+    description: "English translations"
+  - path: src/styles
+    type: directory
+    description: "Global styles, theme, tokens"
+  - path: tests/e2e
+    type: directory
+    description: "Playwright tests"

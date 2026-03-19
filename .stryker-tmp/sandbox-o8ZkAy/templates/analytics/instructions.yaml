@@ -1,0 +1,37 @@
+tag: ANALYTICS
+section: instructions
+blocks:
+  - id: analytics-architecture
+    tier: recommended
+    title: "Analytics & Data Warehouse Standards"
+    content: |
+      ## Analytics & Data Warehouse Standards
+
+      ### Architecture — Separation of Concerns
+      Operational database and analytical database are SEPARATE systems. Never run analytical
+      queries against your production OLTP database.
+
+      ### Event Collection — Instrument Everything
+      - Every significant user action and system event emits a structured event.
+      - Events are immutable, append-only, timestamped, and include context.
+      - Event schema versioned — schema registry or embedded version field.
+      - Events flow through a pipeline: collect → validate → enrich → store → aggregate.
+      - NO direct writes to analytical store from application code.
+
+      ### Aggregation Layers
+      Raw events are for debugging and backfilling. Everything else reads from aggregations.
+
+      | Layer | Granularity | Refresh | Use Case |
+      |-------|------------|---------|----------|
+      | Real-time | Per-event or 1-min | Streaming | Live dashboards, alerts |
+      | Hourly | 1-hour buckets | Scheduled | Operational dashboards |
+      | Daily | 1-day buckets | Nightly | Business reports, KPIs |
+      | Weekly/Monthly | Week/month | Scheduled | Executive reporting |
+
+      ### Reporting
+      - Dashboards read ONLY from aggregated views.
+      - Three tiers: Operational (real-time), Tactical (daily), Strategic (weekly/monthly).
+
+      ### Signals & Prediction
+      - Signals are pre-computed and stored, not computed on-demand.
+      - Every signal has: value, confidence, computed_at, TTL/expiry.

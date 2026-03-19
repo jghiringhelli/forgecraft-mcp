@@ -1,0 +1,42 @@
+tag: STATE-MACHINE
+section: instructions
+blocks:
+  - id: state-transition-design
+    tier: recommended
+    title: "State Transition Design"
+    content: |
+      ## State Transition Patterns
+
+      - Define all valid states and transitions as an explicit, declarative configuration (object map, table, or DSL)—never as scattered if/else chains across the codebase.
+      - Make the state machine the single source of truth for "what can happen next." UI elements, API validations, and business logic should all derive their behavior from the machine definition.
+      - Every transition should be triggered by a named event. Use past-tense names for events that report something happened (`PAYMENT_RECEIVED`) and imperative names for commands (`SUBMIT_ORDER`).
+      - Model transitions as pure functions: `(currentState, event) → nextState + effects`. Keep the transition logic free of side effects; execute effects (API calls, notifications) separately.
+      - Validate transitions before executing them. If an event is not valid in the current state, reject it with a clear error rather than silently ignoring it.
+      - Persist the current state and a history of transitions (event, from-state, to-state, timestamp, actor) for auditability and debugging.
+      - Visualize the state machine from its definition (e.g., generate a Mermaid or Graphviz diagram). Review the diagram in PRs that modify state logic.
+
+  - id: guards-actions
+    tier: recommended
+    title: "Guards, Actions & Side Effects"
+    content: |
+      ## Guards, Actions & Side Effects
+
+      - Use guard conditions to make transitions conditional: a transition fires only if the guard predicate evaluates to true given the current context.
+      - Keep guards as pure, synchronous predicates. If a guard needs async data, fetch the data before sending the event to the machine—don't make the machine wait on I/O.
+      - Separate actions into three categories: entry actions (run when entering a state), exit actions (run when leaving a state), and transition actions (run during a specific transition).
+      - Actions should be fire-and-forget from the machine's perspective. If an action can fail and the failure matters, model the failure as a new event that the machine handles.
+      - Use the context (extended state) to carry data that influences guards and actions. Update context immutably during transitions to maintain a clear audit trail.
+      - Implement an effect/service layer that the machine invokes but does not depend on directly. This makes the machine testable in isolation without mocking external systems.
+
+  - id: hierarchical-parallel
+    tier: recommended
+    title: "Hierarchical & Parallel States"
+    content: |
+      ## Hierarchical & Parallel State Patterns
+
+      - Use hierarchical (nested) states to avoid transition explosion. Common behaviors shared by sibling states should be defined on the parent state.
+      - Model independent concurrent behaviors as parallel (orthogonal) state regions. For example, a form component might have parallel regions for validation state and submission state.
+      - Define clear entry and exit points for compound states. Use initial states for child regions and final states to signal region completion.
+      - Avoid deeply nested hierarchies (> 3 levels). If nesting grows complex, consider decomposing into separate communicating machines via the actor model.
+      - Use `done` events to coordinate between parallel regions or between parent and child machines. A parent can transition when all child regions reach their final states.
+      - Test state machines exhaustively: cover every state, every transition, every guard branch, and every unreachable-state assertion. Use model-based testing to auto-generate transition paths.

@@ -1,0 +1,285 @@
+// @ts-nocheck
+import { describe, it, expect } from "vitest";
+import {
+  renderTemplate,
+  renderClaudeMd,
+  renderSkill,
+  renderNfrs,
+  renderStatusMd,
+  renderPrdSkeleton,
+  renderTechSpecSkeleton,
+  compactifyContent,
+  type RenderContext,
+} from "../../src/registry/renderer.js";
+import type { ClaudeMdBlock, NfrBlock } from "../../src/shared/types.js";
+
+function makeContext(overrides: Partial<RenderContext> = {}): RenderContext {
+  return {
+    projectName: "TestProject",
+    language: "typescript",
+    tags: ["UNIVERSAL", "API"],
+    ...overrides,
+  };
+}
+
+describe("renderer", () => {
+  describe("renderTemplate", () => {
+    it("should substitute simple variables", () => {
+      const result = renderTemplate("Hello {{projectName}}", makeContext());
+      expect(result).toBe("Hello TestProject");
+    });
+
+    it("should handle snake_case to camelCase mapping", () => {
+      const result = renderTemplate("Name: {{project_name}}", makeContext());
+      expect(result).toBe("Name: TestProject");
+    });
+
+    it("should use default value when variable is missing", () => {
+      const result = renderTemplate("Max: {{max_lines | default: 300}}", makeContext());
+      expect(result).toBe("Max: 300");
+    });
+
+    it("should prefer actual value over default", () => {
+      const ctx = makeContext({ maxLines: "500" } as Partial<RenderContext>);
+      const result = renderTemplate("Max: {{max_lines | default: 300}}", ctx);
+      expect(result).toBe("Max: 500");
+    });
+
+    it("should leave placeholder when no value and no default", () => {
+      const result = renderTemplate("Repo: {{repo_url}}", makeContext());
+      expect(result).toBe("Repo: {{repo_url}}");
+    });
+
+    it("should handle multiple substitutions", () => {
+      const result = renderTemplate(
+        "{{projectName}} uses {{language}}",
+        makeContext(),
+      );
+      expect(result).toBe("TestProject uses typescript");
+    });
+
+    it("should handle tags as formatted list", () => {
+      const result = renderTemplate("Tags: {{tags}}", makeContext());
+      expect(result).toContain("`[UNIVERSAL]`");
+      expect(result).toContain("`[API]`");
+    });
+
+    it("should handle whitespace in variable syntax", () => {
+      const result = renderTemplate("{{ projectName }}", makeContext());
+      expect(result).toBe("TestProject");
+    });
+
+    it("should strip typescript block when language is python", () => {
+      const template = "before {{#if language_is_typescript}}TS content{{/if}} after";
+      const result = renderTemplate(template, makeContext({ language: "python" }));
+      expect(result).toBe("before  after");
+    });
+
+    it("should preserve typescript block when language is typescript", () => {
+      const template = "before {{#if language_is_typescript}}TS content{{/if}} after";
+      const result = renderTemplate(template, makeContext({ language: "typescript" }));
+      expect(result).toBe("before TS content after");
+    });
+
+    it("should strip python block when language is typescript", () => {
+      const template = "{{#if language_is_python}}Python only{{/if}}";
+      const result = renderTemplate(template, makeContext({ language: "typescript" }));
+      expect(result).toBe("");
+    });
+
+    it("should preserve python block when language is python", () => {
+      const template = "{{#if language_is_python}}Python only{{/if}}";
+      const result = renderTemplate(template, makeContext({ language: "python" }));
+      expect(result).toBe("Python only");
+    });
+
+    it("should handle multiline content in conditional blocks", () => {
+      const template = `Rules:
+{{#if language_is_typescript}}- Use const over let.
+- Use readonly on properties.{{/if}}
+{{#if language_is_python}}- Use Final for constants.
+- Use frozen dataclasses.{{/if}}
+Done.`;
+      const result = renderTemplate(template, makeContext({ language: "python" }));
+      expect(result).toContain("Use Final for constants");
+      expect(result).toContain("frozen dataclasses");
+      expect(result).not.toContain("const over let");
+      expect(result).not.toContain("readonly");
+    });
+
+    it("should handle multiple conditional blocks in same template", () => {
+      const template = "{{#if language_is_typescript}}TS{{/if}} and {{#if language_is_python}}PY{{/if}}";
+      const result = renderTemplate(template, makeContext({ language: "typescript" }));
+      expect(result).toBe("TS and ");
+    });
+
+    it("should leave non-conditional content untouched", () => {
+      const template = "No conditionals here, just {{projectName}}";
+      const result = renderTemplate(template, makeContext());
+      expect(result).toBe("No conditionals here, just TestProject");
+    });
+  });
+
+  describe("renderClaudeMd", () => {
+    it("should render blocks with header", () => {
+      const blocks: ClaudeMdBlock[] = [
+        { id: "test", title: "Test", content: "## Test\nContent here" },
+      ];
+      const result = renderClaudeMd(blocks, makeContext());
+
+      expect(result).toContain("# CLAUDE.md");
+      expect(result).toContain("## Test");
+      expect(result).toContain("Content here");
+    });
+
+    it("should render multiple blocks in order", () => {
+      const blocks: ClaudeMdBlock[] = [
+        { id: "first", title: "First", content: "## First Block" },
+        { id: "second", title: "Second", content: "## Second Block" },
+      ];
+      const result = renderClaudeMd(blocks, makeContext());
+
+      const firstIdx = result.indexOf("First Block");
+      const secondIdx = result.indexOf("Second Block");
+      expect(firstIdx).toBeLessThan(secondIdx);
+    });
+
+    it("should substitute variables within blocks", () => {
+      const blocks: ClaudeMdBlock[] = [
+        { id: "test", title: "Test", content: "Project: {{projectName}}" },
+      ];
+      const result = renderClaudeMd(blocks, makeContext());
+      expect(result).toContain("Project: TestProject");
+    });
+  });
+
+  describe("renderNfrs", () => {
+    it("should render NFR blocks", () => {
+      const blocks: NfrBlock[] = [
+        { id: "security", title: "Security", content: "## Security\nRequirements" },
+      ];
+      const result = renderNfrs(blocks, makeContext());
+      expect(result).toContain("## Security");
+      expect(result).toContain("Requirements");
+    });
+  });
+
+  describe("renderStatusMd", () => {
+    it("should include tags", () => {
+      const result = renderStatusMd(makeContext());
+      expect(result).toContain("UNIVERSAL");
+      expect(result).toContain("API");
+    });
+
+    it("should include feature tracker table", () => {
+      const result = renderStatusMd(makeContext());
+      expect(result).toContain("Feature Tracker");
+    });
+  });
+
+  describe("renderPrdSkeleton", () => {
+    it("should include project name", () => {
+      const result = renderPrdSkeleton(makeContext());
+      expect(result).toContain("PRD: TestProject");
+    });
+
+    it("should include tags in NFR section", () => {
+      const result = renderPrdSkeleton(makeContext());
+      expect(result).toContain("UNIVERSAL, API");
+    });
+  });
+
+  describe("renderTechSpecSkeleton", () => {
+    it("should include project name and language", () => {
+      const result = renderTechSpecSkeleton(makeContext());
+      expect(result).toContain("Tech Spec: TestProject");
+      expect(result).toContain("typescript");
+    });
+
+    it("should use framework when provided", () => {
+      const result = renderTechSpecSkeleton(makeContext({ framework: "Next.js" }));
+      expect(result).toContain("Next.js");
+    });
+
+    it("should show TBD when no framework", () => {
+      const result = renderTechSpecSkeleton(makeContext());
+      expect(result).toContain("[TBD]");
+    });
+  });
+
+  describe("renderSkill", () => {
+    it("should substitute variables in skill content", () => {
+      const content = "# Review {{projectName}}\nRun tests for {{language}} project.";
+      const result = renderSkill(content, makeContext());
+      expect(result).toBe("# Review TestProject\nRun tests for typescript project.");
+    });
+
+    it("should handle conditionals in skill content", () => {
+      const content = "{{#if language_is_typescript}}npm test{{/if}}{{#if language_is_python}}pytest{{/if}}";
+      const result = renderSkill(content, makeContext({ language: "python" }));
+      expect(result).toBe("pytest");
+    });
+
+    it("should preserve content without variables unchanged", () => {
+      const content = "# Static Skill\nNo variables here.";
+      const result = renderSkill(content, makeContext());
+      expect(result).toBe(content);
+    });
+
+    it("should use default values for missing variables", () => {
+      const content = "Threshold: {{threshold | default: 80}}%";
+      const result = renderSkill(content, makeContext());
+      expect(result).toBe("Threshold: 80%");
+    });
+  });
+
+  describe("compactifyContent", () => {
+    it("strips . This explanatory tail from bullet points", () => {
+      const input = "- Use a fixed timestep. This ensures deterministic simulation.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Use a fixed timestep.");
+    });
+
+    it("strips . It tail from bullet points", () => {
+      const input = "- Cache textures. It prevents redundant GPU uploads.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Cache textures.");
+    });
+
+    it("strips . Because tail from bullet points", () => {
+      const input = "- Pool bullets. Because allocating per-frame causes GC pauses.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Pool bullets.");
+    });
+
+    it("leaves bullets without explanatory tails unchanged", () => {
+      const input = "- Never tie game logic to requestAnimationFrame directly.";
+      const result = compactifyContent(input);
+      expect(result).toBe(input);
+    });
+
+    it("leaves non-bullet lines unchanged", () => {
+      const input = "## Section Title\n\nSome paragraph. This is not a bullet.";
+      const result = compactifyContent(input);
+      expect(result).toBe(input);
+    });
+
+    it("deduplicates identical bullet lines across the content", () => {
+      const input = "- Use dependency injection.\n- Separate concerns.\n- Use dependency injection.";
+      const result = compactifyContent(input);
+      expect(result).toBe("- Use dependency injection.\n- Separate concerns.");
+    });
+
+    it("compresses 3+ consecutive blank lines to 2", () => {
+      const input = "Line A\n\n\n\nLine B";
+      const result = compactifyContent(input);
+      expect(result).toBe("Line A\n\nLine B");
+    });
+
+    it("handles content with no bullets gracefully", () => {
+      const input = "# Title\n\nParagraph text.";
+      const result = compactifyContent(input);
+      expect(result).toBe(input);
+    });
+  });
+});

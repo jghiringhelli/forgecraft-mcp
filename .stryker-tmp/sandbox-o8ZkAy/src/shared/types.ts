@@ -1,0 +1,811 @@
+/**
+ * Shared type definitions for the ForgeCraft MCP server.
+ *
+ * All tags, project configuration, tool inputs/outputs, and template
+ * structures are defined here as the single source of truth.
+ */
+// @ts-nocheck
+
+
+/** All supported project classification tags. */
+export const ALL_TAGS = [
+  "UNIVERSAL",
+  "WEB-REACT",
+  "WEB-STATIC",
+  "API",
+  "DATA-PIPELINE",
+  "ML",
+  "HEALTHCARE",
+  "FINTECH",
+  "WEB3",
+  "REALTIME",
+  "STATE-MACHINE",
+  "GAME",
+  "SOCIAL",
+  "CLI",
+  "LIBRARY",
+  "INFRA",
+  "MOBILE",
+  "ANALYTICS",
+  "HIPAA",
+  "SOC2",
+  "DATA-LINEAGE",
+  "OBSERVABILITY-XRAY",
+  "MEDALLION-ARCHITECTURE",
+  "ZERO-TRUST",
+] as const;
+
+export type Tag = (typeof ALL_TAGS)[number];
+
+/** Description metadata for a single tag. */
+export interface TagInfo {
+  readonly tag: Tag;
+  readonly description: string;
+  readonly appliesWhen: string;
+}
+
+/** Result of project classification analysis. */
+export interface ClassifyResult {
+  readonly suggestedTags: Tag[];
+  readonly detectedFromCode: Record<
+    string,
+    { confidence: number; evidence: string[] }
+  >;
+  readonly detectedFromDescription: Record<
+    string,
+    { confidence: number; evidence: string[] }
+  >;
+  readonly availableTags: readonly Tag[];
+  readonly requiresConfirmation: boolean;
+}
+
+/** Configuration for scaffolding a project. */
+export interface ScaffoldOptions {
+  readonly tags: Tag[];
+  readonly language: "typescript" | "python";
+  readonly projectName: string;
+  readonly includeMcpConfig?: boolean;
+  readonly includeCiCd?: "github-actions" | "none";
+  readonly includeDocker?: boolean;
+}
+
+/** Result of a scaffold operation. */
+export interface ScaffoldResult {
+  readonly filesCreated: string[];
+  readonly mcpServersConfigured: string[];
+  readonly nextSteps: string[];
+  readonly restartRequired: boolean;
+}
+
+/** Result of a project audit. */
+export interface AuditResult {
+  readonly score: number;
+  readonly passing: AuditCheck[];
+  readonly failing: AuditCheck[];
+  readonly recommendations: string[];
+}
+
+/** A single audit check result. */
+export interface AuditCheck {
+  readonly check: string;
+  readonly message: string;
+  readonly severity?: "error" | "warning" | "info";
+}
+
+/** Information about an available hook. */
+export interface HookInfo {
+  readonly name: string;
+  readonly tag: Tag;
+  readonly trigger: "pre-commit" | "pre-exec" | "pre-push";
+  readonly description: string;
+  readonly filename: string;
+}
+
+/**
+ * Content tier controlling automatic inclusion behavior.
+ * - core: Always included. Non-negotiable engineering standards.
+ * - recommended: Included by default. User can opt out via config.
+ * - optional: Only included when user explicitly opts in.
+ */
+export type ContentTier = "core" | "recommended" | "optional";
+
+/** All valid content tiers as a constant array for schema validation. */
+export const CONTENT_TIERS: readonly ContentTier[] = [
+  "core",
+  "recommended",
+  "optional",
+] as const;
+
+// ── Output Targets ───────────────────────────────────────────────────
+
+/**
+ * Supported AI assistant output targets.
+ * Each target maps to a specific instruction file format.
+ */
+export const ALL_OUTPUT_TARGETS = [
+  "claude",
+  "cursor",
+  "copilot",
+  "windsurf",
+  "cline",
+  "aider",
+] as const;
+
+export type OutputTarget = (typeof ALL_OUTPUT_TARGETS)[number];
+
+/** Configuration for a specific output target. */
+export interface OutputTargetConfig {
+  /** Target identifier. */
+  readonly target: OutputTarget;
+  /** Output filename (e.g., "CLAUDE.md", ".cursorrules"). */
+  readonly filename: string;
+  /** Subdirectory relative to project root, if any (e.g., ".github" for copilot, ".cursor/rules" for cursor). */
+  readonly directory?: string;
+  /** Heading used at the top of the generated file. */
+  readonly heading: string;
+  /** Human-readable display name for the AI tool. */
+  readonly displayName: string;
+  /** Whether the target uses frontmatter metadata (e.g., Cursor .mdc files). */
+  readonly usesFrontmatter?: boolean;
+}
+
+/** Registry of all supported output target configurations. */
+export const OUTPUT_TARGET_CONFIGS: Record<OutputTarget, OutputTargetConfig> = {
+  claude: {
+    target: "claude",
+    filename: "CLAUDE.md",
+    heading: "# CLAUDE.md",
+    displayName: "Claude Code",
+  },
+  cursor: {
+    target: "cursor",
+    filename: "project-standards.mdc",
+    directory: ".cursor/rules",
+    heading: "# Project Standards",
+    displayName: "Cursor",
+    usesFrontmatter: true,
+  },
+  copilot: {
+    target: "copilot",
+    filename: "copilot-instructions.md",
+    directory: ".github",
+    heading: "# Copilot Instructions",
+    displayName: "GitHub Copilot",
+  },
+  windsurf: {
+    target: "windsurf",
+    filename: ".windsurfrules",
+    heading: "# Windsurf Rules",
+    displayName: "Windsurf",
+  },
+  cline: {
+    target: "cline",
+    filename: ".clinerules",
+    heading: "# Cline Rules",
+    displayName: "Cline",
+  },
+  aider: {
+    target: "aider",
+    filename: "CONVENTIONS.md",
+    heading: "# CONVENTIONS.md",
+    displayName: "Aider",
+  },
+};
+
+/** Default output target when none specified. */
+export const DEFAULT_OUTPUT_TARGET: OutputTarget = "claude";
+
+/**
+ * Resolve the full output file path for a target relative to project root.
+ *
+ * @param projectDir - Absolute path to project root
+ * @param target - The output target
+ * @returns Absolute path to the instruction file
+ */
+export function resolveOutputPath(
+  projectDir: string,
+  target: OutputTarget,
+): string {
+  const config = OUTPUT_TARGET_CONFIGS[target];
+  if (config.directory) {
+    return `${projectDir}/${config.directory}/${config.filename}`;
+  }
+  return `${projectDir}/${config.filename}`;
+}
+
+// ── Instruction Blocks (formerly ClaudeMdBlock) ──────────────────────
+
+/** An instruction content block from a template. */
+export interface InstructionBlock {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+  readonly tier?: ContentTier;
+}
+
+/** A template YAML file structure for instruction content. */
+export interface InstructionTemplate {
+  readonly tag: Tag;
+  readonly section: "instructions";
+  readonly blocks: InstructionBlock[];
+}
+
+/**
+ * @deprecated Use InstructionBlock instead. Alias kept for backward compatibility.
+ */
+export type ClaudeMdBlock = InstructionBlock;
+
+/**
+ * @deprecated Use InstructionTemplate instead. Alias kept for backward compatibility.
+ */
+export type ClaudeMdTemplate = InstructionTemplate;
+
+/** A folder/file entry in a structure template. */
+export interface StructureEntry {
+  readonly path: string;
+  readonly type: "directory" | "file";
+  readonly description?: string;
+  readonly template?: string;
+}
+
+/** A structure template for a tag. */
+export interface StructureTemplate {
+  readonly tag: Tag;
+  readonly section: "structure";
+  readonly language?: "typescript" | "python" | "both";
+  readonly entries: StructureEntry[];
+}
+
+/** An NFR (Non-Functional Requirement) block. */
+export interface NfrBlock {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+  readonly tier?: ContentTier;
+}
+
+/** An NFR template for a tag. */
+export interface NfrTemplate {
+  readonly tag: Tag;
+  readonly section: "nfr";
+  readonly blocks: NfrBlock[];
+}
+
+/** A design reference block (DDD, CQRS, GoF patterns) served on demand, not in instruction files. */
+export interface ReferenceBlock {
+  readonly id: string;
+  readonly title: string;
+  readonly content: string;
+  /** Optional topic grouping. 'guidance' blocks are GS practitioner protocol procedures. */
+  readonly topic?: string;
+}
+
+/** A reference template for a tag. */
+export interface ReferenceTemplate {
+  readonly tag: Tag;
+  readonly section: "reference";
+  readonly blocks: ReferenceBlock[];
+}
+
+/** Hook template definition. */
+export interface HookTemplate {
+  readonly name: string;
+  readonly trigger: "pre-commit" | "pre-exec" | "pre-push";
+  readonly description: string;
+  readonly filename: string;
+  readonly script: string;
+}
+
+/** Skill template — a reusable Claude Code custom command (.claude/commands/*.md). */
+export interface SkillTemplate {
+  /** Unique identifier for deduplication across tags. */
+  readonly id: string;
+  /** Human-readable name shown in skill listings. */
+  readonly name: string;
+  /** Filename without .md extension — becomes .claude/commands/{filename}.md. */
+  readonly filename: string;
+  /** Brief description of what the skill does. */
+  readonly description: string;
+  /** Markdown content of the skill prompt. Supports {{vars}} and $ARGUMENTS. */
+  readonly content: string;
+  /** Content tier for filtering. Skills are tier-filtered (unlike hooks). */
+  readonly tier?: ContentTier;
+}
+
+/** Information about an available skill for listing. */
+export interface SkillInfo {
+  readonly id: string;
+  readonly name: string;
+  readonly tag: Tag;
+  readonly filename: string;
+  readonly description: string;
+  readonly tier?: ContentTier;
+}
+
+/** Shape of the skills.yaml template file. */
+export interface SkillsTemplate {
+  readonly tag: Tag;
+  readonly section: "skills";
+  readonly skills: SkillTemplate[];
+}
+
+/** Review dimension (section) within a review template. */
+export type ReviewDimension =
+  | "architecture"
+  | "code-quality"
+  | "tests"
+  | "performance";
+
+/** A single checklist item within a review block. */
+export interface ReviewChecklistItem {
+  readonly id: string;
+  readonly description: string;
+  readonly severity: "critical" | "important" | "nice-to-have";
+}
+
+/** A review block — one dimension of a code review. */
+export interface ReviewBlock {
+  readonly id: string;
+  readonly dimension: ReviewDimension;
+  readonly title: string;
+  readonly description: string;
+  readonly checklist: ReviewChecklistItem[];
+  readonly tier?: ContentTier;
+}
+
+/** A review template for a tag. */
+export interface ReviewTemplate {
+  readonly tag: Tag;
+  readonly section: "review";
+  readonly blocks: ReviewBlock[];
+}
+
+/** Result of a review_project tool call. */
+export interface ReviewResult {
+  readonly tags: Tag[];
+  readonly scope: "comprehensive" | "focused";
+  readonly dimensions: ReviewDimensionOutput[];
+  readonly issueFormat: string;
+}
+
+/** Output for a single review dimension. */
+export interface ReviewDimensionOutput {
+  readonly dimension: ReviewDimension;
+  readonly title: string;
+  readonly checklist: ReviewChecklistItem[];
+}
+
+// ── Playbook Types ──────────────────────────────────────────────────
+
+/**
+ * A single step inside a playbook phase.
+ *
+ * Each step is one agent action: a command to run, a question to research,
+ * a diagram to produce, etc. Steps are ordered and may carry expected outputs
+ * so the agent knows what "done" looks like before proceeding.
+ */
+export interface PlaybookStep {
+  /** Short unique label within the phase (e.g., "research-formulas"). */
+  readonly id: string;
+  /** One-line instruction for the agent. Imperative mood. */
+  readonly instruction: string;
+  /** What the agent should produce before continuing to the next step. */
+  readonly expected_output?: string;
+  /** Agent tool(s) best suited for this step (informational). */
+  readonly tools?: string[];
+  /** Content tier — omit = core, always run. */
+  readonly tier?: ContentTier;
+}
+
+/**
+ * A phase groups a set of related steps under a named stage.
+ *
+ * Phases are sequential — the agent completes all steps in phase N before
+ * starting phase N+1.
+ */
+export interface PlaybookPhase {
+  /** Short identifier, e.g. "model-research" or "balance-simulation". */
+  readonly id: string;
+  /** Human-readable heading for the phase. */
+  readonly title: string;
+  /** One-sentence rationale: why this phase exists. */
+  readonly rationale: string;
+  /** Ordered steps within this phase. */
+  readonly steps: PlaybookStep[];
+}
+
+/**
+ * A playbook is a tag-specific, ordered sequence of agent phases
+ * that encode domain expert workflow knowledge.
+ *
+ * Playbooks are **on-demand** (like reference.yaml) — they are never
+ * emitted into instruction files automatically. They are fetched
+ * explicitly via `get_reference { resource: "playbook" }`.
+ */
+export interface PlaybookTemplate {
+  readonly tag: Tag;
+  readonly section: "playbook";
+  /** Short title for the playbook (shown in listings). */
+  readonly title: string;
+  /** One-paragraph description of when and why to run this playbook. */
+  readonly description: string;
+  /** Ordered phases that constitute this playbook. */
+  readonly phases: PlaybookPhase[];
+}
+
+/** Complete template set for a tag. */
+export interface TagTemplateSet {
+  readonly tag: Tag;
+  readonly instructions?: InstructionTemplate;
+  readonly nfr?: NfrTemplate;
+  readonly structure?: StructureTemplate;
+  readonly hooks?: HookTemplate[];
+  readonly skills?: SkillTemplate[];
+  readonly review?: ReviewTemplate;
+  readonly mcpServers?: McpServersTemplate;
+  readonly reference?: ReferenceTemplate;
+  readonly playbook?: PlaybookTemplate;
+  /** Verification strategy: uncertainty-level-aware contracts + execution plan. On-demand only. */
+  readonly verification?: VerificationStrategy;
+  /**
+   * @deprecated Use `instructions` instead. Alias kept for backward compatibility.
+   */
+  readonly claudeMd?: InstructionTemplate;
+}
+
+/** Module scaffold configuration. */
+export interface ModuleConfig {
+  readonly moduleName: string;
+  readonly tags: Tag[];
+  readonly language: "typescript" | "python";
+}
+
+/** MCP server configuration for .claude/settings.json. */
+export interface McpServerConfig {
+  readonly command: string;
+  readonly args: string[];
+  readonly env?: Record<string, string>;
+}
+
+// ── MCP Server Discovery Types ───────────────────────────────────────
+
+/** Category grouping for MCP server recommendations. */
+export type McpServerCategory =
+  | "scaffolding"
+  | "code-search"
+  | "testing"
+  | "debugging"
+  | "devtools"
+  | "deployment"
+  | "database"
+  | "documentation"
+  | "game-engine"
+  | "ai-ml"
+  | "monitoring"
+  | "general";
+
+/** An MCP server entry in a curated registry YAML file. */
+export interface McpServerEntry {
+  readonly name: string;
+  readonly description: string;
+  readonly command: string;
+  readonly args: string[];
+  readonly env?: Record<string, string>;
+  readonly tags: Tag[];
+  readonly category: McpServerCategory;
+  readonly url?: string;
+  /** Content tier for token budget control. Defaults to "recommended" if omitted. */
+  readonly tier?: ContentTier;
+}
+
+/** Shape of the mcp-servers.yaml template file. */
+export interface McpServersTemplate {
+  readonly tag: Tag;
+  readonly section: "mcp-servers";
+  readonly servers: McpServerEntry[];
+}
+
+/** Source of a discovered MCP server recommendation. */
+export type McpServerSource = "built-in" | "community" | "remote";
+
+/** A recommended MCP server with discovery metadata. */
+export interface McpServerRecommendation {
+  readonly name: string;
+  readonly description: string;
+  readonly command: string;
+  readonly args: string[];
+  readonly env?: Record<string, string>;
+  readonly relevantTags: Tag[];
+  readonly category: McpServerCategory;
+  readonly url?: string;
+  readonly source: McpServerSource;
+  /** Content tier for token budget control. Defaults to "recommended" if omitted. */
+  readonly tier?: ContentTier;
+}
+
+/** Options for controlling MCP server discovery behavior. */
+export interface McpDiscoveryOptions {
+  /** Whether to also fetch from a remote registry. Defaults to false. */
+  readonly includeRemote?: boolean;
+  /** Override the default remote registry URL. */
+  readonly remoteRegistryUrl?: string;
+  /** Request timeout in milliseconds for remote fetches. Defaults to 5000. */
+  readonly remoteTimeoutMs?: number;
+}
+
+/** User override configuration from forgecraft.yaml / .forgecraft.json. */
+export interface ForgeCraftConfig {
+  /** Human-readable project name. */
+  readonly projectName?: string;
+  /** Active project tags. */
+  readonly tags?: Tag[];
+  /** Content tier preference: which tiers to auto-include. */
+  readonly tier?: ContentTier;
+  /** Output targets: which AI assistant instruction files to generate. Defaults to ['claude']. */
+  readonly outputTargets?: OutputTarget[];
+  /** Specific block IDs to always include regardless of tier. */
+  readonly include?: string[];
+  /** Specific block IDs to always exclude regardless of tier. */
+  readonly exclude?: string[];
+  /** Additional template directories (community packs, local overrides). */
+  readonly templateDirs?: string[];
+  /** Variable overrides for template rendering. */
+  readonly variables?: Record<string, string | number | boolean>;
+  /** Override or extend configuration per block ID. */
+  readonly overrides?: Record<string, Record<string, unknown>>;
+  /** Custom hooks to add beyond template-provided ones. */
+  readonly customHooks?: Array<{
+    name: string;
+    trigger: string;
+    script: string;
+  }>;
+  /** Custom MCP servers to configure. */
+  readonly customMcpServers?: Record<string, McpServerConfig>;
+  /** Hooks to disable by name. */
+  readonly disabledHooks?: string[];
+  /** Additional tags beyond auto-detected ones. */
+  readonly additionalTags?: Tag[];
+  /**
+   * When true, apply compact post-processing to all generated instruction files:
+   * strips explanatory tail clauses from bullet points and deduplicates identical lines.
+   * Reduces token count by ~20-40%. Recommended for projects with 3+ tags.
+   */
+  readonly compact?: boolean;
+  /**
+   * Current release cycle phase. Controls which test gates are shown as required
+   * vs. advisory in generated instruction files.
+   * Options: development (default), pre-release, release-candidate, production.
+   */
+  readonly releasePhase?:
+    | "development"
+    | "pre-release"
+    | "release-candidate"
+    | "production";
+}
+
+// ── Verification Strategy ───────────────────────────────────────────
+
+/**
+ * Uncertainty level for a domain — how well-defined the expected output is
+ * from specification alone. Determines which verification techniques close the gap.
+ *
+ * - deterministic: formal spec exists (schema, Hurl suite, type contracts) → automated loop
+ * - behavioral: UI/navigation behavior → Playwright paths + screenshot + vision assertion
+ * - stochastic: balance, statistical, simulation outputs → Monte Carlo + convergence bounds
+ * - heuristic: hyperparameter search, optimization → warm runs + pruning + plateau detection
+ * - generative: art, content, animation → MCP tool output + diff-based human approval
+ */
+export type UncertaintyLevel =
+  | "deterministic"
+  | "behavioral"
+  | "stochastic"
+  | "heuristic"
+  | "generative";
+
+/** A single executable verification step within a phase. */
+export interface VerificationStep {
+  /** Unique identifier for this step. */
+  readonly id: string;
+  /** What the step does in one line. */
+  readonly instruction: string;
+  /** What artifact, output, or assertion constitutes a pass. */
+  readonly contract: string;
+  /** Tools or commands to use (MCP tool names, CLI commands, test frameworks). */
+  readonly tools: string[];
+  /** Expected output format or schema that the next step can consume. */
+  readonly expected_output: string;
+  /** Hard pass/fail criterion. If this is not met, the phase does not advance. */
+  readonly pass_criterion: string;
+  /** Whether human review is required before advancing to the next step. */
+  readonly requires_human_review?: boolean;
+}
+
+/** A phase within a verification strategy. */
+export interface VerificationPhase {
+  /** Phase identifier (e.g., contract-definition, execution, evidence). */
+  readonly id: string;
+  /** Human-readable phase title. */
+  readonly title: string;
+  /**
+   * Why this phase exists in this domain.
+   * Maps to a specific uncertainty dimension being closed.
+   */
+  readonly rationale: string;
+  /** Ordered steps to execute within this phase. */
+  readonly steps: VerificationStep[];
+}
+
+/** Full verification strategy for a tag. On-demand — not emitted into instruction files. */
+export interface VerificationStrategy {
+  /** Tag this strategy applies to. */
+  readonly tag: Tag;
+  /** section discriminator for YAML loading. */
+  readonly section: "verification";
+  /** Human-readable title. */
+  readonly title: string;
+  /**
+   * Description of what type of uncertainty this domain has and
+   * what the strategy closes.
+   */
+  readonly description: string;
+  /** One or more uncertainty levels this strategy addresses. */
+  readonly uncertainty_levels: UncertaintyLevel[];
+  /**
+   * Specification completeness score S ∈ [0.0, 1.0] achievable after running
+   * this strategy for this domain. Used to estimate I(S) ≈ 1/S.
+   */
+  readonly completeness_ceiling: number;
+  /** Ordered verification phases. */
+  readonly phases: VerificationPhase[];
+}
+
+// ── Verification Acceptance State ───────────────────────────────────
+
+/**
+ * Acceptance status for a single verification step within a project.
+ * - pending: not yet executed or reviewed
+ * - pass: automated criterion met (or human approved for requires_human_review steps)
+ * - fail: criterion not met — blocks S advancement for this phase
+ * - skipped: explicitly excluded from this project (with required justification)
+ */
+export type VerificationStepStatus = "pending" | "pass" | "fail" | "skipped";
+
+/** Persisted record of one step's acceptance decision for a specific project. */
+export interface VerificationStepRecord {
+  /** Tag the strategy belongs to (e.g., "API", "GAME"). */
+  readonly strategyTag: Tag;
+  /** Phase ID within that strategy (e.g., "contract-definition"). */
+  readonly phaseId: string;
+  /** Step ID within that phase (e.g., "write-hurl-spec"). */
+  readonly stepId: string;
+  /** Acceptance status. */
+  readonly status: VerificationStepStatus;
+  /** ISO 8601 timestamp of the last status change. */
+  readonly recordedAt: string;
+  /**
+   * Free-form notes: tool output excerpt, vision assertion result,
+   * human approval comment, or skip justification.
+   */
+  readonly notes?: string;
+  /** Identifier of who recorded this (e.g., "claude-sonnet-4-5", "human"). */
+  readonly recordedBy?: string;
+}
+
+/**
+ * Per-tag summary of realized specification completeness based on
+ * accepted steps vs total steps in the strategy.
+ * S_realized = (passing steps) / (total non-skipped steps)
+ */
+export interface VerificationTagSummary {
+  readonly tag: Tag;
+  /** Number of steps with status=pass. */
+  readonly passedSteps: number;
+  /** Number of steps with status=fail. */
+  readonly failedSteps: number;
+  /** Number of steps with status=pending. */
+  readonly pendingSteps: number;
+  /** Number of steps with status=skipped. */
+  readonly skippedSteps: number;
+  /** Total steps in the strategy (all phases). */
+  readonly totalSteps: number;
+  /**
+   * Realized S value: passedSteps / (totalSteps - skippedSteps).
+   * S = 0.0 if all steps are pending or failed.
+   * S = 1.0 if all non-skipped steps are passing.
+   */
+  readonly s_realized: number;
+  /**
+   * Maximum achievable S given the strategy's completeness_ceiling.
+   * s_realized is always ≤ completeness_ceiling.
+   */
+  readonly completeness_ceiling: number;
+  /** Whether any step with requires_human_review is still pending. */
+  readonly awaitingHumanReview: boolean;
+}
+
+/**
+ * Project-level verification state file.
+ * Stored at {projectDir}/.forgecraft/verification-state.json.
+ * Created on first `record_verification` call; updated on every subsequent call.
+ * Community-extensible: any tag with a verification.yaml can contribute records.
+ */
+export interface VerificationStateFile {
+  /** Schema version for forward compatibility. */
+  readonly version: "1";
+  /** Project root path (absolute). Used for context, not for path resolution. */
+  readonly projectDir: string;
+  /** Active project tags at the time of last update. */
+  readonly tags: Tag[];
+  /** Primary language of the project. */
+  readonly language: string;
+  /** ISO 8601 timestamp of file creation. */
+  readonly createdAt: string;
+  /** ISO 8601 timestamp of last update. */
+  readonly updatedAt: string;
+  /** All step records, one per (strategyTag, phaseId, stepId) combination. */
+  readonly steps: VerificationStepRecord[];
+  /**
+   * Per-tag summary computed from steps at read time.
+   * Stored as a cache — always recomputed from steps when writing.
+   */
+  readonly summary: VerificationTagSummary[];
+  /**
+   * Aggregate realized S across all active tags:
+   * weighted mean of per-tag s_realized, weight = completeness_ceiling.
+   */
+  readonly aggregate_s: number;
+}
+
+// ── Verify / GS Scorer ──────────────────────────────────────────────
+
+/** GS property name as defined in §4.3 of the experiment design. */
+export type GsProperty =
+  | "self-describing"
+  | "bounded"
+  | "verifiable"
+  | "defended"
+  | "auditable"
+  | "composable"
+  | "executable";
+
+/** Score (0–2) for a single GS property with supporting evidence. */
+export interface GsPropertyScore {
+  readonly property: GsProperty;
+  readonly score: 0 | 1 | 2;
+  readonly evidence: string[];
+}
+
+/** Outcome of executing the project's test suite. */
+export interface TestSuiteResult {
+  readonly passed: boolean;
+  readonly exitCode: number;
+  readonly durationMs: number;
+  readonly output: string;
+  /** Command that was executed. */
+  readonly command: string;
+}
+
+/** A direct-DB call found in a route or controller file. */
+export interface LayerViolation {
+  readonly file: string;
+  readonly line: number;
+  readonly snippet: string;
+}
+
+/** A source module that has no corresponding test file. */
+export interface MissingTestFile {
+  readonly sourceFile: string;
+  readonly expectedTestFile: string;
+}
+
+/** Full result of a `forgecraft verify` run. */
+export interface VerifyResult {
+  readonly testSuite: TestSuiteResult;
+  readonly propertyScores: GsPropertyScore[];
+  /** Sum of all property scores (max 14, 7 properties × 2). */
+  readonly totalScore: number;
+  readonly layerViolations: LayerViolation[];
+  readonly missingTestFiles: MissingTestFile[];
+  /** True when tests pass AND totalScore ≥ 10. */
+  readonly overallPass: boolean;
+}

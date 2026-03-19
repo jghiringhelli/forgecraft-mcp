@@ -1,0 +1,438 @@
+tag: UNIVERSAL
+section: hooks
+hooks:
+  - name: branch-protection
+    trigger: pre-commit
+    description: "Block direct commits to main/master branches"
+    filename: pre-commit-branch-check.sh
+    script: |
+      #!/bin/bash
+      BRANCH=$(git rev-parse --abbrev-ref HEAD)
+      if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+        echo "❌ Direct commits to $BRANCH are blocked. Create a feature branch."
+        exit 1
+      fi
+
+  - name: dangerous-commands
+    trigger: pre-exec
+    description: "Block destructive commands (rm -rf /, DROP DATABASE, force push)"
+    filename: pre-exec-safety.sh
+    script: |
+      #!/bin/bash
+      DANGEROUS_PATTERNS=(
+        "rm -rf /"
+        "DROP DATABASE"
+        "DROP TABLE"
+        "TRUNCATE"
+        "force push"
+        "git push.*--force"
+        "kubectl delete namespace"
+      )
+      for pattern in "${DANGEROUS_PATTERNS[@]}"; do
+        if echo "$1" | grep -iqE "$pattern"; then
+          echo "❌ Blocked dangerous command matching: $pattern"
+          exit 1
+        fi
+      done
+
+  - name: auto-format
+    trigger: pre-commit
+    description: "Run language-appropriate formatter on staged files"
+    filename: pre-commit-format.sh
+    script: |
+      #!/bin/bash
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      # Python
+      echo "$STAGED" | grep '\.py$' | xargs -r black --quiet 2>/dev/null
+      echo "$STAGED" | grep '\.py$' | xargs -r isort --quiet 2>/dev/null
+      # TypeScript/JavaScript
+      echo "$STAGED" | grep '\.\(ts\|tsx\|js\|jsx\)$' | xargs -r npx prettier --write 2>/dev/null
+      # Re-stage formatted files
+      echo "$STAGED" | xargs -r git add
+
+  - name: secrets-scanner
+    trigger: pre-commit
+    description: "Scan for accidentally committed secrets (AWS keys, API keys, passwords)"
+    filename: pre-commit-secrets.sh
+    script: |
+      #!/bin/bash
+      PATTERNS=(
+        'AKIA[0-9A-Z]{16}'
+        'password\s*=\s*["\x27][^"\x27]+'
+        'BEGIN RSA PRIVATE KEY'
+        'sk-[a-zA-Z0-9]{48}'
+        'ghp_[a-zA-Z0-9]{36}'
+      )
+      STAGED=$(git diff --cached --name-only)
+      for file in $STAGED; do
+        for pattern in "${PATTERNS[@]}"; do
+          if grep -qE "$pattern" "$file" 2>/dev/null; then
+            echo "❌ Potential secret found in $file matching pattern"
+            exit 1
+          fi
+        done
+      done
+
+  - name: compile-check
+    trigger: pre-commit
+    description: "Detect project type and run appropriate compile/build check"
+    filename: pre-commit-compile.sh
+    script: |
+      #!/bin/bash
+      echo "🔨 Running build check..."
+      if [ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f "requirements.txt" ]; then
+        STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$')
+        if [ -n "$STAGED_PY" ]; then
+          for file in $STAGED_PY; do
+            python -m py_compile "$file" 2>&1
+            if [ $? -ne 0 ]; then
+              echo "❌ Syntax error in $file"
+              exit 1
+            fi
+          done
+          echo "  ✅ Python syntax OK"
+        fi
+      fi
+      if [ -f "tsconfig.json" ]; then
+        npx tsc --noEmit 2>&1
+        if [ $? -ne 0 ]; then
+          echo "❌ TypeScript compilation failed."
+          exit 1
+        fi
+        echo "  ✅ TypeScript compilation OK"
+      fi
+      echo "🔨 Build check passed"
+
+  - name: tdd-phase-gate
+    trigger: pre-commit
+    description: "RED gate: test-only commits must have failing tests; warn on implementation without tests"
+    filename: pre-commit-tdd-check.sh
+    script: |
+      #!/bin/bash
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      if [ -z "$STAGED" ]; then exit 0; fi
+      SRC_PATTERNS='^(src|lib|app|server|client|pkg|internal|cmd)/'
+      TEST_PATTERNS='^(tests?|spec|__tests__)/'
+      TEST_FILE_PATTERNS='\.(test|spec)\.(ts|tsx|js|jsx|mjs|py|go|rb|java|kt)$'
+      SRC_FILES=()
+      TEST_FILES=()
+      while IFS= read -r file; do
+        if echo "$file" | grep -qE "$SRC_PATTERNS"; then
+          SRC_FILES+=("$file")
+        elif echo "$file" | grep -qE "$TEST_PATTERNS"; then
+          TEST_FILES+=("$file")
+        elif echo "$file" | grep -qE "$TEST_FILE_PATTERNS"; then
+          TEST_FILES+=("$file")
+        fi
+      done <<< "$STAGED"
+      SRC_COUNT=${#SRC_FILES[@]}
+      TEST_COUNT=${#TEST_FILES[@]}
+      # RED gate: test-only commit must have at least one failing test
+      if [ "$TEST_COUNT" -gt 0 ] && [ "$SRC_COUNT" -eq 0 ]; then
+        echo "🔴 TDD gate: test-only commit — running staged tests..."
+        RUN_CMD=""
+        if [ -f "package.json" ]; then
+          if grep -q '"vitest"' package.json 2>/dev/null; then
+            RUN_CMD="npx vitest run"
+          elif grep -q '"jest"' package.json 2>/dev/null; then
+            RUN_CMD="npx jest --passWithNoTests"
+          fi
+        elif [ -f "pytest.ini" ] || [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+          RUN_CMD="python -m pytest"
+        fi
+        if [ -n "$RUN_CMD" ]; then
+          $RUN_CMD "${TEST_FILES[@]}" > /tmp/tdd-check-output.txt 2>&1
+          if [ $? -eq 0 ]; then
+            echo "❌ TDD RED gate violation: all staged tests PASS"
+            echo "   A test-only commit must contain at least one failing test."
+            echo "   Either tests were written after implementation, or assertions are vacuous."
+            cat /tmp/tdd-check-output.txt | head -30
+            exit 1
+          fi
+          echo "  ✅ RED gate satisfied — staged tests fail as expected"
+        else
+          echo "  ⚠️  Cannot detect test runner — skipping RED gate check"
+        fi
+      fi
+      # Source gate: warn on implementation without tests
+      if [ "$SRC_COUNT" -gt 0 ] && [ "$TEST_COUNT" -eq 0 ]; then
+        echo "⚠️  TDD warning: implementation committed without test changes"
+        echo "   Verify a preceding test(scope): [RED] commit exists in this branch."
+      fi
+      exit 0
+
+  - name: test-coverage
+    trigger: pre-commit
+    description: "Run tests for test-only commits; skip for docs/config-only commits; defer to coverage-gate when src/ staged"
+    filename: pre-commit-test.sh
+    script: |
+      #!/bin/bash
+      COVERAGE_MIN={{coverage_minimum | default: 80}}
+
+      # Collect staged files once.
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+      # Determine what kinds of files are staged.
+      SRC_STAGED=0
+      CODE_STAGED=0
+      while IFS= read -r file; do
+        if echo "$file" | grep -qE '^src/'; then
+          SRC_STAGED=1
+          CODE_STAGED=1
+        elif echo "$file" | grep -qE '^tests?/'; then
+          CODE_STAGED=1
+        fi
+      done <<< "$STAGED"
+
+      # If src/ is staged the coverage-gate hook runs the full test + coverage pass.
+      # Skip the bare run here to avoid running the full suite twice.
+      if [ "$SRC_STAGED" -eq 1 ]; then
+        echo "🧪 src/ files staged — tests will run via coverage gate, skipping bare run."
+        exit 0
+      fi
+
+      # If no code files at all are staged (docs-only, config-only, etc.) skip the run.
+      if [ "$CODE_STAGED" -eq 0 ]; then
+        echo "🧪 No code files staged — skipping test run."
+        exit 0
+      fi
+
+      echo "🧪 Running tests..."
+      if [ -f "package.json" ]; then
+        if grep -q '"vitest"' package.json 2>/dev/null; then
+          npx vitest run --reporter=verbose 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ Tests failed."
+            exit 1
+          fi
+          echo "  ✅ Tests passed"
+        elif grep -q '"jest"' package.json 2>/dev/null; then
+          npx jest --passWithNoTests --coverage \
+            --coverageThreshold="{\"global\":{\"lines\":$COVERAGE_MIN}}" \
+            --silent 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ Jest tests failed or coverage below ${COVERAGE_MIN}%."
+            exit 1
+          fi
+          echo "  ✅ Jest tests passed"
+        fi
+      fi
+      if [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+        if command -v pytest &> /dev/null; then
+          pytest --tb=short --quiet --cov=src --cov-fail-under=$COVERAGE_MIN 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ Tests failed or coverage below ${COVERAGE_MIN}%."
+            exit 1
+          fi
+          echo "  ✅ Python tests passed"
+        fi
+      fi
+      echo "🧪 All tests passed"
+
+  - name: coverage-gate
+    trigger: pre-commit
+    description: "Enforce minimum coverage thresholds when src/ files are staged"
+    filename: pre-commit-coverage.sh
+    script: |
+      #!/bin/bash
+      # ──────────────────────────────────────────────────────────────────────
+      # Pre-Commit Hook: Coverage Gate
+      #
+      # Enforces minimum coverage thresholds before a commit lands.
+      # Thresholds are read from vitest.config.ts (via --coverage).
+      # Only runs when files under src/ are staged — skips for
+      # docs-only, config-only, or test-only commits.
+      #
+      # Current thresholds (vitest.config.ts):
+      #   Lines / Statements / Functions: {{coverage_minimum | default: 80}}%
+      #   Branches: 70%
+      #
+      # Trigger: git pre-commit (via scripts/setup-hooks.sh)
+      # Exit: 1 blocks commit, 0 allows
+      # ──────────────────────────────────────────────────────────────────────
+
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+      if [ -z "$STAGED" ]; then
+        exit 0
+      fi
+
+      # ── Check if any src/ file is staged ─────────────────────────────────
+      SRC_STAGED=0
+      while IFS= read -r file; do
+        if echo "$file" | grep -qE '^src/'; then
+          SRC_STAGED=1
+          break
+        fi
+      done <<< "$STAGED"
+
+      if [ "$SRC_STAGED" -eq 0 ]; then
+        echo "📊 Coverage gate: no src/ files staged, skipping."
+        exit 0
+      fi
+
+      # ── Run coverage ───────────────────────────────────────────────────────
+      echo "📊 Running coverage gate (src/ files staged)..."
+
+      if [ ! -f "package.json" ]; then
+        echo "  ⚠️  No package.json found — skipping coverage check."
+        exit 0
+      fi
+
+      if grep -q '"vitest"' package.json 2>/dev/null; then
+        OUTPUT=$(npx vitest run --coverage --reporter=verbose 2>&1)
+        EXIT_CODE=$?
+
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "$OUTPUT" | grep -E "ERROR|Coverage|does not meet|%|FAIL|passed|failed" | head -40
+          echo ""
+          echo "❌ Coverage gate failed — thresholds not met."
+          echo "   Run 'npx vitest run --coverage' locally to see the full report."
+          echo "   Add tests until coverage meets the configured minimums."
+          exit 1
+        fi
+        echo "  ✅ Coverage gate passed"
+        exit 0
+      fi
+
+      if grep -q '"jest"' package.json 2>/dev/null; then
+        COVERAGE_MIN={{coverage_minimum | default: 80}}
+        npx jest --passWithNoTests --coverage \
+          --coverageThreshold="{\"global\":{\"lines\":$COVERAGE_MIN,\"statements\":$COVERAGE_MIN,\"functions\":$COVERAGE_MIN,\"branches\":70}}" \
+          --silent 2>&1
+        if [ $? -ne 0 ]; then
+          echo "❌ Coverage gate failed — thresholds not met."
+          exit 1
+        fi
+        echo "  ✅ Coverage gate passed"
+        exit 0
+      fi
+
+      if [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+        if command -v pytest &> /dev/null; then
+          pytest --tb=no --quiet --cov=src --cov-fail-under={{coverage_minimum | default: 80}} 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ Coverage gate failed — below {{coverage_minimum | default: 80}}%."
+            exit 1
+          fi
+          echo "  ✅ Coverage gate passed"
+        fi
+      fi
+
+      exit 0
+
+  - name: anti-pattern-detector
+    trigger: pre-commit
+    description: "Scan source files for production code anti-patterns"
+    filename: pre-commit-prod-quality.sh
+    script: |
+      #!/bin/bash
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(py|ts|tsx|js|jsx)$' | grep -vE '(test_|\.test\.|\.spec\.|__tests__|tests/|fixtures/|mock|conftest)')
+      if [ -z "$SOURCE_FILES" ]; then exit 0; fi
+      VIOLATIONS=0
+      WARNINGS=0
+      echo "🔍 Scanning for production code anti-patterns..."
+      for file in $SOURCE_FILES; do
+        if echo "$file" | grep -vqE '(config|settings|\.env)'; then
+          if grep -nE '(localhost|127\.0\.0\.1|0\.0\.0\.0)' "$file" | grep -vE '(#|//|""")' > /tmp/violations 2>/dev/null; then
+            if [ -s /tmp/violations ]; then
+              echo "  ❌ $file — hardcoded URL/host"
+              VIOLATIONS=$((VIOLATIONS + 1))
+            fi
+          fi
+        fi
+        if grep -nEi '\b(mock_data|fake_data|dummy_data|stub_response)' "$file" > /tmp/violations 2>/dev/null; then
+          if [ -s /tmp/violations ]; then
+            echo "  ❌ $file — mock/stub data in production code"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+        fi
+        LINE_COUNT=$(wc -l < "$file")
+        if [ "$LINE_COUNT" -gt {{max_file_length | default: 300}} ]; then
+          echo "  ⚠️  $file — $LINE_COUNT lines (max {{max_file_length | default: 300}})"
+          WARNINGS=$((WARNINGS + 1))
+        fi
+      done
+      rm -f /tmp/violations
+      if [ $VIOLATIONS -gt 0 ]; then
+        echo "❌ $VIOLATIONS violation(s) found — commit blocked."
+        exit 1
+      fi
+      echo "🔍 Production quality scan passed"
+
+  - name: function-length
+    trigger: pre-commit
+    description: "Warn when staged functions exceed the configured maximum line count"
+    filename: pre-commit-function-length.sh
+    script: |
+      #!/bin/bash
+      MAX_LENGTH={{max_function_length | default: 50}}
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | grep -vE '(\.test\.|\.spec\.|__tests__|tests/)')
+      if [ -z "$SOURCE_FILES" ]; then exit 0; fi
+      WARNINGS=0
+      for file in $SOURCE_FILES; do
+        # Heuristic: find function/method declarations and count lines to next declaration or closing brace
+        awk -v max="$MAX_LENGTH" -v fname="$file" '
+          /^[[:space:]]*(export )?(async )?(function |const [a-zA-Z]+ = (async )?\(|[a-zA-Z]+\(.*\) \{|[a-zA-Z]+\(.*\): )/ {
+            if (start > 0 && NR - start > max) {
+              printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
+              warnings++
+            }
+            start = NR
+          }
+          END {
+            if (start > 0 && NR - start > max) {
+              printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
+              warnings++
+            }
+          }
+        ' "$file"
+        WARNINGS=$((WARNINGS + $?))
+      done
+      # Warning only — does not block commit since bash heuristics aren't perfect
+      exit 0
+
+  - name: import-cycle-detector
+    trigger: pre-commit
+    description: "Detect circular import dependencies in TypeScript and Python projects"
+    filename: pre-commit-import-cycles.sh
+    script: |
+      #!/bin/bash
+      echo "🔄 Checking for circular imports..."
+      if [ -f "tsconfig.json" ]; then
+        if command -v npx &> /dev/null; then
+          RESULT=$(npx --yes madge --circular --extensions ts src/ 2>&1)
+          if echo "$RESULT" | grep -q "Found.*circular"; then
+            echo "❌ Circular imports detected in TypeScript:"
+            echo "$RESULT"
+            exit 1
+          fi
+          echo "  ✅ No circular imports (TypeScript)"
+        fi
+      fi
+      if [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+        if command -v lint-imports &> /dev/null; then
+          lint-imports 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ Circular imports detected in Python"
+            exit 1
+          fi
+          echo "  ✅ No circular imports (Python)"
+        fi
+      fi
+      echo "🔄 Import cycle check passed"
+
+  - name: code-review
+    trigger: pre-commit
+    description: "AI assistant reviews diff against project standards"
+    filename: pre-commit-review.sh
+    script: |
+      #!/bin/bash
+      DIFF=$(git diff --cached)
+      if [ -z "$DIFF" ]; then exit 0; fi
+      echo "📝 Staged changes ready for review"
+      # Full auto-review requires claude CLI integration
+      # This hook validates the diff is non-empty and staged
+      exit 0

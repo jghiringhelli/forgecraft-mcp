@@ -1,0 +1,27 @@
+tag: WEB-REACT
+section: nfr
+blocks:
+  - id: frontend-performance
+    tier: recommended
+    title: "Frontend Performance"
+    content: |
+      ## NFR: Frontend Performance
+
+      ### Core Web Vitals Targets
+      - LCP (Largest Contentful Paint): < 2.5s
+      - FID (First Input Delay): < 100ms
+      - CLS (Cumulative Layout Shift): < 0.1
+
+      ### Bundle
+      - Code splitting by route. No single bundle > 200KB gzipped.
+      - Tree shaking enabled. No unused exports.
+      - Bundle size tracked in CI — PRs that increase bundle > 10KB require justification.
+
+      ### Runtime
+      - Virtual/windowed lists for collections > 50 items.
+      - Debounce search inputs (300ms minimum).
+
+      ### Assets
+      - Images in modern formats (WebP/AVIF with fallback).
+      - Responsive images with srcset.
+      - Fonts preloaded, display:swap.

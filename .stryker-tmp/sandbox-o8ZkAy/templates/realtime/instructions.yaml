@@ -1,0 +1,42 @@
+tag: REALTIME
+section: instructions
+blocks:
+  - id: websocket-patterns
+    tier: recommended
+    title: "WebSocket & Connection Management"
+    content: |
+      ## WebSocket & Connection Lifecycle
+
+      - Implement automatic reconnection with exponential backoff and jitter (base 1s, max 30s). Track connection state (connecting, open, closing, closed) and expose it to the UI.
+      - Use heartbeat/ping-pong frames at regular intervals (every 30s) to detect dead connections. Close and reconnect if a pong is not received within the timeout window.
+      - Authenticate WebSocket connections during the handshake (via token in query param or first message). Reject unauthenticated connections immediately—do not allow message exchange before auth.
+      - Assign each connection a unique session ID. Map sessions to user identities server-side for targeted messaging, presence tracking, and connection auditing.
+      - Support graceful degradation: if WebSocket connections fail (corporate proxies, firewalls), fall back to Server-Sent Events or long polling automatically.
+      - Implement connection rate limiting per IP and per user to prevent resource exhaustion from misbehaving clients or attacks.
+      - Buffer outbound messages on the client during disconnection and replay them in order upon reconnection to avoid data loss.
+
+  - id: event-driven-architecture
+    tier: recommended
+    title: "Event-Driven Architecture"
+    content: |
+      ## Event-Driven & Pub/Sub Patterns
+
+      - Use a message broker (Redis Pub/Sub, NATS, Kafka) to fan out events across multiple server instances. Never rely on in-process state for multi-node real-time systems.
+      - Define a clear event schema with versioning. Every event must include: event type, version, timestamp, producer ID, correlation ID, and payload.
+      - Implement topic-based or channel-based subscriptions. Clients should subscribe only to the channels they need to minimize unnecessary message delivery.
+      - Use message acknowledgment for critical events: the consumer must explicitly ack after processing. Unacked messages are redelivered after a timeout.
+      - Deduplicate events on the consumer side using the event ID. Network retries and broker redelivery can produce duplicates that must not cause double-processing.
+      - Separate command messages (requests to change state) from event messages (notifications of state changes). Commands go to a single handler; events fan out to many subscribers.
+
+  - id: backpressure-scaling
+    tier: recommended
+    title: "Backpressure & Scaling"
+    content: |
+      ## Backpressure, Flow Control & Scaling
+
+      - Implement backpressure at every layer. If a consumer cannot keep up, signal the producer to slow down rather than buffering unboundedly and risking OOM.
+      - Set maximum buffer sizes for outbound message queues per connection. If the buffer fills (slow client), drop non-critical messages or disconnect the client with a warning.
+      - Use rate limiting on inbound messages per client (e.g., max 100 messages/second). Reject excess messages with an error code rather than silently dropping them.
+      - Design for horizontal scaling: use sticky sessions or a shared session store so that any server node can handle any client's messages after a reconnection.
+      - Monitor key metrics: active connections, messages per second (in/out), message latency p50/p95/p99, buffer utilization, and reconnection rate. Alert on anomalies.
+      - Load-test real-time features with realistic connection counts (10x expected peak) and message rates to identify bottlenecks before they appear in production.
