@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "forgecraft": {
+      "command": "node",
+      "args": ["C:/workspace/claude/forgecraft-mcp/dist/index.js"],
+      "env": {}
+    }
+  }
+}
