@@ -53,6 +53,7 @@ _These apply regardless of task. Never defer them._
 | Clarification protocol, feature completion, code generation, known pitfalls | `.claude/standards/protocols.md` |
 | Ecosystem repos, live URLs, gate registry, contribution flow, forgecraft-server | `.claude/standards/ecosystem.md` |
 | Project-specific rules, framework choices, corrections log | `.claude/standards/project-specific.md` |
+| Ambiguity pattern, when/how to ask for clarification, ⚡ Ambiguity format | `.claude/standards/communication-protocol.md` |
 
 ---
 

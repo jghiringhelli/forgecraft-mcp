@@ -16,6 +16,7 @@ import { z } from "zod";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { runCascadeChecks, isCascadeComplete, buildGuidedRemediation, loadCascadeDecisions } from "./check-cascade.js";
+import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -72,11 +73,11 @@ const ADR_DIRS = ["docs/adrs", "docs/adr"] as const;
  * Generate a bound session prompt for a single roadmap item.
  *
  * @param args - Validated input matching `generateSessionPromptSchema`
- * @returns MCP-style content array with the prompt text
+ * @returns MCP-style content array with the prompt text, plus optional ambiguities
  */
 export async function generateSessionPromptHandler(
   args: GenerateSessionPromptInput,
-): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+): Promise<ToolResult> {
   const projectDir = resolve(args.project_dir);
 
   // Cascade gate: cannot generate a session prompt without a complete spec
@@ -109,7 +110,37 @@ export async function generateSessionPromptHandler(
     statusSummary,
   });
 
-  return { content: [{ type: "text", text: prompt }] };
+  const ambiguities = buildRoadmapItemAmbiguity(args.item_description);
+
+  return {
+    content: [{ type: "text", text: prompt }],
+    ...(ambiguities ? { ambiguities: [ambiguities] } : {}),
+  };
+}
+
+/**
+ * Build a ToolAmbiguity for a vague roadmap_item description.
+ * Triggered when `item_description` is fewer than 30 characters, which
+ * typically signals a task title rather than a bounded implementation spec.
+ *
+ * @param itemDescription - The roadmap item description from the caller
+ * @returns A ToolAmbiguity if the description is short, otherwise null
+ */
+function buildRoadmapItemAmbiguity(itemDescription: string): ToolAmbiguity | null {
+  if (itemDescription.length >= 30) return null;
+
+  return {
+    field: "roadmap_item",
+    understood_as: `Interpreting '${itemDescription}' as its most common literal meaning`,
+    understood_example: `I scoped the session prompt to: ${itemDescription} (minimal implementation, no auth variant specified)`,
+    alternatives: [
+      {
+        label: "If broader scope intended",
+        action: `I would include related concerns: error handling, integration tests, ADR for any new architectural decisions`,
+      },
+    ],
+    resolution_hint: `Pass a more specific item_description, e.g. 'Add JWT authentication with email/password login, bcrypt hashing, and a /auth/refresh endpoint'`,
+  };
 }
 
 // ── Artifact Discovery ───────────────────────────────────────────────

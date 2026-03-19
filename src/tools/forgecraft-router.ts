@@ -15,7 +15,7 @@ import {
   CONTENT_TIERS,
   ALL_OUTPUT_TARGETS,
 } from "../shared/types.js";
-import type { Tag } from "../shared/types.js";
+import type { Tag, ToolResult, ToolAmbiguity } from "../shared/types.js";
 
 // ── Handler imports ─────────────────────────────────────────────────
 import {
@@ -461,21 +461,42 @@ export const forgecraftSchema = z.object({
     .describe(
       "Phase 2 answer: true = existing users or downstream consumers (behavioral contracts required), false = no consumers yet. Used by: setup_project (phase 2).",
     ),
+  project_type_override: z
+    .string()
+    .optional()
+    .describe(
+      "Phase 2: override the inferred project type when ambiguities were reported in phase 1. " +
+      "Examples: \"docs\", \"cli\", \"api\", \"library\", \"cli+library\", \"cli+api\". " +
+      "Provide this when the AI detected conflicting signals and you want to specify the correct interpretation. " +
+      "Used by: setup_project (phase 2).",
+    ),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
-type ToolResult = { content: Array<{ type: "text"; text: string }> };
 
 // ── Handler ─────────────────────────────────────────────────────────
 
 /**
  * Unified handler that dispatches to the appropriate tool handler
- * based on the `action` parameter.
+ * based on the `action` parameter, then formats any ambiguities.
  *
  * @param args - Validated unified tool input
  * @returns MCP tool response from the delegated handler
  */
 export async function forgecraftHandler(
+  args: ForgecraftArgs,
+): Promise<ToolResult> {
+  const result = await dispatchForgecraft(args);
+  return applyAmbiguityFormatting(result);
+}
+
+/**
+ * Dispatch to the appropriate handler without ambiguity post-processing.
+ *
+ * @param args - Validated unified tool input
+ * @returns Raw handler result, possibly containing ambiguities
+ */
+async function dispatchForgecraft(
   args: ForgecraftArgs,
 ): Promise<ToolResult> {
   const action = args.action as Action;
@@ -489,6 +510,7 @@ export async function forgecraftHandler(
         mvp: args.mvp,
         scope_complete: args.scope_complete,
         has_consumers: args.has_consumers,
+        project_type_override: args.project_type_override,
       });
 
     case "list":
@@ -832,5 +854,46 @@ function requireParam<T>(
 function errorResult(message: string): ToolResult {
   return {
     content: [{ type: "text", text: `Error: ${message}` }],
+  };
+}
+
+/**
+ * Format a single ToolAmbiguity into the standard ⚡ Ambiguity block.
+ *
+ * @param ambiguity - The ambiguity to format
+ * @returns Formatted multi-line string
+ */
+export function formatAmbiguity(ambiguity: ToolAmbiguity): string {
+  const lines: string[] = [
+    `⚡ Ambiguity — ${ambiguity.field}`,
+    `   I understood this as: ${ambiguity.understood_as}`,
+    `   → Example: ${ambiguity.understood_example}`,
+  ];
+  for (const alt of ambiguity.alternatives) {
+    lines.push(`   Alternative: ${alt.label} → ${alt.action}`);
+  }
+  lines.push(`   To resolve: ${ambiguity.resolution_hint}`);
+  return lines.join("\n");
+}
+
+/**
+ * Prepend formatted ambiguity blocks to the result's text content.
+ * Returns the result unchanged if there are no ambiguities.
+ *
+ * @param result - Raw tool result, possibly with ambiguities
+ * @returns Result with ambiguities merged into text content
+ */
+export function applyAmbiguityFormatting(result: ToolResult): ToolResult {
+  if (!result.ambiguities?.length) return result;
+
+  const ambiguitySection = result.ambiguities.map(formatAmbiguity).join("\n\n");
+  const existingText = result.content[0]?.text ?? "";
+  const mergedText = `${ambiguitySection}\n\n---\n\n${existingText}`;
+
+  return {
+    content: [
+      { type: "text", text: mergedText },
+      ...result.content.slice(1),
+    ],
   };
 }
