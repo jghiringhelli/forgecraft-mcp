@@ -23,9 +23,10 @@ describe("sentinelHandler", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("recommends setup command for unconfigured project", async () => {
+  it("recommends forgecraft_actions setup_project for unconfigured project", async () => {
     const result = await sentinelHandler({ project_dir: tempDir });
-    expect(result.content[0]!.text).toContain("npx forgecraft-mcp");
+    expect(result.content[0]!.text).toContain("forgecraft_actions");
+    expect(result.content[0]!.text).toContain("setup_project");
   });
 
   it("mentions removing MCP after setup in all responses", async () => {
