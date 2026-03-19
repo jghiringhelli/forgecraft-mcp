@@ -17,7 +17,13 @@ import { deriveDefaultCascadeDecisions } from "./cascade-defaults.js";
 import { scaffoldProjectHandler, scaffoldHooks } from "./scaffold.js";
 import { configureMcpHandler } from "./configure-mcp.js";
 import { createLogger } from "../shared/logger/index.js";
-import { parseSpec, inferTagsFromDirectory, directoryHasFiles, findRichestSpecFile, inferSensitiveData } from "./spec-parser.js";
+import {
+  parseSpec,
+  inferTagsFromDirectory,
+  directoryHasFiles,
+  findRichestSpecFile,
+  inferSensitiveData,
+} from "./spec-parser.js";
 import type { AmbiguityItem } from "./spec-parser.js";
 
 const logger = createLogger("tools/setup-project");
@@ -70,13 +76,18 @@ const VALID_TAGS_SET = new Set<string>(ALL_TAGS);
  * @param args - Setup arguments
  * @returns MCP tool response
  */
-export async function setupProjectHandler(args: SetupProjectArgs): Promise<ToolResult> {
+export async function setupProjectHandler(
+  args: SetupProjectArgs,
+): Promise<ToolResult> {
   const isPhase2 =
     args.mvp !== undefined &&
     args.scope_complete !== undefined &&
     args.has_consumers !== undefined;
 
-  logger.info("setup_project", { phase: isPhase2 ? 2 : 1, projectDir: args.project_dir });
+  logger.info("setup_project", {
+    phase: isPhase2 ? 2 : 1,
+    projectDir: args.project_dir,
+  });
 
   const context = await buildProjectContext(args);
 
@@ -85,7 +96,12 @@ export async function setupProjectHandler(args: SetupProjectArgs): Promise<ToolR
   }
 
   return executePhase2(
-    { ...args, mvp: args.mvp!, scope_complete: args.scope_complete!, has_consumers: args.has_consumers! },
+    {
+      ...args,
+      mvp: args.mvp!,
+      scope_complete: args.scope_complete!,
+      has_consumers: args.has_consumers!,
+    },
     context,
   );
 }
@@ -108,7 +124,9 @@ interface ProjectContext {
  * @param args - Setup arguments
  * @returns Assembled project context
  */
-async function buildProjectContext(args: SetupProjectArgs): Promise<ProjectContext> {
+async function buildProjectContext(
+  args: SetupProjectArgs,
+): Promise<ProjectContext> {
   const projectDir = args.project_dir;
   const projectName = inferProjectName(projectDir);
   const isExistingProject = detectExistingProject(projectDir);
@@ -126,17 +144,18 @@ async function buildProjectContext(args: SetupProjectArgs): Promise<ProjectConte
     specContent = args.spec_text;
     specSourceLabel = "provided text";
   } else {
-    const found = findSpecFile(projectDir);
-    if (found) {
-      specContent = readFileSync(found, "utf-8");
-      specSourceLabel = found;
+    // Prefer user-authored spec over forgecraft-generated docs
+    const richestSpec = findRichestSpecFile(projectDir);
+    if (richestSpec) {
+      specContent = readFileSync(richestSpec, "utf-8");
+      specSourceLabel = richestSpec;
     }
-    // If no spec found via standard paths, look for richest existing spec doc
+    // Fall back to standard paths (PRD.md, spec.md) only if no richer spec found
     if (!specContent) {
-      const richestSpec = findRichestSpecFile(projectDir);
-      if (richestSpec) {
-        specContent = readFileSync(richestSpec, "utf-8");
-        specSourceLabel = richestSpec;
+      const found = findSpecFile(projectDir);
+      if (found) {
+        specContent = readFileSync(found, "utf-8");
+        specSourceLabel = found;
       }
     }
   }
@@ -153,7 +172,15 @@ async function buildProjectContext(args: SetupProjectArgs): Promise<ProjectConte
     ...(specSummary?.ambiguities ?? []),
   ];
 
-  return { projectDir, projectName, isExistingProject, specContent, specSourceLabel, inferredTags, ambiguities };
+  return {
+    projectDir,
+    projectName,
+    isExistingProject,
+    specContent,
+    specSourceLabel,
+    inferredTags,
+    ambiguities,
+  };
 }
 
 /**
@@ -163,7 +190,9 @@ async function buildProjectContext(args: SetupProjectArgs): Promise<ProjectConte
  * @returns True if any standard source directory exists and is non-empty
  */
 function detectExistingProject(projectDir: string): boolean {
-  return EXISTING_PROJECT_DIRS.some((dir) => directoryHasFiles(join(projectDir, dir)));
+  return EXISTING_PROJECT_DIRS.some((dir) =>
+    directoryHasFiles(join(projectDir, dir)),
+  );
 }
 
 /**
@@ -256,10 +285,19 @@ function buildAmbiguitySection(ambiguities: AmbiguityItem[]): string {
  * @returns Formatted markdown summary
  */
 function buildFoundSummary(context: ProjectContext): string {
-  const { projectName, isExistingProject, specContent, specSourceLabel, inferredTags } = context;
+  const {
+    projectName,
+    isExistingProject,
+    specContent,
+    specSourceLabel,
+    inferredTags,
+  } = context;
 
-  const specName = specContent ? parseSpec(specContent, projectName).name : null;
-  const displayName = specName && specName !== "[Project Name]" ? specName : projectName;
+  const specName = specContent
+    ? parseSpec(specContent, projectName).name
+    : null;
+  const displayName =
+    specName && specName !== "[Project Name]" ? specName : projectName;
 
   let summary = `### What I found:\n`;
   summary += `- **Project**: ${displayName}\n`;
@@ -268,8 +306,10 @@ function buildFoundSummary(context: ProjectContext): string {
   if (specContent) {
     const spec = parseSpec(specContent, projectName);
     summary += `- **Spec**: ${specSourceLabel}\n`;
-    if (spec.problem) summary += `- **Problem**: ${spec.problem.slice(0, 200).replace(/\n/g, " ")}${spec.problem.length > 200 ? "…" : ""}\n`;
-    if (spec.users.length > 0) summary += `- **Users**: ${spec.users.slice(0, 3).join(", ")}${spec.users.length > 3 ? ` +${spec.users.length - 3} more` : ""}\n`;
+    if (spec.problem)
+      summary += `- **Problem**: ${spec.problem.slice(0, 200).replace(/\n/g, " ")}${spec.problem.length > 200 ? "…" : ""}\n`;
+    if (spec.users.length > 0)
+      summary += `- **Users**: ${spec.users.slice(0, 3).join(", ")}${spec.users.length > 3 ? ` +${spec.users.length - 3} more` : ""}\n`;
   } else {
     summary += `- **Spec**: not found — will scaffold with stubs\n`;
   }
@@ -311,7 +351,11 @@ Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, and \`has_consume
  * @returns MCP tool response with completion summary
  */
 async function executePhase2(
-  args: SetupProjectArgs & { mvp: boolean; scope_complete: boolean; has_consumers: boolean },
+  args: SetupProjectArgs & {
+    mvp: boolean;
+    scope_complete: boolean;
+    has_consumers: boolean;
+  },
   context: ProjectContext,
 ): Promise<ToolResult> {
   const { projectDir, projectName, specContent } = context;
@@ -321,7 +365,13 @@ async function executePhase2(
     ? applyProjectTypeOverride(context.inferredTags, args.project_type_override)
     : context.inferredTags;
 
-  const decisions = deriveCascadeDecisions(effectiveTags, projectName, args.mvp, args.scope_complete, args.has_consumers);
+  const decisions = deriveCascadeDecisions(
+    effectiveTags,
+    projectName,
+    args.mvp,
+    args.scope_complete,
+    args.has_consumers,
+  );
   const forgeCraftTags = filterToValidTags(effectiveTags);
 
   const specSummaryForSensitive = context.specContent
@@ -329,10 +379,20 @@ async function executePhase2(
     : null;
   const isSensitive = specSummaryForSensitive
     ? inferSensitiveData(specSummaryForSensitive, effectiveTags)
-    : effectiveTags.some((t) => ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"].includes(t));
+    : effectiveTags.some((t) =>
+        ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"].includes(t),
+      );
 
-  const yamlWritten = writeForgeYaml(projectDir, projectName, forgeCraftTags, decisions, isSensitive);
-  const prdWritten = specContent ? writePrd(projectDir, projectName, specContent) : false;
+  const yamlWritten = writeForgeYaml(
+    projectDir,
+    projectName,
+    forgeCraftTags,
+    decisions,
+    isSensitive,
+  );
+  const prdWritten = specContent
+    ? writePrd(projectDir, projectName, specContent)
+    : false;
 
   const scaffoldResult = await scaffoldProjectHandler({
     tags: (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[],
@@ -347,7 +407,9 @@ async function executePhase2(
   const scaffoldText = scaffoldResult.content[0]?.text ?? "";
 
   // Ensure hooks are always installed as part of setup
-  const validTagsForHooks = (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[];
+  const validTagsForHooks = (
+    forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]
+  ) as Tag[];
   await scaffoldHooks(projectDir, validTagsForHooks);
 
   let mcpServerNames: string[] = [];
@@ -424,7 +486,13 @@ function deriveCascadeDecisions(
       rationale = `Existing consumers detected: behavioral contracts (docs/use-cases.md) are required for breaking-change detection.`;
     }
 
-    return { ...decision, required, rationale, decidedAt, decidedBy: "scaffold" as const };
+    return {
+      ...decision,
+      required,
+      rationale,
+      decidedAt,
+      decidedBy: "scaffold" as const,
+    };
   });
 }
 
@@ -453,7 +521,10 @@ function writeForgeYaml(
 
   if (existsSync(yamlPath)) {
     try {
-      config = yaml.load(readFileSync(yamlPath, "utf-8")) as Record<string, unknown>;
+      config = yaml.load(readFileSync(yamlPath, "utf-8")) as Record<
+        string,
+        unknown
+      >;
     } catch {
       config = {};
     }
@@ -464,10 +535,16 @@ function writeForgeYaml(
     }
   }
 
-  const existingCascade = config["cascade"] as { steps?: CascadeDecision[] } | undefined;
+  const existingCascade = config["cascade"] as
+    | { steps?: CascadeDecision[] }
+    | undefined;
   if (!existingCascade?.steps || existingCascade.steps.length === 0) {
     config["cascade"] = { steps: decisions };
-    writeFileSync(yamlPath, yaml.dump(config, { lineWidth: 120, noRefs: true }), "utf-8");
+    writeFileSync(
+      yamlPath,
+      yaml.dump(config, { lineWidth: 120, noRefs: true }),
+      "utf-8",
+    );
     return true;
   }
 
@@ -482,7 +559,11 @@ function writeForgeYaml(
  * @param specContent - Raw spec text
  * @returns True if a new PRD was written
  */
-function writePrd(projectDir: string, projectName: string, specContent: string): boolean {
+function writePrd(
+  projectDir: string,
+  projectName: string,
+  specContent: string,
+): boolean {
   const prdPath = join(projectDir, "docs", "PRD.md");
   if (existsSync(prdPath)) return false;
 
@@ -500,20 +581,42 @@ function writePrd(projectDir: string, projectName: string, specContent: string):
  * @returns Formatted PRD markdown
  */
 function buildPrdContent(spec: ReturnType<typeof parseSpec>): string {
-  const section = (heading: string, content: string | string[], placeholder: string): string => {
+  const section = (
+    heading: string,
+    content: string | string[],
+    placeholder: string,
+  ): string => {
     const body = Array.isArray(content)
-      ? content.length > 0 ? content.map((l) => `- ${l}`).join("\n") : `<!-- FILL: ${placeholder} -->`
+      ? content.length > 0
+        ? content.map((l) => `- ${l}`).join("\n")
+        : `<!-- FILL: ${placeholder} -->`
       : content.trim() || `<!-- FILL: ${placeholder} -->`;
     return `## ${heading}\n\n${body}\n`;
   };
 
   return [
     `# ${spec.name}\n`,
-    section("Problem", spec.problem, "describe the problem this project solves"),
+    section(
+      "Problem",
+      spec.problem,
+      "describe the problem this project solves",
+    ),
     section("Users", spec.users, "list the target users or personas"),
-    section("Success Criteria", spec.successCriteria, "define measurable success criteria"),
-    section("Components", spec.components, "list the major components or modules"),
-    section("External Systems", spec.externalSystems, "list external APIs, services, or integrations"),
+    section(
+      "Success Criteria",
+      spec.successCriteria,
+      "define measurable success criteria",
+    ),
+    section(
+      "Components",
+      spec.components,
+      "list the major components or modules",
+    ),
+    section(
+      "External Systems",
+      spec.externalSystems,
+      "list external APIs, services, or integrations",
+    ),
   ].join("\n");
 }
 
@@ -539,10 +642,19 @@ interface Phase2ResponseParams {
  * @returns Formatted markdown completion message
  */
 function buildPhase2Response(params: Phase2ResponseParams): string {
-  const { decisions, tags, mvp, scopeComplete, hasConsumers, prdWritten, yamlWritten } = params;
+  const {
+    decisions,
+    tags,
+    mvp,
+    scopeComplete,
+    hasConsumers,
+    prdWritten,
+    yamlWritten,
+  } = params;
 
   const stageLabel = mvp ? "MVP" : "Production";
-  const tagLabel = tags.filter((t) => t !== "UNIVERSAL").join(", ") || "UNIVERSAL";
+  const tagLabel =
+    tags.filter((t) => t !== "UNIVERSAL").join(", ") || "UNIVERSAL";
 
   let text = `## Project Setup Complete\n\n`;
   text += `### Cascade decisions (based on ${stageLabel} + tags [${tagLabel}]):\n`;
@@ -606,7 +718,11 @@ function buildDecisionNote(
   if (decision.step === "adrs" && !decision.required) {
     return scopeComplete ? " (MVP stage)" : " (scope still evolving)";
   }
-  if (decision.step === "behavioral_contracts" && decision.required && hasConsumers) {
+  if (
+    decision.step === "behavioral_contracts" &&
+    decision.required &&
+    hasConsumers
+  ) {
     return " (existing consumers detected)";
   }
   return "";
@@ -619,9 +735,14 @@ function buildDecisionNote(
  * @returns Array of file path strings
  */
 function extractScaffoldFiles(scaffoldText: string): string[] {
-  const matches = scaffoldText.match(/^\s{2}([^\n]+\.(md|yaml|json|ts|js|sh))/gm);
+  const matches = scaffoldText.match(
+    /^\s{2}([^\n]+\.(md|yaml|json|ts|js|sh))/gm,
+  );
   if (!matches) return [];
-  return matches.map((m) => m.trim()).filter((m) => m.length > 0).slice(0, 12);
+  return matches
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0)
+    .slice(0, 12);
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────
@@ -647,8 +768,13 @@ function readConfiguredMcpServerNames(projectDir: string): string[] {
   const settingsPath = join(projectDir, ".claude", "settings.json");
   if (!existsSync(settingsPath)) return [];
   try {
-    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
-    const mcpServers = settings["mcpServers"] as Record<string, unknown> | undefined;
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const mcpServers = settings["mcpServers"] as
+      | Record<string, unknown>
+      | undefined;
     return mcpServers ? Object.keys(mcpServers) : [];
   } catch {
     return [];
@@ -663,14 +789,17 @@ function readConfiguredMcpServerNames(projectDir: string): string[] {
  * @param override - User-supplied override string, e.g. "docs", "cli+library"
  * @returns Revised tag set
  */
-function applyProjectTypeOverride(existingTags: readonly string[], override: string): string[] {
+function applyProjectTypeOverride(
+  existingTags: readonly string[],
+  override: string,
+): string[] {
   const overrideMap: Readonly<Record<string, string[]>> = {
-    "docs":        ["UNIVERSAL", "DOCS"],
-    "cli":         ["UNIVERSAL", "CLI"],
-    "api":         ["UNIVERSAL", "API"],
-    "library":     ["UNIVERSAL", "LIBRARY"],
+    docs: ["UNIVERSAL", "DOCS"],
+    cli: ["UNIVERSAL", "CLI"],
+    api: ["UNIVERSAL", "API"],
+    library: ["UNIVERSAL", "LIBRARY"],
     "cli+library": ["UNIVERSAL", "CLI", "LIBRARY"],
-    "cli+api":     ["UNIVERSAL", "CLI", "API"],
+    "cli+api": ["UNIVERSAL", "CLI", "API"],
     "api+library": ["UNIVERSAL", "API", "LIBRARY"],
   };
 
@@ -681,4 +810,3 @@ function applyProjectTypeOverride(existingTags: readonly string[], override: str
   }
   return mapped;
 }
-
