@@ -51,6 +51,7 @@ _These apply regardless of task. Never defer them._
 | REST/GraphQL endpoints, auth, rate limiting, versioning, contracts | `.claude/standards/api.md` |
 | ADRs, artifact grammar, use cases, GS self-refinement, naming conventions | `.claude/standards/spec.md` |
 | Clarification protocol, feature completion, code generation, known pitfalls | `.claude/standards/protocols.md` |
+| Ecosystem repos, live URLs, gate registry, contribution flow, forgecraft-server | `.claude/standards/ecosystem.md` |
 | Project-specific rules, framework choices, corrections log | `.claude/standards/project-specific.md` |
 
 ---

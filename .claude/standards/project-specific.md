@@ -8,16 +8,20 @@
 - **Test runner**: Vitest with coverage gate (80% overall, 90% on changed code)
 - **Build**: `tsc` — no bundler; consumers import from `dist/`
 - **Publish target**: npm (public, MIT) — `npx forgecraft-mcp`
-- **Branch strategy**: `docs/gs-specs` is the active dev branch; merge to `main` for releases
-
-## Custom Corrections Log
-<!-- Log AI corrections so the pattern isn't repeated. -->
-<!-- Format: - YYYY-MM-DD: [description of correction] -->
+- **Branch strategy**: feature branches off `main`; merge via `--no-ff`. Tag releases `vX.Y.Z`.
 
 ## Project-Specific Gates
 - The pre-commit hook runs: prettier → tsc --noEmit → vitest coverage gate → anti-pattern scan.
 - Never commit mocks, stubs, or fake data outside `tests/` or `tests/fixtures/`.
 - Experiments live in `experiments/` — never import from there in `src/`.
+- Hook false positives: see `.forgecraft/exceptions.json`.
+
+## Custom Corrections Log
+<!-- Format: - YYYY-MM-DD: [description of correction] -->
+- 2026-03-19: `writeInstructionFileWithMerge` appends rather than replaces — use `writeFileSync` directly when overwriting sentinel CLAUDE.md on refresh.
+- 2026-03-19: `loadAllTemplatesWithExtras` returns `Map<Tag, TagTemplateSet>`, not an array — iterate with `.values()`, not `.map()`.
+- 2026-03-19: Stryker CLI positional arg syntax is `npx stryker run [configFile]`, not `--configFile`.
+
 
 
 # CLAUDE.md
