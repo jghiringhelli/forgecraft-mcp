@@ -42,23 +42,153 @@ export interface SpecSummary {
 
 // ── Tag inference keywords ────────────────────────────────────────────
 
-const TAG_KEYWORD_MAP: ReadonlyArray<{ tag: string; keywords: readonly string[] }> = [
-  { tag: "API",    keywords: ["api", "endpoint", "rest", "graphql", "http", "openapi", "swagger", "routes", "controller"] },
-  { tag: "CLI",    keywords: ["cli", "command line", "terminal", "bin", "command-line", "commander", "yargs", "argv"] },
-  { tag: "LIBRARY", keywords: ["library", "sdk", "package", "npm", "module", "publish", "installable", "peer dependency"] },
-  { tag: "WEB3",   keywords: ["wallet", "token", "defi", "blockchain", "smart contract", "crypto", "ethereum", "solidity", "web3", "nft"] },
-  { tag: "FINTECH", keywords: ["payment", "invoice", "ledger", "financial", "transaction", "budget", "billing", "stripe", "paypal", "banking"] },
-  { tag: "MOBILE", keywords: ["mobile", "ios", "android", "react native", "flutter", "app store", "google play"] },
+const TAG_KEYWORD_MAP: ReadonlyArray<{
+  tag: string;
+  keywords: readonly string[];
+}> = [
+  {
+    tag: "API",
+    keywords: [
+      "api",
+      "endpoint",
+      "rest",
+      "graphql",
+      "http",
+      "openapi",
+      "swagger",
+      "routes",
+      "controller",
+    ],
+  },
+  {
+    tag: "CLI",
+    keywords: [
+      "cli",
+      "command line",
+      "terminal",
+      "bin",
+      "command-line",
+      "commander",
+      "yargs",
+      "argv",
+    ],
+  },
+  {
+    tag: "LIBRARY",
+    keywords: [
+      "library",
+      "sdk",
+      "package",
+      "npm",
+      "module",
+      "publish",
+      "installable",
+      "peer dependency",
+    ],
+  },
+  {
+    tag: "WEB3",
+    keywords: [
+      "wallet",
+      "token",
+      "defi",
+      "blockchain",
+      "smart contract",
+      "crypto",
+      "ethereum",
+      "solidity",
+      "web3",
+      "nft",
+    ],
+  },
+  {
+    tag: "FINTECH",
+    keywords: [
+      "payment",
+      "invoice",
+      "ledger",
+      "financial",
+      "transaction",
+      "budget",
+      "billing",
+      "stripe",
+      "paypal",
+      "banking",
+    ],
+  },
+  {
+    tag: "MOBILE",
+    keywords: [
+      "mobile",
+      "ios",
+      "android",
+      "react native",
+      "flutter",
+      "app store",
+      "google play",
+    ],
+  },
 ];
 
 // ── Heading extraction ────────────────────────────────────────────────
 
-const HEADING_PATTERNS: ReadonlyArray<{ key: string; patterns: readonly string[] }> = [
-  { key: "problem",      patterns: ["## problem", "## overview", "## background", "## context", "## about"] },
-  { key: "users",        patterns: ["## users", "## user", "## target", "## audience", "## personas"] },
-  { key: "success",      patterns: ["## success", "## goals", "## goal", "## objectives", "## objective", "## metrics"] },
-  { key: "components",   patterns: ["## components", "## component", "## architecture", "## modules", "## module", "## services", "## service"] },
-  { key: "external",     patterns: ["## external", "## integrations", "## integration", "## dependencies", "## apis"] },
+const HEADING_PATTERNS: ReadonlyArray<{
+  key: string;
+  patterns: readonly string[];
+}> = [
+  {
+    key: "problem",
+    patterns: [
+      "## problem",
+      "## overview",
+      "## background",
+      "## context",
+      "## about",
+    ],
+  },
+  {
+    key: "users",
+    patterns: [
+      "## users",
+      "## user",
+      "## target",
+      "## audience",
+      "## personas",
+    ],
+  },
+  {
+    key: "success",
+    patterns: [
+      "## success",
+      "## goals",
+      "## goal",
+      "## objectives",
+      "## objective",
+      "## metrics",
+    ],
+  },
+  {
+    key: "components",
+    patterns: [
+      "## components",
+      "## component",
+      "## architecture",
+      "## modules",
+      "## module",
+      "## services",
+      "## service",
+    ],
+  },
+  {
+    key: "external",
+    patterns: [
+      "## external",
+      "## integrations",
+      "## integration",
+      "## dependencies",
+      "## apis",
+    ],
+  },
 ];
 
 /**
@@ -132,8 +262,14 @@ const SENTENCE_SPLIT = /(?<=[.!?])\s+/;
  * @param keywords - Words that signal relevance
  * @returns Array of matching sentences (deduplicated)
  */
-function extractSentencesByKeyword(text: string, keywords: readonly string[]): string[] {
-  const sentences = text.split(SENTENCE_SPLIT).map((s) => s.trim()).filter(Boolean);
+function extractSentencesByKeyword(
+  text: string,
+  keywords: readonly string[],
+): string[] {
+  const sentences = text
+    .split(SENTENCE_SPLIT)
+    .map((s) => s.trim())
+    .filter(Boolean);
   const seen = new Set<string>();
   const results: string[] = [];
   const lower = keywords.map((k) => k.toLowerCase());
@@ -184,7 +320,14 @@ function inferTagsFromText(text: string): string[] {
 /** Deployment-agnostic terms that signal a project might be a platform/system without specifying how it's deployed. */
 const PLATFORM_TERMS = /\b(system|platform)\b/i;
 
-const DEPLOYMENT_TAGS = new Set(["CLI", "API", "LIBRARY", "MOBILE", "WEB-REACT", "WEB-STATIC"]);
+const DEPLOYMENT_TAGS = new Set([
+  "CLI",
+  "API",
+  "LIBRARY",
+  "MOBILE",
+  "WEB-REACT",
+  "WEB-STATIC",
+]);
 
 /**
  * Detect ambiguities present in spec text alone.
@@ -196,7 +339,10 @@ const DEPLOYMENT_TAGS = new Set(["CLI", "API", "LIBRARY", "MOBILE", "WEB-REACT",
  * @param inferredTags - Tags already inferred from the text
  * @returns Array of detected ambiguity items
  */
-function detectSpecAmbiguities(text: string, inferredTags: string[]): AmbiguityItem[] {
+function detectSpecAmbiguities(
+  text: string,
+  inferredTags: string[],
+): AmbiguityItem[] {
   const ambiguities: AmbiguityItem[] = [];
 
   const mentionsPlatform = PLATFORM_TERMS.test(text);
@@ -206,7 +352,9 @@ function detectSpecAmbiguities(text: string, inferredTags: string[]): AmbiguityI
     const match = text.match(PLATFORM_TERMS);
     ambiguities.push({
       field: "deployment_target",
-      signals: [`spec mentions "${match?.[0] ?? "system or platform"}" without a clear deployment target`],
+      signals: [
+        `spec mentions "${match?.[0] ?? "system or platform"}" without a clear deployment target`,
+      ],
       interpretations: [
         {
           label: "A",
@@ -216,12 +364,14 @@ function detectSpecAmbiguities(text: string, inferredTags: string[]): AmbiguityI
         {
           label: "B",
           description: "HTTP API service (tag: API)",
-          consequence: "API cascade applied; endpoint contracts and behavioral contracts required",
+          consequence:
+            "API cascade applied; endpoint contracts and behavioral contracts required",
         },
         {
           label: "C",
           description: "Reusable library/package (tag: LIBRARY)",
-          consequence: "Library cascade applied; public API contracts and versioning required",
+          consequence:
+            "Library cascade applied; public API contracts and versioning required",
         },
       ],
     });
@@ -261,43 +411,116 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
   const sections = extractStructuredSections(text);
   const name = extractName(text, hintName);
 
-  const problem = (sections["problem"]
-    ?? extractSentencesByKeyword(text, ["problem", "challenge", "need", "helps", "solves"]).join(" ")) || "";
+  const problem =
+    (sections["problem"] ??
+      extractSentencesByKeyword(text, [
+        "problem",
+        "challenge",
+        "need",
+        "helps",
+        "solves",
+      ]).join(" ")) ||
+    "";
 
   const users = sections["users"]
     ? extractBulletItems(sections["users"])
-    : extractSentencesByKeyword(text, ["user", "developer", "customer", "team", "company"]);
+    : extractSentencesByKeyword(text, [
+        "user",
+        "developer",
+        "customer",
+        "team",
+        "company",
+      ]);
 
   const successCriteria = sections["success"]
     ? extractBulletItems(sections["success"])
-    : extractSentencesByKeyword(text, ["success", "goal", "objective", "metric", "measure"]);
+    : extractSentencesByKeyword(text, [
+        "success",
+        "goal",
+        "objective",
+        "metric",
+        "measure",
+      ]);
 
   const components = sections["components"]
     ? extractBulletItems(sections["components"])
-    : extractSentencesByKeyword(text, ["service", "module", "database", "cache", "queue"]);
+    : extractSentencesByKeyword(text, [
+        "service",
+        "module",
+        "database",
+        "cache",
+        "queue",
+      ]);
 
   const externalSystems = sections["external"]
     ? extractBulletItems(sections["external"])
-    : extractSentencesByKeyword(text, ["api", "provider", "integration", "service", "gateway"]).slice(0, 5);
+    : extractSentencesByKeyword(text, [
+        "api",
+        "provider",
+        "integration",
+        "service",
+        "gateway",
+      ]).slice(0, 5);
 
   const inferredTags = inferTagsFromText(text);
   const ambiguities = detectSpecAmbiguities(text, inferredTags);
 
-  return { name, problem, users, successCriteria, components, externalSystems, inferredTags, ambiguities };
+  return {
+    name,
+    problem,
+    users,
+    successCriteria,
+    components,
+    externalSystems,
+    inferredTags,
+    ambiguities,
+  };
 }
 
 // ── Directory-based tag inference ─────────────────────────────────────
 
 /** Keywords that imply sensitive data handling. */
 const SENSITIVE_DATA_KEYWORDS: readonly string[] = [
-  "health", "safety", "injury", "incident", "medical", "osha", "phi", "hipaa", "patient",
-  "payment", "financial", "transaction", "invoice", "banking", "fintech", "defi", "wallet", "credit",
-  "user profile", "personal data", "pii", "gdpr", "employee", " hr ",
-  "authentication", "authorization", "credentials", "compliance", "audit",
+  "health",
+  "safety",
+  "injury",
+  "incident",
+  "medical",
+  "osha",
+  "phi",
+  "hipaa",
+  "patient",
+  "payment",
+  "financial",
+  "transaction",
+  "invoice",
+  "banking",
+  "fintech",
+  "defi",
+  "wallet",
+  "credit",
+  "user profile",
+  "personal data",
+  "pii",
+  "gdpr",
+  "employee",
+  " hr ",
+  "authentication",
+  "authorization",
+  "credentials",
+  "compliance",
+  "audit",
 ];
 
 /** Tags that imply sensitive data. */
-const SENSITIVE_TAGS: readonly string[] = ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2", "SOCIAL"];
+const SENSITIVE_TAGS: readonly string[] = [
+  "FINTECH",
+  "WEB3",
+  "HEALTHCARE",
+  "HIPAA",
+  "SOC2",
+  "SOCIAL",
+];
 
 /** Patterns indicating credential injection or platform scraping in source files. */
 const SCRAPING_PATTERNS = [
@@ -316,7 +539,9 @@ const SCRAPING_PATTERNS = [
  * @param projectDir - Absolute path to the project root
  * @returns True if any scraping pattern is found
  */
-export async function scanSourceForSensitivePatterns(projectDir: string): Promise<boolean> {
+export async function scanSourceForSensitivePatterns(
+  projectDir: string,
+): Promise<boolean> {
   const SOURCE_DIRS = ["src", "backend", "app"];
   const SOURCE_EXT = /\.(py|ts|js)$/;
   for (const dir of SOURCE_DIRS) {
@@ -329,9 +554,13 @@ export async function scanSourceForSensitivePatterns(projectDir: string): Promis
           const raw = readFileSync(join(dirPath, file), "utf-8");
           const first100 = raw.split("\n").slice(0, 100).join("\n");
           if (SCRAPING_PATTERNS.some((p) => p.test(first100))) return true;
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
   return false;
 }
@@ -343,14 +572,19 @@ export async function scanSourceForSensitivePatterns(projectDir: string): Promis
  * @param tags - Project classification tags
  * @returns True if sensitive data patterns detected
  */
-export function inferSensitiveData(specSummary: SpecSummary, tags: string[]): boolean {
+export function inferSensitiveData(
+  specSummary: SpecSummary,
+  tags: string[],
+): boolean {
   if (tags.some((t) => SENSITIVE_TAGS.includes(t))) return true;
 
   const fullText = [
     specSummary.problem,
     specSummary.users.join(" "),
     specSummary.components.join(" "),
-  ].join(" ").toLowerCase();
+  ]
+    .join(" ")
+    .toLowerCase();
 
   return SENSITIVE_DATA_KEYWORDS.some((keyword) => fullText.includes(keyword));
 }
@@ -384,7 +618,9 @@ function detectBuildSystemFiles(projectDir: string): string[] {
  */
 function hasMarkdownFiles(projectDir: string): boolean {
   try {
-    return readdirSync(projectDir).some((entry) => entry.toLowerCase().endsWith(".md"));
+    return readdirSync(projectDir).some((entry) =>
+      entry.toLowerCase().endsWith(".md"),
+    );
   } catch {
     return false;
   }
@@ -413,22 +649,73 @@ function inferTagsFromPackageJson(pkg: Record<string, unknown>): Set<string> {
   };
   const depNames = Object.keys(allDeps).map((d) => d.toLowerCase());
 
-  if (depNames.some((d) => ["express", "fastify", "koa", "hapi", "@nestjs/core"].includes(d))) found.add("API");
-  if (depNames.some((d) => ["commander", "yargs", "meow", "@oclif/core", "clipanion"].includes(d))) found.add("CLI");
+  if (
+    depNames.some((d) =>
+      ["express", "fastify", "koa", "hapi", "@nestjs/core"].includes(d),
+    )
+  )
+    found.add("API");
+  if (
+    depNames.some((d) =>
+      ["commander", "yargs", "meow", "@oclif/core", "clipanion"].includes(d),
+    )
+  )
+    found.add("CLI");
   if (typeof pkg["bin"] === "object" && pkg["bin"] !== null) found.add("CLI");
   if (depNames.some((d) => d.includes("react"))) found.add("WEB-REACT");
-  if (depNames.some((d) => ["ethers", "web3", "@ethersproject/providers", "wagmi", "viem"].includes(d))) found.add("WEB3");
-  if (depNames.some((d) => ["stripe", "braintree", "@paddle/paddle-node-sdk"].includes(d))) found.add("FINTECH");
-  if (depNames.some((d) => ["react-native", "expo", "@capacitor/core"].includes(d))) found.add("MOBILE");
+  if (
+    depNames.some((d) =>
+      ["ethers", "web3", "@ethersproject/providers", "wagmi", "viem"].includes(
+        d,
+      ),
+    )
+  )
+    found.add("WEB3");
+  if (
+    depNames.some((d) =>
+      ["stripe", "braintree", "@paddle/paddle-node-sdk"].includes(d),
+    )
+  )
+    found.add("FINTECH");
+  if (
+    depNames.some((d) =>
+      ["react-native", "expo", "@capacitor/core"].includes(d),
+    )
+  )
+    found.add("MOBILE");
   const MCP_DEPS = ["@modelcontextprotocol/sdk", "@anthropic-ai/sdk"];
   if (depNames.some((d) => MCP_DEPS.some((mcp) => d.includes(mcp)))) {
     found.add("CLI");
     found.add("API");
   }
-  const DATABASE_DEPS = ["prisma", "typeorm", "sequelize", "drizzle-orm", "mongoose", "pg", "mysql2", "sqlite3", "knex", "better-sqlite3"];
-  if (depNames.some((d) => DATABASE_DEPS.some((db) => d.includes(db)))) found.add("DATABASE");
-  const AUTH_DEPS = ["next-auth", "passport", "clerk", "@clerk/nextjs", "@clerk/clerk-sdk-node", "auth0", "jsonwebtoken", "bcrypt", "bcryptjs", "@auth0/nextjs-auth0"];
-  if (depNames.some((d) => AUTH_DEPS.some((auth) => d.includes(auth)))) found.add("AUTH");
+  const DATABASE_DEPS = [
+    "prisma",
+    "typeorm",
+    "sequelize",
+    "drizzle-orm",
+    "mongoose",
+    "pg",
+    "mysql2",
+    "sqlite3",
+    "knex",
+    "better-sqlite3",
+  ];
+  if (depNames.some((d) => DATABASE_DEPS.some((db) => d.includes(db))))
+    found.add("DATABASE");
+  const AUTH_DEPS = [
+    "next-auth",
+    "passport",
+    "clerk",
+    "@clerk/nextjs",
+    "@clerk/clerk-sdk-node",
+    "auth0",
+    "jsonwebtoken",
+    "bcrypt",
+    "bcryptjs",
+    "@auth0/nextjs-auth0",
+  ];
+  if (depNames.some((d) => AUTH_DEPS.some((auth) => d.includes(auth))))
+    found.add("AUTH");
   return found;
 }
 
@@ -440,7 +727,9 @@ function inferTagsFromPackageJson(pkg: Record<string, unknown>): Set<string> {
  * @param projectDir - Absolute path to the project root
  * @returns Inferred tags and detected ambiguities
  */
-export async function inferTagsFromDirectory(projectDir: string): Promise<DirectoryInferenceResult> {
+export async function inferTagsFromDirectory(
+  projectDir: string,
+): Promise<DirectoryInferenceResult> {
   const tags = new Set<string>(["UNIVERSAL"]);
   const ambiguities: AmbiguityItem[] = [];
 
@@ -458,16 +747,23 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
       tags.add("DOCS");
       ambiguities.push({
         field: "project_type",
-        signals: ["no package.json", "no requirements.txt", "no go.mod", "markdown files present"],
+        signals: [
+          "no package.json",
+          "no requirements.txt",
+          "no go.mod",
+          "markdown files present",
+        ],
         interpretations: [
           {
             label: "A",
             description: "Design specification project (tag: DOCS)",
-            consequence: "All implementation gates skipped; only spec completeness checked",
+            consequence:
+              "All implementation gates skipped; only spec completeness checked",
           },
           {
             label: "B",
-            description: "Early-stage software project (no build system set up yet)",
+            description:
+              "Early-stage software project (no build system set up yet)",
             consequence: "Full cascade applied; implementation gates enforced",
           },
         ],
@@ -478,18 +774,39 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
   const pkgPath = join(projectDir, "package.json");
   if (existsSync(pkgPath)) {
     try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
+      const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as Record<
+        string,
+        unknown
+      >;
       const allDeps = {
         ...((pkg["dependencies"] as Record<string, string> | undefined) ?? {}),
-        ...((pkg["devDependencies"] as Record<string, string> | undefined) ?? {}),
+        ...((pkg["devDependencies"] as Record<string, string> | undefined) ??
+          {}),
       };
       const depNames = Object.keys(allDeps).map((d) => d.toLowerCase());
 
-      if (depNames.some((d) => ["express", "fastify", "koa", "hapi", "@nestjs/core", "fastify"].includes(d))) {
+      if (
+        depNames.some((d) =>
+          [
+            "express",
+            "fastify",
+            "koa",
+            "hapi",
+            "@nestjs/core",
+            "fastify",
+          ].includes(d),
+        )
+      ) {
         tags.add("API");
         apiSignals.push("web-framework dependency (express/fastify/koa)");
       }
-      if (depNames.some((d) => ["commander", "yargs", "meow", "@oclif/core", "clipanion"].includes(d))) {
+      if (
+        depNames.some((d) =>
+          ["commander", "yargs", "meow", "@oclif/core", "clipanion"].includes(
+            d,
+          ),
+        )
+      ) {
         tags.add("CLI");
         cliSignals.push("CLI-framework dependency (commander/yargs/meow)");
       }
@@ -514,7 +831,11 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
       const hasBin = !!pkg["bin"];
       if ((hasMain || hasExports) && !hasBin) {
         tags.add("LIBRARY");
-        librarySignals.push(hasExports ? "package.json exports field (publishable package)" : "package.json main field (publishable module)");
+        librarySignals.push(
+          hasExports
+            ? "package.json exports field (publishable package)"
+            : "package.json main field (publishable module)",
+        );
       }
     } catch {
       // Malformed package.json — skip
@@ -522,13 +843,23 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
   }
 
   // Directory structure heuristics
-  if (existsSync(join(projectDir, "src", "routes")) || existsSync(join(projectDir, "src", "controllers"))) {
+  if (
+    existsSync(join(projectDir, "src", "routes")) ||
+    existsSync(join(projectDir, "src", "controllers"))
+  ) {
     tags.add("API");
     apiSignals.push("src/routes or src/controllers directory");
   }
-  if (existsSync(join(projectDir, "src", "cli")) || existsSync(join(projectDir, "bin"))) {
+  if (
+    existsSync(join(projectDir, "src", "cli")) ||
+    existsSync(join(projectDir, "bin"))
+  ) {
     tags.add("CLI");
-    cliSignals.push(existsSync(join(projectDir, "bin")) ? "bin/ directory" : "src/cli/ directory");
+    cliSignals.push(
+      existsSync(join(projectDir, "bin"))
+        ? "bin/ directory"
+        : "src/cli/ directory",
+    );
   }
   // src/index.ts is only a library signal if package.json also has main/exports
   // (directory presence alone is insufficient — apps also have src/lib/)
@@ -538,26 +869,36 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
   if (existsSync(srcDir)) {
     try {
       const srcFiles = readdirSync(srcDir);
-      if (srcFiles.some((f) => f.match(/(-server|-mcp|mcp-|\.mcp)\.(ts|js)$/i))) {
+      if (
+        srcFiles.some((f) => f.match(/(-server|-mcp|mcp-|\.mcp)\.(ts|js)$/i))
+      ) {
         tags.add("CLI");
         tags.add("API");
         cliSignals.push("MCP server file in src/");
         apiSignals.push("MCP server file in src/");
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   // Check docker-compose for DATABASE
   const composeFile = join(projectDir, "docker-compose.yml");
   const composeYmlFile = join(projectDir, "docker-compose.yaml");
-  const composePath = existsSync(composeFile) ? composeFile : existsSync(composeYmlFile) ? composeYmlFile : null;
+  const composePath = existsSync(composeFile)
+    ? composeFile
+    : existsSync(composeYmlFile)
+      ? composeYmlFile
+      : null;
   if (composePath) {
     try {
       const composeContent = readFileSync(composePath, "utf-8").toLowerCase();
       if (/postgres|mysql|mongodb|mongo/.test(composeContent)) {
         tags.add("DATABASE");
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   // Check Python requirements.txt for API/CLI/DATABASE/AUTH (Fix 4)
@@ -573,7 +914,13 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
         tags.add("CLI");
         cliSignals.push("click/typer dependency (requirements.txt)");
       }
-      const PY_DATABASE_DEPS = ["sqlalchemy", "psycopg2", "pymongo", "databases", "tortoise-orm"];
+      const PY_DATABASE_DEPS = [
+        "sqlalchemy",
+        "psycopg2",
+        "pymongo",
+        "databases",
+        "tortoise-orm",
+      ];
       if (PY_DATABASE_DEPS.some((dep) => reqContent.includes(dep))) {
         tags.add("DATABASE");
       }
@@ -581,27 +928,43 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
       if (PY_AUTH_DEPS.some((dep) => reqContent.includes(dep))) {
         tags.add("AUTH");
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   // Check pyproject.toml for Python framework signals (Fix 4)
   const pyprojectPath = join(projectDir, "pyproject.toml");
   if (existsSync(pyprojectPath)) {
     try {
-      const pyprojectContent = readFileSync(pyprojectPath, "utf-8").toLowerCase();
+      const pyprojectContent = readFileSync(
+        pyprojectPath,
+        "utf-8",
+      ).toLowerCase();
       if (pyprojectContent.includes("fastapi")) {
         tags.add("API");
         apiSignals.push("fastapi dependency (pyproject.toml)");
       }
-      if (pyprojectContent.includes("click") || pyprojectContent.includes("typer")) {
+      if (
+        pyprojectContent.includes("click") ||
+        pyprojectContent.includes("typer")
+      ) {
         tags.add("CLI");
         cliSignals.push("click/typer dependency (pyproject.toml)");
       }
-      const PY_DATABASE_DEPS_TOML = ["sqlalchemy", "psycopg2", "pymongo", "databases", "tortoise-orm"];
+      const PY_DATABASE_DEPS_TOML = [
+        "sqlalchemy",
+        "psycopg2",
+        "pymongo",
+        "databases",
+        "tortoise-orm",
+      ];
       if (PY_DATABASE_DEPS_TOML.some((dep) => pyprojectContent.includes(dep))) {
         tags.add("DATABASE");
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   // Fix 2: Subdirectory package file scanning (frontend/, backend/, client/, server/, api/)
@@ -612,29 +975,52 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
     const subdirPkgPath = join(subdirPath, "package.json");
     if (existsSync(subdirPkgPath)) {
       try {
-        const subPkg = JSON.parse(readFileSync(subdirPkgPath, "utf-8")) as Record<string, unknown>;
+        const subPkg = JSON.parse(
+          readFileSync(subdirPkgPath, "utf-8"),
+        ) as Record<string, unknown>;
         for (const tag of inferTagsFromPackageJson(subPkg)) {
           tags.add(tag);
         }
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
     const subdirReqPath = join(subdirPath, "requirements.txt");
     if (existsSync(subdirReqPath)) {
       try {
-        const subReqContent = readFileSync(subdirReqPath, "utf-8").toLowerCase();
+        const subReqContent = readFileSync(
+          subdirReqPath,
+          "utf-8",
+        ).toLowerCase();
         if (subReqContent.includes("fastapi")) tags.add("API");
-        if (subReqContent.includes("click") || subReqContent.includes("typer")) tags.add("CLI");
-        const PY_DB_DEPS = ["sqlalchemy", "psycopg2", "pymongo", "databases", "tortoise-orm"];
-        if (PY_DB_DEPS.some((dep) => subReqContent.includes(dep))) tags.add("DATABASE");
-      } catch { /* skip */ }
+        if (subReqContent.includes("click") || subReqContent.includes("typer"))
+          tags.add("CLI");
+        const PY_DB_DEPS = [
+          "sqlalchemy",
+          "psycopg2",
+          "pymongo",
+          "databases",
+          "tortoise-orm",
+        ];
+        if (PY_DB_DEPS.some((dep) => subReqContent.includes(dep)))
+          tags.add("DATABASE");
+      } catch {
+        /* skip */
+      }
     }
     const subdirPyprojectPath = join(subdirPath, "pyproject.toml");
     if (existsSync(subdirPyprojectPath)) {
       try {
-        const subPyContent = readFileSync(subdirPyprojectPath, "utf-8").toLowerCase();
+        const subPyContent = readFileSync(
+          subdirPyprojectPath,
+          "utf-8",
+        ).toLowerCase();
         if (subPyContent.includes("fastapi")) tags.add("API");
-        if (subPyContent.includes("click") || subPyContent.includes("typer")) tags.add("CLI");
-      } catch { /* skip */ }
+        if (subPyContent.includes("click") || subPyContent.includes("typer"))
+          tags.add("CLI");
+      } catch {
+        /* skip */
+      }
     }
   }
 
@@ -646,16 +1032,31 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
         const entryPath = join(srcDir2, entry);
         try {
           if (!statSync(entryPath).isDirectory()) continue;
-          if (existsSync(join(entryPath, "routes")) || existsSync(join(entryPath, "controllers"))) {
+          if (
+            existsSync(join(entryPath, "routes")) ||
+            existsSync(join(entryPath, "controllers"))
+          ) {
             tags.add("API");
-            apiSignals.push(`Python package structure: src/${entry}/routes|controllers`);
+            apiSignals.push(
+              `Python package structure: src/${entry}/routes|controllers`,
+            );
           }
-          if (existsSync(join(entryPath, "shared")) || existsSync(join(entryPath, "utils")) || existsSync(join(entryPath, "common"))) {
-            librarySignals.push(`Shared module structure: src/${entry}/shared|utils|common`);
+          if (
+            existsSync(join(entryPath, "shared")) ||
+            existsSync(join(entryPath, "utils")) ||
+            existsSync(join(entryPath, "common"))
+          ) {
+            librarySignals.push(
+              `Shared module structure: src/${entry}/shared|utils|common`,
+            );
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
-    } catch { /* skip */ }
+    } catch {
+      /* skip */
+    }
   }
 
   // Behavioral scraping pattern detection → SOCIAL tag (Fix 3)
@@ -665,25 +1066,34 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
   }
 
   // ── Tech stack conflict: Python build + TypeScript src ────────────
-  const hasPythonBuild = existsSync(join(projectDir, "requirements.txt")) || existsSync(join(projectDir, "pyproject.toml"));
-  const hasTypeScriptSrc = existsSync(join(projectDir, "src")) && (
-    existsSync(join(projectDir, "tsconfig.json")) ||
-    existsSync(join(projectDir, "src", "index.ts"))
-  );
+  const hasPythonBuild =
+    existsSync(join(projectDir, "requirements.txt")) ||
+    existsSync(join(projectDir, "pyproject.toml"));
+  const hasTypeScriptSrc =
+    existsSync(join(projectDir, "src")) &&
+    (existsSync(join(projectDir, "tsconfig.json")) ||
+      existsSync(join(projectDir, "src", "index.ts")));
   if (hasPythonBuild && hasTypeScriptSrc) {
     ambiguities.push({
       field: "tech_stack",
-      signals: ["Python build system (requirements.txt/pyproject.toml)", "TypeScript src files detected"],
+      signals: [
+        "Python build system (requirements.txt/pyproject.toml)",
+        "TypeScript src files detected",
+      ],
       interpretations: [
         {
           label: "A",
-          description: "Python project with TypeScript frontend/tooling (primary: Python)",
-          consequence: "Python-oriented gates applied; TypeScript treated as build tooling",
+          description:
+            "Python project with TypeScript frontend/tooling (primary: Python)",
+          consequence:
+            "Python-oriented gates applied; TypeScript treated as build tooling",
         },
         {
           label: "B",
-          description: "TypeScript project with Python scripts/utilities (primary: TypeScript)",
-          consequence: "TypeScript gates applied; Python treated as supplementary tooling",
+          description:
+            "TypeScript project with Python scripts/utilities (primary: TypeScript)",
+          consequence:
+            "TypeScript gates applied; Python treated as supplementary tooling",
         },
       ],
     });
@@ -719,13 +1129,17 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
       interpretations: [
         {
           label: "A",
-          description: "Primarily a CLI tool that ships an executable (tag: CLI)",
-          consequence: "CLI cascade applied; library-specific contracts optional",
+          description:
+            "Primarily a CLI tool that ships an executable (tag: CLI)",
+          consequence:
+            "CLI cascade applied; library-specific contracts optional",
         },
         {
           label: "B",
-          description: "Primarily a reusable library that includes a CLI (tag: LIBRARY)",
-          consequence: "Library cascade applied; public API contracts and versioning required",
+          description:
+            "Primarily a reusable library that includes a CLI (tag: LIBRARY)",
+          consequence:
+            "Library cascade applied; public API contracts and versioning required",
         },
         {
           label: "C",
@@ -740,9 +1154,13 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
   const yamlPath = join(projectDir, "forgecraft.yaml");
   if (existsSync(yamlPath)) {
     try {
-      const config = JSON.parse(JSON.stringify(
-        await import("js-yaml").then((m) => m.load(readFileSync(yamlPath, "utf-8"))),
-      )) as Record<string, unknown>;
+      const config = JSON.parse(
+        JSON.stringify(
+          await import("js-yaml").then((m) =>
+            m.load(readFileSync(yamlPath, "utf-8")),
+          ),
+        ),
+      ) as Record<string, unknown>;
       const existingTags = config["tags"] as string[] | undefined;
       if (Array.isArray(existingTags)) {
         for (const t of existingTags) {
@@ -770,13 +1188,20 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
 export function findRichestSpecFile(projectDir: string): string | null {
   const candidates: string[] = [];
 
-  const docsDir = join(projectDir, "docs");
-  if (existsSync(docsDir)) {
+  /**
+   * Collect all .md files under a directory up to maxDepth levels deep.
+   * Prioritises spec-named subdirectories (specs/, spec/, system/, requirements/).
+   */
+  function collectMarkdownFiles(dir: string, depth: number): void {
+    if (depth < 0 || !existsSync(dir)) return;
     try {
-      const docsFiles = readdirSync(docsDir);
-      for (const file of docsFiles) {
-        if (file.endsWith(".md")) {
-          candidates.push(join(docsDir, file));
+      const entries = readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isFile() && entry.name.endsWith(".md")) {
+          candidates.push(fullPath);
+        } else if (entry.isDirectory() && depth > 0) {
+          collectMarkdownFiles(fullPath, depth - 1);
         }
       }
     } catch {
@@ -784,6 +1209,10 @@ export function findRichestSpecFile(projectDir: string): string | null {
     }
   }
 
+  // Search docs/ recursively up to 3 levels (covers docs/specs/system/*.md)
+  collectMarkdownFiles(join(projectDir, "docs"), 3);
+
+  // Search project root .md files
   try {
     const rootFiles = readdirSync(projectDir);
     for (const file of rootFiles) {
@@ -795,7 +1224,14 @@ export function findRichestSpecFile(projectDir: string): string | null {
     // skip
   }
 
-  const EXCLUDED_NAMES = new Set(["PRD.md", "TechSpec.md", "Status.md", "CLAUDE.md", "CHANGELOG.md", "CONTRIBUTING.md"]);
+  const EXCLUDED_NAMES = new Set([
+    "PRD.md",
+    "TechSpec.md",
+    "Status.md",
+    "CLAUDE.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+  ]);
   const MIN_CONTENT_LENGTH = 500;
 
   let richest: { path: string; size: number } | null = null;
