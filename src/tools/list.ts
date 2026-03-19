@@ -126,6 +126,18 @@ const TAG_DESCRIPTIONS: Record<Tag, { description: string; appliesWhen: string }
     description: "Zero-trust security — deny-by-default IAM, explicit allow rules.",
     appliesWhen: "Project requires zero-trust network/IAM policies with deny-by-default.",
   },
+  "DOCS": {
+    description: "Pure documentation or specification project — no implementation code expected.",
+    appliesWhen: "Project is a design spec, narrative system, or docs-only artifact with no runnable code.",
+  },
+  "DATABASE": {
+    description: "Project with significant database logic — ORM models, migrations, or data access layers.",
+    appliesWhen: "Project uses an ORM (Prisma, TypeORM, SQLAlchemy) or has significant database interaction.",
+  },
+  "AUTH": {
+    description: "Project implements authentication or authorization — login, sessions, tokens, or access control.",
+    appliesWhen: "Project uses auth libraries (next-auth, passport, Auth0) or implements JWT/session management.",
+  },
 };
 
 // ── Handlers ─────────────────────────────────────────────────────────

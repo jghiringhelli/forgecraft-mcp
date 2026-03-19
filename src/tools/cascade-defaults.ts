@@ -38,6 +38,27 @@ const TAG_STEP_DEFAULTS: Readonly<Record<string, StepDefaults>> = {
     adrs: "required",
     behavioral_contracts: "required",
   },
+  DOCS: {
+    functional_spec: "required",
+    architecture_diagrams: "optional",
+    constitution: "optional",
+    adrs: "optional",
+    behavioral_contracts: "optional",
+  },
+  DATABASE: {
+    functional_spec: "required",
+    architecture_diagrams: "required",
+    constitution: "required",
+    adrs: "optional",
+    behavioral_contracts: "optional",
+  },
+  AUTH: {
+    functional_spec: "required",
+    architecture_diagrams: "optional",
+    constitution: "required",
+    adrs: "required",
+    behavioral_contracts: "required",
+  },
 };
 
 /** Fallback used when no recognized tags are present. */
@@ -107,12 +128,18 @@ function buildRationale(
   }
 
   if (step === "constitution") {
+    if (!required && recognizedTags.includes("DOCS")) {
+      return `Pure documentation project — ${artifact} not applicable without implementation code.`;
+    }
     return required
       ? `All projects require an architectural constitution (${artifact}); it is the operative grammar that constrains every AI coding session.`
       : `Architectural constitution is required for all projects — this case should not occur.`;
   }
 
   if (step === "architecture_diagrams") {
+    if (!required && recognizedTags.includes("DOCS")) {
+      return `Pure documentation project — architecture diagrams (${artifact}) not applicable without implementation code.`;
+    }
     if (required) {
       const reasons: Record<string, string> = {
         API: `API projects expose public contracts; C4 diagram (${artifact}) is the spec for integration partners and AI assistants navigating the service boundary.`,
@@ -128,6 +155,9 @@ function buildRationale(
   }
 
   if (step === "adrs") {
+    if (!required && recognizedTags.includes("DOCS")) {
+      return `Pure documentation project — ADRs (${artifact}) not applicable without implementation code.`;
+    }
     if (required) {
       const reasons: Record<string, string> = {
         API: `API design decisions (versioning, auth strategy, pagination contract) must be recorded in ${artifact} before implementation to prevent AI assistants from "improving" intentional choices.`,
@@ -142,6 +172,9 @@ function buildRationale(
   }
 
   if (step === "behavioral_contracts") {
+    if (!required && recognizedTags.includes("DOCS")) {
+      return `Pure documentation project — behavioral contracts (${artifact}) not applicable without implementation code.`;
+    }
     if (required) {
       const reasons: Record<string, string> = {
         API: `API behavioral contracts (${artifact}) define the integration surface for consumers — required before any endpoint is implemented.`,

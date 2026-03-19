@@ -101,23 +101,43 @@ export const forgecraftSchema = z.object({
   action: z
     .enum(ACTIONS as unknown as [string, ...string[]])
     .describe(
-      "Operation to perform. setup_project is the recommended first action for any project — it onboards new or existing projects via a two-phase spec intake and cascade calibration flow. " +
-        "Other actions: refresh (re-sync project), scaffold (generate structure), " +
-        "generate (instruction files only), audit (check standards), review (code review checklist), " +
-        "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
-        "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
-        "verify (run tests + score all seven §4.3 GS properties 0–14 + report layer violations), " +
-        "advice (quality cycle checklist + tool stack + example configs for your tags), " +
-        "metrics (external code quality report: LOC, coverage, layer violations, dead code, complexity, mutation), " +
-        "check_cascade (derivability gate: verify all 5 GS init cascade steps are complete before implementation begins), " +
-        "generate_session_prompt (produce a bound, self-contained session prompt for a single roadmap item), " +
-        "get_verification_strategy (uncertainty-aware verification plan: contracts + execution technique per domain — API=Hurl, WEB-REACT=Playwright+vision, GAME=headless sim+Aseprite, FINTECH=statistical sim, ML=warm runs+pruning), " +
-        "record_verification (upsert acceptance decision for one verification step, returns updated S_realized), " +
-        "verification_status (full per-project acceptance report: S per tag, blocking items, aggregate S), " +
-        "generate_adr (emit a structured Architecture Decision Record file into docs/adrs/ with auto-sequenced number), " +
-        "contribute_gate (submit generalizable project gates to the community registry — respects contribute_gates setting in forgecraft.yaml), " +
-        "generate_diagram (generate a Mermaid C4 context diagram from existing spec artifacts — reads forgecraft.yaml, docs/PRD.md, docs/use-cases.md), " +
-        "set_cascade_requirement (revise a cascade decision: mark a step as required or optional with rationale — the AI is the brain, this is how it updates the enforcement map).",
+      "Operation to perform.\n\n" +
+      "Available actions:\n" +
+      "  setup_project       — onboard a new or existing project (two-phase: analyze then calibrate)\n" +
+      "  scaffold            — generate project structure files (.claude/, hooks, docs stubs)\n" +
+      "  check_cascade       — verify all 5 GS cascade steps complete before implementation begins\n" +
+      "  generate_session_prompt — produce a bound session prompt for a single roadmap item (gated on cascade)\n" +
+      "  generate_diagram    — generate Mermaid C4 context diagram from spec artifacts\n" +
+      "  refresh             — re-sync instruction files after tag changes\n" +
+      "  audit_project       — check project standards compliance\n" +
+      "  check_compliance    — alias for audit_project (same check)\n" +
+      "  set_cascade_requirement — revise a cascade step as required or optional\n" +
+      "  set_release_phase   — set project release phase (development/pre-release/production)\n" +
+      "  contribute_gate     — submit generalizable gates to the community registry\n" +
+      "  verification_status — full per-project acceptance report\n" +
+      "  add_project_gate    — add a project-specific quality gate\n" +
+      "  list_quality_gates  — list all quality gates\n" +
+      "  export_taxonomy     — export tag taxonomy\n" +
+      "  generate_adr        — emit a structured Architecture Decision Record into docs/adrs/\n" +
+      "  create_exception    — create hook false-positive exception\n" +
+      "  review              — structured code review checklist\n" +
+      "  list                — discover available tags/hooks/skills\n" +
+      "  classify            — suggest tags for a project description\n" +
+      "  add_hook            — add a quality hook\n" +
+      "  add_module          — add a module scaffold\n" +
+      "  configure_mcp       — configure MCP servers\n" +
+      "  get_reference       — get design patterns/NFR/playbook/guidance\n" +
+      "  convert             — generate migration plan\n" +
+      "  verify              — run tests and score §4.3 GS properties\n" +
+      "  advice              — quality cycle checklist\n" +
+      "  metrics             — external code quality report\n" +
+      "  get_verification_strategy — uncertainty-aware verification plan\n" +
+      "  record_verification — upsert acceptance decision for a verification step\n\n" +
+      "Quick usage examples:\n" +
+      "  To run a cascade check:              action=\"check_cascade\"\n" +
+      "  To generate a session prompt:        action=\"generate_session_prompt\"\n" +
+      "  To onboard a new project:            action=\"setup_project\"\n" +
+      "  To scaffold an existing project:     action=\"scaffold\""
     ),
   project_dir: z
     .string()

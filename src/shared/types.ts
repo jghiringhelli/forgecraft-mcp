@@ -32,6 +32,8 @@ export const ALL_TAGS = [
   "MEDALLION-ARCHITECTURE",
   "ZERO-TRUST",
   "DOCS",
+  "DATABASE",
+  "AUTH",
 ] as const;
 
 export type Tag = (typeof ALL_TAGS)[number];

@@ -40,6 +40,7 @@ import { writeFileIfMissing, checkGitSafety } from "../shared/filesystem.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
 import { deriveDefaultCascadeDecisions } from "./cascade-defaults.js";
+import { buildPlaceholderContext, resolveTemplatePlaceholders } from "../shared/template-resolver.js";
 
 const logger = createLogger("tools/scaffold");
 
@@ -248,6 +249,40 @@ export const scaffoldProjectSchema = z.object({
 
 // ── Handler ──────────────────────────────────────────────────────────
 
+/**
+ * Scaffold hooks for a project given tags.
+ * This is called explicitly by setup_project to ensure hooks are always installed.
+ *
+ * @param projectDir - Absolute project root path
+ * @param tags - Project classification tags
+ * @returns Array of hook filenames written
+ */
+export async function scaffoldHooks(projectDir: string, tags: Tag[]): Promise<string[]> {
+  const normalizedTags: Tag[] = tags.includes("UNIVERSAL") ? tags : ["UNIVERSAL", ...tags];
+
+  const userConfig = loadUserOverrides(projectDir);
+  const templateSets = await loadAllTemplatesWithExtras(undefined, userConfig?.templateDirs);
+  const composed = composeTemplates(normalizedTags, templateSets, { config: userConfig ?? undefined });
+
+  const hooksDir = join(projectDir, ".claude", "hooks");
+  mkdirSync(hooksDir, { recursive: true });
+
+  const written: string[] = [];
+  for (const hook of composed.hooks) {
+    const hookPath = join(hooksDir, hook.filename);
+    const result = writeFileIfMissing(hookPath, hook.script, false);
+    if (result !== "skipped") {
+      written.push(hook.filename);
+      try {
+        chmodSync(hookPath, 0o755);
+      } catch {
+        // chmod may fail on Windows
+      }
+    }
+  }
+  return written;
+}
+
 export async function scaffoldProjectHandler(
   args: z.infer<typeof scaffoldProjectSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
@@ -277,6 +312,12 @@ export async function scaffoldProjectHandler(
     args.project_name,
     args.language,
     tags,
+  );
+
+  const placeholderContext = buildPlaceholderContext(
+    args.project_dir,
+    undefined,
+    tags.map(String),
   );
 
   // Render content
@@ -334,7 +375,7 @@ export async function scaffoldProjectHandler(
       for (const file of sentinelFiles) {
         const fullPath = join(args.project_dir, file.relativePath);
         mkdirSync(dirname(fullPath), { recursive: true });
-        trackWrite(file.relativePath, fullPath, file.content);
+        trackWrite(file.relativePath, fullPath, resolveTemplatePlaceholders(file.content, placeholderContext));
       }
       // Scaffold the user-owned project-specific.md (never overwritten after first creation)
       const projectSpecificPath = join(
@@ -362,7 +403,7 @@ export async function scaffoldProjectHandler(
       const relativePath = targetConfig.directory
         ? `${targetConfig.directory}/${targetConfig.filename}`
         : targetConfig.filename;
-      trackWrite(relativePath, outputPath, content);
+      trackWrite(relativePath, outputPath, resolveTemplatePlaceholders(content, placeholderContext));
     }
   }
 

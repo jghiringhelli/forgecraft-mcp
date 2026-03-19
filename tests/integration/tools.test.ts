@@ -58,7 +58,7 @@ describe("integration", () => {
       expect(result.content[0]!.type).toBe("text");
       expect(result.content[0]!.text).toContain("UNIVERSAL");
       expect(result.content[0]!.text).toContain("WEB-REACT");
-      expect(result.content[0]!.text).toContain("Available Tags (24)");
+      expect(result.content[0]!.text).toContain("Available Tags (27)");
     });
   });
 

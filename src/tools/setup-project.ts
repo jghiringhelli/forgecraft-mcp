@@ -14,9 +14,10 @@ import yaml from "js-yaml";
 import type { CascadeDecision, Tag } from "../shared/types.js";
 import { ALL_TAGS } from "../shared/types.js";
 import { deriveDefaultCascadeDecisions } from "./cascade-defaults.js";
-import { scaffoldProjectHandler } from "./scaffold.js";
+import { scaffoldProjectHandler, scaffoldHooks } from "./scaffold.js";
 import { createLogger } from "../shared/logger/index.js";
-import { parseSpec, inferTagsFromDirectory, directoryHasFiles } from "./spec-parser.js";
+import { parseSpec, inferTagsFromDirectory, directoryHasFiles, findRichestSpecFile, inferSensitiveData } from "./spec-parser.js";
+import type { AmbiguityItem } from "./spec-parser.js";
 
 const logger = createLogger("tools/setup-project");
 
@@ -32,6 +33,11 @@ export interface SetupProjectArgs {
   readonly scope_complete?: boolean;
   /** Phase 2: does this project have existing users or downstream consumers? */
   readonly has_consumers?: boolean;
+  /**
+   * Phase 2: override the inferred project type when ambiguities were reported in phase 1.
+   * Examples: "docs", "cli", "api", "library", "cli+library", "cli+api".
+   */
+  readonly project_type_override?: string;
 }
 
 type ToolResult = { content: Array<{ type: "text"; text: string }> };
@@ -92,6 +98,7 @@ interface ProjectContext {
   readonly specContent: string | null;
   readonly specSourceLabel: string;
   readonly inferredTags: string[];
+  readonly ambiguities: AmbiguityItem[];
 }
 
 /**
@@ -123,15 +130,29 @@ async function buildProjectContext(args: SetupProjectArgs): Promise<ProjectConte
       specContent = readFileSync(found, "utf-8");
       specSourceLabel = found;
     }
+    // If no spec found via standard paths, look for richest existing spec doc
+    if (!specContent) {
+      const richestSpec = findRichestSpecFile(projectDir);
+      if (richestSpec) {
+        specContent = readFileSync(richestSpec, "utf-8");
+        specSourceLabel = richestSpec;
+      }
+    }
   }
 
-  const directoryTags = isExistingProject
-    ? await inferTagsFromDirectory(projectDir)
-    : ["UNIVERSAL"];
-  const specTags = specContent ? parseSpec(specContent, projectName).inferredTags : ["UNIVERSAL"];
-  const inferredTags = mergeTags(directoryTags, specTags);
+  // Always run directory inference so DOCS and other signals are detected even for new projects
+  const dirResult = await inferTagsFromDirectory(projectDir);
+  const specSummary = specContent ? parseSpec(specContent, projectName) : null;
+  const specTags = specSummary?.inferredTags ?? ["UNIVERSAL"];
+  const inferredTags = mergeTags(dirResult.tags, specTags);
 
-  return { projectDir, projectName, isExistingProject, specContent, specSourceLabel, inferredTags };
+  // Collect ambiguities from both directory inference and spec parsing
+  const ambiguities: AmbiguityItem[] = [
+    ...dirResult.ambiguities,
+    ...(specSummary?.ambiguities ?? []),
+  ];
+
+  return { projectDir, projectName, isExistingProject, specContent, specSourceLabel, inferredTags, ambiguities };
 }
 
 /**
@@ -196,8 +217,35 @@ function mergeTags(primary: string[], secondary: string[]): string[] {
 function buildPhase1Response(context: ProjectContext): ToolResult {
   let text = `## Project Setup — Step 0\n\n`;
   text += buildFoundSummary(context);
+  if (context.ambiguities.length > 0) {
+    text += buildAmbiguitySection(context.ambiguities);
+  }
   text += buildPhase1Questions();
   return { content: [{ type: "text", text }] };
+}
+
+/**
+ * Build the Ambiguity Detected section for phase 1 when conflicting signals exist.
+ *
+ * @param ambiguities - Detected ambiguity items
+ * @returns Formatted markdown ambiguity section
+ */
+function buildAmbiguitySection(ambiguities: AmbiguityItem[]): string {
+  let section = `## Ambiguity Detected\n\n`;
+  section += `I found conflicting signals that I cannot resolve from the files alone:\n\n`;
+
+  for (const item of ambiguities) {
+    section += `**${item.field}**\n`;
+    section += `Evidence: ${item.signals.join(", ")}\n\n`;
+    section += `My interpretations:\n`;
+    for (const interp of item.interpretations) {
+      section += `- [${interp.label}] ${interp.description}\n`;
+      section += `  → ${interp.consequence}\n`;
+    }
+    section += `\nIf none of these match, describe what the project actually is and I will adjust.\n\n---\n\n`;
+  }
+
+  return section;
 }
 
 /**
@@ -265,12 +313,24 @@ async function executePhase2(
   args: SetupProjectArgs & { mvp: boolean; scope_complete: boolean; has_consumers: boolean },
   context: ProjectContext,
 ): Promise<ToolResult> {
-  const { projectDir, projectName, specContent, inferredTags } = context;
+  const { projectDir, projectName, specContent } = context;
 
-  const decisions = deriveCascadeDecisions(inferredTags, projectName, args.mvp, args.scope_complete, args.has_consumers);
-  const forgeCraftTags = filterToValidTags(inferredTags);
+  // Apply project_type_override if provided — re-derives effective tags from the override hint
+  const effectiveTags = args.project_type_override
+    ? applyProjectTypeOverride(context.inferredTags, args.project_type_override)
+    : context.inferredTags;
 
-  const yamlWritten = writeForgeYaml(projectDir, projectName, forgeCraftTags, decisions);
+  const decisions = deriveCascadeDecisions(effectiveTags, projectName, args.mvp, args.scope_complete, args.has_consumers);
+  const forgeCraftTags = filterToValidTags(effectiveTags);
+
+  const specSummaryForSensitive = context.specContent
+    ? parseSpec(context.specContent, context.projectName)
+    : null;
+  const isSensitive = specSummaryForSensitive
+    ? inferSensitiveData(specSummaryForSensitive, effectiveTags)
+    : effectiveTags.some((t) => ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"].includes(t));
+
+  const yamlWritten = writeForgeYaml(projectDir, projectName, forgeCraftTags, decisions, isSensitive);
   const prdWritten = specContent ? writePrd(projectDir, projectName, specContent) : false;
 
   const scaffoldResult = await scaffoldProjectHandler({
@@ -285,15 +345,20 @@ async function executePhase2(
   });
   const scaffoldText = scaffoldResult.content[0]?.text ?? "";
 
+  // Ensure hooks are always installed as part of setup
+  const validTagsForHooks = (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[];
+  await scaffoldHooks(projectDir, validTagsForHooks);
+
   const text = buildPhase2Response({
     decisions,
-    tags: inferredTags,
+    tags: effectiveTags,
     mvp: args.mvp,
     scopeComplete: args.scope_complete,
     hasConsumers: args.has_consumers,
     prdWritten,
     yamlWritten,
     scaffoldText,
+    sensitiveData: isSensitive,
   });
 
   return { content: [{ type: "text", text }] };
@@ -358,6 +423,7 @@ function deriveCascadeDecisions(
  * @param projectName - Project name
  * @param tags - Valid forgecraft tags to record
  * @param decisions - Cascade decisions to embed
+ * @param sensitiveData - Whether the project handles sensitive data
  * @returns True if the file was written or updated
  */
 function writeForgeYaml(
@@ -365,6 +431,7 @@ function writeForgeYaml(
   projectName: string,
   tags: string[],
   decisions: CascadeDecision[],
+  sensitiveData?: boolean,
 ): boolean {
   const yamlPath = join(projectDir, "forgecraft.yaml");
   let config: Record<string, unknown>;
@@ -377,6 +444,9 @@ function writeForgeYaml(
     }
   } else {
     config = { projectName, tags: tags.length > 0 ? tags : ["UNIVERSAL"] };
+    if (sensitiveData !== undefined) {
+      config["sensitiveData"] = sensitiveData;
+    }
   }
 
   const existingCascade = config["cascade"] as { steps?: CascadeDecision[] } | undefined;
@@ -417,8 +487,8 @@ function writePrd(projectDir: string, projectName: string, specContent: string):
 function buildPrdContent(spec: ReturnType<typeof parseSpec>): string {
   const section = (heading: string, content: string | string[], placeholder: string): string => {
     const body = Array.isArray(content)
-      ? content.length > 0 ? content.map((l) => `- ${l}`).join("\n") : `<!-- UNFILLED: ${placeholder} -->`
-      : content.trim() || `<!-- UNFILLED: ${placeholder} -->`;
+      ? content.length > 0 ? content.map((l) => `- ${l}`).join("\n") : `<!-- FILL: ${placeholder} -->`
+      : content.trim() || `<!-- FILL: ${placeholder} -->`;
     return `## ${heading}\n\n${body}\n`;
   };
 
@@ -443,6 +513,7 @@ interface Phase2ResponseParams {
   readonly prdWritten: boolean;
   readonly yamlWritten: boolean;
   readonly scaffoldText: string;
+  readonly sensitiveData?: boolean;
 }
 
 /**
@@ -467,11 +538,16 @@ function buildPhase2Response(params: Phase2ResponseParams): string {
     text += `  ${icon} ${d.step} — ${label}${note}\n`;
   }
 
+  if (params.sensitiveData) {
+    text += `\n⚠ Sensitive data detected: This project handles sensitive data.\n`;
+    text += `  forgecraft.yaml has been set to sensitiveData: true.\n`;
+    text += `  Review: compliance gates have been added to required steps.\n`;
+  }
+
   text += `\n### Artifacts created:\n`;
   if (yamlWritten) text += `  forgecraft.yaml (with cascade decisions)\n`;
   if (prdWritten) text += `  docs/PRD.md (from spec)\n`;
 
-  // Extract scaffold-created files from the scaffold response
   const scaffoldFiles = extractScaffoldFiles(params.scaffoldText);
   for (const f of scaffoldFiles) text += `  ${f}\n`;
 
@@ -536,5 +612,32 @@ function extractScaffoldFiles(scaffoldText: string): string[] {
  */
 function filterToValidTags(tags: string[]): string[] {
   return tags.filter((t) => VALID_TAGS_SET.has(t));
+}
+
+/**
+ * Apply a project_type_override to replace inferred tags with the user-specified type.
+ * Merges with existing tags, replacing any conflicting specific-type tags.
+ *
+ * @param existingTags - Previously inferred tags
+ * @param override - User-supplied override string, e.g. "docs", "cli+library"
+ * @returns Revised tag set
+ */
+function applyProjectTypeOverride(existingTags: readonly string[], override: string): string[] {
+  const overrideMap: Readonly<Record<string, string[]>> = {
+    "docs":        ["UNIVERSAL", "DOCS"],
+    "cli":         ["UNIVERSAL", "CLI"],
+    "api":         ["UNIVERSAL", "API"],
+    "library":     ["UNIVERSAL", "LIBRARY"],
+    "cli+library": ["UNIVERSAL", "CLI", "LIBRARY"],
+    "cli+api":     ["UNIVERSAL", "CLI", "API"],
+    "api+library": ["UNIVERSAL", "API", "LIBRARY"],
+  };
+
+  const mapped = overrideMap[override.toLowerCase()];
+  if (!mapped) {
+    // Unknown override — return existing tags unchanged so nothing breaks
+    return Array.from(existingTags);
+  }
+  return mapped;
 }
 

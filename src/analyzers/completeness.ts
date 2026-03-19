@@ -46,7 +46,24 @@ export function checkCompleteness(
   }
 
   if (activeTags.includes("WEB-REACT")) {
-    checkFileExists(projectDir, "src/locales", "i18n_setup", "i18n locale files configured", passing, failing);
+    // i18n: check multiple common patterns
+    const i18nPaths = [
+      "src/locales",
+      "src/i18n/messages",
+      "src/translations",
+      "public/locales",
+      "messages",
+    ];
+    const hasI18n = i18nPaths.some((p) => existsSync(join(projectDir, p)));
+    if (hasI18n) {
+      passing.push({ check: "i18n_setup", message: "✅ i18n locale files configured" });
+    } else {
+      failing.push({
+        check: "i18n_setup",
+        message: `i18n not configured — Add i18n locale files to one of: ${i18nPaths.join(", ")}`,
+        severity: "error",
+      });
+    }
   }
 
   logger.info("Completeness check done", {

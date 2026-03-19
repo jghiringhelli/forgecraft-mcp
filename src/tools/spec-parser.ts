@@ -11,6 +11,23 @@ import { join } from "node:path";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
+/**
+ * A single ambiguity detected during tag inference or spec parsing.
+ * Reports the field in question, the evidence found, and possible interpretations.
+ */
+export interface AmbiguityItem {
+  /** The field or dimension that is ambiguous, e.g. "project_type", "primary_tag", "tech_stack" */
+  readonly field: string;
+  /** Evidence signals found, e.g. ["no package.json", "markdown files only"] */
+  readonly signals: string[];
+  /** Possible interpretations with labels, descriptions, and consequences */
+  readonly interpretations: ReadonlyArray<{
+    readonly label: string;
+    readonly description: string;
+    readonly consequence: string;
+  }>;
+}
+
 export interface SpecSummary {
   readonly name: string;
   readonly problem: string;
@@ -19,6 +36,8 @@ export interface SpecSummary {
   readonly components: string[];
   readonly externalSystems: string[];
   readonly inferredTags: string[];
+  /** Ambiguities detected during parsing; empty array when signals are unambiguous */
+  readonly ambiguities: AmbiguityItem[];
 }
 
 // ── Tag inference keywords ────────────────────────────────────────────
@@ -160,6 +179,57 @@ function inferTagsFromText(text: string): string[] {
   return tags;
 }
 
+// ── Spec ambiguity detection ──────────────────────────────────────────
+
+/** Deployment-agnostic terms that signal a project might be a platform/system without specifying how it's deployed. */
+const PLATFORM_TERMS = /\b(system|platform)\b/i;
+
+const DEPLOYMENT_TAGS = new Set(["CLI", "API", "LIBRARY", "MOBILE", "WEB-REACT", "WEB-STATIC"]);
+
+/**
+ * Detect ambiguities present in spec text alone.
+ *
+ * Currently detects:
+ * - "system" or "platform" mentioned without any deployment-target tag inferred.
+ *
+ * @param text - Full spec text
+ * @param inferredTags - Tags already inferred from the text
+ * @returns Array of detected ambiguity items
+ */
+function detectSpecAmbiguities(text: string, inferredTags: string[]): AmbiguityItem[] {
+  const ambiguities: AmbiguityItem[] = [];
+
+  const mentionsPlatform = PLATFORM_TERMS.test(text);
+  const hasDeploymentTarget = inferredTags.some((t) => DEPLOYMENT_TAGS.has(t));
+
+  if (mentionsPlatform && !hasDeploymentTarget) {
+    const match = text.match(PLATFORM_TERMS);
+    ambiguities.push({
+      field: "deployment_target",
+      signals: [`spec mentions "${match?.[0] ?? "system or platform"}" without a clear deployment target`],
+      interpretations: [
+        {
+          label: "A",
+          description: "Command-line tool (tag: CLI)",
+          consequence: "CLI cascade applied; terminal UX gates enforced",
+        },
+        {
+          label: "B",
+          description: "HTTP API service (tag: API)",
+          consequence: "API cascade applied; endpoint contracts and behavioral contracts required",
+        },
+        {
+          label: "C",
+          description: "Reusable library/package (tag: LIBRARY)",
+          consequence: "Library cascade applied; public API contracts and versioning required",
+        },
+      ],
+    });
+  }
+
+  return ambiguities;
+}
+
 // ── Public API ────────────────────────────────────────────────────────
 
 /**
@@ -184,6 +254,7 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
       components: [],
       externalSystems: [],
       inferredTags: ["UNIVERSAL"],
+      ambiguities: [],
     };
   }
 
@@ -210,21 +281,128 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
     : extractSentencesByKeyword(text, ["api", "provider", "integration", "service", "gateway"]).slice(0, 5);
 
   const inferredTags = inferTagsFromText(text);
+  const ambiguities = detectSpecAmbiguities(text, inferredTags);
 
-  return { name, problem, users, successCriteria, components, externalSystems, inferredTags };
+  return { name, problem, users, successCriteria, components, externalSystems, inferredTags, ambiguities };
 }
 
 // ── Directory-based tag inference ─────────────────────────────────────
 
+/** Keywords that imply sensitive data handling. */
+const SENSITIVE_DATA_KEYWORDS: readonly string[] = [
+  "health", "safety", "injury", "incident", "medical", "osha", "phi", "hipaa", "patient",
+  "payment", "financial", "transaction", "invoice", "banking", "fintech", "defi", "wallet", "credit",
+  "user profile", "personal data", "pii", "gdpr", "employee", " hr ",
+  "authentication", "authorization", "credentials", "compliance", "audit",
+];
+
+/** Tags that imply sensitive data. */
+const SENSITIVE_TAGS: readonly string[] = ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"];
+
+/**
+ * Infer whether the project handles sensitive data from spec content and tags.
+ *
+ * @param specSummary - Parsed spec summary
+ * @param tags - Project classification tags
+ * @returns True if sensitive data patterns detected
+ */
+export function inferSensitiveData(specSummary: SpecSummary, tags: string[]): boolean {
+  if (tags.some((t) => SENSITIVE_TAGS.includes(t))) return true;
+
+  const fullText = [
+    specSummary.problem,
+    specSummary.users.join(" "),
+    specSummary.components.join(" "),
+  ].join(" ").toLowerCase();
+
+  return SENSITIVE_DATA_KEYWORDS.some((keyword) => fullText.includes(keyword));
+}
+
+/** Build-system indicator files — presence means a software project is being developed. */
+const BUILD_SYSTEM_FILES = [
+  "package.json",
+  "requirements.txt",
+  "pyproject.toml",
+  "go.mod",
+  "Cargo.toml",
+  "build.gradle",
+  "pom.xml",
+] as const;
+
+/**
+ * Check whether the project root contains any build-system file.
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns Names of build-system files found
+ */
+function detectBuildSystemFiles(projectDir: string): string[] {
+  return BUILD_SYSTEM_FILES.filter((f) => existsSync(join(projectDir, f)));
+}
+
+/**
+ * Check whether the project root contains at least one Markdown file.
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns True if at least one .md file exists directly under projectDir
+ */
+function hasMarkdownFiles(projectDir: string): boolean {
+  try {
+    return readdirSync(projectDir).some((entry) => entry.toLowerCase().endsWith(".md"));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Result of directory-based tag inference: resolved tags plus any ambiguities detected.
+ */
+export interface DirectoryInferenceResult {
+  readonly tags: string[];
+  readonly ambiguities: AmbiguityItem[];
+}
+
 /**
  * Infer classification tags by inspecting the project directory structure,
  * package.json dependencies, and existing forgecraft.yaml.
+ * Also detects ambiguities when signals conflict or are insufficient.
  *
  * @param projectDir - Absolute path to the project root
- * @returns Array of inferred tag strings
+ * @returns Inferred tags and detected ambiguities
  */
-export async function inferTagsFromDirectory(projectDir: string): Promise<string[]> {
+export async function inferTagsFromDirectory(projectDir: string): Promise<DirectoryInferenceResult> {
   const tags = new Set<string>(["UNIVERSAL"]);
+  const ambiguities: AmbiguityItem[] = [];
+
+  // Track signals for ambiguity reporting
+  const cliSignals: string[] = [];
+  const librarySignals: string[] = [];
+  const apiSignals: string[] = [];
+
+  const buildFiles = detectBuildSystemFiles(projectDir);
+  const hasBuildSystem = buildFiles.length > 0;
+
+  // ── No build system: DOCS or early software spec ──────────────────
+  if (!hasBuildSystem) {
+    if (hasMarkdownFiles(projectDir)) {
+      tags.add("DOCS");
+      ambiguities.push({
+        field: "project_type",
+        signals: ["no package.json", "no requirements.txt", "no go.mod", "markdown files present"],
+        interpretations: [
+          {
+            label: "A",
+            description: "Design specification project (tag: DOCS)",
+            consequence: "All implementation gates skipped; only spec completeness checked",
+          },
+          {
+            label: "B",
+            description: "Early-stage software project (no build system set up yet)",
+            consequence: "Full cascade applied; implementation gates enforced",
+          },
+        ],
+      });
+    }
+  }
 
   const pkgPath = join(projectDir, "package.json");
   if (existsSync(pkgPath)) {
@@ -238,12 +416,15 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<string
 
       if (depNames.some((d) => ["express", "fastify", "koa", "hapi", "@nestjs/core", "fastify"].includes(d))) {
         tags.add("API");
+        apiSignals.push("web-framework dependency (express/fastify/koa)");
       }
       if (depNames.some((d) => ["commander", "yargs", "meow", "@oclif/core", "clipanion"].includes(d))) {
         tags.add("CLI");
+        cliSignals.push("CLI-framework dependency (commander/yargs/meow)");
       }
       if (typeof pkg["bin"] === "object" && pkg["bin"] !== null) {
         tags.add("CLI");
+        cliSignals.push("package.json bin field");
       }
       if (depNames.some((d) => d.includes("react"))) {
         tags.add("WEB-REACT");
@@ -257,9 +438,31 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<string
       if (depNames.some((d) => ["react-native", "expo", "@capacitor/core"].includes(d))) {
         tags.add("MOBILE");
       }
-      // Heuristic: no main entry, no bin → likely a library
-      if (!pkg["main"] && !pkg["bin"] && pkg["name"]) {
+      // MCP server: infers CLI + API
+      const MCP_DEPS = ["@modelcontextprotocol/sdk", "@anthropic-ai/sdk"];
+      if (depNames.some((d) => MCP_DEPS.some((mcp) => d.includes(mcp)))) {
+        tags.add("CLI");
+        tags.add("API");
+        cliSignals.push("MCP server dependency (@modelcontextprotocol/sdk)");
+        apiSignals.push("MCP server dependency (@modelcontextprotocol/sdk)");
+      }
+      // DATABASE: ORM/DB drivers
+      const DATABASE_DEPS = ["prisma", "typeorm", "sequelize", "drizzle-orm", "@drizzle-team/drizzle-orm", "mongoose", "pg", "mysql2", "sqlite3", "knex", "better-sqlite3"];
+      if (depNames.some((d) => DATABASE_DEPS.some((db) => d.includes(db)))) {
+        tags.add("DATABASE");
+      }
+      // AUTH: auth frameworks
+      const AUTH_DEPS = ["next-auth", "passport", "clerk", "@clerk/nextjs", "@clerk/clerk-sdk-node", "auth0", "jsonwebtoken", "bcrypt", "bcryptjs", "@auth0/nextjs-auth0"];
+      if (depNames.some((d) => AUTH_DEPS.some((auth) => d.includes(auth)))) {
+        tags.add("AUTH");
+      }
+      // Library: only infer when package has 'main' OR 'exports' field (publishable package)
+      const hasMain = !!pkg["main"];
+      const hasExports = !!pkg["exports"];
+      const hasBin = !!pkg["bin"];
+      if ((hasMain || hasExports) && !hasBin) {
         tags.add("LIBRARY");
+        librarySignals.push(hasExports ? "package.json exports field (publishable package)" : "package.json main field (publishable module)");
       }
     } catch {
       // Malformed package.json — skip
@@ -269,12 +472,128 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<string
   // Directory structure heuristics
   if (existsSync(join(projectDir, "src", "routes")) || existsSync(join(projectDir, "src", "controllers"))) {
     tags.add("API");
+    apiSignals.push("src/routes or src/controllers directory");
   }
   if (existsSync(join(projectDir, "src", "cli")) || existsSync(join(projectDir, "bin"))) {
     tags.add("CLI");
+    cliSignals.push(existsSync(join(projectDir, "bin")) ? "bin/ directory" : "src/cli/ directory");
   }
-  if (existsSync(join(projectDir, "src", "lib")) || existsSync(join(projectDir, "lib"))) {
-    tags.add("LIBRARY");
+  // src/index.ts is only a library signal if package.json also has main/exports
+  // (directory presence alone is insufficient — apps also have src/lib/)
+
+  // Check for MCP server files in src/
+  const srcDir = join(projectDir, "src");
+  if (existsSync(srcDir)) {
+    try {
+      const srcFiles = readdirSync(srcDir);
+      if (srcFiles.some((f) => f.match(/(-server|-mcp|mcp-|\.mcp)\.(ts|js)$/i))) {
+        tags.add("CLI");
+        tags.add("API");
+        cliSignals.push("MCP server file in src/");
+        apiSignals.push("MCP server file in src/");
+      }
+    } catch { /* skip */ }
+  }
+
+  // Check docker-compose for DATABASE
+  const composeFile = join(projectDir, "docker-compose.yml");
+  const composeYmlFile = join(projectDir, "docker-compose.yaml");
+  const composePath = existsSync(composeFile) ? composeFile : existsSync(composeYmlFile) ? composeYmlFile : null;
+  if (composePath) {
+    try {
+      const composeContent = readFileSync(composePath, "utf-8").toLowerCase();
+      if (/postgres|mysql|mongodb|mongo/.test(composeContent)) {
+        tags.add("DATABASE");
+      }
+    } catch { /* skip */ }
+  }
+
+  // Check Python requirements.txt for DATABASE and AUTH
+  const requirementsPath = join(projectDir, "requirements.txt");
+  if (existsSync(requirementsPath)) {
+    try {
+      const reqContent = readFileSync(requirementsPath, "utf-8").toLowerCase();
+      const PY_DATABASE_DEPS = ["sqlalchemy", "psycopg2", "pymongo", "databases", "tortoise-orm"];
+      if (PY_DATABASE_DEPS.some((dep) => reqContent.includes(dep))) {
+        tags.add("DATABASE");
+      }
+      const PY_AUTH_DEPS = ["python-jose", "passlib", "authlib", "pyjwt"];
+      if (PY_AUTH_DEPS.some((dep) => reqContent.includes(dep))) {
+        tags.add("AUTH");
+      }
+    } catch { /* skip */ }
+  }
+
+  // ── Tech stack conflict: Python build + TypeScript src ────────────
+  const hasPythonBuild = existsSync(join(projectDir, "requirements.txt")) || existsSync(join(projectDir, "pyproject.toml"));
+  const hasTypeScriptSrc = existsSync(join(projectDir, "src")) && (
+    existsSync(join(projectDir, "tsconfig.json")) ||
+    existsSync(join(projectDir, "src", "index.ts"))
+  );
+  if (hasPythonBuild && hasTypeScriptSrc) {
+    ambiguities.push({
+      field: "tech_stack",
+      signals: ["Python build system (requirements.txt/pyproject.toml)", "TypeScript src files detected"],
+      interpretations: [
+        {
+          label: "A",
+          description: "Python project with TypeScript frontend/tooling (primary: Python)",
+          consequence: "Python-oriented gates applied; TypeScript treated as build tooling",
+        },
+        {
+          label: "B",
+          description: "TypeScript project with Python scripts/utilities (primary: TypeScript)",
+          consequence: "TypeScript gates applied; Python treated as supplementary tooling",
+        },
+      ],
+    });
+  }
+
+  // ── Multiple strong tag signals — primary type ambiguity ─────────
+  if (tags.has("CLI") && tags.has("API")) {
+    ambiguities.push({
+      field: "primary_tag",
+      signals: [...cliSignals, ...apiSignals],
+      interpretations: [
+        {
+          label: "A",
+          description: "Primarily a CLI tool (tag: CLI)",
+          consequence: "CLI cascade applied; API-specific gates optional",
+        },
+        {
+          label: "B",
+          description: "Primarily an HTTP API (tag: API)",
+          consequence: "API cascade applied; all endpoint contracts required",
+        },
+        {
+          label: "C",
+          description: "Hybrid CLI+API project (tags: CLI, API)",
+          consequence: "Most restrictive cascade applied; all steps required",
+        },
+      ],
+    });
+  } else if (tags.has("CLI") && tags.has("LIBRARY")) {
+    ambiguities.push({
+      field: "primary_tag",
+      signals: [...cliSignals, ...librarySignals],
+      interpretations: [
+        {
+          label: "A",
+          description: "Primarily a CLI tool that ships an executable (tag: CLI)",
+          consequence: "CLI cascade applied; library-specific contracts optional",
+        },
+        {
+          label: "B",
+          description: "Primarily a reusable library that includes a CLI (tag: LIBRARY)",
+          consequence: "Library cascade applied; public API contracts and versioning required",
+        },
+        {
+          label: "C",
+          description: "Dual-purpose CLI+library package (tags: CLI, LIBRARY)",
+          consequence: "Most restrictive cascade applied; all steps required",
+        },
+      ],
+    });
   }
 
   // Respect any existing forgecraft.yaml tags
@@ -295,7 +614,69 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<string
     }
   }
 
-  return Array.from(tags);
+  return { tags: Array.from(tags), ambiguities };
+}
+
+/**
+ * Find the richest existing spec file in the project (not PRD/TechSpec).
+ * Returns the path of the largest markdown file that:
+ * - Contains more than 500 characters
+ * - Is NOT already docs/PRD.md or docs/TechSpec.md
+ * - Matches: docs\/**\/*.md, README.md, *-spec.md patterns
+ *
+ * @param projectDir - Absolute project root path
+ * @returns Absolute path to richest spec file, or null if none found
+ */
+export function findRichestSpecFile(projectDir: string): string | null {
+  const candidates: string[] = [];
+
+  const docsDir = join(projectDir, "docs");
+  if (existsSync(docsDir)) {
+    try {
+      const docsFiles = readdirSync(docsDir);
+      for (const file of docsFiles) {
+        if (file.endsWith(".md")) {
+          candidates.push(join(docsDir, file));
+        }
+      }
+    } catch {
+      // skip unreadable dirs
+    }
+  }
+
+  try {
+    const rootFiles = readdirSync(projectDir);
+    for (const file of rootFiles) {
+      if (file.endsWith(".md") || file === "README.md") {
+        candidates.push(join(projectDir, file));
+      }
+    }
+  } catch {
+    // skip
+  }
+
+  const EXCLUDED_NAMES = new Set(["PRD.md", "TechSpec.md", "Status.md", "CLAUDE.md", "CHANGELOG.md", "CONTRIBUTING.md"]);
+  const MIN_CONTENT_LENGTH = 500;
+
+  let richest: { path: string; size: number } | null = null;
+
+  for (const candidate of candidates) {
+    const filename = candidate.split(/[/\\]/).pop() ?? "";
+    if (EXCLUDED_NAMES.has(filename)) continue;
+
+    try {
+      const content = readFileSync(candidate, "utf-8");
+      if (content.length > MIN_CONTENT_LENGTH) {
+        if (!richest || content.length > richest.size) {
+          richest = { path: candidate, size: content.length };
+        }
+      }
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  return richest?.path ?? null;
 }
 
 /**

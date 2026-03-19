@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { parseSpec, inferTagsFromDirectory } from "../../src/tools/spec-parser.js";
+import { parseSpec, inferTagsFromDirectory, findRichestSpecFile, inferSensitiveData } from "../../src/tools/spec-parser.js";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -177,6 +177,7 @@ The API serves frontend applications and third-party integrations.
       expect(result.successCriteria).toHaveLength(0);
       expect(result.components).toHaveLength(0);
       expect(result.externalSystems).toHaveLength(0);
+      expect(result.ambiguities).toHaveLength(0);
     });
 
     it("still includes UNIVERSAL tag", () => {
@@ -202,6 +203,44 @@ The API serves frontend applications and third-party integrations.
       expect(result.name).toBe("Real Name");
     });
   });
+
+  describe("ambiguity detection — deployment target", () => {
+    it("detects deployment_target ambiguity when spec mentions 'system' without deployment tags", () => {
+      const result = parseSpec(
+        "# Storycraft\n\nA narrative design system for interactive fiction authors.\n\n" +
+        "## Problem\nAuthors need a unified workflow for designing branching narratives.",
+      );
+      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+      expect(ambiguity).toBeDefined();
+    });
+
+    it("deployment_target ambiguity has CLI, API, and LIBRARY interpretations", () => {
+      const result = parseSpec("An event-driven platform for orchestrating data workflows.");
+      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+      expect(ambiguity).toBeDefined();
+      expect(ambiguity!.interpretations.map((i) => i.label)).toEqual(["A", "B", "C"]);
+      expect(ambiguity!.interpretations.some((i) => i.description.includes("CLI"))).toBe(true);
+      expect(ambiguity!.interpretations.some((i) => i.description.includes("API"))).toBe(true);
+      expect(ambiguity!.interpretations.some((i) => i.description.includes("LIBRARY"))).toBe(true);
+    });
+
+    it("does NOT report deployment_target ambiguity when CLI tag is inferred", () => {
+      const result = parseSpec("A CLI tool system for managing deployments via the command line.");
+      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+      expect(ambiguity).toBeUndefined();
+    });
+
+    it("does NOT report deployment_target ambiguity when API tag is inferred", () => {
+      const result = parseSpec("A REST API system that exposes HTTP endpoints for user management.");
+      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+      expect(ambiguity).toBeUndefined();
+    });
+
+    it("returns empty ambiguities for a spec with clear deployment signals", () => {
+      const result = parseSpec("# Payment Library\n\nAn npm package for payment integration.");
+      expect(result.ambiguities).toHaveLength(0);
+    });
+  });
 });
 
 describe("inferTagsFromDirectory", () => {
@@ -216,8 +255,8 @@ describe("inferTagsFromDirectory", () => {
   });
 
   it("always includes UNIVERSAL", async () => {
-    const tags = await inferTagsFromDirectory(tempDir);
-    expect(tags).toContain("UNIVERSAL");
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("UNIVERSAL");
   });
 
   it("infers CLI tag from package.json bin field", async () => {
@@ -226,8 +265,8 @@ describe("inferTagsFromDirectory", () => {
       JSON.stringify({ name: "my-cli", bin: { "my-cli": "dist/index.js" } }),
       "utf-8",
     );
-    const tags = await inferTagsFromDirectory(tempDir);
-    expect(tags).toContain("CLI");
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("CLI");
   });
 
   it("infers CLI tag from commander dependency", async () => {
@@ -236,8 +275,8 @@ describe("inferTagsFromDirectory", () => {
       JSON.stringify({ dependencies: { commander: "^12.0.0" } }),
       "utf-8",
     );
-    const tags = await inferTagsFromDirectory(tempDir);
-    expect(tags).toContain("CLI");
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("CLI");
   });
 
   it("infers API tag from express dependency", async () => {
@@ -246,21 +285,281 @@ describe("inferTagsFromDirectory", () => {
       JSON.stringify({ dependencies: { express: "^4.18.0" } }),
       "utf-8",
     );
-    const tags = await inferTagsFromDirectory(tempDir);
-    expect(tags).toContain("API");
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("API");
   });
 
   it("infers API tag from src/routes directory", async () => {
     mkdirSync(join(tempDir, "src", "routes"), { recursive: true });
     writeFileSync(join(tempDir, "src", "routes", "users.ts"), "export {};", "utf-8");
-    const tags = await inferTagsFromDirectory(tempDir);
-    expect(tags).toContain("API");
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("API");
   });
 
   it("infers CLI tag from bin/ directory", async () => {
     mkdirSync(join(tempDir, "bin"), { recursive: true });
     writeFileSync(join(tempDir, "bin", "cli.js"), "#!/usr/bin/env node", "utf-8");
-    const tags = await inferTagsFromDirectory(tempDir);
-    expect(tags).toContain("CLI");
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("CLI");
+  });
+
+  it("returns empty ambiguities for an unambiguous CLI project", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ name: "my-cli", bin: { "my-cli": "dist/index.js" }, main: "dist/index.js" }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    const primaryTagAmbiguities = result.ambiguities.filter((a) => a.field === "primary_tag");
+    expect(primaryTagAmbiguities).toHaveLength(0);
+  });
+
+  // ── Ambiguity: pure markdown project (DOCS) ───────────────────────
+
+  describe("ambiguity detection — pure markdown project", () => {
+    it("infers DOCS tag when no build system and markdown files present", async () => {
+      writeFileSync(join(tempDir, "README.md"), "# My Design Spec\n\nThis is a narrative design system.", "utf-8");
+      writeFileSync(join(tempDir, "DESIGN.md"), "## Architecture\n\nSomething.", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("DOCS");
+    });
+
+    it("reports project_type ambiguity for pure markdown project", async () => {
+      writeFileSync(join(tempDir, "README.md"), "# Design System\n\nA narrative design spec.", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      const ambiguity = result.ambiguities.find((a) => a.field === "project_type");
+      expect(ambiguity).toBeDefined();
+      expect(ambiguity!.signals).toContain("no package.json");
+      expect(ambiguity!.signals).toContain("markdown files present");
+    });
+
+    it("ambiguity interpretations include DOCS and early-stage software options", async () => {
+      writeFileSync(join(tempDir, "SPEC.md"), "# Spec\n\nDesign document.", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      const ambiguity = result.ambiguities.find((a) => a.field === "project_type");
+      expect(ambiguity).toBeDefined();
+      expect(ambiguity!.interpretations.some((i) => i.description.includes("DOCS"))).toBe(true);
+      expect(ambiguity!.interpretations.some((i) => i.description.includes("Early-stage"))).toBe(true);
+    });
+
+    it("does NOT add DOCS ambiguity when package.json is present", async () => {
+      writeFileSync(join(tempDir, "package.json"), JSON.stringify({ name: "my-lib" }), "utf-8");
+      writeFileSync(join(tempDir, "README.md"), "# My Lib\n\nA library.", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      const ambiguity = result.ambiguities.find((a) => a.field === "project_type");
+      expect(ambiguity).toBeUndefined();
+    });
+  });
+
+  // ── Ambiguity: conflicting tag signals (CLI vs LIBRARY) ───────────
+
+  describe("ambiguity detection — CLI vs LIBRARY", () => {
+    it("reports primary_tag ambiguity when CLI framework dep and main field coexist", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ name: "my-pkg", dependencies: { commander: "^12.0.0" }, main: "dist/index.js" }),
+        "utf-8",
+      );
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("CLI");
+      expect(result.tags).toContain("LIBRARY");
+      const ambiguity = result.ambiguities.find((a) => a.field === "primary_tag");
+      expect(ambiguity).toBeDefined();
+    });
+
+    it("CLI vs LIBRARY ambiguity has three interpretations (CLI, LIBRARY, CLI+LIBRARY)", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ name: "my-pkg", dependencies: { commander: "^12.0.0" }, main: "dist/index.js" }),
+        "utf-8",
+      );
+      const result = await inferTagsFromDirectory(tempDir);
+      const ambiguity = result.ambiguities.find((a) => a.field === "primary_tag");
+      expect(ambiguity).toBeDefined();
+      expect(ambiguity!.interpretations).toHaveLength(3);
+      expect(ambiguity!.interpretations.map((i) => i.label)).toEqual(["A", "B", "C"]);
+    });
+  });
+
+  // ── DATABASE and AUTH tag inference ───────────────────────────────
+
+  it("infers DATABASE tag when prisma in deps", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ dependencies: { prisma: "^5.0.0" } }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("DATABASE");
+  });
+
+  it("infers DATABASE tag when pg in deps", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ dependencies: { pg: "^8.0.0" } }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("DATABASE");
+  });
+
+  it("infers AUTH tag when next-auth in deps", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ dependencies: { "next-auth": "^4.0.0" } }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("AUTH");
+  });
+
+  it("infers AUTH tag when clerk in deps", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ dependencies: { "@clerk/nextjs": "^4.0.0" } }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("AUTH");
+  });
+
+  // ── LIBRARY false positive prevention ────────────────────────────
+
+  it("does NOT infer LIBRARY when only src/lib/ exists (no main/exports)", async () => {
+    mkdirSync(join(tempDir, "src", "lib"), { recursive: true });
+    writeFileSync(join(tempDir, "src", "lib", "utils.ts"), "export const x = 1;", "utf-8");
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ name: "my-app" }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).not.toContain("LIBRARY");
+  });
+
+  it("infers LIBRARY when package.json has main field (and no bin)", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ name: "my-lib", main: "dist/index.js" }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("LIBRARY");
+  });
+
+  it("infers LIBRARY when package.json has exports field (and no bin)", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ name: "my-lib", exports: { ".": "./dist/index.js" } }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("LIBRARY");
+  });
+
+  it("does NOT infer LIBRARY when main is set but bin is also set", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ name: "my-cli", main: "dist/index.js", bin: { "my-cli": "dist/index.js" } }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).not.toContain("LIBRARY");
+  });
+
+  // ── MCP server pattern ────────────────────────────────────────────
+
+  it("infers CLI and API tags from @modelcontextprotocol/sdk dependency", async () => {
+    writeFileSync(
+      join(tempDir, "package.json"),
+      JSON.stringify({ dependencies: { "@modelcontextprotocol/sdk": "^1.0.0" } }),
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("CLI");
+    expect(result.tags).toContain("API");
+  });
+});
+
+// ── findRichestSpecFile ──────────────────────────────────────────────
+
+describe("findRichestSpecFile", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `forgecraft-richest-spec-test-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("returns largest qualifying spec file", () => {
+    const docsDir = join(tempDir, "docs");
+    mkdirSync(docsDir, { recursive: true });
+    writeFileSync(join(docsDir, "spec.md"), "a".repeat(600), "utf-8");
+    writeFileSync(join(docsDir, "notes.md"), "b".repeat(1200), "utf-8");
+    const result = findRichestSpecFile(tempDir);
+    expect(result).not.toBeNull();
+    expect(result).toContain("notes.md");
+  });
+
+  it("returns null when no qualifying files (all too short)", () => {
+    writeFileSync(join(tempDir, "README.md"), "short", "utf-8");
+    const result = findRichestSpecFile(tempDir);
+    expect(result).toBeNull();
+  });
+
+  it("excludes PRD.md from candidates", () => {
+    const docsDir = join(tempDir, "docs");
+    mkdirSync(docsDir, { recursive: true });
+    writeFileSync(join(docsDir, "PRD.md"), "p".repeat(1000), "utf-8");
+    const result = findRichestSpecFile(tempDir);
+    expect(result).toBeNull();
+  });
+
+  it("excludes TechSpec.md from candidates", () => {
+    const docsDir = join(tempDir, "docs");
+    mkdirSync(docsDir, { recursive: true });
+    writeFileSync(join(docsDir, "TechSpec.md"), "t".repeat(1000), "utf-8");
+    const result = findRichestSpecFile(tempDir);
+    expect(result).toBeNull();
+  });
+
+  it("returns root-level README.md when it qualifies", () => {
+    writeFileSync(join(tempDir, "README.md"), "r".repeat(600), "utf-8");
+    const result = findRichestSpecFile(tempDir);
+    expect(result).not.toBeNull();
+    expect(result).toContain("README.md");
+  });
+});
+
+// ── inferSensitiveData ──────────────────────────────────────────────
+
+describe("inferSensitiveData", () => {
+  it("returns true for spec mentioning health keywords", () => {
+    const spec = parseSpec("# Health Monitor\n\n## Problem\nA patient health monitoring system that tracks medical records.\n\n## Users\n- Hospital staff\n- Patients");
+    expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(true);
+  });
+
+  it("returns true for FINTECH tag", () => {
+    const spec = parseSpec("A project management tool.");
+    expect(inferSensitiveData(spec, ["UNIVERSAL", "FINTECH"])).toBe(true);
+  });
+
+  it("returns true for HIPAA tag", () => {
+    const spec = parseSpec("A document editor.");
+    expect(inferSensitiveData(spec, ["UNIVERSAL", "HIPAA"])).toBe(true);
+  });
+
+  it("returns false for unrelated spec with no sensitive tags", () => {
+    const spec = parseSpec("A static website generator with markdown support and themes.");
+    expect(inferSensitiveData(spec, ["UNIVERSAL", "DOCS"])).toBe(false);
+  });
+
+  it("returns true when spec mentions payment keywords", () => {
+    const spec = parseSpec("# Invoice App\n\n## Problem\nAn invoicing system that processes payment transactions for small businesses.\n\n## Users\n- Small business owners");
+    expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(true);
   });
 });

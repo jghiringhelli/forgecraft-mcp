@@ -240,5 +240,127 @@ describe("setupProjectHandler", () => {
       expect(text).toContain("check_cascade");
     });
   });
+
+  // ── Ambiguity detection ──────────────────────────────────────────
+
+  describe("ambiguity detection", () => {
+    it("phase 1 with pure docs project includes Ambiguity Detected section", async () => {
+      // No package.json — only a markdown file — triggers project_type ambiguity
+      writeFileSync(
+        join(tempDir, "README.md"),
+        "# Storycraft Design System\n\nA narrative design system for interactive fiction.",
+        "utf-8",
+      );
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Ambiguity Detected");
+      expect(text).toContain("project_type");
+      expect(text).toContain("markdown files present");
+    });
+
+    it("phase 1 ambiguity section appears BEFORE the three calibration questions", async () => {
+      writeFileSync(join(tempDir, "SPEC.md"), "# Design System\n\nPure docs project.", "utf-8");
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      const ambiguityIdx = text.indexOf("Ambiguity Detected");
+      const questionsIdx = text.indexOf("Before I proceed");
+      expect(ambiguityIdx).toBeGreaterThan(-1);
+      expect(questionsIdx).toBeGreaterThan(-1);
+      expect(ambiguityIdx).toBeLessThan(questionsIdx);
+    });
+
+    it("phase 1 with no ambiguities does NOT include Ambiguity Detected section", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ name: "my-api", dependencies: { express: "^4.0.0" } }),
+        "utf-8",
+      );
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).not.toContain("Ambiguity Detected");
+    });
+
+    it("phase 2 with project_type_override='docs' uses DOCS cascade defaults", async () => {
+      writeFileSync(join(tempDir, "README.md"), "# Design System\n\nPure docs project.", "utf-8");
+      await setupProjectHandler({
+        project_dir: tempDir,
+        project_type_override: "docs",
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      // DOCS: constitution is optional
+      expect(yamlContent).toMatch(/constitution[\s\S]{0,300}required: false/);
+      // DOCS: functional_spec is still required
+      expect(yamlContent).toMatch(/functional_spec[\s\S]{0,300}required: true/);
+    });
+
+    it("phase 2 with project_type_override='cli' applies CLI tag decisions", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        project_type_override: "cli",
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      // CLI: architecture_diagrams is optional
+      expect(yamlContent).toMatch(/architecture_diagrams[\s\S]{0,300}required: false/);
+    });
+
+    // ── findRichestSpecFile fallback ─────────────────────────────
+
+    it("uses richest spec file when standard spec search fails", async () => {
+      // Create a large non-standard spec file (not in standard SPEC_SEARCH_PATHS)
+      const docsDir = join(tempDir, "docs");
+      mkdirSync(docsDir, { recursive: true });
+      const richContent = `# Rich Spec\n\n## Problem\nThis is a detailed spec.\n\n${"detail ".repeat(100)}`;
+      writeFileSync(join(docsDir, "design.md"), richContent, "utf-8");
+
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      // Phase 1 should pick up the spec
+      expect(text).toContain("What I found");
+    });
+
+    // ── sensitiveData detection ───────────────────────────────────
+
+    it("sets sensitiveData in forgecraft.yaml when spec mentions health keywords", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        spec_text: "# Health Monitor\n\n## Problem\nA patient health monitoring system tracking medical records.\n\n## Users\n- Hospital staff\n- Patients",
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      expect(yamlContent).toContain("sensitiveData: true");
+    });
+
+    it("includes sensitive data warning in phase 2 response when detected", async () => {
+      const result = await setupProjectHandler({
+        project_dir: tempDir,
+        spec_text: "# Payment System\n\n## Problem\nA payment processing platform handling financial transactions.\n\n## Users\n- Merchants",
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Sensitive data detected");
+    });
+
+    it("does NOT set sensitiveData for non-sensitive project", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        spec_text: "# Static Blog\n\n## Problem\nA static site generator for personal blogs.\n\n## Users\n- Bloggers",
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      expect(yamlContent).not.toContain("sensitiveData: true");
+    });
+  });
 });
 
