@@ -329,14 +329,20 @@ phases:
         instruction: >
           Define and run smoke tests covering the top 3–5 critical user journeys.
           Smoke tests must be runnable against a live environment in < 60 seconds.
-          Use a tool that produces machine-readable output (Newman, Hurl, or k6).
-          These same tests will run automatically post-deploy.
+          For web UIs: use Playwright — navigate to the live URL, wait for async
+          data to load, take a full-page screenshot, assert critical elements are
+          present and non-empty. Playwright catches rendering bugs, broken async
+          fetches, blank pages, and layout collapses that API-only tests miss entirely.
+          For APIs: use Hurl or Newman for machine-readable output.
+          These same tests run automatically post-deploy.
         contract: >
-          Smoke test suite exists, runs in < 60 seconds, and covers the critical path.
+          Smoke test suite exists, runs in < 60 seconds, covers the critical path.
+          Web UIs: Playwright script with element assertions + screenshot artifact.
+          APIs: Hurl/Newman with status code + response schema assertions.
           All smoke tests pass against staging before deploy to production.
-        tools: ["newman run", "hurl", "k6 run --vus 1"]
-        expected_output: "Smoke test results with pass/fail per scenario and total duration"
-        pass_criterion: "All smoke tests pass; total duration < 60s"
+        tools: ["playwright", "newman run", "hurl", "k6 run --vus 1"]
+        expected_output: "Smoke test results with pass/fail per check, screenshot for web UIs, total duration"
+        pass_criterion: "All checks pass; screenshot confirms page renders correctly; total duration < 60s"
         requires_human_review: false
 
       - id: observability-verified
@@ -366,11 +372,13 @@ phases:
       - id: synthetic-health-probes
         instruction: >
           Run the smoke test suite against the production environment within 5 minutes
-          of deploy completion. All smoke tests must pass against production.
-          If any smoke test fails, trigger rollback immediately without human intervention
-          (automate if possible; manual fallback: rollback within 10 minutes).
+          of deploy completion. For web UIs: Playwright navigates to the live URL,
+          waits for async data, asserts critical elements, and saves a screenshot.
+          The screenshot is the proof artifact — view it after every deploy.
+          If any check fails, trigger rollback immediately.
         contract: >
           All smoke tests pass against production within 5 minutes of deployment.
+          Web UIs: screenshot artifact saved and reviewed. API: response schema valid.
           Rollback is initiated automatically or within 10 minutes if any smoke test fails.
         tools: ["newman run", "hurl", "k6 run --vus 1"]
         expected_output: "Post-deploy smoke test results with timestamp"
