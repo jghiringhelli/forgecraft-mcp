@@ -17,6 +17,8 @@
 import { z } from "zod";
 import { resolve, join } from "node:path";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import yaml from "js-yaml";
+import type { CascadeDecision, ForgeCraftConfig } from "../shared/types.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -33,7 +35,7 @@ export type CheckCascadeInput = z.infer<typeof checkCascadeSchema>;
 export interface CascadeStep {
   readonly step: number;
   readonly name: string;
-  readonly status: "PASS" | "FAIL" | "WARN" | "STUB";
+  readonly status: "PASS" | "FAIL" | "WARN" | "STUB" | "SKIP";
   readonly detail: string;
   readonly action?: string;
   readonly questions: readonly string[];
@@ -75,23 +77,99 @@ function isStub(content: string): boolean {
   return /<!--\s*(FILL|TODO|UNFILLED)|(\[DESCRIBE|\[YOUR |fill in here)/i.test(content);
 }
 
+// ── Config Loader ─────────────────────────────────────────────────────
+
+/**
+ * Load cascade decisions from forgecraft.yaml in the project directory.
+ * Returns an empty array if no config or no cascade.steps exist.
+ *
+ * @param projectDir - Absolute project root path
+ * @returns Array of cascade decisions (may be empty)
+ */
+export function loadCascadeDecisions(projectDir: string): CascadeDecision[] {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+  if (!existsSync(yamlPath)) return [];
+  try {
+    const config = yaml.load(readFileSync(yamlPath, "utf-8")) as ForgeCraftConfig;
+    return (config?.cascade?.steps as CascadeDecision[] | undefined) ?? [];
+  } catch {
+    return [];
+  }
+}
+
 // ── Handler ──────────────────────────────────────────────────────────
 
 /**
  * Run all five GS cascade checks on the given project directory.
  * Shared between checkCascadeHandler and generateSessionPromptHandler.
  *
+ * When decisions are provided, steps marked required: false are returned
+ * as SKIP rather than FAIL/STUB — the tool enforces only what the AI decided.
+ *
+ * If no decision is found for a step, it defaults to required: true (fail-safe).
+ *
  * @param projectDir - Absolute project root path
+ * @param decisions - Optional cascade decisions from forgecraft.yaml
  * @returns Array of five cascade step results
  */
-export function runCascadeChecks(projectDir: string): CascadeStep[] {
-  return [
+export function runCascadeChecks(
+  projectDir: string,
+  decisions: readonly CascadeDecision[] = [],
+): CascadeStep[] {
+  const rawSteps = [
     checkFunctionalSpec(projectDir),
     checkDiagrams(projectDir),
     checkConstitution(projectDir),
     checkAdrs(projectDir),
     checkBehavioralContracts(projectDir),
   ];
+
+  if (decisions.length === 0) return rawSteps;
+
+  return rawSteps.map((step) => applyDecision(step, decisions));
+}
+
+/** The cascade step name for each step number, used for decision lookup. */
+const STEP_TO_DECISION_NAME: Readonly<Record<number, string>> = {
+  1: "functional_spec",
+  2: "architecture_diagrams",
+  3: "constitution",
+  4: "adrs",
+  5: "behavioral_contracts",
+};
+
+/**
+ * Apply a cascade decision to a step result.
+ * If required: false and the step is FAIL or STUB, return SKIP.
+ * If no decision found, treat as required (fail-safe).
+ *
+ * @param step - Raw step result from the file-system check
+ * @param decisions - All cascade decisions from forgecraft.yaml
+ * @returns Step with SKIP applied when appropriate
+ */
+function applyDecision(
+  step: CascadeStep,
+  decisions: readonly CascadeDecision[],
+): CascadeStep {
+  const decisionName = STEP_TO_DECISION_NAME[step.step];
+  const decision = decisions.find((d) => d.step === decisionName);
+
+  // No decision configured → fail-safe (treat as required)
+  if (!decision) return step;
+  // Required step → keep as-is
+  if (decision.required) return step;
+  // Optional step that failed or was a stub → SKIP
+  if (step.status === "FAIL" || step.status === "STUB" || step.status === "WARN") {
+    return {
+      step: step.step,
+      name: step.name,
+      status: "SKIP",
+      detail: decision.rationale,
+      questions: [],
+    };
+  }
+  // Optional step that passed → keep PASS
+  return step;
 }
 
 /**
@@ -104,33 +182,41 @@ export async function checkCascadeHandler(
   args: CheckCascadeInput,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   const projectDir = resolve(args.project_dir);
+  const decisions = loadCascadeDecisions(projectDir);
 
-  const steps = runCascadeChecks(projectDir);
+  const steps = runCascadeChecks(projectDir, decisions);
 
   const passingCount = steps.filter((s) => s.status === "PASS").length;
   const failingCount = steps.filter((s) => s.status === "FAIL" || s.status === "STUB").length;
 
+  const noCascadeConfig = decisions.length === 0;
+
   return {
-    content: [{ type: "text", text: formatReport(steps, passingCount, failingCount) }],
+    content: [{ type: "text", text: formatReport(steps, passingCount, failingCount, noCascadeConfig) }],
   };
 }
 
 // ── Exported Helpers ─────────────────────────────────────────────────
 
 /**
- * Returns true only when all cascade steps are PASS or WARN.
- * WARN is advisory and not blocking. FAIL and STUB block progress.
+ * Returns true only when all cascade steps are PASS, WARN, or SKIP.
+ * WARN is advisory and not blocking. SKIP means the step was assessed as optional.
+ * Only FAIL and STUB on required steps block progress.
  *
  * @param steps - All cascade step results
  * @returns Whether the cascade is complete enough to proceed
  */
 export function isCascadeComplete(steps: readonly CascadeStep[]): boolean {
-  return steps.every((s) => s.status === "PASS" || s.status === "WARN");
+  return steps.every(
+    (s) => s.status === "PASS" || s.status === "WARN" || s.status === "SKIP",
+  );
 }
 
 /**
- * Produce a guided remediation message for the first failing or stub step.
+ * Produce a guided remediation message for the first failing or stub step
+ * that is marked as required.
  * Addresses one step at a time to avoid overwhelming the user.
+ * SKIP steps (optional, not required) are excluded from the failing list.
  *
  * @param steps - All cascade step results
  * @returns Markdown-formatted remediation guidance
@@ -446,13 +532,15 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
  *
  * @param steps - All five cascade step results
  * @param passingCount - Number of PASS steps
- * @param failingCount - Number of FAIL + STUB steps (WARNs do not count as failures)
+ * @param failingCount - Number of FAIL + STUB steps (WARNs and SKIPs do not count as failures)
+ * @param noCascadeConfig - Whether no cascade.steps were found in forgecraft.yaml
  * @returns Formatted report string
  */
 function formatReport(
   steps: readonly CascadeStep[],
   passingCount: number,
   failingCount: number,
+  noCascadeConfig: boolean,
 ): string {
   const cascadeComplete = failingCount === 0;
   const statusLabel = cascadeComplete
@@ -461,6 +549,13 @@ function formatReport(
   const headerIcon = cascadeComplete ? "✅" : "❌";
 
   let text = `# GS Initialization Cascade Check\n\n`;
+
+  if (noCascadeConfig) {
+    text += `> ⚠ No cascade decisions configured. Run \`scaffold\` or use \`set_cascade_requirement\`\n`;
+    text += `> to decide which spec artifacts are required for this project.\n`;
+    text += `> Defaulting to: all steps required.\n\n`;
+  }
+
   text += `**Status:** ${headerIcon} ${statusLabel}   (${passingCount}/5 steps passing)\n\n`;
   text += `## Steps\n\n`;
 
@@ -469,6 +564,7 @@ function formatReport(
       step.status === "PASS" ? "✅" :
       step.status === "WARN" ? "⚠️ " :
       step.status === "STUB" ? "⚠ STUB" :
+      step.status === "SKIP" ? "○ SKIP" :
       "❌";
     text += `${icon} **Step ${step.step}: ${step.name}**\n`;
     text += `   ${step.detail}\n`;

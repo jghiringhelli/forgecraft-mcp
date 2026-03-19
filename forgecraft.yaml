@@ -15,3 +15,30 @@ tools:
   audit: npm audit --audit-level=high
 gates_registry_url: https://raw.githubusercontent.com/jghiringhelli/quality-gates/master/index.json
 server_url: https://forgecraft-server-production.up.railway.app
+cascade:
+  steps:
+    - step: functional_spec
+      required: true
+      rationale: All projects require a functional specification (docs/PRD.md); it is the axiom set from which all other artifacts are derived.
+      decidedAt: '2025-01-15'
+      decidedBy: scaffold
+    - step: architecture_diagrams
+      required: true
+      rationale: API projects expose public contracts; C4 diagram (docs/diagrams/c4-context.md) is the spec for integration partners and AI assistants navigating the service boundary.
+      decidedAt: '2025-01-15'
+      decidedBy: scaffold
+    - step: constitution
+      required: true
+      rationale: All projects require an architectural constitution (CLAUDE.md); it is the operative grammar that constrains every AI coding session.
+      decidedAt: '2025-01-15'
+      decidedBy: scaffold
+    - step: adrs
+      required: true
+      rationale: API design decisions (versioning, auth strategy, pagination contract) must be recorded in docs/adrs/ before implementation to prevent AI assistants from "improving" intentional choices.
+      decidedAt: '2025-01-15'
+      decidedBy: scaffold
+    - step: behavioral_contracts
+      required: true
+      rationale: Library consumers depend on stable behavioral contracts (docs/use-cases.md); these are the triple-derivation seed — implementation contract, acceptance test, and user documentation.
+      decidedAt: '2025-01-15'
+      decidedBy: scaffold

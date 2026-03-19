@@ -52,6 +52,7 @@ import {
 import { generateAdrHandler } from "./generate-adr.js";
 import { contributeGates } from "./contribute-gate.js";
 import { generateDiagramHandler } from "./generate-diagram.js";
+import { setCascadeRequirementHandler } from "./set-cascade-requirement.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ const ACTIONS = [
   "generate_adr",
   "contribute_gate",
   "generate_diagram",
+  "set_cascade_requirement",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -111,7 +113,8 @@ export const forgecraftSchema = z.object({
         "verification_status (full per-project acceptance report: S per tag, blocking items, aggregate S), " +
         "generate_adr (emit a structured Architecture Decision Record file into docs/adrs/ with auto-sequenced number), " +
         "contribute_gate (submit generalizable project gates to the community registry — respects contribute_gates setting in forgecraft.yaml), " +
-        "generate_diagram (generate a Mermaid C4 context diagram from existing spec artifacts — reads forgecraft.yaml, docs/PRD.md, docs/use-cases.md).",
+        "generate_diagram (generate a Mermaid C4 context diagram from existing spec artifacts — reads forgecraft.yaml, docs/PRD.md, docs/use-cases.md), " +
+        "set_cascade_requirement (revise a cascade decision: mark a step as required or optional with rationale — the AI is the brain, this is how it updates the enforcement map).",
     ),
   project_dir: z
     .string()
@@ -395,6 +398,36 @@ export const forgecraftSchema = z.object({
     .describe(
       "Positive and negative consequences of the decision — what becomes easier, harder, or constrained. Used by: generate_adr.",
     ),
+  cascade_step: z
+    .enum([
+      "functional_spec",
+      "architecture_diagrams",
+      "constitution",
+      "adrs",
+      "behavioral_contracts",
+    ] as const)
+    .optional()
+    .describe(
+      "Which cascade step to configure. Used by: set_cascade_requirement.",
+    ),
+  cascade_required: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the cascade step must pass before implementation begins. Used by: set_cascade_requirement.",
+    ),
+  cascade_rationale: z
+    .string()
+    .optional()
+    .describe(
+      "Why was this cascade decision made? Required for: set_cascade_requirement.",
+    ),
+  cascade_decided_by: z
+    .enum(["assistant", "user"])
+    .optional()
+    .describe(
+      "Who made this cascade decision. Used by: set_cascade_requirement. Defaults to 'assistant'.",
+    ),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -651,6 +684,15 @@ export async function forgecraftHandler(
     case "generate_diagram":
       return generateDiagramHandler({
         project_dir: requireParam(args.project_dir, "project_dir", "generate_diagram"),
+      });
+
+    case "set_cascade_requirement":
+      return setCascadeRequirementHandler({
+        project_dir: requireParam(args.project_dir, "project_dir", "set_cascade_requirement"),
+        step: requireParam(args.cascade_step, "cascade_step", "set_cascade_requirement"),
+        required: requireParam(args.cascade_required, "cascade_required", "set_cascade_requirement"),
+        rationale: requireParam(args.cascade_rationale, "cascade_rationale", "set_cascade_requirement"),
+        decided_by: args.cascade_decided_by,
       });
 
     default:

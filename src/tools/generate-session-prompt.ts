@@ -15,7 +15,7 @@
 import { z } from "zod";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { runCascadeChecks, isCascadeComplete, buildGuidedRemediation } from "./check-cascade.js";
+import { runCascadeChecks, isCascadeComplete, buildGuidedRemediation, loadCascadeDecisions } from "./check-cascade.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -80,7 +80,8 @@ export async function generateSessionPromptHandler(
   const projectDir = resolve(args.project_dir);
 
   // Cascade gate: cannot generate a session prompt without a complete spec
-  const cascadeSteps = runCascadeChecks(projectDir);
+  const decisions = loadCascadeDecisions(projectDir);
+  const cascadeSteps = runCascadeChecks(projectDir, decisions);
   if (!isCascadeComplete(cascadeSteps)) {
     const guidance = buildGuidedRemediation(cascadeSteps);
     return {

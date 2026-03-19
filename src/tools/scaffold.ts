@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { mkdirSync, chmodSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
+import yaml from "js-yaml";
 import {
   ALL_TAGS,
   ALL_OUTPUT_TARGETS,
@@ -19,6 +20,8 @@ import type {
   ScaffoldResult,
   OutputTarget,
   ProjectDeploymentConfig,
+  ForgeCraftConfig,
+  CascadeDecision,
 } from "../shared/types.js";
 import {
   loadAllTemplatesWithExtras,
@@ -36,6 +39,7 @@ import { renderSentinelTree } from "../registry/sentinel-renderer.js";
 import { writeFileIfMissing, checkGitSafety } from "../shared/filesystem.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
+import { deriveDefaultCascadeDecisions } from "./cascade-defaults.js";
 
 const logger = createLogger("tools/scaffold");
 
@@ -492,6 +496,9 @@ export async function scaffoldProjectHandler(
     );
   }
 
+  // ── Step 0: Write cascade decisions to forgecraft.yaml ─────────────────
+  const cascadeDecisions = writeCascadeDecisions(args.project_dir, tags, args.project_name, userConfig);
+
   const result: ScaffoldResult = {
     filesCreated,
     mcpServersConfigured: [],
@@ -525,9 +532,79 @@ export async function scaffoldProjectHandler(
   text += `\n\n## Next Steps\n`;
   text += result.nextSteps.map((s, i) => `${i + 1}. ${s}`).join("\n");
   text += renderGsDisclosure();
+  text += renderCascadeDecisionsSection(cascadeDecisions);
   text += `\n\n⚠️ **Restart may be required** to pick up instruction files and hooks.`;
 
   return { content: [{ type: "text", text }] };
+}
+
+// ── Cascade Decisions (Step 0) ────────────────────────────────────────
+
+/** Canonical artifact path for each cascade step (for display). */
+const STEP_ARTIFACT_DISPLAY: Record<string, string> = {
+  functional_spec: "PRD.md",
+  architecture_diagrams: "c4-context.md",
+  constitution: "CLAUDE.md",
+  adrs: "docs/adrs/",
+  behavioral_contracts: "use-cases.md",
+};
+
+/**
+ * Write cascade.steps to forgecraft.yaml in the project directory.
+ * Never overwrites existing decisions — only writes when cascade.steps is absent.
+ *
+ * @param projectDir - Absolute project root path
+ * @param tags - Project tags used for deriving defaults
+ * @param projectName - Human-readable project name
+ * @param existingConfig - Already-loaded user config (avoids double-read)
+ * @returns The cascade decisions that were written (or already existed)
+ */
+function writeCascadeDecisions(
+  projectDir: string,
+  tags: readonly Tag[],
+  projectName: string,
+  existingConfig: ForgeCraftConfig | null,
+): CascadeDecision[] {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+
+  const existing = existingConfig?.cascade?.steps;
+  if (existing && existing.length > 0) {
+    return existing as CascadeDecision[];
+  }
+
+  const decisions = deriveDefaultCascadeDecisions(tags, projectName);
+
+  const configBase: Record<string, unknown> = existingConfig
+    ? (existingConfig as unknown as Record<string, unknown>)
+    : { projectName, tags: [...tags] };
+
+  const updated = { ...configBase, cascade: { steps: decisions } };
+  writeFileSync(yamlPath, yaml.dump(updated, { lineWidth: 120 }), "utf-8");
+
+  return decisions;
+}
+
+/**
+ * Render the Cascade Decisions (Step 0) section for the scaffold output.
+ *
+ * @param decisions - The cascade decisions to display
+ * @returns Formatted Markdown section
+ */
+function renderCascadeDecisionsSection(decisions: readonly CascadeDecision[]): string {
+  let text = `\n\n## Cascade Decisions (Step 0)\n\n`;
+  text += `The following spec artifacts have been assessed for this project:\n\n`;
+
+  for (const decision of decisions) {
+    const icon = decision.required ? "✓" : "○";
+    const artifact = STEP_ARTIFACT_DISPLAY[decision.step] ?? decision.step;
+    const label = decision.required ? `required (${artifact})` : `optional — ${decision.rationale.split(".")[0]}`;
+    text += `  ${icon} ${decision.step} — ${label}\n`;
+  }
+
+  text += `\nReview these decisions. To revise: use \`set_cascade_requirement\` or edit\n`;
+  text += `forgecraft.yaml under \`cascade.steps\`. These decisions determine which\n`;
+  text += `artifacts are gated before implementation can begin.\n`;
+  return text;
 }
 
 /**

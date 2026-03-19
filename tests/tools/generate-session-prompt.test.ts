@@ -369,4 +369,76 @@ describe("generateSessionPromptHandler", () => {
       expect(result.content[0]!.text).toContain("check_cascade");
     });
   });
+
+  // ── SKIP steps (cascade decisions) ───────────────────────────────
+
+  describe("cascade decisions: SKIP steps do not block prompt generation", () => {
+    it("generates a prompt when required steps PASS and optional steps would have failed", async () => {
+      // Build only the required steps — skip adrs and diagrams
+      write(tempDir, "docs/PRD.md", "# PRD\n## Problem\nSolves user pain.\n## Users\nDevelopers.\n");
+      write(tempDir, "CLAUDE.md", "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n");
+      write(tempDir, "docs/use-cases.md", "# Use Cases\n## UC-001\n**Actor**: user\nPrecondition: logged in\n");
+      // No docs/diagrams/ and no docs/adrs/ — normally FAIL for steps 2 and 4
+      // Mark them as optional in forgecraft.yaml
+      writeFileSync(join(tempDir, "forgecraft.yaml"), [
+        "cascade:",
+        "  steps:",
+        "    - step: architecture_diagrams",
+        "      required: false",
+        '      rationale: "CLI project — no external integration surface."',
+        "      decidedAt: '2025-01-01'",
+        "      decidedBy: scaffold",
+        "    - step: adrs",
+        "      required: false",
+        '      rationale: "Simple script with no complex decisions."',
+        "      decidedAt: '2025-01-01'",
+        "      decidedBy: scaffold",
+      ].join("\n"), "utf-8");
+
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      // Should NOT be blocked
+      expect(result.content[0]!.text).not.toContain("Session Prompt Blocked");
+    });
+
+    it("still blocks when required steps fail even if optional steps would have passed", async () => {
+      // No files at all, but mark all steps as optional except functional_spec
+      writeFileSync(join(tempDir, "forgecraft.yaml"), [
+        "cascade:",
+        "  steps:",
+        "    - step: architecture_diagrams",
+        "      required: false",
+        '      rationale: "Optional."',
+        "      decidedAt: '2025-01-01'",
+        "      decidedBy: scaffold",
+        "    - step: adrs",
+        "      required: false",
+        '      rationale: "Optional."',
+        "      decidedAt: '2025-01-01'",
+        "      decidedBy: scaffold",
+        "    - step: behavioral_contracts",
+        "      required: false",
+        '      rationale: "Optional."',
+        "      decidedAt: '2025-01-01'",
+        "      decidedBy: scaffold",
+        "    - step: constitution",
+        "      required: false",
+        '      rationale: "Optional."',
+        "      decidedAt: '2025-01-01'",
+        "      decidedBy: scaffold",
+        // functional_spec is NOT in the decisions list — fail-safe: defaults to required
+      ].join("\n"), "utf-8");
+
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      // functional_spec is missing and required (no decision = fail-safe) → BLOCKED
+      expect(result.content[0]!.text).toContain("Session Prompt Blocked");
+    });
+  });
 });

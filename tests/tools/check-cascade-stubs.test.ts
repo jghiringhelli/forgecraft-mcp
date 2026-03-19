@@ -14,6 +14,7 @@ import {
   runCascadeChecks,
   type CascadeStep,
 } from "../../src/tools/check-cascade.js";
+import type { CascadeDecision } from "../../src/shared/types.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -157,12 +158,23 @@ describe("isCascadeComplete", () => {
     expect(isCascadeComplete(steps)).toBe(false);
   });
 
-  it("returns false when any step is STUB", () => {
+  it("returns true when any step is SKIP (optional, not blocking)", () => {
     const steps: CascadeStep[] = [
-      { step: 1, name: "Spec", status: "STUB", detail: "Unfilled", questions: ["q1"] },
-      { step: 2, name: "Diagrams", status: "PASS", detail: "OK", questions: [] },
+      { step: 1, name: "Spec", status: "PASS", detail: "OK", questions: [] },
+      { step: 2, name: "Diagrams", status: "SKIP", detail: "Optional for CLI", questions: [] },
       { step: 3, name: "Constitution", status: "PASS", detail: "OK", questions: [] },
-      { step: 4, name: "ADRs", status: "PASS", detail: "OK", questions: [] },
+      { step: 4, name: "ADRs", status: "SKIP", detail: "Optional for CLI", questions: [] },
+      { step: 5, name: "Use Cases", status: "PASS", detail: "OK", questions: [] },
+    ];
+    expect(isCascadeComplete(steps)).toBe(true);
+  });
+
+  it("returns false when any step is FAIL even with SKIP steps present", () => {
+    const steps: CascadeStep[] = [
+      { step: 1, name: "Spec", status: "FAIL", detail: "Missing", questions: [] },
+      { step: 2, name: "Diagrams", status: "SKIP", detail: "Optional", questions: [] },
+      { step: 3, name: "Constitution", status: "PASS", detail: "OK", questions: [] },
+      { step: 4, name: "ADRs", status: "SKIP", detail: "Optional", questions: [] },
       { step: 5, name: "Use Cases", status: "PASS", detail: "OK", questions: [] },
     ];
     expect(isCascadeComplete(steps)).toBe(false);
@@ -250,6 +262,18 @@ describe("buildGuidedRemediation", () => {
     expect(text).toContain("check the cascade again");
   });
 
+  it("SKIP steps are not listed in buildGuidedRemediation failing steps", () => {
+    const steps: CascadeStep[] = [
+      { step: 1, name: "Spec", status: "PASS", detail: "OK", questions: [] },
+      { step: 2, name: "Diagrams", status: "SKIP", detail: "Optional for CLI", questions: [] },
+      { step: 3, name: "Constitution", status: "PASS", detail: "OK", questions: [] },
+      { step: 4, name: "ADRs", status: "SKIP", detail: "Optional for CLI", questions: [] },
+      { step: 5, name: "Use Cases", status: "PASS", detail: "OK", questions: [] },
+    ];
+    const text = buildGuidedRemediation(steps);
+    expect(text).toBe("All cascade steps are complete.");
+  });
+
   it("uses correct artifact path for each step number", () => {
     const stepArtifacts: [number, string][] = [
       [1, "docs/PRD.md"],
@@ -265,6 +289,111 @@ describe("buildGuidedRemediation", () => {
       const text = buildGuidedRemediation(steps);
       expect(text).toContain(artifact);
     }
+  });
+});
+
+// ── runCascadeChecks with decisions ──────────────────────────────────
+
+describe("runCascadeChecks with cascade decisions", () => {
+  let tempDir: string;
+
+  beforeEach(() => { tempDir = makeTempDir(); });
+  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+
+  it("marks FAIL step as SKIP when decision.required is false", () => {
+    const decisions: CascadeDecision[] = [
+      { step: "architecture_diagrams", required: false, rationale: "CLI project", decidedAt: "2025-01-01", decidedBy: "scaffold" },
+    ];
+    const steps = runCascadeChecks(tempDir, decisions);
+    const diagrams = steps.find((s) => s.step === 2)!;
+    expect(diagrams.status).toBe("SKIP");
+  });
+
+  it("uses decision.rationale as the SKIP step detail", () => {
+    const decisions: CascadeDecision[] = [
+      { step: "adrs", required: false, rationale: "No architectural decisions needed here.", decidedAt: "2025-01-01", decidedBy: "scaffold" },
+    ];
+    const steps = runCascadeChecks(tempDir, decisions);
+    const adrs = steps.find((s) => s.step === 4)!;
+    expect(adrs.detail).toBe("No architectural decisions needed here.");
+  });
+
+  it("keeps a FAIL step as FAIL when decision.required is true", () => {
+    const decisions: CascadeDecision[] = [
+      { step: "functional_spec", required: true, rationale: "Always required.", decidedAt: "2025-01-01", decidedBy: "scaffold" },
+    ];
+    const steps = runCascadeChecks(tempDir, decisions);
+    const spec = steps.find((s) => s.step === 1)!;
+    expect(spec.status).toBe("FAIL");
+  });
+
+  it("still fails required steps even when other steps are SKIP", () => {
+    const decisions: CascadeDecision[] = [
+      { step: "architecture_diagrams", required: false, rationale: "CLI project", decidedAt: "2025-01-01", decidedBy: "scaffold" },
+      { step: "adrs", required: false, rationale: "Simple project", decidedAt: "2025-01-01", decidedBy: "scaffold" },
+      { step: "behavioral_contracts", required: false, rationale: "Simple project", decidedAt: "2025-01-01", decidedBy: "scaffold" },
+    ];
+    const steps = runCascadeChecks(tempDir, decisions);
+    const spec = steps.find((s) => s.step === 1)!;
+    expect(spec.status).toBe("FAIL"); // still missing, and required
+    const diagrams = steps.find((s) => s.step === 2)!;
+    expect(diagrams.status).toBe("SKIP");
+  });
+
+  it("defaults to required (FAIL not SKIP) when no decision for a step", () => {
+    const decisions: CascadeDecision[] = [
+      // Only adrs configured — architecture_diagrams has no decision
+      { step: "adrs", required: false, rationale: "Optional.", decidedAt: "2025-01-01", decidedBy: "scaffold" },
+    ];
+    const steps = runCascadeChecks(tempDir, decisions);
+    const diagrams = steps.find((s) => s.step === 2)!;
+    // No decision for architecture_diagrams → fail-safe → FAIL, not SKIP
+    expect(diagrams.status).toBe("FAIL");
+  });
+});
+
+// ── checkCascadeHandler: no cascade config warning ───────────────────
+
+describe("checkCascadeHandler: cascade config warnings", () => {
+  let tempDir: string;
+
+  beforeEach(() => { tempDir = makeTempDir(); });
+  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+
+  it("includes no-cascade-config warning when no forgecraft.yaml", async () => {
+    buildCompleteCascade(tempDir);
+    const result = await checkCascadeHandler({ project_dir: tempDir });
+    expect(result.content[0]!.text).toContain("No cascade decisions configured");
+  });
+
+  it("does NOT include no-cascade-config warning when decisions are configured", async () => {
+    buildCompleteCascade(tempDir);
+    const { writeFileSync: wfs } = await import("node:fs");
+    const { join: pjoin } = await import("node:path");
+    wfs(pjoin(tempDir, "forgecraft.yaml"), `cascade:\n  steps:\n    - step: functional_spec\n      required: true\n      rationale: "required"\n      decidedAt: "2025-01-01"\n      decidedBy: scaffold\n`, "utf-8");
+    const result = await checkCascadeHandler({ project_dir: tempDir });
+    expect(result.content[0]!.text).not.toContain("No cascade decisions configured");
+  });
+
+  it("shows SKIP in the step report with ○ SKIP icon", async () => {
+    buildCompleteCascade(tempDir);
+    const { writeFileSync: wfs } = await import("node:fs");
+    const { join: pjoin } = await import("node:path");
+    // Mark adrs as optional — but adrs passes anyway because we have one
+    // Instead, provide a non-existent project dir to force FAIL, then mark as SKIP
+    const newDir = tempDir + "-skip";
+    mkdirSync(newDir, { recursive: true });
+    // Build cascade but skip adrs
+    write(newDir, "docs/PRD.md", "# PRD\nReal content.\n");
+    mkdirSync(pjoin(newDir, "docs/diagrams"), { recursive: true });
+    write(newDir, "docs/diagrams/c4-context.md", "```mermaid\nC4Context\n  Person(u,'U')\n```\n");
+    write(newDir, "CLAUDE.md", "# Rules\n- Layer separation.\n");
+    write(newDir, "docs/use-cases.md", "# Use Cases\n## UC-001\nActor: user\nPrecondition: logged in\n");
+    // No adrs/ directory — step 4 would normally FAIL
+    wfs(pjoin(newDir, "forgecraft.yaml"), `cascade:\n  steps:\n    - step: adrs\n      required: false\n      rationale: "Simple project, no ADRs needed."\n      decidedAt: "2025-01-01"\n      decidedBy: scaffold\n`, "utf-8");
+    const result = await checkCascadeHandler({ project_dir: newDir });
+    expect(result.content[0]!.text).toContain("○ SKIP");
+    rmSync(newDir, { recursive: true, force: true });
   });
 });
 

@@ -725,6 +725,41 @@ export interface ForgeCraftConfig {
   readonly gates_registry_url?: string;
   /** URL for the forgecraft-server API. Used by contribute-gate tool. */
   readonly server_url?: string;
+  /** AI-assessed cascade decisions — which spec artifacts are required for this project. */
+  readonly cascade?: {
+    readonly steps: CascadeDecision[];
+  };
+}
+
+// ── Cascade Decisions ────────────────────────────────────────────────
+
+/**
+ * The canonical step names for the five GS initialization cascade steps.
+ * Maps to the five artifact checks in check-cascade.ts.
+ */
+export type CascadeStepName =
+  | "functional_spec"
+  | "architecture_diagrams"
+  | "constitution"
+  | "adrs"
+  | "behavioral_contracts";
+
+/**
+ * A per-step decision: required or optional, with rationale and provenance.
+ * Written to forgecraft.yaml under cascade.steps by scaffold or set_cascade_requirement.
+ * The AI is the brain — it decides; the tool enforces only what was decided.
+ */
+export interface CascadeDecision {
+  /** Which cascade step this decision applies to. */
+  readonly step: CascadeStepName;
+  /** Whether this step must pass before implementation begins. */
+  readonly required: boolean;
+  /** Human-readable rationale for the decision. */
+  readonly rationale: string;
+  /** ISO 8601 date when this decision was recorded. */
+  readonly decidedAt: string;
+  /** Who made this decision. */
+  readonly decidedBy: "scaffold" | "assistant" | "user";
 }
 
 // ── Verification Strategy ───────────────────────────────────────────
