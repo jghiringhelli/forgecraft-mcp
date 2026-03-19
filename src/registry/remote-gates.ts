@@ -27,7 +27,7 @@ export interface RemoteGatesIndex {
 }
 
 const DEFAULT_REGISTRY_URL =
-  "https://raw.githubusercontent.com/genspec-dev/quality-gates/main/index.json";
+  "https://raw.githubusercontent.com/jghiringhelli/quality-gates/master/index.json";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
