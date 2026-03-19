@@ -15,7 +15,9 @@
 import { z } from "zod";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import yaml from "js-yaml";
 import { runCascadeChecks, isCascadeComplete, buildGuidedRemediation, loadCascadeDecisions } from "./check-cascade.js";
+import { resolveTemplatesDir } from "../registry/loader.js";
 import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
@@ -102,6 +104,7 @@ export async function generateSessionPromptHandler(
   const criteria = args.acceptance_criteria ?? buildDefaultCriteria(args.item_description);
 
   const prompt = buildPrompt({
+    projectDir,
     itemDescription: args.item_description,
     sessionType: args.session_type,
     scopeNote: args.scope_note,
@@ -225,6 +228,7 @@ function buildDefaultCriteria(itemDescription: string): string[] {
 // ── Prompt Builder ───────────────────────────────────────────────────
 
 interface PromptBuildInput {
+  readonly projectDir: string;
   readonly itemDescription: string;
   readonly sessionType: string;
   readonly scopeNote: string | undefined;
@@ -240,7 +244,7 @@ interface PromptBuildInput {
  * @returns Complete, ready-to-paste session prompt
  */
 function buildPrompt(input: PromptBuildInput): string {
-  const { itemDescription, sessionType, scopeNote, acceptanceCriteria, artifacts, statusSummary } =
+  const { projectDir, itemDescription, sessionType, scopeNote, acceptanceCriteria, artifacts, statusSummary } =
     input;
 
   const contextLoadBlock = buildContextLoadBlock(artifacts);
@@ -275,13 +279,9 @@ function buildPrompt(input: PromptBuildInput): string {
 
   if (scopeBlock) prompt += scopeBlock + "\n";
 
-  prompt += `### TDD Gate\n\n`;
-  prompt += `Follow strict RED → GREEN → REFACTOR.\n`;
-  prompt += `1. **RED**: Write the failing test first. Run it. Paste the failure output before writing any implementation.\n`;
-  prompt += `2. **GREEN**: Write minimum implementation to pass. Do not proceed until tests pass.\n`;
-  prompt += `3. **REFACTOR**: Clean structure while keeping all tests green.\n\n`;
-  prompt += `Commit sequence required:\n`;
-  prompt += `\`\`\`\ntest(scope): [RED] <describe what the test asserts>\n${conventionalType}(scope): <implement to satisfy the test>\nrefactor(scope): <clean without behavior change>  ← only if needed\n\`\`\`\n\n`;
+  prompt += buildTddGateSection(conventionalType);
+  prompt += buildMcpToolsSection(projectDir);
+  prompt += buildExecutionLoopSection(deriveTestCommand(projectDir));
 
   prompt += `### Acceptance Criteria\n\n`;
   prompt += `All must be satisfied before the session is considered complete:\n\n`;
@@ -336,4 +336,184 @@ function buildContextLoadBlock(artifacts: ArtifactContext): string {
   }
 
   return lines.join("\n") + "\n";
+}
+
+// ── Section Builders ─────────────────────────────────────────────────
+
+/**
+ * Build the TDD Gate section.
+ *
+ * @param conventionalType - Conventional commit type for this session
+ * @returns Formatted TDD Gate section
+ */
+function buildTddGateSection(conventionalType: string): string {
+  let section = `### TDD Gate\n\n`;
+  section += `Follow strict RED → GREEN → REFACTOR.\n`;
+  section += `1. **RED**: Write the failing test first. Run it. Paste the failure output before writing any implementation.\n`;
+  section += `2. **GREEN**: Write minimum implementation to pass. Do not proceed until tests pass.\n`;
+  section += `3. **REFACTOR**: Clean structure while keeping all tests green.\n\n`;
+  section += `Commit sequence required:\n`;
+  section += `\`\`\`\ntest(scope): [RED] <describe what the test asserts>\n${conventionalType}(scope): <implement to satisfy the test>\nrefactor(scope): <clean without behavior change>  ← only if needed\n\`\`\`\n\n`;
+  return section;
+}
+
+/** Entry shape from mcp-servers.yaml. */
+interface McpServerYamlEntry {
+  readonly name: string;
+  readonly description: string;
+}
+
+/** Parsed structure of mcp-servers.yaml. */
+interface McpServersYaml {
+  readonly servers?: McpServerYamlEntry[];
+}
+
+/**
+ * Load MCP server descriptions from templates/universal/mcp-servers.yaml.
+ * Returns an empty map if the file cannot be found or parsed.
+ *
+ * @returns Map of server name → description entry
+ */
+function loadMcpServerDescriptions(): Map<string, McpServerYamlEntry> {
+  const map = new Map<string, McpServerYamlEntry>();
+  try {
+    const templatesDir = resolveTemplatesDir();
+    const yamlPath = join(templatesDir, "universal", "mcp-servers.yaml");
+    if (!existsSync(yamlPath)) return map;
+    const parsed = yaml.load(readFileSync(yamlPath, "utf-8")) as McpServersYaml;
+    for (const server of parsed.servers ?? []) {
+      map.set(server.name, server);
+    }
+  } catch {
+    // Return empty map if YAML loading fails
+  }
+  return map;
+}
+
+/** Primary-use text shown for the forgecraft server entry. */
+const FORGECRAFT_PRIMARY_USE = "check_cascade, generate_session_prompt, audit_project";
+
+/**
+ * Build the Active MCP Tools section.
+ * Always includes forgecraft; also includes servers found in .claude/settings.json.
+ * Falls back to a setup note when settings.json is absent.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Formatted Active MCP Tools section
+ */
+function buildMcpToolsSection(projectDir: string): string {
+  const settingsPath = join(projectDir, ".claude", "settings.json");
+
+  if (!existsSync(settingsPath)) {
+    return (
+      `## Active MCP Tools\n\n` +
+      `Run \`configure_mcp\` to enable MCP tool recommendations.\n\n`
+    );
+  }
+
+  let configuredNames: string[] = [];
+  try {
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
+    const mcpServers = settings["mcpServers"] as Record<string, unknown> | undefined;
+    configuredNames = mcpServers ? Object.keys(mcpServers) : [];
+  } catch {
+    return (
+      `## Active MCP Tools\n\n` +
+      `Run \`configure_mcp\` to enable MCP tool recommendations.\n\n`
+    );
+  }
+
+  const descriptions = loadMcpServerDescriptions();
+  const allNames = new Set(["forgecraft", ...configuredNames]);
+  const lines: string[] = [];
+
+  for (const name of allNames) {
+    const primaryUse =
+      name === "forgecraft"
+        ? FORGECRAFT_PRIMARY_USE
+        : (descriptions.get(name)?.description ?? "MCP server");
+    lines.push(`- **${name}** — ${primaryUse}`);
+  }
+
+  return (
+    `## Active MCP Tools\n\n` +
+    `These tools are available in this session. Use them:\n` +
+    lines.join("\n") + "\n\n"
+  );
+}
+
+/**
+ * Check whether a package.json test script is a placeholder rather than a real command.
+ *
+ * @param script - The scripts.test value
+ * @returns True if the script appears to be a no-op placeholder
+ */
+function isPlaceholderTestScript(script: string): boolean {
+  const lower = script.toLowerCase();
+  return lower.startsWith("echo") || lower.includes("no test") || lower.includes("exit 1");
+}
+
+/**
+ * Derive the test command for this project from configuration files.
+ * Priority: package.json scripts.test → pyproject.toml → requirements.txt → go.mod → fallback.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Test command string
+ */
+function deriveTestCommand(projectDir: string): string {
+  const packageJsonPath = join(projectDir, "package.json");
+  if (existsSync(packageJsonPath)) {
+    try {
+      const pkg = JSON.parse(readFileSync(packageJsonPath, "utf-8")) as {
+        scripts?: Record<string, string>;
+      };
+      const testScript = pkg.scripts?.["test"];
+      if (testScript && !isPlaceholderTestScript(testScript)) {
+        return "npm test";
+      }
+    } catch {
+      // Fall through to next check
+    }
+  }
+
+  if (existsSync(join(projectDir, "pyproject.toml"))) {
+    return "pytest";
+  }
+
+  if (existsSync(join(projectDir, "requirements.txt"))) {
+    try {
+      const req = readFileSync(join(projectDir, "requirements.txt"), "utf-8");
+      if (req.toLowerCase().includes("pytest")) return "pytest";
+    } catch {
+      // Fall through
+    }
+  }
+
+  if (existsSync(join(projectDir, "go.mod"))) {
+    return "go test ./...";
+  }
+
+  return existsSync(packageJsonPath) ? "npm test" : "pytest";
+}
+
+/**
+ * Build the Execution Loop section with the derived test command.
+ *
+ * @param testCommand - The test command to embed
+ * @returns Formatted Execution Loop section
+ */
+function buildExecutionLoopSection(testCommand: string): string {
+  return (
+    `## Execution Loop\n\n` +
+    `Every implementation unit follows this loop. Do not exit until all tests are green.\n\n` +
+    `1. **Write the failing test first** (RED) — run it, confirm it fails for the right reason\n` +
+    `2. **Write minimum implementation** (GREEN) — run tests, if any fail go back to step 2\n` +
+    `3. **Refactor** (CLEAN) — run tests again, confirm still green\n` +
+    `4. **Commit** — only when all tests pass\n\n` +
+    `**Test command for this project:** \`${testCommand}\`\n\n` +
+    `If tests fail after implementation: fix and re-run immediately. Do not move to the next\n` +
+    `unit, do not update Status.md, do not ask the user for direction — loop until green.\n\n` +
+    `If you are blocked for more than 2 iterations on the same failure: surface the exact\n` +
+    `error with your interpretation and ask once.\n\n`
+  );
 }

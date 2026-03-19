@@ -15,6 +15,7 @@ import type { CascadeDecision, Tag } from "../shared/types.js";
 import { ALL_TAGS } from "../shared/types.js";
 import { deriveDefaultCascadeDecisions } from "./cascade-defaults.js";
 import { scaffoldProjectHandler, scaffoldHooks } from "./scaffold.js";
+import { configureMcpHandler } from "./configure-mcp.js";
 import { createLogger } from "../shared/logger/index.js";
 import { parseSpec, inferTagsFromDirectory, directoryHasFiles, findRichestSpecFile, inferSensitiveData } from "./spec-parser.js";
 import type { AmbiguityItem } from "./spec-parser.js";
@@ -349,6 +350,19 @@ async function executePhase2(
   const validTagsForHooks = (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[];
   await scaffoldHooks(projectDir, validTagsForHooks);
 
+  let mcpServerNames: string[] = [];
+  try {
+    await configureMcpHandler({
+      tags: validTagsForHooks,
+      project_dir: projectDir,
+      auto_approve_tools: true,
+      include_remote: false,
+    });
+    mcpServerNames = readConfiguredMcpServerNames(projectDir);
+  } catch (error) {
+    logger.warn("configure_mcp failed during setup", { error });
+  }
+
   const text = buildPhase2Response({
     decisions,
     tags: effectiveTags,
@@ -359,6 +373,7 @@ async function executePhase2(
     yamlWritten,
     scaffoldText,
     sensitiveData: isSensitive,
+    mcpServerNames,
   });
 
   return { content: [{ type: "text", text }] };
@@ -514,6 +529,7 @@ interface Phase2ResponseParams {
   readonly yamlWritten: boolean;
   readonly scaffoldText: string;
   readonly sensitiveData?: boolean;
+  readonly mcpServerNames: string[];
 }
 
 /**
@@ -553,6 +569,13 @@ function buildPhase2Response(params: Phase2ResponseParams): string {
 
   if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0) {
     text += `  (all artifacts already existed — nothing overwritten)\n`;
+  }
+
+  if (params.mcpServerNames.length > 0) {
+    text += `\n### MCP Tools Configured\n`;
+    for (const name of params.mcpServerNames) {
+      text += `  ${name}\n`;
+    }
   }
 
   text += `\n### Next step:\n`;
@@ -612,6 +635,24 @@ function extractScaffoldFiles(scaffoldText: string): string[] {
  */
 function filterToValidTags(tags: string[]): string[] {
   return tags.filter((t) => VALID_TAGS_SET.has(t));
+}
+
+/**
+ * Read the names of configured MCP servers from .claude/settings.json.
+ *
+ * @param projectDir - Project root
+ * @returns Array of server names, or empty array if file not found or unreadable
+ */
+function readConfiguredMcpServerNames(projectDir: string): string[] {
+  const settingsPath = join(projectDir, ".claude", "settings.json");
+  if (!existsSync(settingsPath)) return [];
+  try {
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
+    const mcpServers = settings["mcpServers"] as Record<string, unknown> | undefined;
+    return mcpServers ? Object.keys(mcpServers) : [];
+  } catch {
+    return [];
+  }
 }
 
 /**

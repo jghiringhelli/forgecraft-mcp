@@ -441,4 +441,72 @@ describe("generateSessionPromptHandler", () => {
       expect(result.content[0]!.text).toContain("Session Prompt Blocked");
     });
   });
+
+  // ── Execution Loop + Active MCP Tools ─────────────────────────────
+
+  describe("execution loop and active MCP tools sections", () => {
+    it("includes an Execution Loop section", async () => {
+      buildCompleteCascade(tempDir);
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Execution Loop");
+      expect(text).toContain("loop until green");
+    });
+
+    it("derives test command from package.json scripts.test field", async () => {
+      buildCompleteCascade(tempDir);
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ scripts: { test: "vitest run" } }),
+        "utf-8",
+      );
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      expect(result.content[0]!.text).toContain("npm test");
+    });
+
+    it("includes Active MCP Tools section when .claude/settings.json exists", async () => {
+      buildCompleteCascade(tempDir);
+      mkdirSync(join(tempDir, ".claude"), { recursive: true });
+      writeFileSync(
+        join(tempDir, ".claude", "settings.json"),
+        JSON.stringify({
+          mcpServers: {
+            forgecraft: { command: "npx", args: ["-y", "forgecraft-mcp"] },
+            context7: { command: "npx", args: ["-y", "@upstash/context7-mcp@latest"] },
+          },
+        }),
+        "utf-8",
+      );
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Active MCP Tools");
+      expect(text).toContain("forgecraft");
+      expect(text).toContain("context7");
+    });
+
+    it("includes fallback message in Active MCP Tools when .claude/settings.json not found", async () => {
+      buildCompleteCascade(tempDir);
+      // No .claude/settings.json created
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Active MCP Tools");
+      expect(text).toContain("configure_mcp");
+    });
+  });
 });
