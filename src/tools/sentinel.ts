@@ -42,32 +42,26 @@ export async function sentinelHandler(
     lines.push(
       "## Project has no engineering standards configured.",
       "",
-      "**Run this command now** using your bash/shell tool:",
-      `  npx forgecraft-mcp setup ${project_dir}`,
+      "**Call `forgecraft_actions` now** with these parameters:",
+      `  action: "setup_project"`,
+      `  project_dir: "${project_dir}"`,
       "",
-      "This will auto-detect your stack from the codebase and any spec files found,",
-      "then generate CLAUDE.md, hooks, and skills.",
+      "This will analyze the project, infer tags from any spec files found,",
+      "ask calibration questions (MVP? scope complete? existing consumers?),",
+      "then scaffold CLAUDE.md, hooks, and skills.",
       "",
-      "Options (pass only what you need):",
-      "  --tags UNIVERSAL API        Override auto-detected tags (see valid tags below)",
-      "  --tier core|recommended     Content depth (default: recommended)",
-      "  --targets claude cursor     Additional AI assistant targets",
-      "  --dry-run                   Preview without writing files",
+      `Valid tags (use ONLY these): ${validTagList}`,
       "",
-      `Valid tags: ${validTagList}`,
-      "",
-      "**Do NOT invent new tags.** Only use tags from the list above.",
-      "If no spec file is found automatically, pass --spec-path <path> to the setup command.",
+      "**Do NOT invent tags.** Only pass tags from the list above.",
+      "To specify a spec file explicitly, also pass: spec_path: '<absolute path to spec>'",
     );
   } else if (hasConfig && !hasHooks) {
     lines.push(
       "## Project has forgecraft.yaml but is missing hooks and skills.",
       "",
-      "**Run this command now** using your bash/shell tool:",
-      `  npx forgecraft-mcp scaffold ${project_dir}`,
-      "",
-      "Or to re-sync everything:",
-      `  npx forgecraft-mcp refresh ${project_dir} --apply`,
+      "**Call `forgecraft_actions` now** with:",
+      `  action: "scaffold"`,
+      `  project_dir: "${project_dir}"`,
     );
   } else {
     const configStatus = hasConfig ? "forgecraft.yaml ✓" : "no forgecraft.yaml";
@@ -77,10 +71,10 @@ export async function sentinelHandler(
     lines.push(
       `## Project status: ${configStatus} | ${mdStatus} | ${hooksStatus}`,
       "",
-      "Available commands (run with your bash/shell tool as needed):",
-      `  npx forgecraft-mcp refresh ${project_dir} --apply     (re-sync after project changes)`,
-      `  npx forgecraft-mcp audit ${project_dir}               (score compliance 0-100)`,
-      `  npx forgecraft-mcp refresh ${project_dir} --apply --targets claude cursor copilot`,
+      "Call `forgecraft_actions` as needed:",
+      `  action: "refresh",       project_dir: "${project_dir}"   (re-sync after project changes)`,
+      `  action: "audit",         project_dir: "${project_dir}"   (score compliance 0-100)`,
+      `  action: "check_cascade", project_dir: "${project_dir}"   (verify GS cascade steps)`,
     );
   }
 
@@ -89,9 +83,8 @@ export async function sentinelHandler(
     "---",
     "**ForgeCraft is a setup-time tool.** Once your project is configured,",
     "remove it from your MCP servers to save tokens.",
-    "Re-add it temporarily when you need to refresh, audit, or scaffold.",
+    "Re-add it temporarily when you need to refresh, audit, or cascade-check.",
     "",
-    "All commands: setup | refresh | audit | scaffold | review | list | classify | generate | convert | add-hook | add-module",
     "Docs: https://github.com/jghiringhelli/forgecraft-mcp",
   );
 

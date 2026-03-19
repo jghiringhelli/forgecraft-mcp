@@ -8,6 +8,13 @@
  *
  * CLI usage:   npx forgecraft-mcp setup .
  * MCP usage:   npx forgecraft-mcp          (or: npx forgecraft-mcp serve)
+ *
+ * MCP tool strategy:
+ *   - "forgecraft" sentinel: lightweight status probe (~200 tokens)
+ *   - "forgecraft_actions" full router: all setup/cascade actions (~1,500 tokens)
+ *
+ * Recommendation: remove this MCP server after initial project setup.
+ * Re-add temporarily for refresh, audit, or cascade checks.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -15,6 +22,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createLogger } from "./shared/logger/index.js";
 import { runCli } from "./cli.js";
 import { sentinelSchema, sentinelHandler } from "./tools/sentinel.js";
+import {
+  forgecraftSchema,
+  forgecraftHandler,
+} from "./tools/forgecraft-router.js";
 
 // ── Entry Point ──────────────────────────────────────────────────────
 
@@ -28,12 +39,25 @@ async function startMcpServer(): Promise<void> {
     version: "1.0.0",
   });
 
-  // ── Single sentinel tool (~200 tokens vs ~1,500 for full suite) ──
+  // ── Sentinel: lightweight status probe + next-step guidance ──
   server.tool(
     "forgecraft",
-    "Setup-time tool for engineering standards. Diagnoses project state and recommends CLI commands to run. Remove this MCP server after setup is complete to save tokens.",
+    "Setup-time tool for engineering standards. Diagnoses project state. Remove this MCP server after setup is complete to save tokens.",
     sentinelSchema.shape,
     sentinelHandler,
+  );
+
+  // ── Full action router: setup, cascade, audit, generate, etc. ──
+  server.tool(
+    "forgecraft_actions",
+    "Full ForgeCraft action suite. Use action='setup_project' to onboard, 'check_cascade' to verify GS steps, 'generate_session_prompt' for a bound prompt, 'audit' for compliance score. Remove after setup to save tokens.",
+    forgecraftSchema.shape,
+    async (args) => {
+      const result = await forgecraftHandler(
+        args as Parameters<typeof forgecraftHandler>[0],
+      );
+      return result as { content: Array<{ type: "text"; text: string }> };
+    },
   );
 
   const transport = new StdioServerTransport();
