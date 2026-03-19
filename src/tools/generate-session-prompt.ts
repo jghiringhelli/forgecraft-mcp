@@ -16,45 +16,52 @@ import { z } from "zod";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import yaml from "js-yaml";
-import { runCascadeChecks, isCascadeComplete, buildGuidedRemediation, loadCascadeDecisions } from "./check-cascade.js";
+import {
+  runCascadeChecks,
+  isCascadeComplete,
+  buildGuidedRemediation,
+  loadCascadeDecisions,
+} from "./check-cascade.js";
 import { resolveTemplatesDir } from "../registry/loader.js";
 import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
 export const generateSessionPromptSchema = z.object({
-  project_dir: z
-    .string()
-    .describe("Absolute path to the project root."),
+  project_dir: z.string().describe("Absolute path to the project root."),
   item_description: z
     .string()
     .min(10)
     .describe(
       "What this session should build or fix. One sentence, precision over brevity: " +
-      "actor, behavior, and postcondition. Example: 'Add a paginated GET /users endpoint " +
-      "that returns UserResponse DTOs sorted by creation date.'",
+        "actor, behavior, and postcondition. Example: 'Add a paginated GET /users endpoint " +
+        "that returns UserResponse DTOs sorted by creation date.'",
     ),
   acceptance_criteria: z
     .array(z.string())
     .optional()
     .describe(
       "Checkable acceptance criteria for this item. Each criterion should be " +
-      "independently verifiable. If omitted, the tool generates a placeholder list.",
+        "independently verifiable. If omitted, the tool generates a placeholder list.",
     ),
   scope_note: z
     .string()
     .optional()
     .describe(
       "Explicit out-of-scope statement — what this session should NOT touch. " +
-      "Prevents scope creep at execution time.",
+        "Prevents scope creep at execution time.",
     ),
   session_type: z
     .enum(["feature", "fix", "refactor", "test", "docs", "chore"])
     .default("feature")
-    .describe("Conventional commit type for the session output. Default: feature."),
+    .describe(
+      "Conventional commit type for the session output. Default: feature.",
+    ),
 });
 
-export type GenerateSessionPromptInput = z.infer<typeof generateSessionPromptSchema>;
+export type GenerateSessionPromptInput = z.infer<
+  typeof generateSessionPromptSchema
+>;
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -88,20 +95,24 @@ export async function generateSessionPromptHandler(
   if (!isCascadeComplete(cascadeSteps)) {
     const guidance = buildGuidedRemediation(cascadeSteps);
     return {
-      content: [{
-        type: "text",
-        text: `## Session Prompt Blocked — Cascade Incomplete\n\n` +
-              `A session prompt cannot be generated until the derivation cascade is complete.\n` +
-              `The cascade ensures each implementation session is fully derivable from the spec,\n` +
-              `eliminating context guessing and specification drift.\n\n` +
-              guidance,
-      }],
+      content: [
+        {
+          type: "text",
+          text:
+            `## Session Prompt Blocked — Cascade Incomplete\n\n` +
+            `A session prompt cannot be generated until the derivation cascade is complete.\n` +
+            `The cascade ensures each implementation session is fully derivable from the spec,\n` +
+            `eliminating context guessing and specification drift.\n\n` +
+            guidance,
+        },
+      ],
     };
   }
 
   const artifacts = discoverArtifacts(projectDir);
   const statusSummary = readStatusSummary(projectDir);
-  const criteria = args.acceptance_criteria ?? buildDefaultCriteria(args.item_description);
+  const criteria =
+    args.acceptance_criteria ?? buildDefaultCriteria(args.item_description);
 
   const prompt = buildPrompt({
     projectDir,
@@ -129,7 +140,9 @@ export async function generateSessionPromptHandler(
  * @param itemDescription - The roadmap item description from the caller
  * @returns A ToolAmbiguity if the description is short, otherwise null
  */
-function buildRoadmapItemAmbiguity(itemDescription: string): ToolAmbiguity | null {
+function buildRoadmapItemAmbiguity(
+  itemDescription: string,
+): ToolAmbiguity | null {
   if (itemDescription.length >= 30) return null;
 
   return {
@@ -155,6 +168,7 @@ interface ArtifactContext {
   readonly adrDir: string | null;
   readonly diagramsExist: boolean;
   readonly useCasesExist: boolean;
+  readonly activeGateCount: number;
 }
 
 /**
@@ -191,7 +205,20 @@ function discoverArtifacts(projectDir: string): ArtifactContext {
     existsSync(join(projectDir, "docs/use-cases.md")) ||
     existsSync(join(projectDir, "docs/UseCases.md"));
 
-  return { constitutionPath, statusExists, adrCount, adrDir, diagramsExist, useCasesExist };
+  const activeGateDir = join(projectDir, ".forgecraft/gates/project/active");
+  const activeGateCount = existsSync(activeGateDir)
+    ? readdirSync(activeGateDir).filter((f) => f.endsWith(".yaml")).length
+    : 0;
+
+  return {
+    constitutionPath,
+    statusExists,
+    adrCount,
+    adrDir,
+    diagramsExist,
+    useCasesExist,
+    activeGateCount,
+  };
 }
 
 /**
@@ -205,7 +232,9 @@ function readStatusSummary(projectDir: string): string {
   const statusPath = join(projectDir, "Status.md");
   if (!existsSync(statusPath)) return "";
   const content = readFileSync(statusPath, "utf-8");
-  return content.length > 800 ? `…(truncated)…\n${content.slice(-800)}` : content;
+  return content.length > 800
+    ? `…(truncated)…\n${content.slice(-800)}`
+    : content;
 }
 
 /**
@@ -244,8 +273,15 @@ interface PromptBuildInput {
  * @returns Complete, ready-to-paste session prompt
  */
 function buildPrompt(input: PromptBuildInput): string {
-  const { projectDir, itemDescription, sessionType, scopeNote, acceptanceCriteria, artifacts, statusSummary } =
-    input;
+  const {
+    projectDir,
+    itemDescription,
+    sessionType,
+    scopeNote,
+    acceptanceCriteria,
+    artifacts,
+    statusSummary,
+  } = input;
 
   const contextLoadBlock = buildContextLoadBlock(artifacts);
   const scopeBlock = scopeNote
@@ -281,7 +317,10 @@ function buildPrompt(input: PromptBuildInput): string {
 
   prompt += buildTddGateSection(conventionalType);
   prompt += buildMcpToolsSection(projectDir);
+  prompt += buildContextRetrievalSection(projectDir);
   prompt += buildExecutionLoopSection(deriveTestCommand(projectDir));
+
+  prompt += `> Before \`git commit\`: run \`close_cycle\` to assess gates and check cascade.\n\n`;
 
   prompt += `### Acceptance Criteria\n\n`;
   prompt += `All must be satisfied before the session is considered complete:\n\n`;
@@ -310,29 +349,52 @@ function buildContextLoadBlock(artifacts: ArtifactContext): string {
   const lines: string[] = [];
 
   if (artifacts.constitutionPath) {
-    lines.push(`1. \`${artifacts.constitutionPath}\` — the operative grammar (read first, governs all output)`);
+    lines.push(
+      `1. \`${artifacts.constitutionPath}\` — the operative grammar (read first, governs all output)`,
+    );
   } else {
-    lines.push(`1. ⚠️  No constitution found — run \`setup_project\` before this session`);
+    lines.push(
+      `1. ⚠️  No constitution found — run \`setup_project\` before this session`,
+    );
   }
 
   if (artifacts.statusExists) {
-    lines.push(`2. \`Status.md\` — current implementation state and last-known next steps`);
+    lines.push(
+      `2. \`Status.md\` — current implementation state and last-known next steps`,
+    );
   } else {
-    lines.push(`2. ⚠️  Status.md missing — create it to maintain session continuity`);
+    lines.push(
+      `2. ⚠️  Status.md missing — create it to maintain session continuity`,
+    );
   }
 
   if (artifacts.adrDir && artifacts.adrCount > 0) {
-    lines.push(`3. \`${artifacts.adrDir}/\` — ${artifacts.adrCount} ADR(s) recording intentional decisions`);
+    lines.push(
+      `3. \`${artifacts.adrDir}/\` — ${artifacts.adrCount} ADR(s) recording intentional decisions`,
+    );
   } else {
-    lines.push(`3. ⚠️  No ADRs found — the AI may treat intentional choices as defects to fix`);
+    lines.push(
+      `3. ⚠️  No ADRs found — the AI may treat intentional choices as defects to fix`,
+    );
   }
 
   if (artifacts.diagramsExist) {
-    lines.push(`4. \`docs/diagrams/\` — architecture diagrams (C4 context and/or container)`);
+    lines.push(
+      `4. \`docs/diagrams/\` — architecture diagrams (C4 context and/or container)`,
+    );
   }
 
   if (artifacts.useCasesExist) {
-    lines.push(`5. \`docs/use-cases.md\` — behavioral contracts (implementation + test + doc seed)`);
+    lines.push(
+      `5. \`docs/use-cases.md\` — behavioral contracts (implementation + test + doc seed)`,
+    );
+  }
+
+  if (artifacts.activeGateCount > 0) {
+    const num = lines.length + 1;
+    lines.push(
+      `${num}. \`.forgecraft/gates/project/active/\` — ${artifacts.activeGateCount} active quality gate(s) — check with \`close_cycle\` at end of each cycle`,
+    );
   }
 
   return lines.join("\n") + "\n";
@@ -391,7 +453,8 @@ function loadMcpServerDescriptions(): Map<string, McpServerYamlEntry> {
 }
 
 /** Primary-use text shown for the forgecraft server entry. */
-const FORGECRAFT_PRIMARY_USE = "check_cascade, generate_session_prompt, audit_project";
+const FORGECRAFT_PRIMARY_USE =
+  "check_cascade, generate_session_prompt, audit_project";
 
 /**
  * Build the Active MCP Tools section.
@@ -413,8 +476,13 @@ function buildMcpToolsSection(projectDir: string): string {
 
   let configuredNames: string[] = [];
   try {
-    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
-    const mcpServers = settings["mcpServers"] as Record<string, unknown> | undefined;
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const mcpServers = settings["mcpServers"] as
+      | Record<string, unknown>
+      | undefined;
     configuredNames = mcpServers ? Object.keys(mcpServers) : [];
   } catch {
     return (
@@ -438,7 +506,8 @@ function buildMcpToolsSection(projectDir: string): string {
   return (
     `## Active MCP Tools\n\n` +
     `These tools are available in this session. Use them:\n` +
-    lines.join("\n") + "\n\n"
+    lines.join("\n") +
+    "\n\n"
   );
 }
 
@@ -450,7 +519,11 @@ function buildMcpToolsSection(projectDir: string): string {
  */
 function isPlaceholderTestScript(script: string): boolean {
   const lower = script.toLowerCase();
-  return lower.startsWith("echo") || lower.includes("no test") || lower.includes("exit 1");
+  return (
+    lower.startsWith("echo") ||
+    lower.includes("no test") ||
+    lower.includes("exit 1")
+  );
 }
 
 /**
@@ -494,6 +567,53 @@ function deriveTestCommand(projectDir: string): string {
   }
 
   return existsSync(packageJsonPath) ? "npm test" : "pytest";
+}
+
+/**
+ * Check whether a named MCP server is present in .claude/settings.json.
+ *
+ * @param projectDir - Absolute project root
+ * @param serverName - MCP server key to look for
+ * @returns True if the server is configured
+ */
+function isServerConfigured(projectDir: string, serverName: string): boolean {
+  const settingsPath = join(projectDir, ".claude", "settings.json");
+  if (!existsSync(settingsPath)) return false;
+  try {
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const mcpServers = settings["mcpServers"] as
+      | Record<string, unknown>
+      | undefined;
+    return mcpServers ? serverName in mcpServers : false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build the Context Retrieval Strategy section.
+ * Includes codeseeker-specific guidance when codeseeker is configured.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Formatted Context Retrieval Strategy section
+ */
+function buildContextRetrievalSection(projectDir: string): string {
+  let section = `## Context Retrieval Strategy\n\n`;
+
+  if (isServerConfigured(projectDir, "codeseeker")) {
+    section += `- Use \`codeseeker_search\` for conceptual searches ("find code that handles X", "where is auth logic")\n`;
+    section += `- Use \`codeseeker_duplicates\` before writing any new utility — check for existing implementations first\n`;
+    section += `- Reserve \`grep\`/\`glob\` for exact string/pattern matches only\n\n`;
+  }
+
+  section += `- Read files on demand from the wayfinding paths above — do not preload all docs\n`;
+  section += `- When uncertain what a module does: read its index.ts or __init__.py first, not all source files\n`;
+  section += `- ADRs explain WHY decisions were made — read only when making a related architectural change\n\n`;
+
+  return section;
 }
 
 /**
