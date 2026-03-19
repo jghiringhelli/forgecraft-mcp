@@ -1234,7 +1234,51 @@ export function findRichestSpecFile(projectDir: string): string | null {
   ]);
   const MIN_CONTENT_LENGTH = 500;
 
-  let richest: { path: string; size: number } | null = null;
+  /**
+   * Score a candidate path — higher = more likely a technical spec.
+   * Normalised path signals boost technical docs over creative/narrative files.
+   */
+  function scoreCandidate(filePath: string, contentLength: number): number {
+    const normalised = filePath.replace(/\\/g, "/").toLowerCase();
+    let score = contentLength;
+
+    // Strong boost for technical spec path signals
+    if (
+      /\/specs?\/(system|requirements?|technical|architecture)\//i.test(
+        normalised,
+      )
+    )
+      score *= 3;
+    else if (/\/specs?\//i.test(normalised)) score *= 2;
+
+    // Boost for technical keywords in filename
+    if (
+      /(spec|prd|requirements?|technical|architecture|system)/i.test(
+        normalised.split("/").pop() ?? "",
+      )
+    )
+      score *= 2;
+
+    // Penalise creative/narrative content directories
+    if (
+      /\/(bible|glossary|lore|world|story|narrative|creative)\//i.test(
+        normalised,
+      )
+    )
+      score *= 0.1;
+
+    // Penalise files whose names suggest non-technical content
+    if (
+      /(bible|glossary|sourcebook|lore|worldbuilding)/i.test(
+        normalised.split("/").pop() ?? "",
+      )
+    )
+      score *= 0.1;
+
+    return score;
+  }
+
+  let richest: { path: string; score: number } | null = null;
 
   for (const candidate of candidates) {
     const filename = candidate.split(/[/\\]/).pop() ?? "";
@@ -1243,8 +1287,9 @@ export function findRichestSpecFile(projectDir: string): string | null {
     try {
       const content = readFileSync(candidate, "utf-8");
       if (content.length > MIN_CONTENT_LENGTH) {
-        if (!richest || content.length > richest.size) {
-          richest = { path: candidate, size: content.length };
+        const score = scoreCandidate(candidate, content.length);
+        if (!richest || score > richest.score) {
+          richest = { path: candidate, score };
         }
       }
     } catch {
