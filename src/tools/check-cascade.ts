@@ -64,6 +64,17 @@ const ADR_DIRS = ["docs/adrs", "docs/adr"] as const;
 const USE_CASE_PATHS = ["docs/use-cases.md", "docs/UseCases.md", "docs/use-cases"] as const;
 const CONSTITUTION_LINE_LIMIT = 300;
 
+/** Sections that indicate a document is a functional specification. */
+const FUNCTIONAL_SPEC_STRUCTURAL_SECTIONS = [
+  "## background", "## problem", "## users", "## requirements",
+  "## user stories", "## stakeholders", "## goals", "## success",
+] as const;
+
+/** Python build/package files that indicate a Python project. */
+const PYTHON_PACKAGE_FILES = [
+  "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "poetry.lock",
+] as const;
+
 // ── Stub Detection ────────────────────────────────────────────────────
 
 /**
@@ -269,6 +280,99 @@ function getArtifactPath(step: number): string {
   }
 }
 
+// ── Content-Based Doc Helpers ─────────────────────────────────────────
+
+/**
+ * Scan docs/ for a markdown file >500 chars with at least 2 functional-spec structural sections.
+ * Used as a fallback when no standard filename (docs/PRD.md etc.) is found.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Relative path to matching file, or null if none found
+ */
+function findFunctionalSpecFallback(projectDir: string): string | null {
+  const docsDir = join(projectDir, "docs");
+  if (!existsSync(docsDir)) return null;
+  try {
+    const files = readdirSync(docsDir);
+    for (const file of files) {
+      if (!file.endsWith(".md")) continue;
+      const relPath = `docs/${file}`;
+      if ((FUNCTIONAL_SPEC_PATHS as readonly string[]).includes(relPath)) continue;
+      try {
+        const content = readFileSync(join(docsDir, file), "utf-8");
+        if (content.length <= 500) continue;
+        const lower = content.toLowerCase();
+        const matchCount = FUNCTIONAL_SPEC_STRUCTURAL_SECTIONS.filter((s) => lower.includes(s)).length;
+        if (matchCount >= 2) return relPath;
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+  return null;
+}
+
+/**
+ * Scan docs/ for a file matching *spec*, *contract*, or *use-case* patterns.
+ * Used as a fallback for behavioral contracts when no standard path is found.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Relative path to matching file, or null if none found
+ */
+function findBehavioralContractFallback(projectDir: string): string | null {
+  const docsDir = join(projectDir, "docs");
+  if (!existsSync(docsDir)) return null;
+  try {
+    const files = readdirSync(docsDir);
+    const fallback = files.find(
+      (f) => f.endsWith(".md") && /spec|contract|use.?case/i.test(f),
+    );
+    return fallback ? `docs/${fallback}` : null;
+  } catch { return null; }
+}
+
+/**
+ * Detect a placeholder test script in package.json.
+ * Returns the placeholder value if found, null otherwise.
+ *
+ * @param projectDir - Absolute project root
+ * @returns The placeholder test script value, or null if none
+ */
+function detectPlaceholderTestScript(projectDir: string): string | null {
+  const pkgPath = join(projectDir, "package.json");
+  if (!existsSync(pkgPath)) return null;
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
+    const scripts = pkg["scripts"] as Record<string, string> | undefined;
+    const testScript = scripts?.["test"];
+    if (testScript && /echo.*no test|echo.*exit 0|true$/i.test(testScript)) {
+      return testScript;
+    }
+  } catch { /* skip */ }
+  return null;
+}
+
+/**
+ * Scan src/ for unsafe YAML/JSON deserialization cast patterns.
+ * Returns true if any file in src/ contains such patterns.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Whether unsafe cast patterns were detected
+ */
+function detectUnsafeDeserializationCast(projectDir: string): boolean {
+  const srcDir = join(projectDir, "src");
+  if (!existsSync(srcDir)) return false;
+  try {
+    const files = readdirSync(srcDir).filter((f) => /\.(ts|js|py)$/.test(f));
+    for (const file of files) {
+      try {
+        const content = readFileSync(join(srcDir, file), "utf-8");
+        if (/yaml\.load\((?![^)]*,\s*[A-Za-z])/i.test(content)) return true;
+        if (/(?:JSON\.parse|yaml\.load)\([^)]+\)\s+as\s+\w/i.test(content)) return true;
+      } catch { /* skip */ }
+    }
+  } catch { /* skip */ }
+  return false;
+}
+
 // ── Step Checkers ────────────────────────────────────────────────────
 
 /**
@@ -286,6 +390,17 @@ function checkFunctionalSpec(projectDir: string): CascadeStep {
 
   const found = FUNCTIONAL_SPEC_PATHS.find((p) => existsSync(join(projectDir, p)));
   if (!found) {
+    const fallback = findFunctionalSpecFallback(projectDir);
+    if (fallback) {
+      return {
+        step: 1,
+        name: "Functional Specification",
+        status: "WARN",
+        detail: `Functional spec found at ${fallback}. Consider renaming to docs/PRD.md for standard compliance.`,
+        action: `Rename ${fallback} to docs/PRD.md or docs/TechSpec.md for standard tooling compatibility.`,
+        questions: [],
+      };
+    }
     return {
       step: 1,
       name: "Functional Specification",
@@ -466,6 +581,9 @@ function checkAdrs(projectDir: string): CascadeStep {
  * Step 5: Use cases or behavioral contracts. These seed the triple derivation:
  * implementation contract, acceptance test, and user documentation.
  *
+ * Also detects placeholder test scripts (Fix 5) and unsafe deserialization casts.
+ * Accepts tests/ and test/ directories as behavioral contracts (Fix 4).
+ *
  * @param projectDir - Absolute project root
  * @returns Cascade step result
  */
@@ -474,6 +592,24 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
     "What are the top 3 actions a user must be able to perform?",
     "What is the precondition and success outcome for each action?",
   ] as const;
+
+  // Fix 5: Placeholder test script detection → FAIL
+  const placeholderScript = detectPlaceholderTestScript(projectDir);
+  if (placeholderScript) {
+    return {
+      step: 5,
+      name: "Use Cases / Behavioral Contracts",
+      status: "FAIL",
+      detail: [
+        `✗ FAIL — No test suite configured`,
+        `  package.json "test" script is a placeholder: "${placeholderScript}"`,
+        `  Add vitest, jest, or pytest before implementation continues.`,
+        `  Gate: implementation sessions are blocked until tests exist.`,
+      ].join("\n"),
+      action: "Add a test framework (vitest, jest, or pytest) and update the test script.",
+      questions: STEP_QUESTIONS,
+    };
+  }
 
   const foundUseCase = USE_CASE_PATHS.find((p) => existsSync(join(projectDir, p)));
   if (foundUseCase) {
@@ -488,12 +624,50 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
         questions: STEP_QUESTIONS,
       };
     }
+    if (detectUnsafeDeserializationCast(projectDir)) {
+      return {
+        step: 5,
+        name: "Use Cases / Behavioral Contracts",
+        status: "WARN",
+        detail: `Use case document found: ${foundUseCase}. Unsafe deserialization cast detected — add runtime schema validation (Zod, Pydantic, io-ts).`,
+        questions: [],
+      };
+    }
     return {
       step: 5,
       name: "Use Cases / Behavioral Contracts",
       status: "PASS",
       detail: `Use case document found: ${foundUseCase}`,
       questions: [],
+    };
+  }
+
+  // Fix 4: Python/Node test directories express behavioral contracts
+  const hasTestDir =
+    existsSync(join(projectDir, "tests")) || existsSync(join(projectDir, "test"));
+  const hasBuildFile =
+    existsSync(join(projectDir, "package.json")) ||
+    PYTHON_PACKAGE_FILES.some((f) => existsSync(join(projectDir, f)));
+  if (hasTestDir && hasBuildFile) {
+    return {
+      step: 5,
+      name: "Use Cases / Behavioral Contracts",
+      status: "PASS",
+      detail: "Test directory found (tests/ or test/) — automated tests express the behavioral contracts.",
+      questions: [],
+    };
+  }
+
+  // Fix 1: Content-based fallback for *spec*, *contract*, *use-case* docs
+  const fallbackDoc = findBehavioralContractFallback(projectDir);
+  if (fallbackDoc) {
+    return {
+      step: 5,
+      name: "Use Cases / Behavioral Contracts",
+      status: "WARN",
+      detail: `Behavioral contract found at ${fallbackDoc}. Consider renaming to docs/use-cases.md for standard compliance.`,
+      action: "Rename or create docs/use-cases.md with use cases in UC-NNN format.",
+      questions: STEP_QUESTIONS,
     };
   }
 

@@ -220,4 +220,140 @@ describe("checkCascadeHandler", () => {
       expect(result.content[0]!.text).toContain("next_steps");
     });
   });
+
+  // ── Fix 1: doc aliasing ───────────────────────────────────────────
+
+  describe("doc aliasing — content-based fallback", () => {
+    it("returns WARN (not FAIL) when docs/ has a non-standard spec file with structural sections", async () => {
+      mkdirSync(join(tempDir, "docs"), { recursive: true });
+      write(tempDir, "docs/master_playbook_v2.md", [
+        "# Master Playbook",
+        "",
+        "## Background",
+        "This project solves the problem of too many manual workflows.",
+        "",
+        "## Goals",
+        "- Automate onboarding",
+        "- Reduce time-to-deploy by 50%",
+        "",
+        "## Users",
+        "- Platform engineers",
+        "- DevOps teams",
+        "",
+        "## Requirements",
+        "- Must integrate with GitHub Actions",
+        "".padEnd(500, "x"),
+      ].join("\n"));
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("master_playbook_v2.md");
+      expect(text).not.toContain("No functional specification found");
+    });
+
+    it("returns WARN with a hint to rename to docs/PRD.md", async () => {
+      mkdirSync(join(tempDir, "docs"), { recursive: true });
+      write(tempDir, "docs/master_playbook_v2.md", [
+        "# Playbook",
+        "## Problem",
+        "We need a solution for X.",
+        "## Background",
+        "Context about X.",
+        "## Goals",
+        "Achieve Y.",
+        "## Users",
+        "Engineers.",
+        "".padEnd(500, "x"),
+      ].join("\n"));
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("PRD.md");
+    });
+
+    it("step 5 returns WARN when docs/ has a *spec*.md fallback file", async () => {
+      write(tempDir, "docs/PRD.md", "# PRD\n## Scope\nThe system does X.\n");
+      mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
+      write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
+      write(tempDir, "CLAUDE.md", "# Rules\n");
+      mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
+      write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
+      write(tempDir, "docs/api-spec.md", "# API Spec\n\n## Overview\nThis spec describes the API.\n");
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("api-spec.md");
+      expect(text).not.toContain("No use cases and no Status.md");
+    });
+  });
+
+  // ── Fix 4: Python package equivalents ─────────────────────────────
+
+  describe("Python package file equivalents", () => {
+    it("step 5 returns PASS when pyproject.toml and tests/ directory exist", async () => {
+      write(tempDir, "docs/PRD.md", "# PRD\n## Scope\nThe system does X.\n");
+      mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
+      write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
+      write(tempDir, "CLAUDE.md", "# Rules\n");
+      mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
+      write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
+      write(tempDir, "pyproject.toml", "[tool.poetry]\nname = \"myapp\"\n");
+      mkdirSync(join(tempDir, "tests"), { recursive: true });
+      write(tempDir, "tests/test_main.py", "def test_example(): assert True\n");
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Test directory found");
+    });
+
+    it("step 5 returns PASS when requirements.txt and test/ directory exist", async () => {
+      write(tempDir, "docs/PRD.md", "# PRD\n## Scope\nThe system does X.\n");
+      mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
+      write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
+      write(tempDir, "CLAUDE.md", "# Rules\n");
+      mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
+      write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
+      write(tempDir, "requirements.txt", "fastapi==0.100.0\n");
+      mkdirSync(join(tempDir, "test"), { recursive: true });
+      write(tempDir, "test/test_api.py", "def test_ping(): assert True\n");
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Test directory found");
+    });
+  });
+
+  // ── Fix 5: zero-test-gate ─────────────────────────────────────────
+
+  describe("zero-test-gate — placeholder test script", () => {
+    it("step 5 returns FAIL when package.json test script is a placeholder echo", async () => {
+      write(tempDir, "docs/PRD.md", "# PRD\n");
+      mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
+      write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
+      write(tempDir, "CLAUDE.md", "# Rules\n");
+      mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
+      write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
+      write(tempDir, "package.json", JSON.stringify({
+        name: "my-app",
+        scripts: { test: "echo \"Error: no test specified\" && exit 1" },
+      }));
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("No test suite configured");
+      expect(text).toContain("placeholder");
+    });
+
+    it("does NOT fail when package.json test script is a real test runner", async () => {
+      write(tempDir, "docs/PRD.md", "# PRD\n## Scope\nSystem overview.\n");
+      mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
+      write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
+      write(tempDir, "CLAUDE.md", "# Rules\n");
+      mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
+      write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
+      write(tempDir, "package.json", JSON.stringify({
+        name: "my-app",
+        scripts: { test: "vitest run" },
+      }));
+      mkdirSync(join(tempDir, "tests"), { recursive: true });
+      write(tempDir, "tests/main.test.ts", "// tests\n");
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).not.toContain("No test suite configured");
+    });
+  });
 });

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { parseSpec, inferTagsFromDirectory, findRichestSpecFile, inferSensitiveData } from "../../src/tools/spec-parser.js";
+import { parseSpec, inferTagsFromDirectory, findRichestSpecFile, inferSensitiveData, scanSourceForSensitivePatterns } from "../../src/tools/spec-parser.js";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -479,6 +479,89 @@ describe("inferTagsFromDirectory", () => {
     expect(result.tags).toContain("CLI");
     expect(result.tags).toContain("API");
   });
+
+  // ── Fix 2: subdirectory package detection ────────────────────────
+
+  describe("subdirectory package detection", () => {
+    it("infers API tag from backend/package.json with express dependency", async () => {
+      mkdirSync(join(tempDir, "backend"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "backend", "package.json"),
+        JSON.stringify({ dependencies: { express: "^4.18.0" } }),
+        "utf-8",
+      );
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("API");
+    });
+
+    it("infers WEB-REACT tag from frontend/package.json with react dependency", async () => {
+      mkdirSync(join(tempDir, "frontend"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "frontend", "package.json"),
+        JSON.stringify({ dependencies: { react: "^18.0.0", "react-dom": "^18.0.0" } }),
+        "utf-8",
+      );
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("WEB-REACT");
+    });
+
+    it("infers API tag from api/requirements.txt with fastapi", async () => {
+      mkdirSync(join(tempDir, "api"), { recursive: true });
+      writeFileSync(join(tempDir, "api", "requirements.txt"), "fastapi==0.100.0\nuvicorn==0.23.0\n", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("API");
+    });
+
+    it("merges tags from multiple subdirectories (frontend + backend)", async () => {
+      mkdirSync(join(tempDir, "frontend"), { recursive: true });
+      mkdirSync(join(tempDir, "backend"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "frontend", "package.json"),
+        JSON.stringify({ dependencies: { react: "^18.0.0" } }),
+        "utf-8",
+      );
+      writeFileSync(
+        join(tempDir, "backend", "package.json"),
+        JSON.stringify({ dependencies: { express: "^4.18.0" } }),
+        "utf-8",
+      );
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("WEB-REACT");
+      expect(result.tags).toContain("API");
+    });
+  });
+
+  // ── Fix 4: Python framework detection ────────────────────────────
+
+  describe("Python framework detection", () => {
+    it("infers API tag from fastapi in requirements.txt", async () => {
+      writeFileSync(join(tempDir, "requirements.txt"), "fastapi==0.100.0\nuvicorn==0.23.0\n", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("API");
+    });
+
+    it("infers CLI tag from click in requirements.txt", async () => {
+      writeFileSync(join(tempDir, "requirements.txt"), "click==8.0.0\n", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("CLI");
+    });
+
+    it("infers CLI tag from typer in requirements.txt", async () => {
+      writeFileSync(join(tempDir, "requirements.txt"), "typer==0.9.0\n", "utf-8");
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("CLI");
+    });
+
+    it("infers API tag from fastapi in pyproject.toml", async () => {
+      writeFileSync(
+        join(tempDir, "pyproject.toml"),
+        "[tool.poetry.dependencies]\npython = \"^3.11\"\nfastapi = \"^0.100.0\"\n",
+        "utf-8",
+      );
+      const result = await inferTagsFromDirectory(tempDir);
+      expect(result.tags).toContain("API");
+    });
+  });
 });
 
 // ── findRichestSpecFile ──────────────────────────────────────────────
@@ -561,5 +644,80 @@ describe("inferSensitiveData", () => {
   it("returns true when spec mentions payment keywords", () => {
     const spec = parseSpec("# Invoice App\n\n## Problem\nAn invoicing system that processes payment transactions for small businesses.\n\n## Users\n- Small business owners");
     expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(true);
+  });
+
+  it("returns true for SOCIAL tag (SOCIAL always implies sensitive data)", () => {
+    const spec = parseSpec("A social platform tool.");
+    expect(inferSensitiveData(spec, ["UNIVERSAL", "SOCIAL"])).toBe(true);
+  });
+});
+
+// ── scanSourceForSensitivePatterns ──────────────────────────────────
+
+describe("scanSourceForSensitivePatterns", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `forgecraft-scraping-test-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("detects playwright cookie injection in src/ TypeScript file", async () => {
+    mkdirSync(join(tempDir, "src"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "src", "scraper.ts"),
+      "const cookie = playwright.cookie('li_at');\nawait page.context().addCookies([cookie]);\n",
+      "utf-8",
+    );
+    expect(await scanSourceForSensitivePatterns(tempDir)).toBe(true);
+  });
+
+  it("detects li_at session cookie reference", async () => {
+    mkdirSync(join(tempDir, "src"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "src", "linkedin.py"),
+      "session_cookie = os.environ['li_at']\nheaders = {'Cookie': f'li_at={session_cookie}'}\n",
+      "utf-8",
+    );
+    expect(await scanSourceForSensitivePatterns(tempDir)).toBe(true);
+  });
+
+  it("detects linkedin scraping pattern", async () => {
+    mkdirSync(join(tempDir, "src"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "src", "harvester.py"),
+      "# linkedin scrape module\ndef scrape_linkedin_profiles(url: str) -> list:\n    pass\n",
+      "utf-8",
+    );
+    expect(await scanSourceForSensitivePatterns(tempDir)).toBe(true);
+  });
+
+  it("returns false for benign source files with no scraping patterns", async () => {
+    mkdirSync(join(tempDir, "src"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "src", "main.ts"),
+      "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+      "utf-8",
+    );
+    expect(await scanSourceForSensitivePatterns(tempDir)).toBe(false);
+  });
+
+  it("returns false when no src/ directory exists", async () => {
+    expect(await scanSourceForSensitivePatterns(tempDir)).toBe(false);
+  });
+
+  it("inferTagsFromDirectory adds SOCIAL tag when scraping patterns detected", async () => {
+    mkdirSync(join(tempDir, "src"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "src", "scraper.py"),
+      "# linkedin scrape utility\ndef scrape_linkedin(url: str):\n    session = requests.Session()\n    return session.get(url)\n",
+      "utf-8",
+    );
+    const result = await inferTagsFromDirectory(tempDir);
+    expect(result.tags).toContain("SOCIAL");
   });
 });

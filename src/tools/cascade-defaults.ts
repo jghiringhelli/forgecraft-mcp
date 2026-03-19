@@ -59,6 +59,13 @@ const TAG_STEP_DEFAULTS: Readonly<Record<string, StepDefaults>> = {
     adrs: "required",
     behavioral_contracts: "required",
   },
+  SOCIAL: {
+    functional_spec: "required",
+    architecture_diagrams: "optional",
+    constitution: "required",
+    adrs: "optional",
+    behavioral_contracts: "required",
+  },
 };
 
 /** Fallback used when no recognized tags are present. */

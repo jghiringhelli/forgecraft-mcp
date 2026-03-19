@@ -6,7 +6,7 @@
  * tag inference for existing projects.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -297,7 +297,44 @@ const SENSITIVE_DATA_KEYWORDS: readonly string[] = [
 ];
 
 /** Tags that imply sensitive data. */
-const SENSITIVE_TAGS: readonly string[] = ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"];
+const SENSITIVE_TAGS: readonly string[] = ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2", "SOCIAL"];
+
+/** Patterns indicating credential injection or platform scraping in source files. */
+const SCRAPING_PATTERNS = [
+  /playwright.*cookie|cookie.*playwright/i,
+  /li_at|JSESSIONID|session_cookie/i,
+  /linkedin.*scrape|scrape.*linkedin/i,
+  /requests\.Session.*[Aa]uth/i,
+  /inject.*credential|credential.*inject/i,
+] as const;
+
+/**
+ * Scan source files in src/, backend/, app/ for behavioral scraping patterns
+ * that indicate social platform credential injection or web scraping.
+ * Reads only the first 100 lines of each file for performance.
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns True if any scraping pattern is found
+ */
+export async function scanSourceForSensitivePatterns(projectDir: string): Promise<boolean> {
+  const SOURCE_DIRS = ["src", "backend", "app"];
+  const SOURCE_EXT = /\.(py|ts|js)$/;
+  for (const dir of SOURCE_DIRS) {
+    const dirPath = join(projectDir, dir);
+    if (!existsSync(dirPath)) continue;
+    try {
+      const files = readdirSync(dirPath).filter((f) => SOURCE_EXT.test(f));
+      for (const file of files) {
+        try {
+          const raw = readFileSync(join(dirPath, file), "utf-8");
+          const first100 = raw.split("\n").slice(0, 100).join("\n");
+          if (SCRAPING_PATTERNS.some((p) => p.test(first100))) return true;
+        } catch { /* skip */ }
+      }
+    } catch { /* skip */ }
+  }
+  return false;
+}
 
 /**
  * Infer whether the project handles sensitive data from spec content and tags.
@@ -359,6 +396,40 @@ function hasMarkdownFiles(projectDir: string): boolean {
 export interface DirectoryInferenceResult {
   readonly tags: string[];
   readonly ambiguities: AmbiguityItem[];
+}
+
+/**
+ * Extract classification tags from a parsed package.json object.
+ * Used for both root and subdirectory package.json analysis.
+ *
+ * @param pkg - Parsed package.json content
+ * @returns Set of inferred tags (without UNIVERSAL)
+ */
+function inferTagsFromPackageJson(pkg: Record<string, unknown>): Set<string> {
+  const found = new Set<string>();
+  const allDeps = {
+    ...((pkg["dependencies"] as Record<string, string> | undefined) ?? {}),
+    ...((pkg["devDependencies"] as Record<string, string> | undefined) ?? {}),
+  };
+  const depNames = Object.keys(allDeps).map((d) => d.toLowerCase());
+
+  if (depNames.some((d) => ["express", "fastify", "koa", "hapi", "@nestjs/core"].includes(d))) found.add("API");
+  if (depNames.some((d) => ["commander", "yargs", "meow", "@oclif/core", "clipanion"].includes(d))) found.add("CLI");
+  if (typeof pkg["bin"] === "object" && pkg["bin"] !== null) found.add("CLI");
+  if (depNames.some((d) => d.includes("react"))) found.add("WEB-REACT");
+  if (depNames.some((d) => ["ethers", "web3", "@ethersproject/providers", "wagmi", "viem"].includes(d))) found.add("WEB3");
+  if (depNames.some((d) => ["stripe", "braintree", "@paddle/paddle-node-sdk"].includes(d))) found.add("FINTECH");
+  if (depNames.some((d) => ["react-native", "expo", "@capacitor/core"].includes(d))) found.add("MOBILE");
+  const MCP_DEPS = ["@modelcontextprotocol/sdk", "@anthropic-ai/sdk"];
+  if (depNames.some((d) => MCP_DEPS.some((mcp) => d.includes(mcp)))) {
+    found.add("CLI");
+    found.add("API");
+  }
+  const DATABASE_DEPS = ["prisma", "typeorm", "sequelize", "drizzle-orm", "mongoose", "pg", "mysql2", "sqlite3", "knex", "better-sqlite3"];
+  if (depNames.some((d) => DATABASE_DEPS.some((db) => d.includes(db)))) found.add("DATABASE");
+  const AUTH_DEPS = ["next-auth", "passport", "clerk", "@clerk/nextjs", "@clerk/clerk-sdk-node", "auth0", "jsonwebtoken", "bcrypt", "bcryptjs", "@auth0/nextjs-auth0"];
+  if (depNames.some((d) => AUTH_DEPS.some((auth) => d.includes(auth)))) found.add("AUTH");
+  return found;
 }
 
 /**
@@ -426,35 +497,16 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
         tags.add("CLI");
         cliSignals.push("package.json bin field");
       }
-      if (depNames.some((d) => d.includes("react"))) {
-        tags.add("WEB-REACT");
+      for (const tag of inferTagsFromPackageJson(pkg)) {
+        if (!["API", "CLI"].includes(tag)) tags.add(tag); // API/CLI already handled above with signal tracking
       }
-      if (depNames.some((d) => ["ethers", "web3", "@ethersproject/providers", "wagmi", "viem"].includes(d))) {
-        tags.add("WEB3");
-      }
-      if (depNames.some((d) => ["stripe", "braintree", "@paddle/paddle-node-sdk"].includes(d))) {
-        tags.add("FINTECH");
-      }
-      if (depNames.some((d) => ["react-native", "expo", "@capacitor/core"].includes(d))) {
-        tags.add("MOBILE");
-      }
-      // MCP server: infers CLI + API
+      // MCP server: infers CLI + API (with signal tracking)
       const MCP_DEPS = ["@modelcontextprotocol/sdk", "@anthropic-ai/sdk"];
       if (depNames.some((d) => MCP_DEPS.some((mcp) => d.includes(mcp)))) {
         tags.add("CLI");
         tags.add("API");
         cliSignals.push("MCP server dependency (@modelcontextprotocol/sdk)");
         apiSignals.push("MCP server dependency (@modelcontextprotocol/sdk)");
-      }
-      // DATABASE: ORM/DB drivers
-      const DATABASE_DEPS = ["prisma", "typeorm", "sequelize", "drizzle-orm", "@drizzle-team/drizzle-orm", "mongoose", "pg", "mysql2", "sqlite3", "knex", "better-sqlite3"];
-      if (depNames.some((d) => DATABASE_DEPS.some((db) => d.includes(db)))) {
-        tags.add("DATABASE");
-      }
-      // AUTH: auth frameworks
-      const AUTH_DEPS = ["next-auth", "passport", "clerk", "@clerk/nextjs", "@clerk/clerk-sdk-node", "auth0", "jsonwebtoken", "bcrypt", "bcryptjs", "@auth0/nextjs-auth0"];
-      if (depNames.some((d) => AUTH_DEPS.some((auth) => d.includes(auth)))) {
-        tags.add("AUTH");
       }
       // Library: only infer when package has 'main' OR 'exports' field (publishable package)
       const hasMain = !!pkg["main"];
@@ -508,11 +560,19 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
     } catch { /* skip */ }
   }
 
-  // Check Python requirements.txt for DATABASE and AUTH
+  // Check Python requirements.txt for API/CLI/DATABASE/AUTH (Fix 4)
   const requirementsPath = join(projectDir, "requirements.txt");
   if (existsSync(requirementsPath)) {
     try {
       const reqContent = readFileSync(requirementsPath, "utf-8").toLowerCase();
+      if (reqContent.includes("fastapi")) {
+        tags.add("API");
+        apiSignals.push("fastapi dependency (requirements.txt)");
+      }
+      if (reqContent.includes("click") || reqContent.includes("typer")) {
+        tags.add("CLI");
+        cliSignals.push("click/typer dependency (requirements.txt)");
+      }
       const PY_DATABASE_DEPS = ["sqlalchemy", "psycopg2", "pymongo", "databases", "tortoise-orm"];
       if (PY_DATABASE_DEPS.some((dep) => reqContent.includes(dep))) {
         tags.add("DATABASE");
@@ -522,6 +582,86 @@ export async function inferTagsFromDirectory(projectDir: string): Promise<Direct
         tags.add("AUTH");
       }
     } catch { /* skip */ }
+  }
+
+  // Check pyproject.toml for Python framework signals (Fix 4)
+  const pyprojectPath = join(projectDir, "pyproject.toml");
+  if (existsSync(pyprojectPath)) {
+    try {
+      const pyprojectContent = readFileSync(pyprojectPath, "utf-8").toLowerCase();
+      if (pyprojectContent.includes("fastapi")) {
+        tags.add("API");
+        apiSignals.push("fastapi dependency (pyproject.toml)");
+      }
+      if (pyprojectContent.includes("click") || pyprojectContent.includes("typer")) {
+        tags.add("CLI");
+        cliSignals.push("click/typer dependency (pyproject.toml)");
+      }
+      const PY_DATABASE_DEPS_TOML = ["sqlalchemy", "psycopg2", "pymongo", "databases", "tortoise-orm"];
+      if (PY_DATABASE_DEPS_TOML.some((dep) => pyprojectContent.includes(dep))) {
+        tags.add("DATABASE");
+      }
+    } catch { /* skip */ }
+  }
+
+  // Fix 2: Subdirectory package file scanning (frontend/, backend/, client/, server/, api/)
+  const SUBDIRS_TO_SCAN = ["frontend", "backend", "client", "server", "api"];
+  for (const subdir of SUBDIRS_TO_SCAN) {
+    const subdirPath = join(projectDir, subdir);
+    if (!existsSync(subdirPath)) continue;
+    const subdirPkgPath = join(subdirPath, "package.json");
+    if (existsSync(subdirPkgPath)) {
+      try {
+        const subPkg = JSON.parse(readFileSync(subdirPkgPath, "utf-8")) as Record<string, unknown>;
+        for (const tag of inferTagsFromPackageJson(subPkg)) {
+          tags.add(tag);
+        }
+      } catch { /* skip */ }
+    }
+    const subdirReqPath = join(subdirPath, "requirements.txt");
+    if (existsSync(subdirReqPath)) {
+      try {
+        const subReqContent = readFileSync(subdirReqPath, "utf-8").toLowerCase();
+        if (subReqContent.includes("fastapi")) tags.add("API");
+        if (subReqContent.includes("click") || subReqContent.includes("typer")) tags.add("CLI");
+        const PY_DB_DEPS = ["sqlalchemy", "psycopg2", "pymongo", "databases", "tortoise-orm"];
+        if (PY_DB_DEPS.some((dep) => subReqContent.includes(dep))) tags.add("DATABASE");
+      } catch { /* skip */ }
+    }
+    const subdirPyprojectPath = join(subdirPath, "pyproject.toml");
+    if (existsSync(subdirPyprojectPath)) {
+      try {
+        const subPyContent = readFileSync(subdirPyprojectPath, "utf-8").toLowerCase();
+        if (subPyContent.includes("fastapi")) tags.add("API");
+        if (subPyContent.includes("click") || subPyContent.includes("typer")) tags.add("CLI");
+      } catch { /* skip */ }
+    }
+  }
+
+  // Fix 2: src/*/shared|utils|common — Python package structure signals
+  const srcDir2 = join(projectDir, "src");
+  if (existsSync(srcDir2)) {
+    try {
+      for (const entry of readdirSync(srcDir2)) {
+        const entryPath = join(srcDir2, entry);
+        try {
+          if (!statSync(entryPath).isDirectory()) continue;
+          if (existsSync(join(entryPath, "routes")) || existsSync(join(entryPath, "controllers"))) {
+            tags.add("API");
+            apiSignals.push(`Python package structure: src/${entry}/routes|controllers`);
+          }
+          if (existsSync(join(entryPath, "shared")) || existsSync(join(entryPath, "utils")) || existsSync(join(entryPath, "common"))) {
+            librarySignals.push(`Shared module structure: src/${entry}/shared|utils|common`);
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* skip */ }
+  }
+
+  // Behavioral scraping pattern detection → SOCIAL tag (Fix 3)
+  const hasScrapingPatterns = await scanSourceForSensitivePatterns(projectDir);
+  if (hasScrapingPatterns) {
+    tags.add("SOCIAL");
   }
 
   // ── Tech stack conflict: Python build + TypeScript src ────────────
