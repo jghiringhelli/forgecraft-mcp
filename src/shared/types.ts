@@ -601,30 +601,63 @@ export interface McpDiscoveryOptions {
 }
 
 /**
- * A project-specific quality gate defined by the team.
- * Gates with generalizable: true are candidates for community contribution.
+ * A tool required by a quality gate to perform its check.
+ */
+export interface ToolRequirement {
+  /** Tool name, e.g. "bandit", "eslint", "playwright" */
+  readonly name: string;
+  /** What this tool does in the context of this gate */
+  readonly purpose: string;
+  /** Install command, e.g. "pip install bandit" or "npm install --save-dev eslint-plugin-security" */
+  readonly installCommand?: string;
+  /** Package manager category */
+  readonly category: "npm" | "pip" | "binary" | "mcp" | "cli";
+  /** If false, gate can run without this tool at reduced coverage */
+  readonly required: boolean;
+}
+
+/**
+ * A quality gate -- a named, evidence-backed check that defends a GS property.
+ * Gates live in .forgecraft/gates/project/active|promoted|retired/ or .forgecraft/gates/registry/{tag}/.
+ * One gate per YAML file, filename = gate ID.
  */
 export interface ProjectGate {
-  /** Unique identifier within this project. e.g. "check-pnl-decomposition" */
+  // ── Identity ─────────────────────────────────────────────────────────────
+  /** Unique identifier. e.g. "check-engine-sha". Used as filename: {id}.yaml */
   readonly id: string;
-  /** Human-readable title. */
+  /** Human-readable title */
   readonly title: string;
-  /** What this gate checks and why. */
+  /** What this gate checks and why it matters */
   readonly description: string;
+
+  // ── Classification ────────────────────────────────────────────────────────
   /**
-   * Category for grouping. e.g. "simulation-integrity", "financial-invariants",
-   * "state-machine", "concurrency", "data-lineage"
+   * Domain area this gate defends.
+   * e.g. "simulation-integrity", "financial-invariants", "security",
+   * "data-lineage", "api-contract", "test-quality", "dependency-health",
+   * "environment-hygiene", "state-machine", "concurrency"
    */
-  readonly category: string;
+  readonly domain: string;
+  /**
+   * How this gate is implemented:
+   * - logic: pure invariant check, no external tools
+   * - process: workflow/procedure check
+   * - tooled: requires installed tools (eslint, pytest, bandit)
+   * - mcp: requires an MCP tool at runtime (playwright, codeseeker)
+   * - cli: uses CLI commands (git, docker, code)
+   */
+  readonly implementation: "logic" | "process" | "tooled" | "mcp" | "cli";
   /**
    * Which GS property this gate defends.
    * One of: self-describing, bounded, verifiable, defended, auditable, composable, executable
    */
   readonly gsProperty: string;
+
+  // ── Execution ─────────────────────────────────────────────────────────────
   /**
    * When this gate runs.
-   * development: on every commit; pre-release: before env promotion;
-   * rc: release candidate; deployment: production gate; continuous: ongoing
+   * development: every commit; pre-release: before env promotion;
+   * rc: release candidate gate; deployment: production gate; continuous: ongoing monitoring
    */
   readonly phase:
     | "development"
@@ -632,35 +665,109 @@ export interface ProjectGate {
     | "rc"
     | "deployment"
     | "continuous";
-  /**
-   * Hook trigger: pre-commit, post-run, pre-push, pr, release, scheduled
-   */
+  /** Hook trigger: pre-commit, post-run, pre-push, pr, release, scheduled, close-cycle */
   readonly hook: string;
+  /** OS scope. Defaults to cross-platform */
+  readonly os: "windows" | "unix" | "cross-platform";
   /**
-   * The check to run. Language-agnostic description of what to verify.
+   * The check to perform. Language-agnostic description.
    * May include pseudocode, specific commands, or prose instructions.
-   * Avoid hardcoding tool names — use process descriptions.
    */
   readonly check: string;
-  /** What constitutes a pass. */
+  /** Positive assertion: what constitutes a pass */
   readonly passCriterion: string;
+  /** Message shown to the developer/AI when this gate fires (failure case) */
+  readonly failureMessage?: string;
+  /** One-line remediation hint shown on failure */
+  readonly fixHint?: string;
+  /** Tools required to run this gate. Only for implementation: tooled | mcp | cli */
+  readonly tools?: readonly ToolRequirement[];
   /**
-   * Tags this gate applies to. e.g. ["FINTECH", "SIMULATION"]
-   * Empty or absent means UNIVERSAL.
+   * File path patterns this gate applies to.
+   * Absent means all files.
    */
-  readonly tags?: string[];
+  readonly paths?: {
+    readonly include?: readonly string[];
+    readonly exclude?: readonly string[];
+  };
   /**
-   * If true, this gate may be useful to other projects and is queued for community contribution.
-   * Requires opt-in contribute_gates: true in forgecraft.yaml.
+   * Configurable parameters with default values.
+   * Projects can override defaults in their forgecraft.yaml.
+   * e.g. { "threshold": "80", "max_lines": "50" }
+   */
+  readonly parameters?: Readonly<Record<string, string>>;
+
+  // ── Scope ─────────────────────────────────────────────────────────────────
+  /**
+   * Project tags this gate applies to. e.g. ["FINTECH", "SIMULATION"]
+   * Absent or empty means UNIVERSAL.
+   */
+  readonly tags?: readonly string[];
+  /**
+   * Language(s) this gate is specific to. e.g. "typescript", "python", ["typescript", "javascript"]
+   * Absent means language-agnostic.
+   */
+  readonly language?: string | readonly string[];
+  /**
+   * Community-voted priority.
+   * P0: blocking (fail = no deploy), P1: warning (fail = PR comment), P2: advisory
+   */
+  readonly priority?: "P0" | "P1" | "P2";
+  /** Minimum tool/framework versions this gate requires. e.g. { "react": "18.0.0" } */
+  readonly minVersion?: Readonly<Record<string, string>>;
+  /** Maximum tool/framework versions this gate applies to (gate obsolete after this) */
+  readonly maxVersion?: Readonly<Record<string, string>>;
+
+  // ── Risk assessment ───────────────────────────────────────────────────────
+  /** How often this gate fires on real projects */
+  readonly likelihood?: "low" | "medium" | "high";
+  /** How severe a failure is when this gate fires */
+  readonly impact?: "low" | "medium" | "high";
+  /** How reliable the detection is (low = more false positives) */
+  readonly confidence?: "low" | "medium" | "high";
+
+  // ── Standards references ──────────────────────────────────────────────────
+  /** CWE identifiers. e.g. ["CWE-798: Hard-coded Credentials"] */
+  readonly cwe?: readonly string[];
+  /** OWASP Top 10 references. e.g. ["A07:2021 - Identification and Authentication Failures"] */
+  readonly owasp?: readonly string[];
+  /** Documentation URLs, CVEs, blog posts, tool docs */
+  readonly references?: readonly string[];
+
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  /** Lifecycle status. New gates start as beta, approved gates become ready */
+  readonly status: "beta" | "ready" | "deprecated";
+  /** ID of the gate that supersedes this one (when status: deprecated) */
+  readonly deprecatedBy?: string;
+
+  // ── Provenance ────────────────────────────────────────────────────────────
+  /**
+   * Whether this gate is useful to other projects and should be contributed to the community registry.
+   * Requires opt-in contribute_gates setting in forgecraft.yaml.
    */
   readonly generalizable?: boolean;
   /**
    * Real-world evidence: the bug, incident, or near-miss this gate would have caught.
-   * Required if generalizable: true. This is what makes the gate credible to reviewers.
+   * Required if generalizable: true. Makes the gate credible to reviewers.
    */
   readonly evidence?: string;
-  /** ISO timestamp when added. */
-  readonly addedAt?: string;
+  /** Where this gate came from */
+  readonly source: "registry" | "project";
+  /** Who discovered this gate */
+  readonly discoveredBy?: "ai" | "user";
+  /** ISO timestamp when added */
+  readonly addedAt: string;
+}
+
+/** Gate filesystem state -- determined by which folder the gate file lives in */
+export type GateState = "active" | "promoted" | "retired" | "registry";
+
+/** Result of evaluating a single gate */
+export interface GateEvaluationResult {
+  readonly gateId: string;
+  readonly state: "pass" | "fail" | "skip" | "error";
+  readonly message?: string;
+  readonly fixHint?: string;
 }
 
 /** The .forgecraft/project-gates.yaml file schema. */

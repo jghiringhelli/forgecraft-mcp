@@ -6,7 +6,7 @@
  * tier override preservation.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   mkdirSync,
   existsSync,
@@ -16,7 +16,9 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { dump as yamlDump } from "js-yaml";
 import { refreshProjectHandler } from "../../src/tools/refresh-project.js";
+import { pullRegistryGates } from "../../src/tools/registry-refresh.js";
 
 function makeTempDir(): string {
   const dir = join(tmpdir(), `forgecraft-refresh-test-${Date.now()}`);
@@ -305,5 +307,219 @@ describe("refreshProjectHandler", () => {
       expect(text).toContain("sentinel");
       expect(text).toContain("scaffold");
     });
+  });
+});
+
+// ── Registry gate sync ────────────────────────────────────────────────────
+
+/** Minimal valid RemoteGate shape for test fixtures. */
+function makeRemoteGate(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id: "test-gate",
+    title: "Test Gate",
+    description: "A test gate",
+    category: "security",
+    gsProperty: "defended",
+    phase: "development",
+    hook: "pre-commit",
+    check: "ensure no hardcoded secrets exist in source files",
+    passCriterion: "No secrets detected",
+    status: "approved",
+    ...overrides,
+  };
+}
+
+/** Minimal valid RemoteGatesIndex for test fixtures. */
+function makeIndex(gates: Record<string, unknown>[]): Record<string, unknown> {
+  return {
+    generatedAt: "2024-01-01T00:00:00.000Z",
+    version: "1",
+    gateCount: gates.length,
+    tags: [],
+    gates,
+  };
+}
+
+describe("pullRegistryGates", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = join(tmpdir(), `forgecraft-registry-test-${Date.now()}`);
+    mkdirSync(tempDir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("handles_network_failure_gracefully — fetch throws → gatesAdded: 0, no files written", async () => {
+    vi.mocked(fetch).mockRejectedValue(
+      new Error("ECONNREFUSED: connection refused"),
+    );
+
+    const result = await pullRegistryGates(tempDir, ["API"]);
+
+    expect(result.gatesAdded).toBe(0);
+    expect(result.gatesUpdated).toBe(0);
+    expect(result.projectGatesRetired).toBe(0);
+    expect(result.retiredGateIds).toHaveLength(0);
+    expect(existsSync(join(tempDir, ".forgecraft", "gates", "registry"))).toBe(
+      false,
+    );
+  });
+
+  it("writes_registry_gates_to_correct_folders — 2 gates with different tags → separate subdirs", async () => {
+    const index = makeIndex([
+      makeRemoteGate({
+        id: "api-gate-1",
+        tags: ["API"],
+        category: "api-contract",
+      }),
+      makeRemoteGate({ id: "cli-gate-1", tags: ["CLI"], category: "cli-ux" }),
+    ]);
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => index,
+    } as Response);
+
+    const result = await pullRegistryGates(tempDir, ["API", "CLI"]);
+
+    expect(result.gatesAdded).toBe(2);
+    expect(result.gatesUpdated).toBe(0);
+    expect(
+      existsSync(
+        join(
+          tempDir,
+          ".forgecraft",
+          "gates",
+          "registry",
+          "api",
+          "api-gate-1.yaml",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(
+          tempDir,
+          ".forgecraft",
+          "gates",
+          "registry",
+          "cli",
+          "cli-gate-1.yaml",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      existsSync(
+        join(tempDir, ".forgecraft", "gates", "registry", "last-updated"),
+      ),
+    ).toBe(true);
+  });
+
+  it("retires_superseded_active_gate — matching domain+phase+check → gate moved to retired/", async () => {
+    const checkText = "ensure no hardcoded secrets exist in source files";
+
+    // Write a minimal valid active project gate
+    const activeGatePath = join(
+      tempDir,
+      ".forgecraft",
+      "gates",
+      "project",
+      "active",
+    );
+    mkdirSync(activeGatePath, { recursive: true });
+    const activeGate = {
+      id: "my-secrets-gate",
+      title: "No Hardcoded Secrets",
+      description: "Prevent secrets in source",
+      domain: "security",
+      implementation: "logic",
+      gsProperty: "defended",
+      phase: "development",
+      hook: "pre-commit",
+      os: "cross-platform",
+      check: checkText,
+      passCriterion: "No secrets found",
+      status: "ready",
+      source: "project",
+      addedAt: "2024-01-01T00:00:00.000Z",
+    };
+    writeFileSync(
+      join(activeGatePath, "my-secrets-gate.yaml"),
+      yamlDump(activeGate),
+      "utf-8",
+    );
+
+    const index = makeIndex([
+      makeRemoteGate({
+        id: "registry-secrets-gate",
+        category: "security", // matches activeGate.domain
+        phase: "development", // matches activeGate.phase
+        check: checkText, // matches first 50 chars
+        tags: ["API"],
+      }),
+    ]);
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => index,
+    } as Response);
+
+    const result = await pullRegistryGates(tempDir, ["API"]);
+
+    expect(result.projectGatesRetired).toBe(1);
+    expect(result.retiredGateIds).toContain("my-secrets-gate");
+    expect(existsSync(join(activeGatePath, "my-secrets-gate.yaml"))).toBe(
+      false,
+    );
+    expect(
+      existsSync(
+        join(
+          tempDir,
+          ".forgecraft",
+          "gates",
+          "project",
+          "retired",
+          "my-secrets-gate.yaml",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("skips_non_matching_tags — project has [API], gate has [CLI] only → gate not downloaded", async () => {
+    const index = makeIndex([
+      makeRemoteGate({
+        id: "cli-only-gate",
+        tags: ["CLI"],
+        category: "cli-ux",
+      }),
+    ]);
+
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => index,
+    } as Response);
+
+    const result = await pullRegistryGates(tempDir, ["API"]);
+
+    expect(result.gatesAdded).toBe(0);
+    expect(
+      existsSync(
+        join(
+          tempDir,
+          ".forgecraft",
+          "gates",
+          "registry",
+          "cli",
+          "cli-only-gate.yaml",
+        ),
+      ),
+    ).toBe(false);
   });
 });

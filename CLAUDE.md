@@ -6,7 +6,7 @@
 ## Project Identity
 - **Project**: Generative Specification Framework
 - **Language**: typescript
-- **Release Phase**: development
+- **Release Phase**: production
 - **Tags**: [UNIVERSAL] [LIBRARY] [CLI] [API]
 
 **Current work → read `Status.md` first.**
@@ -52,6 +52,7 @@ _These apply regardless of task. Never defer them._
 | ADRs, artifact grammar, use cases, GS self-refinement, naming conventions | `.claude/standards/spec.md` |
 | Clarification protocol, feature completion, code generation, known pitfalls | `.claude/standards/protocols.md` |
 | Ecosystem repos, live URLs, gate registry, contribution flow, forgecraft-server | `.claude/standards/ecosystem.md` |
+| Quality gate lifecycle, gate schema, contribution flow, close_cycle, flywheel design | `.claude/standards/quality-gates.md` |
 | Project-specific rules, framework choices, corrections log | `.claude/standards/project-specific.md` |
 | Ambiguity pattern, when/how to ask for clarification, ⚡ Ambiguity format | `.claude/standards/communication-protocol.md` |
 

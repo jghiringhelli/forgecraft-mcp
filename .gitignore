@@ -30,3 +30,5 @@ test-results.*
 experiments/*/output/
 experiments/failed-runs/*/
 experiments/*/session.log.json
+
+tmpclaude-*
