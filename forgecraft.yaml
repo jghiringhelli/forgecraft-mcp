@@ -6,7 +6,7 @@ tags:
   - API
 tier: recommended
 variables: {}
-releasePhase: development
+releasePhase: production
 tools:
   test: npm test
   typecheck: npx tsc --noEmit
