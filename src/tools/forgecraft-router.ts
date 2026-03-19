@@ -54,6 +54,7 @@ import { contributeGates } from "./contribute-gate.js";
 import { generateDiagramHandler } from "./generate-diagram.js";
 import { setCascadeRequirementHandler } from "./set-cascade-requirement.js";
 import { setupProjectHandler } from "./setup-project.js";
+import { closeCycleHandler } from "./close-cycle.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -83,6 +84,7 @@ const ACTIONS = [
   "contribute_gate",
   "generate_diagram",
   "set_cascade_requirement",
+  "close_cycle",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -102,42 +104,43 @@ export const forgecraftSchema = z.object({
     .enum(ACTIONS as unknown as [string, ...string[]])
     .describe(
       "Operation to perform.\n\n" +
-      "Available actions:\n" +
-      "  setup_project       — onboard a new or existing project (two-phase: analyze then calibrate)\n" +
-      "  scaffold            — generate project structure files (.claude/, hooks, docs stubs)\n" +
-      "  check_cascade       — verify all 5 GS cascade steps complete before implementation begins\n" +
-      "  generate_session_prompt — produce a bound session prompt for a single roadmap item (gated on cascade)\n" +
-      "  generate_diagram    — generate Mermaid C4 context diagram from spec artifacts\n" +
-      "  refresh             — re-sync instruction files after tag changes\n" +
-      "  audit_project       — check project standards compliance\n" +
-      "  check_compliance    — alias for audit_project (same check)\n" +
-      "  set_cascade_requirement — revise a cascade step as required or optional\n" +
-      "  set_release_phase   — set project release phase (development/pre-release/production)\n" +
-      "  contribute_gate     — submit generalizable gates to the community registry\n" +
-      "  verification_status — full per-project acceptance report\n" +
-      "  add_project_gate    — add a project-specific quality gate\n" +
-      "  list_quality_gates  — list all quality gates\n" +
-      "  export_taxonomy     — export tag taxonomy\n" +
-      "  generate_adr        — emit a structured Architecture Decision Record into docs/adrs/\n" +
-      "  create_exception    — create hook false-positive exception\n" +
-      "  review              — structured code review checklist\n" +
-      "  list                — discover available tags/hooks/skills\n" +
-      "  classify            — suggest tags for a project description\n" +
-      "  add_hook            — add a quality hook\n" +
-      "  add_module          — add a module scaffold\n" +
-      "  configure_mcp       — configure MCP servers\n" +
-      "  get_reference       — get design patterns/NFR/playbook/guidance\n" +
-      "  convert             — generate migration plan\n" +
-      "  verify              — run tests and score §4.3 GS properties\n" +
-      "  advice              — quality cycle checklist\n" +
-      "  metrics             — external code quality report\n" +
-      "  get_verification_strategy — uncertainty-aware verification plan\n" +
-      "  record_verification — upsert acceptance decision for a verification step\n\n" +
-      "Quick usage examples:\n" +
-      "  To run a cascade check:              action=\"check_cascade\"\n" +
-      "  To generate a session prompt:        action=\"generate_session_prompt\"\n" +
-      "  To onboard a new project:            action=\"setup_project\"\n" +
-      "  To scaffold an existing project:     action=\"scaffold\""
+        "Available actions:\n" +
+        "  setup_project       — onboard a new or existing project (two-phase: analyze then calibrate)\n" +
+        "  scaffold            — generate project structure files (.claude/, hooks, docs stubs)\n" +
+        "  check_cascade       — verify all 5 GS cascade steps complete before implementation begins\n" +
+        "  generate_session_prompt — produce a bound session prompt for a single roadmap item (gated on cascade)\n" +
+        "  generate_diagram    — generate Mermaid C4 context diagram from spec artifacts\n" +
+        "  refresh             — re-sync instruction files after tag changes\n" +
+        "  audit_project       — check project standards compliance\n" +
+        "  check_compliance    — alias for audit_project (same check)\n" +
+        "  set_cascade_requirement — revise a cascade step as required or optional\n" +
+        "  set_release_phase   — set project release phase (development/pre-release/production)\n" +
+        "  contribute_gate     — submit generalizable gates to the community registry\n" +
+        "  verification_status — full per-project acceptance report\n" +
+        "  add_project_gate    — add a project-specific quality gate\n" +
+        "  list_quality_gates  — list all quality gates\n" +
+        "  export_taxonomy     — export tag taxonomy\n" +
+        "  generate_adr        — emit a structured Architecture Decision Record into docs/adrs/\n" +
+        "  create_exception    — create hook false-positive exception\n" +
+        "  review              — structured code review checklist\n" +
+        "  list                — discover available tags/hooks/skills\n" +
+        "  classify            — suggest tags for a project description\n" +
+        "  add_hook            — add a quality hook\n" +
+        "  add_module          — add a module scaffold\n" +
+        "  configure_mcp       — configure MCP servers\n" +
+        "  get_reference       — get design patterns/NFR/playbook/guidance\n" +
+        "  convert             — generate migration plan\n" +
+        "  verify              — run tests and score §4.3 GS properties\n" +
+        "  advice              — quality cycle checklist\n" +
+        "  metrics             — external code quality report\n" +
+        "  get_verification_strategy — uncertainty-aware verification plan\n" +
+        "  record_verification — upsert acceptance decision for a verification step\n\n" +
+        "  close_cycle         — end-of-cycle gate: re-run cascade, assess gates, promote generalizable ones\n\n" +
+        "Quick usage examples:\n" +
+        '  To run a cascade check:              action="check_cascade"\n' +
+        '  To generate a session prompt:        action="generate_session_prompt"\n' +
+        '  To onboard a new project:            action="setup_project"\n' +
+        '  To scaffold an existing project:     action="scaffold"',
     ),
   project_dir: z
     .string()
@@ -486,9 +489,9 @@ export const forgecraftSchema = z.object({
     .optional()
     .describe(
       "Phase 2: override the inferred project type when ambiguities were reported in phase 1. " +
-      "Examples: \"docs\", \"cli\", \"api\", \"library\", \"cli+library\", \"cli+api\". " +
-      "Provide this when the AI detected conflicting signals and you want to specify the correct interpretation. " +
-      "Used by: setup_project (phase 2).",
+        'Examples: "docs", "cli", "api", "library", "cli+library", "cli+api". ' +
+        "Provide this when the AI detected conflicting signals and you want to specify the correct interpretation. " +
+        "Used by: setup_project (phase 2).",
     ),
 });
 
@@ -516,15 +519,17 @@ export async function forgecraftHandler(
  * @param args - Validated unified tool input
  * @returns Raw handler result, possibly containing ambiguities
  */
-async function dispatchForgecraft(
-  args: ForgecraftArgs,
-): Promise<ToolResult> {
+async function dispatchForgecraft(args: ForgecraftArgs): Promise<ToolResult> {
   const action = args.action as Action;
 
   switch (action) {
     case "setup_project":
       return setupProjectHandler({
-        project_dir: requireParam(args.project_dir, "project_dir", "setup_project"),
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "setup_project",
+        ),
         spec_path: args.spec_path,
         spec_text: args.spec_text,
         mvp: args.mvp,
@@ -750,17 +755,25 @@ async function dispatchForgecraft(
 
     case "contribute_gate": {
       const result = await contributeGates({
-        projectRoot: requireParam(args.project_dir, "project_dir", "contribute_gate"),
+        projectRoot: requireParam(
+          args.project_dir,
+          "project_dir",
+          "contribute_gate",
+        ),
         dryRun: args.dry_run ?? false,
       });
       const lines = [
         `Contribution complete.`,
         `  Submitted: ${result.submitted.length}`,
         `  Skipped:   ${result.skipped.length}`,
-        ...(result.pendingFile ? [`  Pending queue: ${result.pendingFile}`] : []),
+        ...(result.pendingFile
+          ? [`  Pending queue: ${result.pendingFile}`]
+          : []),
         ...result.skipped.map((s) => `  ↷ ${s.gateId}: ${s.reason}`),
         ...result.submitted.map((s) =>
-          s.issueUrl ? `  ✓ ${s.gateId} → ${s.issueUrl}` : `  ⏳ ${s.gateId} queued`
+          s.issueUrl
+            ? `  ✓ ${s.gateId} → ${s.issueUrl}`
+            : `  ⏳ ${s.gateId} queued`,
         ),
       ];
       return { content: [{ type: "text", text: lines.join("\n") }] };
@@ -768,17 +781,40 @@ async function dispatchForgecraft(
 
     case "generate_diagram":
       return generateDiagramHandler({
-        project_dir: requireParam(args.project_dir, "project_dir", "generate_diagram"),
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "generate_diagram",
+        ),
       });
 
     case "set_cascade_requirement":
       return setCascadeRequirementHandler({
-        project_dir: requireParam(args.project_dir, "project_dir", "set_cascade_requirement"),
-        step: requireParam(args.cascade_step, "cascade_step", "set_cascade_requirement"),
-        required: requireParam(args.cascade_required, "cascade_required", "set_cascade_requirement"),
-        rationale: requireParam(args.cascade_rationale, "cascade_rationale", "set_cascade_requirement"),
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "set_cascade_requirement",
+        ),
+        step: requireParam(
+          args.cascade_step,
+          "cascade_step",
+          "set_cascade_requirement",
+        ),
+        required: requireParam(
+          args.cascade_required,
+          "cascade_required",
+          "set_cascade_requirement",
+        ),
+        rationale: requireParam(
+          args.cascade_rationale,
+          "cascade_rationale",
+          "set_cascade_requirement",
+        ),
         decided_by: args.cascade_decided_by,
       });
+
+    case "close_cycle":
+      return closeCycleHandler(args);
 
     default:
       return errorResult(
@@ -911,9 +947,6 @@ export function applyAmbiguityFormatting(result: ToolResult): ToolResult {
   const mergedText = `${ambiguitySection}\n\n---\n\n${existingText}`;
 
   return {
-    content: [
-      { type: "text", text: mergedText },
-      ...result.content.slice(1),
-    ],
+    content: [{ type: "text", text: mergedText }, ...result.content.slice(1)],
   };
 }

@@ -36,6 +36,7 @@ import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
+import { pullRegistryGates, formatRefreshResult } from "./registry-refresh.js";
 
 const logger = createLogger("tools/refresh-project");
 
@@ -124,10 +125,17 @@ export async function refreshProjectHandler(
     };
   }
 
-  // ── Step 2: Re-analyze project ─────────────────────────────────
+  // ── Step 2: Sync registry gates ───────────────────────────────────
+  const registryResult = await pullRegistryGates(
+    projectDir,
+    existingConfig.tags ?? ["UNIVERSAL"],
+    existingConfig.gates_registry_url,
+  );
+
+  // ── Step 3: Re-analyze project ─────────────────────────────────
   const drift = analyzeDrift(projectDir, existingConfig, args);
 
-  // ── Step 3: Build updated config ───────────────────────────────
+  // ── Step 4: Build updated config ───────────────────────────────
   const updatedTags = computeUpdatedTags(
     drift.currentTags,
     drift.newTagSuggestions,
@@ -145,7 +153,7 @@ export async function refreshProjectHandler(
       "development") as ForgeCraftConfig["releasePhase"],
   };
 
-  // ── Step 4: Compose with updated config ────────────────────────
+  // ── Step 5: Compose with updated config ────────────────────────
   const allTemplates = await loadAllTemplatesWithExtras(
     undefined,
     updatedConfig.templateDirs,
@@ -154,19 +162,22 @@ export async function refreshProjectHandler(
     config: updatedConfig,
   });
 
-  // ── Step 5: Apply or preview ───────────────────────────────────
+  // ── Step 6: Apply or preview ───────────────────────────────────
   if (!args.apply) {
     return {
       content: [
         {
           type: "text",
-          text: buildPreviewOutput(
-            drift,
-            updatedTags,
-            updatedConfig,
-            composed,
-            updatedTier as ContentTier,
-          ),
+          text:
+            buildPreviewOutput(
+              drift,
+              updatedTags,
+              updatedConfig,
+              composed,
+              updatedTier as ContentTier,
+            ) +
+            "\n\n" +
+            formatRefreshResult(registryResult),
         },
       ],
     };
@@ -249,15 +260,18 @@ export async function refreshProjectHandler(
     content: [
       {
         type: "text",
-        text: buildAppliedOutput(
-          drift,
-          updatedTags,
-          updatedConfig,
-          composed,
-          updatedTier as ContentTier,
-          args.sentinel !== false,
-          migrationWarning,
-        ),
+        text:
+          buildAppliedOutput(
+            drift,
+            updatedTags,
+            updatedConfig,
+            composed,
+            updatedTier as ContentTier,
+            args.sentinel !== false,
+            migrationWarning,
+          ) +
+          "\n\n" +
+          formatRefreshResult(registryResult),
       },
     ],
   };

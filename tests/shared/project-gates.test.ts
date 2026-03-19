@@ -28,13 +28,17 @@ const VALID_GATE: Omit<ProjectGate, "addedAt"> = {
   title: "No direct DB calls in controllers",
   description:
     "Controllers must delegate to services, never call repositories directly.",
-  category: "layering",
+  domain: "layering",
   gsProperty: "composable",
   phase: "development",
   hook: "pre-commit",
   check:
     "Scan controller files for repository imports and flag any direct usage.",
   passCriterion: "Zero repository imports in controller files",
+  status: "ready",
+  source: "project",
+  os: "cross-platform",
+  implementation: "logic",
 };
 
 describe("project-gates module", () => {

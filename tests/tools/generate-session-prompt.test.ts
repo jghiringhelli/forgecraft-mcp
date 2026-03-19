@@ -22,9 +22,15 @@ function makeTempDir(): string {
 
 function write(dir: string, relPath: string, content: string): void {
   const fullPath = join(dir, relPath);
-  mkdirSync(join(dir, relPath.includes("/") ? relPath.split("/").slice(0, -1).join("/") : ""), {
-    recursive: true,
-  });
+  mkdirSync(
+    join(
+      dir,
+      relPath.includes("/") ? relPath.split("/").slice(0, -1).join("/") : "",
+    ),
+    {
+      recursive: true,
+    },
+  );
   writeFileSync(fullPath, content, "utf-8");
 }
 
@@ -33,25 +39,49 @@ function write(dir: string, relPath: string, content: string): void {
  * Required before testing session prompt content — the cascade gate must pass.
  */
 function buildCompleteCascade(dir: string): void {
-  write(dir, "docs/PRD.md", "# PRD\n## Problem\nSolves user pain.\n## Users\nDevelopers.\n");
+  write(
+    dir,
+    "docs/PRD.md",
+    "# PRD\n## Problem\nSolves user pain.\n## Users\nDevelopers.\n",
+  );
   mkdirSync(join(dir, "docs/diagrams"), { recursive: true });
-  write(dir, "docs/diagrams/c4-context.md",
-    "```mermaid\nC4Context\n  Person(user, 'User')\n```\n");
-  write(dir, "CLAUDE.md", "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n");
+  write(
+    dir,
+    "docs/diagrams/c4-context.md",
+    "```mermaid\nC4Context\n  Person(user, 'User')\n```\n",
+  );
+  write(
+    dir,
+    "CLAUDE.md",
+    "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n",
+  );
   mkdirSync(join(dir, "docs/adrs"), { recursive: true });
-  write(dir, "docs/adrs/ADR-0001-stack.md", "# ADR-0001\n## Decision\nUse TypeScript.\n");
-  write(dir, "docs/use-cases.md", "# Use Cases\n## UC-001\n**Actor**: user\nPrecondition: logged in\n");
+  write(
+    dir,
+    "docs/adrs/ADR-0001-stack.md",
+    "# ADR-0001\n## Decision\nUse TypeScript.\n",
+  );
+  write(
+    dir,
+    "docs/use-cases.md",
+    "# Use Cases\n## UC-001\n**Actor**: user\nPrecondition: logged in\n",
+  );
 }
 
-const ITEM = "Add paginated GET /users endpoint returning UserResponse DTOs sorted by creation date.";
+const ITEM =
+  "Add paginated GET /users endpoint returning UserResponse DTOs sorted by creation date.";
 
 // ── Suite ─────────────────────────────────────────────────────────────
 
 describe("generateSessionPromptHandler", () => {
   let tempDir: string;
 
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 
   // ── Cascade gate ──────────────────────────────────────────────────
 
@@ -102,7 +132,9 @@ describe("generateSessionPromptHandler", () => {
         session_type: "feature",
       });
       // Step 1 questions contain "problem" related content
-      expect(result.content[0]!.text).toContain("What problem does this project solve?");
+      expect(result.content[0]!.text).toContain(
+        "What problem does this project solve?",
+      );
     });
 
     it("blocked message does not include TDD Gate (session prompt was not generated)", async () => {
@@ -126,7 +158,11 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("blocks when PRD.md exists but has UNFILLED markers", async () => {
-      write(tempDir, "docs/PRD.md", "<!-- UNFILLED: PRD -->\n# PRD\n## Problem\n<!-- FILL -->\n");
+      write(
+        tempDir,
+        "docs/PRD.md",
+        "<!-- UNFILLED: PRD -->\n# PRD\n## Problem\n<!-- FILL -->\n",
+      );
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -246,7 +282,10 @@ describe("generateSessionPromptHandler", () => {
 
     it("uses provided acceptance_criteria instead of defaults", async () => {
       buildCompleteCascade(tempDir);
-      const criteria = ["Returns 200 with users array", "Supports page and limit query params"];
+      const criteria = [
+        "Returns 200 with users array",
+        "Supports page and limit query params",
+      ];
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -312,7 +351,11 @@ describe("generateSessionPromptHandler", () => {
 
     it("includes Status.md content snippet when present", async () => {
       buildCompleteCascade(tempDir);
-      write(tempDir, "Status.md", "# Status\n## Next Steps\n- Implement auth\n");
+      write(
+        tempDir,
+        "Status.md",
+        "# Status\n## Next Steps\n- Implement auth\n",
+      );
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -375,25 +418,41 @@ describe("generateSessionPromptHandler", () => {
   describe("cascade decisions: SKIP steps do not block prompt generation", () => {
     it("generates a prompt when required steps PASS and optional steps would have failed", async () => {
       // Build only the required steps — skip adrs and diagrams
-      write(tempDir, "docs/PRD.md", "# PRD\n## Problem\nSolves user pain.\n## Users\nDevelopers.\n");
-      write(tempDir, "CLAUDE.md", "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n");
-      write(tempDir, "docs/use-cases.md", "# Use Cases\n## UC-001\n**Actor**: user\nPrecondition: logged in\n");
+      write(
+        tempDir,
+        "docs/PRD.md",
+        "# PRD\n## Problem\nSolves user pain.\n## Users\nDevelopers.\n",
+      );
+      write(
+        tempDir,
+        "CLAUDE.md",
+        "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n",
+      );
+      write(
+        tempDir,
+        "docs/use-cases.md",
+        "# Use Cases\n## UC-001\n**Actor**: user\nPrecondition: logged in\n",
+      );
       // No docs/diagrams/ and no docs/adrs/ — normally FAIL for steps 2 and 4
       // Mark them as optional in forgecraft.yaml
-      writeFileSync(join(tempDir, "forgecraft.yaml"), [
-        "cascade:",
-        "  steps:",
-        "    - step: architecture_diagrams",
-        "      required: false",
-        '      rationale: "CLI project — no external integration surface."',
-        "      decidedAt: '2025-01-01'",
-        "      decidedBy: scaffold",
-        "    - step: adrs",
-        "      required: false",
-        '      rationale: "Simple script with no complex decisions."',
-        "      decidedAt: '2025-01-01'",
-        "      decidedBy: scaffold",
-      ].join("\n"), "utf-8");
+      writeFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        [
+          "cascade:",
+          "  steps:",
+          "    - step: architecture_diagrams",
+          "      required: false",
+          '      rationale: "CLI project — no external integration surface."',
+          "      decidedAt: '2025-01-01'",
+          "      decidedBy: scaffold",
+          "    - step: adrs",
+          "      required: false",
+          '      rationale: "Simple script with no complex decisions."',
+          "      decidedAt: '2025-01-01'",
+          "      decidedBy: scaffold",
+        ].join("\n"),
+        "utf-8",
+      );
 
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
@@ -406,31 +465,35 @@ describe("generateSessionPromptHandler", () => {
 
     it("still blocks when required steps fail even if optional steps would have passed", async () => {
       // No files at all, but mark all steps as optional except functional_spec
-      writeFileSync(join(tempDir, "forgecraft.yaml"), [
-        "cascade:",
-        "  steps:",
-        "    - step: architecture_diagrams",
-        "      required: false",
-        '      rationale: "Optional."',
-        "      decidedAt: '2025-01-01'",
-        "      decidedBy: scaffold",
-        "    - step: adrs",
-        "      required: false",
-        '      rationale: "Optional."',
-        "      decidedAt: '2025-01-01'",
-        "      decidedBy: scaffold",
-        "    - step: behavioral_contracts",
-        "      required: false",
-        '      rationale: "Optional."',
-        "      decidedAt: '2025-01-01'",
-        "      decidedBy: scaffold",
-        "    - step: constitution",
-        "      required: false",
-        '      rationale: "Optional."',
-        "      decidedAt: '2025-01-01'",
-        "      decidedBy: scaffold",
-        // functional_spec is NOT in the decisions list — fail-safe: defaults to required
-      ].join("\n"), "utf-8");
+      writeFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        [
+          "cascade:",
+          "  steps:",
+          "    - step: architecture_diagrams",
+          "      required: false",
+          '      rationale: "Optional."',
+          "      decidedAt: '2025-01-01'",
+          "      decidedBy: scaffold",
+          "    - step: adrs",
+          "      required: false",
+          '      rationale: "Optional."',
+          "      decidedAt: '2025-01-01'",
+          "      decidedBy: scaffold",
+          "    - step: behavioral_contracts",
+          "      required: false",
+          '      rationale: "Optional."',
+          "      decidedAt: '2025-01-01'",
+          "      decidedBy: scaffold",
+          "    - step: constitution",
+          "      required: false",
+          '      rationale: "Optional."',
+          "      decidedAt: '2025-01-01'",
+          "      decidedBy: scaffold",
+          // functional_spec is NOT in the decisions list — fail-safe: defaults to required
+        ].join("\n"),
+        "utf-8",
+      );
 
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
@@ -480,7 +543,10 @@ describe("generateSessionPromptHandler", () => {
         JSON.stringify({
           mcpServers: {
             forgecraft: { command: "npx", args: ["-y", "forgecraft-mcp"] },
-            context7: { command: "npx", args: ["-y", "@upstash/context7-mcp@latest"] },
+            context7: {
+              command: "npx",
+              args: ["-y", "@upstash/context7-mcp@latest"],
+            },
           },
         }),
         "utf-8",
@@ -507,6 +573,115 @@ describe("generateSessionPromptHandler", () => {
       const text = result.content[0]!.text;
       expect(text).toContain("Active MCP Tools");
       expect(text).toContain("configure_mcp");
+    });
+  });
+
+  // ── Prompt hygiene: reference not inline ─────────────────────────
+
+  describe("prompt hygiene", () => {
+    it("does_not_inline_adr_content — ADR file content not included in prompt output", async () => {
+      buildCompleteCascade(tempDir);
+      // buildCompleteCascade writes ADR-0001 with "Use TypeScript." content
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      // Path should be referenced
+      expect(text).toContain("docs/adrs/");
+      // ADR file content must NOT be inlined
+      expect(text).not.toContain("Use TypeScript.");
+    });
+
+    it("references_gates_by_path_not_content — gate YAML content not inlined", async () => {
+      buildCompleteCascade(tempDir);
+      mkdirSync(join(tempDir, ".forgecraft/gates/project/active"), {
+        recursive: true,
+      });
+      writeFileSync(
+        join(
+          tempDir,
+          ".forgecraft/gates/project/active",
+          "no-console-log.yaml",
+        ),
+        [
+          "id: no-console-log",
+          "title: No console.log in production",
+          "description: Console.log statements pollute production logs — use a structured logger.",
+          "check: grep -r 'console.log' src/",
+          "passCriterion: Zero matches",
+          "gsProperty: observability",
+          "phase: commit",
+        ].join("\n"),
+        "utf-8",
+      );
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      // Path must be referenced
+      expect(text).toContain(".forgecraft/gates/project/active/");
+      // Gate file content must NOT be inlined
+      expect(text).not.toContain(
+        "Console.log statements pollute production logs",
+      );
+      expect(text).not.toContain("passCriterion");
+    });
+
+    it("includes_codeseeker_context_retrieval_when_available — context retrieval section present when codeseeker configured", async () => {
+      buildCompleteCascade(tempDir);
+      mkdirSync(join(tempDir, ".claude"), { recursive: true });
+      writeFileSync(
+        join(tempDir, ".claude", "settings.json"),
+        JSON.stringify({
+          mcpServers: {
+            forgecraft: { command: "npx", args: ["-y", "forgecraft-mcp"] },
+            codeseeker: { command: "npx", args: ["-y", "codeseeker-mcp"] },
+          },
+        }),
+        "utf-8",
+      );
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Context Retrieval Strategy");
+      expect(text).toContain("codeseeker_search");
+      expect(text).toContain("codeseeker_duplicates");
+    });
+
+    it("includes context retrieval section without codeseeker guidance when codeseeker not configured", async () => {
+      buildCompleteCascade(tempDir);
+      // No settings.json — codeseeker not configured
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Context Retrieval Strategy");
+      expect(text).not.toContain("codeseeker_search");
+    });
+
+    it("includes_close_cycle_reminder — close_cycle appears after execution loop", async () => {
+      buildCompleteCascade(tempDir);
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("close_cycle");
+      // The reminder appears after the execution loop
+      const executionLoopIdx = text.indexOf("Execution Loop");
+      const closeCycleIdx = text.lastIndexOf("close_cycle");
+      expect(executionLoopIdx).toBeGreaterThan(-1);
+      expect(closeCycleIdx).toBeGreaterThan(executionLoopIdx);
     });
   });
 });

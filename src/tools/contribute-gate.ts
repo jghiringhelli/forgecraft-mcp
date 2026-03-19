@@ -50,9 +50,11 @@ function readContributionConfig(projectRoot: string): {
     const githubMatch = raw.match(/github_user:\s*(\S+)/);
     const val = contributeMatch?.[1];
     const contributeGates =
-      val === "anonymous" ? "anonymous" :
-      val === "attributed" ? "attributed" :
-      false;
+      val === "anonymous"
+        ? "anonymous"
+        : val === "attributed"
+          ? "attributed"
+          : false;
     return {
       contributeGates,
       serverUrl: serverMatch?.[1] ?? "https://api.genspec.dev",
@@ -70,7 +72,9 @@ function getAlreadySubmitted(projectRoot: string): Set<string> {
   const filePath = join(projectRoot, SUBMITTED_CONTRIBUTIONS_FILE);
   if (!existsSync(filePath)) return new Set();
   try {
-    const data = JSON.parse(readFileSync(filePath, "utf-8")) as { gateId: string }[];
+    const data = JSON.parse(readFileSync(filePath, "utf-8")) as {
+      gateId: string;
+    }[];
     return new Set(data.map((c) => c.gateId));
   } catch {
     return new Set();
@@ -80,15 +84,14 @@ function getAlreadySubmitted(projectRoot: string): Set<string> {
 /**
  * Records a submission to the contributions log.
  */
-function recordSubmission(
-  projectRoot: string,
-  gate: ContributedGate
-): void {
+function recordSubmission(projectRoot: string, gate: ContributedGate): void {
   const filePath = join(projectRoot, SUBMITTED_CONTRIBUTIONS_FILE);
   let existing: ContributedGate[] = [];
   if (existsSync(filePath)) {
     try {
-      existing = JSON.parse(readFileSync(filePath, "utf-8")) as ContributedGate[];
+      existing = JSON.parse(
+        readFileSync(filePath, "utf-8"),
+      ) as ContributedGate[];
     } catch {
       existing = [];
     }
@@ -96,7 +99,7 @@ function recordSubmission(
   writeFileSync(
     filePath,
     JSON.stringify([...existing, gate], null, 2) + "\n",
-    "utf-8"
+    "utf-8",
   );
 }
 
@@ -115,7 +118,7 @@ async function submitGate(
   mode: "anonymous" | "attributed",
   serverUrl: string,
   githubUser?: string,
-  projectType?: string
+  projectType?: string,
 ): Promise<{ status: "submitted" | "pending"; issueUrl?: string }> {
   try {
     const response = await fetch(`${serverUrl}/contribute/gate`, {
@@ -126,7 +129,7 @@ async function submitGate(
           id: gate.id,
           title: gate.title,
           description: gate.description,
-          category: gate.category,
+          domain: gate.domain,
           gsProperty: gate.gsProperty,
           phase: gate.phase,
           hook: gate.hook,
@@ -136,15 +139,19 @@ async function submitGate(
           evidence: gate.evidence,
         },
         mode,
-        attribution: mode === "attributed"
-          ? { github: githubUser, projectType }
-          : undefined,
+        attribution:
+          mode === "attributed"
+            ? { github: githubUser, projectType }
+            : undefined,
       }),
       signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) return { status: "pending" };
-    const data = await response.json() as { status: string; issueUrl?: string };
+    const data = (await response.json()) as {
+      status: string;
+      issueUrl?: string;
+    };
     return {
       status: data.status === "submitted" ? "submitted" : "pending",
       issueUrl: data.issueUrl,
@@ -165,7 +172,7 @@ async function submitGate(
  * @returns Result containing submitted, skipped gates and optional pending file path.
  */
 export async function contributeGates(
-  options: ContributeGateOptions
+  options: ContributeGateOptions,
 ): Promise<ContributionResult> {
   const { projectRoot, dryRun = false } = options;
   const config = readContributionConfig(projectRoot);
@@ -192,7 +199,10 @@ export async function contributeGates(
       continue;
     }
     if (!gate.evidence?.trim()) {
-      skipped.push({ gateId: gate.id, reason: "evidence field is empty — required for contribution" });
+      skipped.push({
+        gateId: gate.id,
+        reason: "evidence field is empty — required for contribution",
+      });
       continue;
     }
 
@@ -212,7 +222,11 @@ export async function contributeGates(
   let pendingFile: string | undefined;
   if (pending.length > 0) {
     pendingFile = join(projectRoot, PENDING_CONTRIBUTIONS_FILE);
-    writeFileSync(pendingFile, JSON.stringify(pending, null, 2) + "\n", "utf-8");
+    writeFileSync(
+      pendingFile,
+      JSON.stringify(pending, null, 2) + "\n",
+      "utf-8",
+    );
   }
 
   return { submitted, skipped, pendingFile };

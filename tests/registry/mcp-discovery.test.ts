@@ -68,18 +68,42 @@ describe("McpDiscoveryService", () => {
     it("should return servers for every supported tag", async () => {
       // All 24 tags now have mcp-servers.yaml — verify none returns empty
       const tagsToCheck: Tag[] = [
-        "UNIVERSAL", "WEB-REACT", "API", "CLI", "LIBRARY",
-        "GAME", "INFRA", "DATA-PIPELINE", "ML", "MOBILE",
-        "ANALYTICS", "FINTECH", "HEALTHCARE", "WEB3",
-        "REALTIME", "STATE-MACHINE", "SOCIAL", "WEB-STATIC",
-        "HIPAA", "SOC2", "DATA-LINEAGE", "OBSERVABILITY-XRAY",
-        "MEDALLION-ARCHITECTURE", "ZERO-TRUST",
+        "UNIVERSAL",
+        "WEB-REACT",
+        "API",
+        "CLI",
+        "LIBRARY",
+        "GAME",
+        "INFRA",
+        "DATA-PIPELINE",
+        "ML",
+        "MOBILE",
+        "ANALYTICS",
+        "FINTECH",
+        "HEALTHCARE",
+        "WEB3",
+        "REALTIME",
+        "STATE-MACHINE",
+        "SOCIAL",
+        "WEB-STATIC",
+        "HIPAA",
+        "SOC2",
+        "DATA-LINEAGE",
+        "OBSERVABILITY-XRAY",
+        "MEDALLION-ARCHITECTURE",
+        "ZERO-TRUST",
       ];
-      for (const tag of tagsToCheck) {
-        const results = await service.discoverServers([tag]);
-        expect(results.length, `Expected servers for tag ${tag}`).toBeGreaterThan(0);
-      }
-    });
+      // Run all tag checks in parallel to avoid timeout under full-suite concurrency
+      await Promise.all(
+        tagsToCheck.map(async (tag) => {
+          const results = await service.discoverServers([tag]);
+          expect(
+            results.length,
+            `Expected servers for tag ${tag}`,
+          ).toBeGreaterThan(0);
+        }),
+      );
+    }, 30_000);
 
     it("should populate all recommendation fields", async () => {
       const results = await service.discoverServers(["UNIVERSAL"]);

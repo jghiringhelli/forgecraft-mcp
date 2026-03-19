@@ -1,5 +1,45 @@
 # Status.md
 
+## Last Updated: 2026-03-19 (Session 28)
+
+## Session 28 Summary
+
+Long session focused on completing the quality gate flywheel and hardening the full GS funnel.
+
+### Gate Schema Redesign
+- `ProjectGate` completely redesigned: `category` → `domain`, added `implementation` (logic|process|tooled|mcp|cli), `os`, `status`, `source`, `failureMessage`, `fixHint`, risk triangle (`likelihood`/`impact`/`confidence`), standards refs (`cwe`/`owasp`/`references`), `parameters`, `paths`, `deprecatedBy`
+- New `ToolRequirement` interface, `GateState` type, `GateEvaluationResult` interface
+- 975 tests passing after migration
+
+### Gate Folder Structure
+`.forgecraft/project-gates.yaml` (flat) → `.forgecraft/gates/project/active|promoted|retired/` + `.forgecraft/gates/registry/{tag}/`. Folder = state. Auto-migration on first read.
+
+### New Actions
+- `close_cycle`: End-of-cycle gate -- cascade re-check, gate assessment, contribute_gate call, promotes generalizable gates
+- `refresh_project` (updated): Pulls registry gates for project tags, retires superseded active gates
+
+### forgecraft-server
+- API key required (`X-Forgecraft-Key: fg_[32]`, 20/month rate limit)
+- GitHub Issues = primary durable storage (was ephemeral filesystem)
+- `GITHUB_TOKEN` now required (set in Railway)
+- New `GET /quarantine` endpoint lists open GitHub Issues
+- 14/14 tests passing, deployed to Railway
+
+### Quality Gates Registry
+6 new gates (22 total): vscode-extension-deduplication, package-manager-check-before-install, docker-container-reuse, codeseeker-semantic-search-before-grep, codeseeker-duplicate-detection, codeseeker-orphan-detection
+
+### Pending (in progress)
+- close_cycle tests (agent running)
+- refresh_project tests (agent running)
+- prompt-hygiene (wayfinding -- blocked on above)
+- Storycraft adversarial test (last step)
+
+### Test Counts
+- forgecraft-mcp: 975 passing
+- forgecraft-server: 14 passing
+
+---
+
 ## Last Updated: 2026-03-17 (Session 27)
 
 ## Session 27 Summary

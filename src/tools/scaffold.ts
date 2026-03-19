@@ -6,7 +6,13 @@
  */
 
 import { z } from "zod";
-import { mkdirSync, chmodSync, existsSync, writeFileSync, readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  chmodSync,
+  existsSync,
+  writeFileSync,
+  readFileSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import yaml from "js-yaml";
 import {
@@ -40,7 +46,11 @@ import { writeFileIfMissing, checkGitSafety } from "../shared/filesystem.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
 import { deriveDefaultCascadeDecisions } from "./cascade-defaults.js";
-import { buildPlaceholderContext, resolveTemplatePlaceholders } from "../shared/template-resolver.js";
+import {
+  buildPlaceholderContext,
+  resolveTemplatePlaceholders,
+} from "../shared/template-resolver.js";
+import { ensureGateDirs } from "../shared/project-gates.js";
 
 const logger = createLogger("tools/scaffold");
 
@@ -257,12 +267,22 @@ export const scaffoldProjectSchema = z.object({
  * @param tags - Project classification tags
  * @returns Array of hook filenames written
  */
-export async function scaffoldHooks(projectDir: string, tags: Tag[]): Promise<string[]> {
-  const normalizedTags: Tag[] = tags.includes("UNIVERSAL") ? tags : ["UNIVERSAL", ...tags];
+export async function scaffoldHooks(
+  projectDir: string,
+  tags: Tag[],
+): Promise<string[]> {
+  const normalizedTags: Tag[] = tags.includes("UNIVERSAL")
+    ? tags
+    : ["UNIVERSAL", ...tags];
 
   const userConfig = loadUserOverrides(projectDir);
-  const templateSets = await loadAllTemplatesWithExtras(undefined, userConfig?.templateDirs);
-  const composed = composeTemplates(normalizedTags, templateSets, { config: userConfig ?? undefined });
+  const templateSets = await loadAllTemplatesWithExtras(
+    undefined,
+    userConfig?.templateDirs,
+  );
+  const composed = composeTemplates(normalizedTags, templateSets, {
+    config: userConfig ?? undefined,
+  });
 
   const hooksDir = join(projectDir, ".claude", "hooks");
   mkdirSync(hooksDir, { recursive: true });
@@ -375,7 +395,11 @@ export async function scaffoldProjectHandler(
       for (const file of sentinelFiles) {
         const fullPath = join(args.project_dir, file.relativePath);
         mkdirSync(dirname(fullPath), { recursive: true });
-        trackWrite(file.relativePath, fullPath, resolveTemplatePlaceholders(file.content, placeholderContext));
+        trackWrite(
+          file.relativePath,
+          fullPath,
+          resolveTemplatePlaceholders(file.content, placeholderContext),
+        );
       }
       // Scaffold the user-owned project-specific.md (never overwritten after first creation)
       const projectSpecificPath = join(
@@ -403,7 +427,11 @@ export async function scaffoldProjectHandler(
       const relativePath = targetConfig.directory
         ? `${targetConfig.directory}/${targetConfig.filename}`
         : targetConfig.filename;
-      trackWrite(relativePath, outputPath, resolveTemplatePlaceholders(content, placeholderContext));
+      trackWrite(
+        relativePath,
+        outputPath,
+        resolveTemplatePlaceholders(content, placeholderContext),
+      );
     }
   }
 
@@ -511,6 +539,7 @@ export async function scaffoldProjectHandler(
   } else {
     filesSkipped.push(".forgecraft/project-gates.yaml");
   }
+  ensureGateDirs(args.project_dir);
 
   // If deployment config is present, scaffold smoke/load test stubs and reports dir.
   if (userConfig?.deployment) {
@@ -538,7 +567,12 @@ export async function scaffoldProjectHandler(
   }
 
   // ── Step 0: Write cascade decisions to forgecraft.yaml ─────────────────
-  const cascadeDecisions = writeCascadeDecisions(args.project_dir, tags, args.project_name, userConfig);
+  const cascadeDecisions = writeCascadeDecisions(
+    args.project_dir,
+    tags,
+    args.project_name,
+    userConfig,
+  );
 
   const result: ScaffoldResult = {
     filesCreated,
@@ -631,14 +665,18 @@ function writeCascadeDecisions(
  * @param decisions - The cascade decisions to display
  * @returns Formatted Markdown section
  */
-function renderCascadeDecisionsSection(decisions: readonly CascadeDecision[]): string {
+function renderCascadeDecisionsSection(
+  decisions: readonly CascadeDecision[],
+): string {
   let text = `\n\n## Cascade Decisions (Step 0)\n\n`;
   text += `The following spec artifacts have been assessed for this project:\n\n`;
 
   for (const decision of decisions) {
     const icon = decision.required ? "✓" : "○";
     const artifact = STEP_ARTIFACT_DISPLAY[decision.step] ?? decision.step;
-    const label = decision.required ? `required (${artifact})` : `optional — ${decision.rationale.split(".")[0]}`;
+    const label = decision.required
+      ? `required (${artifact})`
+      : `optional — ${decision.rationale.split(".")[0]}`;
     text += `  ${icon} ${decision.step} — ${label}\n`;
   }
 
