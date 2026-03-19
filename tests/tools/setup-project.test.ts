@@ -1,8 +1,8 @@
 /**
- * Tests for the setup_project tool handler.
+ * Tests for the setup_project two-phase onboarding handler.
  *
- * Tests cover: dry-run mode, file creation, tag detection,
- * tag override, multi-target output, and error paths.
+ * Covers: phase 1 (analysis + questions), phase 2 (cascade decisions + artifacts),
+ * spec intake, existing project detection, and consumer overrides.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { setupProjectHandler } from "../../src/tools/setup-project.js";
 
-// ── fixtures ─────────────────────────────────────────────────────────
+// ── Fixtures ──────────────────────────────────────────────────────────
 
 function makeTempDir(): string {
   const dir = join(tmpdir(), `forgecraft-setup-test-${Date.now()}`);
@@ -19,164 +19,226 @@ function makeTempDir(): string {
   return dir;
 }
 
-function writePackageJson(dir: string, content: object): void {
-  writeFileSync(join(dir, "package.json"), JSON.stringify(content), "utf-8");
-}
+const SAMPLE_SPEC = `# My Project
 
-// ── suite ─────────────────────────────────────────────────────────────
+## Problem
+Teams waste hours on manual deployment workflows.
+
+## Users
+- DevOps engineers
+- Platform teams
+
+## Goals
+- Reduce deploy time by 80%
+- Zero-downtime deployments
+
+## Components
+- Deployment orchestrator
+- Config manager
+- Health check service
+`;
+
+// ── Suite ─────────────────────────────────────────────────────────────
 
 describe("setupProjectHandler", () => {
   let tempDir: string;
 
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
 
-  // ── dry_run ───────────────────────────────────────────────────────
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 
-  describe("dry_run mode", () => {
-    it("returns a response without writing files", async () => {
-      writePackageJson(tempDir, {});
-      const result = await setupProjectHandler({
-        project_dir: tempDir,
-        dry_run: true,
-        output_targets: ["claude"],
-      });
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0]!.text).toContain("dry");
-      expect(existsSync(join(tempDir, "CLAUDE.md"))).toBe(false);
+  // ── Phase 1: analysis + questions ────────────────────────────────
+
+  describe("phase 1 — no mvp/scope_complete/has_consumers", () => {
+    it("returns phase 1 response with three questions for empty project with no spec", async () => {
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Project Setup");
+      expect(text).toContain("Q1");
+      expect(text).toContain("Q2");
+      expect(text).toContain("Q3");
+      expect(text).toContain("mvp");
+      expect(text).toContain("scope_complete");
+      expect(text).toContain("has_consumers");
     });
 
-    it("includes detected tags in dry-run output", async () => {
-      writePackageJson(tempDir, { dependencies: { react: "^18.0.0" } });
+    it("returns phase 1 response with spec summary when spec_text provided", async () => {
       const result = await setupProjectHandler({
         project_dir: tempDir,
-        dry_run: true,
-        output_targets: ["claude"],
+        spec_text: SAMPLE_SPEC,
       });
-      expect(result.content[0]!.text).toMatch(/WEB-REACT|UNIVERSAL/);
+      const text = result.content[0]!.text;
+      expect(text).toContain("What I found");
+      expect(text).toContain("My Project");
     });
 
-    it("respects explicit tag override in dry-run", async () => {
-      writePackageJson(tempDir, {});
+    it("reads spec from spec_path and includes summary in phase 1", async () => {
+      const specFile = join(tempDir, "spec.md");
+      writeFileSync(specFile, SAMPLE_SPEC, "utf-8");
       const result = await setupProjectHandler({
         project_dir: tempDir,
-        tags: ["UNIVERSAL", "CLI"],
-        dry_run: true,
-        output_targets: ["claude"],
+        spec_path: specFile,
       });
-      expect(result.content[0]!.text).toContain("CLI");
+      const text = result.content[0]!.text;
+      expect(text).toContain("What I found");
+      expect(text).toContain(specFile);
+    });
+
+    it("auto-discovers README.md as spec when no spec arg provided", async () => {
+      writeFileSync(join(tempDir, "README.md"), SAMPLE_SPEC, "utf-8");
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("What I found");
+    });
+
+    it("detects existing project mode when src/ directory has files", async () => {
+      mkdirSync(join(tempDir, "src"), { recursive: true });
+      writeFileSync(join(tempDir, "src", "index.ts"), "export {};", "utf-8");
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Existing project");
+    });
+
+    it("reports new project mode when no source dirs exist", async () => {
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("New project");
+    });
+
+    it("throws when spec_path does not exist", async () => {
+      await expect(
+        setupProjectHandler({
+          project_dir: tempDir,
+          spec_path: join(tempDir, "nonexistent.md"),
+        }),
+      ).rejects.toThrow("not found");
     });
   });
 
-  // ── file writing ───────────────────────────────────────────────────
+  // ── Phase 2: cascade decisions + artifacts ───────────────────────
 
-  describe("file writing", () => {
-    it("writes CLAUDE.md when project_dir is provided", async () => {
-      writePackageJson(tempDir, {});
+  describe("phase 2 — mvp/scope_complete/has_consumers provided", () => {
+    it("creates forgecraft.yaml in phase 2", async () => {
       await setupProjectHandler({
         project_dir: tempDir,
-        tags: ["UNIVERSAL"],
-        dry_run: false,
-        output_targets: ["claude"],
-      });
-      expect(existsSync(join(tempDir, "CLAUDE.md"))).toBe(true);
-    });
-
-    it("writes forgecraft.yaml config file", async () => {
-      writePackageJson(tempDir, {});
-      await setupProjectHandler({
-        project_dir: tempDir,
-        tags: ["UNIVERSAL"],
-        dry_run: false,
-        output_targets: ["claude"],
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
       });
       expect(existsSync(join(tempDir, "forgecraft.yaml"))).toBe(true);
     });
 
-    it("forgecraft.yaml stores project name from project_name arg", async () => {
-      writePackageJson(tempDir, {});
+    it("forgecraft.yaml contains cascade decisions in phase 2", async () => {
       await setupProjectHandler({
         project_dir: tempDir,
-        project_name: "MySpecialProject",
-        tags: ["UNIVERSAL"],
-        dry_run: false,
-        output_targets: ["claude"],
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
       });
-      // projectName lives in forgecraft.yaml, not CLAUDE.md (no template uses {{projectName}})
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
-      expect(yamlContent).toContain("MySpecialProject");
+      const yaml = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      expect(yaml).toContain("cascade");
+      expect(yaml).toContain("functional_spec");
     });
 
-    it("writes copilot-instructions.md for copilot target", async () => {
-      writePackageJson(tempDir, {});
+    it("mvp=true makes architecture_diagrams optional", async () => {
       await setupProjectHandler({
         project_dir: tempDir,
-        tags: ["UNIVERSAL"],
-        dry_run: false,
-        output_targets: ["copilot"],
+        mvp: true,
+        scope_complete: true,
+        has_consumers: false,
       });
-      expect(existsSync(join(tempDir, ".github", "copilot-instructions.md"))).toBe(true);
+      const text = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      // architecture_diagrams required: false
+      expect(text).toMatch(/architecture_diagrams[\s\S]{0,200}required: false/);
     });
 
-    it("returns a list of files written in response", async () => {
-      writePackageJson(tempDir, {});
+    it("has_consumers=true makes behavioral_contracts required regardless of mvp", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: true,
+      });
+      const yaml = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      // behavioral_contracts required: true
+      expect(yaml).toMatch(/behavioral_contracts[\s\S]{0,200}required: true/);
+    });
+
+    it("scope_complete=false makes adrs optional", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const yaml = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      expect(yaml).toMatch(/adrs[\s\S]{0,200}required: false/);
+    });
+
+    it("creates docs/PRD.md when spec_text provided in phase 2", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        spec_text: SAMPLE_SPEC,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      expect(existsSync(join(tempDir, "docs", "PRD.md"))).toBe(true);
+    });
+
+    it("PRD.md contains spec content mapped to sections", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        spec_text: SAMPLE_SPEC,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const prd = readFileSync(join(tempDir, "docs", "PRD.md"), "utf-8");
+      expect(prd).toContain("## Problem");
+      expect(prd).toContain("## Users");
+    });
+
+    it("does not overwrite existing docs/PRD.md", async () => {
+      mkdirSync(join(tempDir, "docs"), { recursive: true });
+      writeFileSync(join(tempDir, "docs", "PRD.md"), "# Existing PRD\nKeep me.", "utf-8");
+      await setupProjectHandler({
+        project_dir: tempDir,
+        spec_text: SAMPLE_SPEC,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const prd = readFileSync(join(tempDir, "docs", "PRD.md"), "utf-8");
+      expect(prd).toContain("Keep me.");
+    });
+
+    it("phase 2 response contains cascade decisions summary", async () => {
       const result = await setupProjectHandler({
         project_dir: tempDir,
-        tags: ["UNIVERSAL"],
-        dry_run: false,
-        output_targets: ["claude"],
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
       });
-      expect(result.content[0]!.text).toMatch(/CLAUDE\.md/i);
+      const text = result.content[0]!.text;
+      expect(text).toContain("Cascade decisions");
+      expect(text).toContain("functional_spec");
     });
 
-    it("preserves custom sections on re-run via merge", async () => {
-      writePackageJson(tempDir, {});
-      // Initial write
-      await setupProjectHandler({
-        project_dir: tempDir,
-        tags: ["UNIVERSAL"],
-        dry_run: false,
-        output_targets: ["claude"],
-      });
-      // Manually add a custom section
-      const claudeMdPath = join(tempDir, "CLAUDE.md");
-      const original = readFileSync(claudeMdPath, "utf-8");
-      writeFileSync(claudeMdPath, original + "\n\n## My Custom Section\nCustom content here\n");
-      // Re-run setup
-      await setupProjectHandler({
-        project_dir: tempDir,
-        tags: ["UNIVERSAL"],
-        dry_run: false,
-        output_targets: ["claude"],
-      });
-      const after = readFileSync(claudeMdPath, "utf-8");
-      expect(after).toContain("My Custom Section");
-    });
-  });
-
-  // ── tag auto-detection ─────────────────────────────────────────────
-
-  describe("auto tag detection", () => {
-    it("always includes UNIVERSAL in final tags", async () => {
-      writePackageJson(tempDir, {});
+    it("phase 2 response mentions check_cascade next step", async () => {
       const result = await setupProjectHandler({
         project_dir: tempDir,
-        tags: ["API"],
-        dry_run: true,
-        output_targets: ["claude"],
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
       });
-      expect(result.content[0]!.text).toContain("UNIVERSAL");
-    });
-
-    it("uses description for tag detection when no package.json signals", async () => {
-      const result = await setupProjectHandler({
-        project_dir: tempDir,
-        description: "A CLI tool for data pipelines",
-        dry_run: true,
-        output_targets: ["claude"],
-      });
-      // Should detect CLI and/or DATA-PIPELINE from description
-      expect(result.content[0]!.text.length).toBeGreaterThan(50);
+      const text = result.content[0]!.text;
+      expect(text).toContain("check_cascade");
     });
   });
 });
+

@@ -125,21 +125,12 @@ async function cmdSetup(pos: string[], flags: Flags): Promise<void> {
   const projectDir = resolve(pos[0] ?? ".");
   const result = await setupProjectHandler({
     project_dir: projectDir,
-    project_name: str(flags, "name"),
-    description: str(flags, "description"),
-    tier: (str(flags, "tier") as ContentTier | undefined) ?? "recommended",
-    tags: arr(flags, "tags") as Tag[] | undefined,
-    dry_run: bool(flags, "dry-run", false),
-    output_targets: (arr(flags, "targets") as OutputTarget[] | undefined) ?? [
-      "claude",
-    ],
-    release_phase:
-      (str(flags, "phase") as
-        | "development"
-        | "pre-release"
-        | "release-candidate"
-        | "production"
-        | undefined) ?? "development",
+    spec_path: str(flags, "spec"),
+    spec_text: str(flags, "description"),
+    // CLI always executes phase 2 directly with provided or sensible defaults
+    mvp: flags["mvp"] === true ? true : flags["mvp"] === false ? false : false,
+    scope_complete: flags["scope-complete"] !== false,
+    has_consumers: bool(flags, "consumers", false),
   });
   printResult(result);
 }

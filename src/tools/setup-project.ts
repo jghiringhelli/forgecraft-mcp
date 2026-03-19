@@ -1,279 +1,168 @@
 /**
- * setup_project tool handler.
+ * setup_project tool handler — two-phase onboarding entry point.
  *
- * Unified entry point that analyzes a project, detects tags,
- * loads/creates a forgecraft.yaml config, and orchestrates scaffolding.
- * Works for both new and existing projects.
+ * Phase 1 (no mvp/scope_complete/has_consumers): Analyzes the project or spec,
+ * shows what was found, and returns three calibration questions.
+ *
+ * Phase 2 (all three answers provided): Derives cascade decisions from answers
+ * and tags, writes forgecraft.yaml, creates docs/PRD.md, and scaffolds the project.
  */
 
-import { z } from "zod";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import yaml from "js-yaml";
-import { ALL_TAGS, CONTENT_TIERS, ALL_OUTPUT_TARGETS, OUTPUT_TARGET_CONFIGS, DEFAULT_OUTPUT_TARGET } from "../shared/types.js";
-import type { Tag, ContentTier, ForgeCraftConfig, OutputTarget } from "../shared/types.js";
-import { analyzeProject, analyzeDescription } from "../analyzers/package-json.js";
-import { checkCompleteness } from "../analyzers/completeness.js";
-import { loadAllTemplatesWithExtras, loadUserOverrides } from "../registry/loader.js";
-import { composeTemplates } from "../registry/composer.js";
-import { renderInstructionFile } from "../registry/renderer.js";
-import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
-import { detectLanguage } from "../analyzers/language-detector.js";
-import { detectProjectContext } from "../analyzers/project-context.js";
+import type { CascadeDecision, Tag } from "../shared/types.js";
+import { ALL_TAGS } from "../shared/types.js";
+import { deriveDefaultCascadeDecisions } from "./cascade-defaults.js";
+import { scaffoldProjectHandler } from "./scaffold.js";
 import { createLogger } from "../shared/logger/index.js";
+import { parseSpec, inferTagsFromDirectory, directoryHasFiles } from "./spec-parser.js";
 
 const logger = createLogger("tools/setup-project");
 
-/** Minimum confidence to auto-suggest a tag from code analysis. */
-const AUTO_SUGGEST_THRESHOLD = 0.6;
-
-// ── Schema ───────────────────────────────────────────────────────────
-
-export const setupProjectSchema = z.object({
-  project_dir: z
-    .string()
-    .describe("Absolute path to the project root directory."),
-  project_name: z
-    .string()
-    .optional()
-    .describe("Human-readable project name. Inferred from directory name if omitted."),
-  description: z
-    .string()
-    .optional()
-    .describe("Natural language project description for better tag detection."),
-  tier: z
-    .enum(CONTENT_TIERS as unknown as [string, ...string[]])
-    .default("recommended")
-    .describe(
-      "Content depth: 'core' = essentials only, 'recommended' = core + best practices (default), 'optional' = everything including advanced patterns.",
-    ),
-  tags: z
-    .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
-    .optional()
-    .describe("Override detected tags. If omitted, tags are auto-detected from project analysis."),
-  dry_run: z
-    .boolean()
-    .default(false)
-    .describe("If true, return the setup plan and generated config without writing files."),
-  output_targets: z
-    .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
-    .default(["claude"])
-    .describe("AI assistant targets to generate instruction files for. Options: claude, cursor, copilot, windsurf, cline, aider. Defaults to ['claude']."),
-  release_phase: z
-    .enum(["development", "pre-release", "release-candidate", "production"])
-    .default("development")
-    .describe("Current release cycle phase. Controls which test gates are active in generated instructions. Options: development, pre-release, release-candidate, production."),
-});
-
 // ── Types ────────────────────────────────────────────────────────────
 
-interface SetupAnalysis {
-  readonly isNewProject: boolean;
-  readonly detectedTags: Tag[];
-  readonly tagEvidence: Record<string, string[]>;
-  readonly existingConfig: ForgeCraftConfig | null;
-  readonly completenessGaps: string[];
-  readonly hasInstructionFile: boolean;
-  readonly hasStatusMd: boolean;
-  readonly hasHooks: boolean;
+export interface SetupProjectArgs {
+  readonly project_dir: string;
+  readonly spec_path?: string;
+  readonly spec_text?: string;
+  /** Phase 2: true = MVP stage, false = production. */
+  readonly mvp?: boolean;
+  /** Phase 2: is the scope defined and stable? */
+  readonly scope_complete?: boolean;
+  /** Phase 2: does this project have existing users or downstream consumers? */
+  readonly has_consumers?: boolean;
 }
+
+type ToolResult = { content: Array<{ type: "text"; text: string }> };
+
+// ── Constants ─────────────────────────────────────────────────────────
+
+/** Source directories whose presence signals an existing (non-new) project. */
+const EXISTING_PROJECT_DIRS = ["src", "lib", "app"] as const;
+
+/** Candidate spec files searched in order when no spec_path/spec_text provided. */
+const SPEC_SEARCH_PATHS = [
+  "docs/PRD.md",
+  "docs/spec.md",
+  "docs/README.md",
+  "README.md",
+] as const;
+
+/** Valid ALL_TAGS values as a Set for fast membership testing. */
+const VALID_TAGS_SET = new Set<string>(ALL_TAGS);
 
 // ── Handler ──────────────────────────────────────────────────────────
 
-export async function setupProjectHandler(
-  args: z.infer<typeof setupProjectSchema>,
-): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const projectDir = args.project_dir;
-  const projectName = args.project_name ?? inferProjectName(projectDir);
-  const tier = (args.tier ?? "recommended") as ContentTier;
-  const outputTargets = (args.output_targets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
+/**
+ * Unified two-phase setup handler.
+ *
+ * Phase 1 (mvp/scope_complete/has_consumers all absent): analyze and return questions.
+ * Phase 2 (all three present): execute full cascade + scaffold.
+ *
+ * @param args - Setup arguments
+ * @returns MCP tool response
+ */
+export async function setupProjectHandler(args: SetupProjectArgs): Promise<ToolResult> {
+  const isPhase2 =
+    args.mvp !== undefined &&
+    args.scope_complete !== undefined &&
+    args.has_consumers !== undefined;
 
-  logger.info("Setup project starting", { projectDir, tier, dryRun: args.dry_run });
+  logger.info("setup_project", { phase: isPhase2 ? 2 : 1, projectDir: args.project_dir });
 
-  // ── Step 1: Analyze project state ──────────────────────────────
-  const analysis = analyzeProjectState(projectDir, args.description);
+  const context = await buildProjectContext(args);
 
-  // ── Step 2: Determine final tags ───────────────────────────────
-  const finalTags = determineTags(args.tags as Tag[] | undefined, analysis);
+  if (!isPhase2) {
+    return buildPhase1Response(context);
+  }
 
-  // ── Step 3: Load or build config ───────────────────────────────
-  const config = buildConfig(analysis.existingConfig, finalTags, tier, projectName, args.release_phase);
-
-  // ── Step 4: Load templates (with community dirs if configured) ─
-  const allTemplates = await loadAllTemplatesWithExtras(
-    undefined,
-    config.templateDirs,
+  return executePhase2(
+    { ...args, mvp: args.mvp!, scope_complete: args.scope_complete!, has_consumers: args.has_consumers! },
+    context,
   );
-
-  // ── Step 5: Compose with tier filtering ────────────────────────
-  const composed = composeTemplates(finalTags, allTemplates, { config });
-
-  // ── Step 6: Format response ────────────────────────────────────
-  const configYaml = yaml.dump(config, { lineWidth: 100, noRefs: true });
-
-  if (args.dry_run) {
-    return { content: [{ type: "text", text: buildDryRunOutput(analysis, finalTags, composed, configYaml, tier, outputTargets) }] };
-  }
-
-  // ── Step 7: Write config file ──────────────────────────────────
-  const configPath = join(projectDir, "forgecraft.yaml");
-  writeFileSync(configPath, configYaml, "utf-8");
-
-  // ── Step 8: Generate instruction files for all targets ─────────
-  const context = { ...detectProjectContext(projectDir, projectName, detectLanguage(projectDir), finalTags, args.description), releasePhase: args.release_phase };
-  const filesWritten: Array<{ path: string; action: "created" | "merged" }> = [];
-
-  for (const target of outputTargets) {
-    const targetConfig = OUTPUT_TARGET_CONFIGS[target];
-    const outputPath = targetConfig.directory
-      ? join(projectDir, targetConfig.directory, targetConfig.filename)
-      : join(projectDir, targetConfig.filename);
-
-    const existed = existsSync(outputPath);
-    const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: config.compact });
-    writeInstructionFileWithMerge(outputPath, content);
-    const displayPath = `${targetConfig.directory ? targetConfig.directory + "/" : ""}${targetConfig.filename}`;
-    filesWritten.push({ path: displayPath, action: existed ? "merged" : "created" });
-  }
-
-  const output = buildSetupOutput(analysis, finalTags, composed, configYaml, tier, filesWritten, outputTargets);
-  return { content: [{ type: "text", text: output }] };
 }
 
-// ── Analysis ─────────────────────────────────────────────────────────
+// ── Project Context ───────────────────────────────────────────────────
+
+interface ProjectContext {
+  readonly projectDir: string;
+  readonly projectName: string;
+  readonly isExistingProject: boolean;
+  readonly specContent: string | null;
+  readonly specSourceLabel: string;
+  readonly inferredTags: string[];
+}
 
 /**
- * Analyze the current state of a project directory.
+ * Gather all project context needed for both phases.
+ *
+ * @param args - Setup arguments
+ * @returns Assembled project context
  */
-function analyzeProjectState(
-  projectDir: string,
-  description?: string,
-): SetupAnalysis {
-  const hasPkgJson = existsSync(join(projectDir, "package.json"));
-  // Check for any known instruction file
-  const hasInstructionFile =
-    existsSync(join(projectDir, "CLAUDE.md")) ||
-    existsSync(join(projectDir, ".cursorrules")) ||
-    existsSync(join(projectDir, ".cursor", "rules")) ||
-    existsSync(join(projectDir, ".github", "copilot-instructions.md")) ||
-    existsSync(join(projectDir, ".windsurfrules")) ||
-    existsSync(join(projectDir, ".clinerules")) ||
-    existsSync(join(projectDir, "CONVENTIONS.md"));
-  const hasStatusMd = existsSync(join(projectDir, "Status.md"));
-  const hasHooks = existsSync(join(projectDir, ".claude", "hooks"));
-  const hasSrcDir = existsSync(join(projectDir, "src"));
-  const isNewProject = !hasPkgJson && !hasSrcDir;
+async function buildProjectContext(args: SetupProjectArgs): Promise<ProjectContext> {
+  const projectDir = args.project_dir;
+  const projectName = inferProjectName(projectDir);
+  const isExistingProject = detectExistingProject(projectDir);
 
-  const detectedTags: Tag[] = ["UNIVERSAL"];
-  const tagEvidence: Record<string, string[]> = {};
+  let specContent: string | null = null;
+  let specSourceLabel = "none";
 
-  // Code analysis
-  if (!isNewProject) {
-    const detections = analyzeProject(projectDir);
-    for (const d of detections) {
-      if (d.confidence >= AUTO_SUGGEST_THRESHOLD && !detectedTags.includes(d.tag)) {
-        detectedTags.push(d.tag);
-      }
-      tagEvidence[d.tag] = d.evidence;
+  if (args.spec_path) {
+    if (!existsSync(args.spec_path)) {
+      throw new Error(`Spec file not found: ${args.spec_path}`);
+    }
+    specContent = readFileSync(args.spec_path, "utf-8");
+    specSourceLabel = args.spec_path;
+  } else if (args.spec_text) {
+    specContent = args.spec_text;
+    specSourceLabel = "provided text";
+  } else {
+    const found = findSpecFile(projectDir);
+    if (found) {
+      specContent = readFileSync(found, "utf-8");
+      specSourceLabel = found;
     }
   }
 
-  // Description analysis
-  if (description) {
-    const detections = analyzeDescription(description);
-    for (const d of detections) {
-      if (d.confidence >= AUTO_SUGGEST_THRESHOLD && !detectedTags.includes(d.tag)) {
-        detectedTags.push(d.tag);
-      }
-      if (!tagEvidence[d.tag]) {
-        tagEvidence[d.tag] = d.evidence;
-      }
-    }
-  }
+  const directoryTags = isExistingProject
+    ? await inferTagsFromDirectory(projectDir)
+    : ["UNIVERSAL"];
+  const specTags = specContent ? parseSpec(specContent, projectName).inferredTags : ["UNIVERSAL"];
+  const inferredTags = mergeTags(directoryTags, specTags);
 
-  // Completeness gaps
-  const completenessGaps: string[] = [];
-  if (!isNewProject) {
-    const completeness = checkCompleteness(projectDir, detectedTags);
-    for (const fail of completeness.failing) {
-      completenessGaps.push(fail.check);
-    }
-  }
-
-  // Existing config
-  const existingConfig = loadUserOverrides(projectDir);
-
-  return {
-    isNewProject,
-    detectedTags,
-    tagEvidence,
-    existingConfig,
-    completenessGaps,
-    hasInstructionFile,
-    hasStatusMd,
-    hasHooks,
-  };
+  return { projectDir, projectName, isExistingProject, specContent, specSourceLabel, inferredTags };
 }
-
-// ── Tag Resolution ───────────────────────────────────────────────────
 
 /**
- * Determine final tags from explicit override or analysis results.
- * Merges existing config tags with newly detected ones.
+ * Detect whether a project directory contains existing source code.
+ *
+ * @param projectDir - Absolute project root path
+ * @returns True if any standard source directory exists and is non-empty
  */
-function determineTags(
-  explicitTags: Tag[] | undefined,
-  analysis: SetupAnalysis,
-): Tag[] {
-  if (explicitTags && explicitTags.length > 0) {
-    const tags = explicitTags.includes("UNIVERSAL")
-      ? explicitTags
-      : ["UNIVERSAL" as Tag, ...explicitTags];
-    return tags;
-  }
-
-  // Merge: existing config tags + newly detected
-  const merged = new Set<Tag>(analysis.detectedTags);
-  if (analysis.existingConfig?.additionalTags) {
-    for (const t of analysis.existingConfig.additionalTags) {
-      merged.add(t);
-    }
-  }
-
-  return Array.from(merged);
+function detectExistingProject(projectDir: string): boolean {
+  return EXISTING_PROJECT_DIRS.some((dir) => directoryHasFiles(join(projectDir, dir)));
 }
-
-// ── Config Builder ───────────────────────────────────────────────────
 
 /**
- * Build a ForgeCraftConfig from analysis results and user preferences.
- * Preserves existing config fields when present.
+ * Search for a spec file in standard locations.
+ *
+ * @param projectDir - Project root
+ * @returns Absolute path to first found spec file, or null
  */
-function buildConfig(
-  existing: ForgeCraftConfig | null,
-  tags: Tag[],
-  tier: ContentTier,
-  projectName: string,
-  releasePhase?: string,
-): ForgeCraftConfig {
-  return {
-    projectName: existing?.projectName ?? projectName,
-    tags: tags,
-    tier,
-    // compact on by default — reduces token usage ~20-40% without loss of content
-    compact: existing?.compact ?? true,
-    releasePhase: (releasePhase ?? existing?.releasePhase ?? "development") as ForgeCraftConfig["releasePhase"],
-    templateDirs: existing?.templateDirs,
-    include: existing?.include,
-    exclude: existing?.exclude,
-    variables: existing?.variables ?? {},
-  };
+function findSpecFile(projectDir: string): string | null {
+  for (const candidate of SPEC_SEARCH_PATHS) {
+    const fullPath = join(projectDir, candidate);
+    if (existsSync(fullPath)) return fullPath;
+  }
+  return null;
 }
-
-// ── Output Formatting ────────────────────────────────────────────────
 
 /**
  * Infer project name from the directory path.
+ *
+ * @param projectDir - Absolute path
+ * @returns Last path segment as project name
  */
 function inferProjectName(projectDir: string): string {
   const parts = projectDir.replace(/\\/g, "/").split("/").filter(Boolean);
@@ -281,126 +170,371 @@ function inferProjectName(projectDir: string): string {
 }
 
 /**
- * Build the dry-run preview output.
+ * Merge tag arrays, preserving uniqueness, always including UNIVERSAL.
+ *
+ * @param primary - Primary tag set
+ * @param secondary - Secondary tag set to merge in
+ * @returns Deduplicated merged tags
  */
-function buildDryRunOutput(
-  analysis: SetupAnalysis,
-  tags: Tag[],
-  composed: ReturnType<typeof composeTemplates>,
-  configYaml: string,
-  tier: ContentTier,
-  outputTargets: OutputTarget[],
-): string {
-  let text = `# Setup Plan (Dry Run)\n\n`;
-  text += analysis.isNewProject
-    ? `**Project Type:** New project\n`
-    : `**Project Type:** Existing project\n`;
-  text += `**Content Tier:** ${tier}\n`;
-  text += `**Tags:** ${tags.map((t) => `[${t}]`).join(" ")}\n`;
-  text += `**Output Targets:** ${outputTargets.map((t) => OUTPUT_TARGET_CONFIGS[t].displayName).join(", ")}\n\n`;
+function mergeTags(primary: string[], secondary: string[]): string[] {
+  const seen = new Set(primary);
+  for (const t of secondary) {
+    seen.add(t);
+  }
+  if (!seen.has("UNIVERSAL")) seen.add("UNIVERSAL");
+  return Array.from(seen);
+}
 
-  // Evidence
-  if (Object.keys(analysis.tagEvidence).length > 0) {
-    text += `## Tag Detection Evidence\n`;
-    for (const [tag, evidence] of Object.entries(analysis.tagEvidence)) {
-      text += `- **${tag}**: ${evidence.join(", ")}\n`;
+// ── Phase 1 ───────────────────────────────────────────────────────────
+
+/**
+ * Build the phase 1 "what I found + three questions" response.
+ *
+ * @param context - Assembled project context
+ * @returns MCP tool response with analysis summary and calibration questions
+ */
+function buildPhase1Response(context: ProjectContext): ToolResult {
+  let text = `## Project Setup — Step 0\n\n`;
+  text += buildFoundSummary(context);
+  text += buildPhase1Questions();
+  return { content: [{ type: "text", text }] };
+}
+
+/**
+ * Build the "what I found" summary block.
+ *
+ * @param context - Project context
+ * @returns Formatted markdown summary
+ */
+function buildFoundSummary(context: ProjectContext): string {
+  const { projectName, isExistingProject, specContent, specSourceLabel, inferredTags } = context;
+
+  const specName = specContent ? parseSpec(specContent, projectName).name : null;
+  const displayName = specName && specName !== "[Project Name]" ? specName : projectName;
+
+  let summary = `### What I found:\n`;
+  summary += `- **Project**: ${displayName}\n`;
+  summary += `- **Mode**: ${isExistingProject ? "Existing project (source code detected)" : "New project"}\n`;
+
+  if (specContent) {
+    const spec = parseSpec(specContent, projectName);
+    summary += `- **Spec**: ${specSourceLabel}\n`;
+    if (spec.problem) summary += `- **Problem**: ${spec.problem.slice(0, 200).replace(/\n/g, " ")}${spec.problem.length > 200 ? "…" : ""}\n`;
+    if (spec.users.length > 0) summary += `- **Users**: ${spec.users.slice(0, 3).join(", ")}${spec.users.length > 3 ? ` +${spec.users.length - 3} more` : ""}\n`;
+  } else {
+    summary += `- **Spec**: not found — will scaffold with stubs\n`;
+  }
+
+  summary += `- **Inferred tags**: ${inferredTags.map((t) => `[${t}]`).join(" ")}\n\n`;
+  return summary;
+}
+
+/**
+ * Build the three calibration questions block.
+ *
+ * @returns Formatted markdown questions
+ */
+function buildPhase1Questions(): string {
+  return `### Before I proceed, I need three answers:
+
+**Q1: What is the development stage?**
+- \`mvp\` — early validation, expect significant changes, minimal ceremony
+- \`production\` — shipping to real users, full spec and quality gates required
+
+**Q2: Is the scope defined and stable?**
+- \`complete\` — requirements are clear; proceed with full cascade
+- \`evolving\` — scope is still forming; use lighter cascade, revisit when stable
+
+**Q3: Does this project have existing users or downstream consumers?**
+- \`yes\` — behavioral contracts and breaking-change detection are required
+- \`no\` — contracts are recommended but not blocking
+
+Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, and \`has_consumers\` to proceed.`;
+}
+
+// ── Phase 2 ───────────────────────────────────────────────────────────
+
+/**
+ * Execute phase 2: derive decisions, write artifacts, call scaffold.
+ *
+ * @param args - Setup args with all three phase-2 answers
+ * @param context - Assembled project context
+ * @returns MCP tool response with completion summary
+ */
+async function executePhase2(
+  args: SetupProjectArgs & { mvp: boolean; scope_complete: boolean; has_consumers: boolean },
+  context: ProjectContext,
+): Promise<ToolResult> {
+  const { projectDir, projectName, specContent, inferredTags } = context;
+
+  const decisions = deriveCascadeDecisions(inferredTags, projectName, args.mvp, args.scope_complete, args.has_consumers);
+  const forgeCraftTags = filterToValidTags(inferredTags);
+
+  const yamlWritten = writeForgeYaml(projectDir, projectName, forgeCraftTags, decisions);
+  const prdWritten = specContent ? writePrd(projectDir, projectName, specContent) : false;
+
+  const scaffoldResult = await scaffoldProjectHandler({
+    tags: (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[],
+    project_dir: projectDir,
+    project_name: projectName,
+    language: "typescript",
+    dry_run: false,
+    force: false,
+    sentinel: true,
+    output_targets: ["claude"],
+  });
+  const scaffoldText = scaffoldResult.content[0]?.text ?? "";
+
+  const text = buildPhase2Response({
+    decisions,
+    tags: inferredTags,
+    mvp: args.mvp,
+    scopeComplete: args.scope_complete,
+    hasConsumers: args.has_consumers,
+    prdWritten,
+    yamlWritten,
+    scaffoldText,
+  });
+
+  return { content: [{ type: "text", text }] };
+}
+
+// ── Cascade Decision Derivation ───────────────────────────────────────
+
+/**
+ * Derive cascade decisions, applying phase-2 overrides on top of tag defaults.
+ *
+ * Override rules:
+ * - mvp=true → architecture_diagrams and adrs become optional (unless tag demands required)
+ * - scope_complete=false → adrs become optional
+ * - has_consumers=true → behavioral_contracts always required
+ *
+ * @param tags - Inferred project tags
+ * @param projectName - Project name for rationale strings
+ * @param mvp - True if MVP stage
+ * @param scopeComplete - True if scope is finalized
+ * @param hasConsumers - True if existing users or consumers
+ * @returns Array of five cascade decisions
+ */
+function deriveCascadeDecisions(
+  tags: readonly string[],
+  projectName: string,
+  mvp: boolean,
+  scopeComplete: boolean,
+  hasConsumers: boolean,
+): CascadeDecision[] {
+  const base = deriveDefaultCascadeDecisions(tags, projectName);
+  const decidedAt = new Date().toISOString().slice(0, 10);
+
+  return base.map((decision) => {
+    let required = decision.required;
+    let rationale = decision.rationale;
+
+    if (decision.step === "architecture_diagrams" && mvp && required) {
+      required = false;
+      rationale = `MVP stage: architecture diagram deferred — revisit at production phase.`;
     }
-    text += "\n";
+    if (decision.step === "adrs" && (mvp || !scopeComplete) && required) {
+      const reason = !scopeComplete ? "scope still evolving" : "MVP stage";
+      required = false;
+      rationale = `ADRs are optional (${reason}): decisions are not yet stable. Add them when scope solidifies.`;
+    }
+    if (decision.step === "behavioral_contracts" && hasConsumers) {
+      required = true;
+      rationale = `Existing consumers detected: behavioral contracts (docs/use-cases.md) are required for breaking-change detection.`;
+    }
+
+    return { ...decision, required, rationale, decidedAt, decidedBy: "scaffold" as const };
+  });
+}
+
+// ── Artifact Writers ──────────────────────────────────────────────────
+
+/**
+ * Write or update forgecraft.yaml, inserting cascade decisions.
+ * Does not overwrite existing cascade decisions if present.
+ *
+ * @param projectDir - Project root
+ * @param projectName - Project name
+ * @param tags - Valid forgecraft tags to record
+ * @param decisions - Cascade decisions to embed
+ * @returns True if the file was written or updated
+ */
+function writeForgeYaml(
+  projectDir: string,
+  projectName: string,
+  tags: string[],
+  decisions: CascadeDecision[],
+): boolean {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+  let config: Record<string, unknown>;
+
+  if (existsSync(yamlPath)) {
+    try {
+      config = yaml.load(readFileSync(yamlPath, "utf-8")) as Record<string, unknown>;
+    } catch {
+      config = {};
+    }
+  } else {
+    config = { projectName, tags: tags.length > 0 ? tags : ["UNIVERSAL"] };
   }
 
-  // Template summary
-  text += `## What Would Be Generated\n`;
-  text += `- Instruction blocks: ${composed.instructionBlocks.length}\n`;
-  text += `- Structure entries: ${composed.structureEntries.length}\n`;
-  text += `- NFR sections: ${composed.nfrBlocks.length}\n`;
-  text += `- Hooks: ${composed.hooks.length}\n`;
-  text += `- Skills: ${composed.skills.length}\n`;
-  text += `- Review checklist blocks: ${composed.reviewBlocks.length}\n`;
-  text += `- Output targets: ${outputTargets.map((t) => OUTPUT_TARGET_CONFIGS[t].displayName).join(", ")}\n\n`;
-
-  // Tier breakdown
-  text += `## Content by Tier\n`;
-  const coreMd = composed.instructionBlocks.filter((b) => (b.tier ?? "core") === "core").length;
-  const recMd = composed.instructionBlocks.filter((b) => b.tier === "recommended").length;
-  const optMd = composed.instructionBlocks.filter((b) => b.tier === "optional").length;
-  text += `- Instruction blocks: ${coreMd} core, ${recMd} recommended, ${optMd} optional\n`;
-
-  const coreNfr = composed.nfrBlocks.filter((b) => (b.tier ?? "core") === "core").length;
-  const recNfr = composed.nfrBlocks.filter((b) => b.tier === "recommended").length;
-  const optNfr = composed.nfrBlocks.filter((b) => b.tier === "optional").length;
-  text += `- NFRs: ${coreNfr} core, ${recNfr} recommended, ${optNfr} optional\n\n`;
-
-  // Config preview
-  text += `## Generated Config (forgecraft.yaml)\n`;
-  text += `\`\`\`yaml\n${configYaml}\`\`\`\n\n`;
-
-  // Gaps
-  if (analysis.completenessGaps.length > 0) {
-    text += `## Current Gaps\n`;
-    text += analysis.completenessGaps.map((g) => `- ${g}`).join("\n");
-    text += "\n\n";
+  const existingCascade = config["cascade"] as { steps?: CascadeDecision[] } | undefined;
+  if (!existingCascade?.steps || existingCascade.steps.length === 0) {
+    config["cascade"] = { steps: decisions };
+    writeFileSync(yamlPath, yaml.dump(config, { lineWidth: 120, noRefs: true }), "utf-8");
+    return true;
   }
 
-  text += `_Run again with dry_run=false to write forgecraft.yaml and generate files._`;
+  return false;
+}
+
+/**
+ * Write docs/PRD.md from parsed spec content. Never overwrites existing PRD.
+ *
+ * @param projectDir - Project root
+ * @param projectName - Project name for the PRD title
+ * @param specContent - Raw spec text
+ * @returns True if a new PRD was written
+ */
+function writePrd(projectDir: string, projectName: string, specContent: string): boolean {
+  const prdPath = join(projectDir, "docs", "PRD.md");
+  if (existsSync(prdPath)) return false;
+
+  const spec = parseSpec(specContent, projectName);
+  const content = buildPrdContent(spec);
+  mkdirSync(join(projectDir, "docs"), { recursive: true });
+  writeFileSync(prdPath, content, "utf-8");
+  return true;
+}
+
+/**
+ * Build PRD markdown content from a SpecSummary.
+ *
+ * @param spec - Parsed spec data
+ * @returns Formatted PRD markdown
+ */
+function buildPrdContent(spec: ReturnType<typeof parseSpec>): string {
+  const section = (heading: string, content: string | string[], placeholder: string): string => {
+    const body = Array.isArray(content)
+      ? content.length > 0 ? content.map((l) => `- ${l}`).join("\n") : `<!-- UNFILLED: ${placeholder} -->`
+      : content.trim() || `<!-- UNFILLED: ${placeholder} -->`;
+    return `## ${heading}\n\n${body}\n`;
+  };
+
+  return [
+    `# ${spec.name}\n`,
+    section("Problem", spec.problem, "describe the problem this project solves"),
+    section("Users", spec.users, "list the target users or personas"),
+    section("Success Criteria", spec.successCriteria, "define measurable success criteria"),
+    section("Components", spec.components, "list the major components or modules"),
+    section("External Systems", spec.externalSystems, "list external APIs, services, or integrations"),
+  ].join("\n");
+}
+
+// ── Phase 2 Response ──────────────────────────────────────────────────
+
+interface Phase2ResponseParams {
+  readonly decisions: CascadeDecision[];
+  readonly tags: string[];
+  readonly mvp: boolean;
+  readonly scopeComplete: boolean;
+  readonly hasConsumers: boolean;
+  readonly prdWritten: boolean;
+  readonly yamlWritten: boolean;
+  readonly scaffoldText: string;
+}
+
+/**
+ * Build the phase 2 completion response.
+ *
+ * @param params - Response parameters
+ * @returns Formatted markdown completion message
+ */
+function buildPhase2Response(params: Phase2ResponseParams): string {
+  const { decisions, tags, mvp, scopeComplete, hasConsumers, prdWritten, yamlWritten } = params;
+
+  const stageLabel = mvp ? "MVP" : "Production";
+  const tagLabel = tags.filter((t) => t !== "UNIVERSAL").join(", ") || "UNIVERSAL";
+
+  let text = `## Project Setup Complete\n\n`;
+  text += `### Cascade decisions (based on ${stageLabel} + tags [${tagLabel}]):\n`;
+
+  for (const d of decisions) {
+    const icon = d.required ? "✓" : "○";
+    const label = d.required ? "required" : "optional";
+    const note = buildDecisionNote(d, mvp, scopeComplete, hasConsumers);
+    text += `  ${icon} ${d.step} — ${label}${note}\n`;
+  }
+
+  text += `\n### Artifacts created:\n`;
+  if (yamlWritten) text += `  forgecraft.yaml (with cascade decisions)\n`;
+  if (prdWritten) text += `  docs/PRD.md (from spec)\n`;
+
+  // Extract scaffold-created files from the scaffold response
+  const scaffoldFiles = extractScaffoldFiles(params.scaffoldText);
+  for (const f of scaffoldFiles) text += `  ${f}\n`;
+
+  if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0) {
+    text += `  (all artifacts already existed — nothing overwritten)\n`;
+  }
+
+  text += `\n### Next step:\n`;
+  text += `Run \`check_cascade\` to see current cascade status.\n`;
+  text += `Then run \`generate_session_prompt\` for your first roadmap item.`;
+
   return text;
 }
 
 /**
- * Build the final setup output after writing files.
+ * Build a parenthetical note explaining a cascade decision override.
+ *
+ * @param decision - The cascade decision
+ * @param mvp - MVP flag
+ * @param scopeComplete - Scope complete flag
+ * @param hasConsumers - Has consumers flag
+ * @returns Parenthetical note string or empty string
  */
-function buildSetupOutput(
-  analysis: SetupAnalysis,
-  tags: Tag[],
-  composed: ReturnType<typeof composeTemplates>,
-  configYaml: string,
-  tier: ContentTier,
-  filesWritten: Array<{ path: string; action: "created" | "merged" }>,
-  outputTargets: OutputTarget[],
+function buildDecisionNote(
+  decision: CascadeDecision,
+  mvp: boolean,
+  scopeComplete: boolean,
+  hasConsumers: boolean,
 ): string {
-  let text = `# Project Setup Complete\n\n`;
-  text += `**Tags:** ${tags.map((t) => `[${t}]`).join(" ")}\n`;
-  text += `**Content Tier:** ${tier}\n`;
-  text += `**Targets:** ${outputTargets.map((t) => OUTPUT_TARGET_CONFIGS[t].displayName).join(", ")}\n\n`;
-
-  text += `## Files Written\n`;
-  text += `- forgecraft.yaml — updated\n`;
-  for (const f of filesWritten) {
-    text += `- ${f.path} — ${f.action}\n`;
+  if (decision.step === "architecture_diagrams" && !decision.required && mvp) {
+    return " (MVP stage, revisit at production)";
   }
-  text += "\n";
-
-  text += `## Template Summary\n`;
-  text += `- ${composed.instructionBlocks.length} instruction blocks applied\n`;
-  text += `- ${composed.nfrBlocks.length} NFR sections available\n`;
-  text += `- ${composed.hooks.length} hooks available\n`;
-  text += `- ${composed.skills.length} skills available\n`;
-  text += `- ${composed.reviewBlocks.length} review checklist blocks available\n\n`;
-
-  text += `## Config (forgecraft.yaml)\n`;
-  text += `\`\`\`yaml\n${configYaml}\`\`\`\n\n`;
-
-  // Next steps - adapt based on what exists
-  text += `## Next Steps\n`;
-  const steps: string[] = [];
-
-  if (!analysis.hasHooks) {
-    steps.push("Run `npx forgecraft-mcp scaffold .` to generate folder structure and hooks");
+  if (decision.step === "adrs" && !decision.required) {
+    return scopeComplete ? " (MVP stage)" : " (scope still evolving)";
   }
-  if (analysis.completenessGaps.includes("prd_exists")) {
-    steps.push("Create docs/PRD.md with your project requirements");
+  if (decision.step === "behavioral_contracts" && decision.required && hasConsumers) {
+    return " (existing consumers detected)";
   }
-  steps.push("Adjust forgecraft.yaml to fine-tune tags, tier, or include/exclude specific blocks");
-  steps.push("Run `npx forgecraft-mcp refresh . --apply` later if project scope changes");
-  steps.push("Add more output targets: `npx forgecraft-mcp refresh . --apply --targets claude cursor copilot`");
-
-  if (tier === "core") {
-    steps.push("Upgrade tier when ready: edit forgecraft.yaml and run `npx forgecraft-mcp refresh . --apply`");
-  }
-
-  text += steps.map((s, i) => `${i + 1}. ${s}`).join("\n");
-  text += `\n\n> **Setup complete** — consider removing ForgeCraft from your MCP servers to save tokens.\n`;
-  text += `> Re-add it when you need to refresh or audit: \`claude mcp add forgecraft -- npx -y forgecraft-mcp\``;
-  text += `\n\n⚠️ **Restart may be required** to pick up instruction file changes.`;
-
-  return text;
+  return "";
 }
+
+/**
+ * Extract file paths listed in a scaffold response text.
+ *
+ * @param scaffoldText - Raw scaffold output
+ * @returns Array of file path strings
+ */
+function extractScaffoldFiles(scaffoldText: string): string[] {
+  const matches = scaffoldText.match(/^\s{2}([^\n]+\.(md|yaml|json|ts|js|sh))/gm);
+  if (!matches) return [];
+  return matches.map((m) => m.trim()).filter((m) => m.length > 0).slice(0, 12);
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────
+
+/**
+ * Filter inferred tag strings to only valid ALL_TAGS values.
+ * API and CLI are cascade-only tags not in ALL_TAGS.
+ *
+ * @param tags - Raw inferred tags (may include API, CLI, etc.)
+ * @returns Tags filtered to valid Tag enum members
+ */
+function filterToValidTags(tags: string[]): string[] {
+  return tags.filter((t) => VALID_TAGS_SET.has(t));
+}
+

@@ -53,10 +53,12 @@ import { generateAdrHandler } from "./generate-adr.js";
 import { contributeGates } from "./contribute-gate.js";
 import { generateDiagramHandler } from "./generate-diagram.js";
 import { setCascadeRequirementHandler } from "./set-cascade-requirement.js";
+import { setupProjectHandler } from "./setup-project.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
 const ACTIONS = [
+  "setup_project",
   "refresh",
   "scaffold",
   "generate",
@@ -99,7 +101,8 @@ export const forgecraftSchema = z.object({
   action: z
     .enum(ACTIONS as unknown as [string, ...string[]])
     .describe(
-      "Operation to perform: refresh (re-sync project), scaffold (generate structure), " +
+      "Operation to perform. setup_project is the recommended first action for any project — it onboards new or existing projects via a two-phase spec intake and cascade calibration flow. " +
+        "Other actions: refresh (re-sync project), scaffold (generate structure), " +
         "generate (instruction files only), audit (check standards), review (code review checklist), " +
         "list (discover tags/hooks/skills), classify (suggest tags), add_hook, add_module, " +
         "configure_mcp, get_reference (design patterns/NFR/playbook), convert (migration plan), " +
@@ -120,7 +123,7 @@ export const forgecraftSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Absolute path to the project root. Required for: refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify, metrics, record_verification, verification_status, generate_adr. Optional for: classify, advice, get_verification_strategy.",
+      "Absolute path to the project root. Required for: setup_project, refresh, scaffold, generate, audit, add_hook, add_module, configure_mcp, convert, verify, metrics, record_verification, verification_status, generate_adr. Optional for: classify, advice, get_verification_strategy.",
     ),
   tags: z
     .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
@@ -428,6 +431,36 @@ export const forgecraftSchema = z.object({
     .describe(
       "Who made this cascade decision. Used by: set_cascade_requirement. Defaults to 'assistant'.",
     ),
+  spec_path: z
+    .string()
+    .optional()
+    .describe(
+      "Path to an existing spec file (markdown, txt, OpenAPI). Used by: setup_project (phase 1).",
+    ),
+  spec_text: z
+    .string()
+    .optional()
+    .describe(
+      "Paste spec text directly (markdown prose, OpenAPI description, etc.). Used by: setup_project (phase 1).",
+    ),
+  mvp: z
+    .boolean()
+    .optional()
+    .describe(
+      "Phase 2 answer: true = MVP stage (minimal ceremony, expect changes), false = production (full quality gates). Used by: setup_project (phase 2 — provide together with scope_complete and has_consumers).",
+    ),
+  scope_complete: z
+    .boolean()
+    .optional()
+    .describe(
+      "Phase 2 answer: true = scope is finalized (proceed with full cascade), false = scope still evolving (lighter cascade). Used by: setup_project (phase 2).",
+    ),
+  has_consumers: z
+    .boolean()
+    .optional()
+    .describe(
+      "Phase 2 answer: true = existing users or downstream consumers (behavioral contracts required), false = no consumers yet. Used by: setup_project (phase 2).",
+    ),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -448,6 +481,16 @@ export async function forgecraftHandler(
   const action = args.action as Action;
 
   switch (action) {
+    case "setup_project":
+      return setupProjectHandler({
+        project_dir: requireParam(args.project_dir, "project_dir", "setup_project"),
+        spec_path: args.spec_path,
+        spec_text: args.spec_text,
+        mvp: args.mvp,
+        scope_complete: args.scope_complete,
+        has_consumers: args.has_consumers,
+      });
+
     case "list":
       return dispatchList(args);
 
