@@ -1,9 +1,9 @@
 /**
  * Tests for the generate_session_prompt tool handler.
  *
- * Covers: required sections present, TDD gate block, context load order,
- * explicit vs default acceptance criteria, scope_note inclusion,
- * graceful handling of missing artifacts.
+ * Covers: cascade gate blocking, required sections present, TDD gate block,
+ * context load order, explicit vs default acceptance criteria,
+ * scope_note inclusion, graceful handling of missing artifacts.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -28,6 +28,21 @@ function write(dir: string, relPath: string, content: string): void {
   writeFileSync(fullPath, content, "utf-8");
 }
 
+/**
+ * Build a fully passing cascade (all 5 steps PASS, no UNFILLED markers).
+ * Required before testing session prompt content — the cascade gate must pass.
+ */
+function buildCompleteCascade(dir: string): void {
+  write(dir, "docs/PRD.md", "# PRD\n## Problem\nSolves user pain.\n## Users\nDevelopers.\n");
+  mkdirSync(join(dir, "docs/diagrams"), { recursive: true });
+  write(dir, "docs/diagrams/c4-context.md",
+    "```mermaid\nC4Context\n  Person(user, 'User')\n```\n");
+  write(dir, "CLAUDE.md", "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n");
+  mkdirSync(join(dir, "docs/adrs"), { recursive: true });
+  write(dir, "docs/adrs/ADR-0001-stack.md", "# ADR-0001\n## Decision\nUse TypeScript.\n");
+  write(dir, "docs/use-cases.md", "# Use Cases\n## UC-001\n**Actor**: user\nPrecondition: logged in\n");
+}
+
 const ITEM = "Add paginated GET /users endpoint returning UserResponse DTOs sorted by creation date.";
 
 // ── Suite ─────────────────────────────────────────────────────────────
@@ -38,10 +53,94 @@ describe("generateSessionPromptHandler", () => {
   beforeEach(() => { tempDir = makeTempDir(); });
   afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
 
-  // ── Required structure ────────────────────────────────────────────
+  // ── Cascade gate ──────────────────────────────────────────────────
+
+  describe("cascade gate", () => {
+    it("returns a blocked message when cascade is incomplete", async () => {
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      expect(result.content[0]!.text).toContain("Session Prompt Blocked");
+      expect(result.content[0]!.text).toContain("Cascade Incomplete");
+    });
+
+    it("blocked message explains why cascade is required", async () => {
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("derivation cascade");
+    });
+
+    it("blocked message includes guided remediation with failing steps", async () => {
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Failing Cascade Steps");
+    });
+
+    it("blocked message includes artifact path for the first failing step", async () => {
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      expect(result.content[0]!.text).toContain("docs/PRD.md");
+    });
+
+    it("blocked message includes specific questions for the first failing step", async () => {
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      // Step 1 questions contain "problem" related content
+      expect(result.content[0]!.text).toContain("What problem does this project solve?");
+    });
+
+    it("blocked message does not include TDD Gate (session prompt was not generated)", async () => {
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      expect(result.content[0]!.text).not.toContain("TDD Gate");
+    });
+
+    it("generates session prompt when cascade is complete", async () => {
+      buildCompleteCascade(tempDir);
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      expect(result.content[0]!.text).not.toContain("Session Prompt Blocked");
+      expect(result.content[0]!.text).toContain("TDD Gate");
+    });
+
+    it("blocks when PRD.md exists but has UNFILLED markers", async () => {
+      write(tempDir, "docs/PRD.md", "<!-- UNFILLED: PRD -->\n# PRD\n## Problem\n<!-- FILL -->\n");
+      const result = await generateSessionPromptHandler({
+        project_dir: tempDir,
+        item_description: ITEM,
+        session_type: "feature",
+      });
+      expect(result.content[0]!.text).toContain("Session Prompt Blocked");
+    });
+  });
+
+  // ── Required structure (requires complete cascade) ────────────────
 
   describe("required prompt sections", () => {
     it("returns a single text content item", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -52,6 +151,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes a Context Load Order section", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -61,6 +161,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes a TDD Gate section with RED-GREEN-REFACTOR", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -74,6 +175,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes an Acceptance Criteria section", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -83,6 +185,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes a Session Close section", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -92,6 +195,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes the item_description in the output", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -105,6 +209,7 @@ describe("generateSessionPromptHandler", () => {
 
   describe("session_type commit format", () => {
     it("uses 'fix' in commit sequence for fix session type", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -114,6 +219,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("uses 'refactor' in commit sequence for refactor session type", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -127,18 +233,19 @@ describe("generateSessionPromptHandler", () => {
 
   describe("acceptance_criteria", () => {
     it("uses default criteria when acceptance_criteria is not provided", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
         session_type: "feature",
       });
-      // Default criteria includes coverage gate and Status.md update
       const text = result.content[0]!.text;
       expect(text).toContain("Coverage thresholds");
       expect(text).toContain("Status.md");
     });
 
     it("uses provided acceptance_criteria instead of defaults", async () => {
+      buildCompleteCascade(tempDir);
       const criteria = ["Returns 200 with users array", "Supports page and limit query params"];
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
@@ -155,6 +262,7 @@ describe("generateSessionPromptHandler", () => {
 
   describe("scope_note", () => {
     it("includes Out of Scope section when scope_note is provided", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -167,6 +275,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("omits Out of Scope section when scope_note is not provided", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -176,20 +285,11 @@ describe("generateSessionPromptHandler", () => {
     });
   });
 
-  // ── Artifact discovery ────────────────────────────────────────────
+  // ── Artifact discovery (complete cascade + specific extras) ───────
 
   describe("artifact discovery", () => {
-    it("warns about missing constitution when CLAUDE.md is absent", async () => {
-      const result = await generateSessionPromptHandler({
-        project_dir: tempDir,
-        item_description: ITEM,
-        session_type: "feature",
-      });
-      expect(result.content[0]!.text).toContain("No constitution found");
-    });
-
-    it("references CLAUDE.md in context load when it exists", async () => {
-      write(tempDir, "CLAUDE.md", "# Rules\n");
+    it("references CLAUDE.md in context load when cascade passes", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -199,7 +299,9 @@ describe("generateSessionPromptHandler", () => {
       expect(result.content[0]!.text).toContain("operative grammar");
     });
 
-    it("warns about missing Status.md", async () => {
+    it("warns about missing Status.md even when cascade passes", async () => {
+      buildCompleteCascade(tempDir);
+      // Status.md is NOT part of the cascade check, so prompt can still generate without it
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -209,6 +311,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes Status.md content snippet when present", async () => {
+      buildCompleteCascade(tempDir);
       write(tempDir, "Status.md", "# Status\n## Next Steps\n- Implement auth\n");
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
@@ -220,18 +323,8 @@ describe("generateSessionPromptHandler", () => {
       expect(text).toContain("Next Steps");
     });
 
-    it("warns about missing ADRs", async () => {
-      const result = await generateSessionPromptHandler({
-        project_dir: tempDir,
-        item_description: ITEM,
-        session_type: "feature",
-      });
-      expect(result.content[0]!.text).toContain("No ADRs found");
-    });
-
-    it("references ADR directory when ADRs exist", async () => {
-      mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
-      write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
+    it("references ADR directory when ADRs exist (from cascade-complete setup)", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -241,7 +334,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes use-cases.md in context load when present", async () => {
-      write(tempDir, "docs/use-cases.md", "# Use Cases\n");
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -255,6 +348,7 @@ describe("generateSessionPromptHandler", () => {
 
   describe("output metadata", () => {
     it("includes files_created and next_steps in output", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,
@@ -266,6 +360,7 @@ describe("generateSessionPromptHandler", () => {
     });
 
     it("includes check_cascade in next_steps guidance", async () => {
+      buildCompleteCascade(tempDir);
       const result = await generateSessionPromptHandler({
         project_dir: tempDir,
         item_description: ITEM,

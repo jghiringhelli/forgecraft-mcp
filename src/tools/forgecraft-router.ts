@@ -51,6 +51,7 @@ import {
 } from "./verification-state.js";
 import { generateAdrHandler } from "./generate-adr.js";
 import { contributeGates } from "./contribute-gate.js";
+import { generateDiagramHandler } from "./generate-diagram.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ const ACTIONS = [
   "verification_status",
   "generate_adr",
   "contribute_gate",
+  "generate_diagram",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -108,7 +110,8 @@ export const forgecraftSchema = z.object({
         "record_verification (upsert acceptance decision for one verification step, returns updated S_realized), " +
         "verification_status (full per-project acceptance report: S per tag, blocking items, aggregate S), " +
         "generate_adr (emit a structured Architecture Decision Record file into docs/adrs/ with auto-sequenced number), " +
-        "contribute_gate (submit generalizable project gates to the community registry — respects contribute_gates setting in forgecraft.yaml).",
+        "contribute_gate (submit generalizable project gates to the community registry — respects contribute_gates setting in forgecraft.yaml), " +
+        "generate_diagram (generate a Mermaid C4 context diagram from existing spec artifacts — reads forgecraft.yaml, docs/PRD.md, docs/use-cases.md).",
     ),
   project_dir: z
     .string()
@@ -644,6 +647,11 @@ export async function forgecraftHandler(
       ];
       return { content: [{ type: "text", text: lines.join("\n") }] };
     }
+
+    case "generate_diagram":
+      return generateDiagramHandler({
+        project_dir: requireParam(args.project_dir, "project_dir", "generate_diagram"),
+      });
 
     default:
       return errorResult(

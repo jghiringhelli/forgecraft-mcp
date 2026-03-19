@@ -15,6 +15,7 @@
 import { z } from "zod";
 import { resolve, join } from "node:path";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { runCascadeChecks, isCascadeComplete, buildGuidedRemediation } from "./check-cascade.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -77,6 +78,22 @@ export async function generateSessionPromptHandler(
   args: GenerateSessionPromptInput,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   const projectDir = resolve(args.project_dir);
+
+  // Cascade gate: cannot generate a session prompt without a complete spec
+  const cascadeSteps = runCascadeChecks(projectDir);
+  if (!isCascadeComplete(cascadeSteps)) {
+    const guidance = buildGuidedRemediation(cascadeSteps);
+    return {
+      content: [{
+        type: "text",
+        text: `## Session Prompt Blocked — Cascade Incomplete\n\n` +
+              `A session prompt cannot be generated until the derivation cascade is complete.\n` +
+              `The cascade ensures each implementation session is fully derivable from the spec,\n` +
+              `eliminating context guessing and specification drift.\n\n` +
+              guidance,
+      }],
+    };
+  }
 
   const artifacts = discoverArtifacts(projectDir);
   const statusSummary = readStatusSummary(projectDir);

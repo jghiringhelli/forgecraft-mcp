@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { mkdirSync, chmodSync, existsSync, writeFileSync } from "node:fs";
+import { mkdirSync, chmodSync, existsSync, writeFileSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import {
   ALL_TAGS,
@@ -125,6 +125,83 @@ Results are written to .forgecraft/reports/load-latest.json.
 ## Required before pre-release
 See verification.yaml pre-release-hardening phase, load-test step.
 `;
+
+/** Stub content for docs/use-cases.md. UNFILLED marker signals check-cascade to report STUB. */
+const USE_CASES_STUB = `<!-- UNFILLED: Use Cases -->
+
+# Use Cases
+
+## UC-01: [Name]
+**Actor**: <!-- FILL: who? -->
+**Precondition**: <!-- FILL: what must be true before? -->
+**Steps**: <!-- FILL: numbered steps -->
+**Success**: <!-- FILL: what changed? -->
+
+## UC-02: [Name]
+<!-- FILL -->
+
+## UC-03: [Name]
+<!-- FILL -->
+`;
+
+/**
+ * Build the UNFILLED stub content for docs/diagrams/c4-context.md.
+ *
+ * @param projectName - Human-readable project name for the diagram title
+ * @returns Stub content with UNFILLED markers
+ */
+function buildC4ContextStub(projectName: string): string {
+  return `<!-- UNFILLED: C4 Context Diagram -->
+<!-- Run \`forgecraft generate_diagram\` to auto-generate from your spec -->
+
+# System Context Diagram
+
+\`\`\`mermaid
+C4Context
+  title System Context: ${projectName}
+  Person(user, "User", "<!-- FILL: Who uses the system? -->")
+  System(system, "${projectName}", "<!-- FILL: What does the system do in one sentence? -->")
+  Rel(user, system, "<!-- FILL: Primary interaction -->")
+\`\`\`
+`;
+}
+
+/**
+ * Write a spec stub file. Only creates when the file does not exist, or when
+ * force=true AND the existing file still contains the UNFILLED marker (meaning
+ * the user has not yet filled it in).
+ *
+ * @param relativePath - Relative path for tracking output
+ * @param fullPath - Absolute path to write
+ * @param content - Stub content to write
+ * @param force - Whether to overwrite existing stubs
+ * @param filesCreated - Mutable array to append created paths to
+ * @param filesSkipped - Mutable array to append skipped paths to
+ */
+function writeSpecStub(
+  relativePath: string,
+  fullPath: string,
+  content: string,
+  force: boolean,
+  filesCreated: string[],
+  filesSkipped: string[],
+): void {
+  mkdirSync(dirname(fullPath), { recursive: true });
+
+  if (!existsSync(fullPath)) {
+    writeFileSync(fullPath, content, "utf-8");
+    filesCreated.push(relativePath);
+    return;
+  }
+
+  const existing = readFileSync(fullPath, "utf-8");
+  if (force && existing.includes("<!-- UNFILLED")) {
+    writeFileSync(fullPath, content, "utf-8");
+    filesCreated.push(relativePath);
+  } else {
+    filesSkipped.push(relativePath);
+  }
+}
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -299,6 +376,25 @@ export async function scaffoldProjectHandler(
     "docs/TechSpec.md",
     join(args.project_dir, "docs", "TechSpec.md"),
     techSpecContent,
+  );
+
+  // Write spec stubs: cascade-detectable UNFILLED placeholders for the GS derivation funnel.
+  // Never overwrite a file the user has already filled in (no <!-- UNFILLED marker).
+  writeSpecStub(
+    "docs/diagrams/c4-context.md",
+    join(args.project_dir, "docs", "diagrams", "c4-context.md"),
+    buildC4ContextStub(args.project_name),
+    args.force,
+    filesCreated,
+    filesSkipped,
+  );
+  writeSpecStub(
+    "docs/use-cases.md",
+    join(args.project_dir, "docs", "use-cases.md"),
+    USE_CASES_STUB,
+    args.force,
+    filesCreated,
+    filesSkipped,
   );
 
   // Create docs/adrs/ with README so the directory is tracked by git and
