@@ -19,5 +19,5 @@
 export { ClaudeInstructionsArtifact, CLAUDE_INSTRUCTIONS_ARTIFACT_ID } from "./claude-instructions.js";
 export { AdrArtifact, ADR_ARTIFACT_ID } from "./adr.js";
 export { SchemaArtifact, SCHEMA_ARTIFACT_ID } from "./schema.js";
-export { CommitHistoryArtifact, COMMIT_HISTORY_ARTIFACT_ID } from "./commit-history.js";
+export { CommitHistoryArtifact, COMMIT_HISTORY_ARTIFACT_ID, validateConventionalCommit } from "./commit-history.js";
 export { CommitHooksArtifact, COMMIT_HOOKS_ARTIFACT_ID } from "./commit-hooks.js";

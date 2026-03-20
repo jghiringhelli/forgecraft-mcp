@@ -163,7 +163,7 @@ export interface AuditCheck {
 export interface HookInfo {
   readonly name: string;
   readonly tag: Tag;
-  readonly trigger: "pre-commit" | "pre-exec" | "pre-push";
+  readonly trigger: "pre-commit" | "pre-exec" | "pre-push" | "commit-msg";
   readonly description: string;
   readonly filename: string;
 }
@@ -357,7 +357,7 @@ export interface ReferenceTemplate {
 /** Hook template definition. */
 export interface HookTemplate {
   readonly name: string;
-  readonly trigger: "pre-commit" | "pre-exec" | "pre-push";
+  readonly trigger: "pre-commit" | "pre-exec" | "pre-push" | "commit-msg";
   readonly description: string;
   readonly filename: string;
   readonly script: string;

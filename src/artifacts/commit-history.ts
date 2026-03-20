@@ -32,6 +32,19 @@ const CONVENTIONAL_COMMIT_RE =
   /^(feat|fix|refactor|docs|test|chore|perf|ci|build|revert)(\([a-z0-9/-]+\))?(!)?: .{1,72}$/;
 
 /**
+ * Validate a single commit message string against the conventional commit format.
+ *
+ * Only the first line is checked — multi-line messages with a valid first line pass.
+ *
+ * @param message - Raw commit message (may be multi-line)
+ * @returns `true` if the message conforms to conventional commit format
+ */
+export function validateConventionalCommit(message: string): boolean {
+  const firstLine = message.split("\n")[0] ?? "";
+  return CONVENTIONAL_COMMIT_RE.test(firstLine);
+}
+
+/**
  * Represents the git commit history discipline as a GenerativeSpec artifact.
  *
  * Verification criteria:
@@ -82,8 +95,7 @@ export class CommitHistoryArtifact implements GenerativeSpec {
 
   /** Validate a single commit message. */
   validateMessage(message: string): boolean {
-    const firstLine = message.split("\n")[0] ?? "";
-    return CONVENTIONAL_COMMIT_RE.test(firstLine);
+    return validateConventionalCommit(message);
   }
 
   /** Determine the required semver bump from a set of commit messages. */

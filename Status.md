@@ -80,13 +80,13 @@ Added three foundational ADRs:
 | Bounded | 2/2 | No violations (fixtures excluded) |
 | Verifiable | 1/2 | 77% coverage (11 modules without tests; target 80%) |
 | Defended | 2/2 | Pre-commit hook active |
-| Auditable | 1/2 | ADRs + Status.md present; missing commitlint config |
+| Auditable | 2/2 | ADRs + Status.md present; commit-msg hook enforces conventional format |
 | Composable | 2/2 | src/tools/ (service) + src/registry/ (repository) + src/core/ (interfaces) |
 | Executable | 2/2 | Tests pass + CI configured |
 
 ### Path to 14/14
 1. **Verifiable → 2/2**: Add tests for 11 remaining modules (mostly `src/shared/`, `src/artifacts/schema.ts`, `src/registry/loader.ts` edge cases)
-2. **Auditable → 2/2**: Add commitlint config (`commitlint.config.js` + `.husky/commit-msg`)
+2. ~~**Auditable → 2/2**: Add commitlint config (`commitlint.config.js` + `.husky/commit-msg`)~~ ✅ Resolved: commit-msg hook added via `feat/commit-msg-hook`
 
 ### Commits This Session
 - `c8a34b4` — `feat(core): add 7th Executable GS property + generate_adr tool + hardening verification phases`
