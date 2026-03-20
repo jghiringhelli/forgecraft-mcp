@@ -7,7 +7,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+  readFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { generateSessionPromptHandler } from "../../src/tools/generate-session-prompt.js";
@@ -683,5 +689,160 @@ describe("generateSessionPromptHandler", () => {
       expect(executionLoopIdx).toBeGreaterThan(-1);
       expect(closeCycleIdx).toBeGreaterThan(executionLoopIdx);
     });
+  });
+});
+
+// ── Roadmap integration ───────────────────────────────────────────────
+
+describe("generateSessionPromptHandler — roadmap integration", () => {
+  let tempDir: string;
+
+  function write(dir: string, relPath: string, content: string): void {
+    const fullPath = join(dir, relPath);
+    mkdirSync(
+      join(
+        dir,
+        relPath.includes("/") ? relPath.split("/").slice(0, -1).join("/") : "",
+      ),
+      { recursive: true },
+    );
+    writeFileSync(fullPath, content, "utf-8");
+  }
+
+  function buildCompleteCascade(dir: string): void {
+    write(
+      dir,
+      "docs/PRD.md",
+      "# PRD\n## Problem\nSolves user pain.\n## Users\nDevelopers.\n",
+    );
+    mkdirSync(join(dir, "docs/diagrams"), { recursive: true });
+    write(
+      dir,
+      "docs/diagrams/c4-context.md",
+      "```mermaid\nC4Context\n  Person(user, 'User')\n```\n",
+    );
+    write(
+      dir,
+      "CLAUDE.md",
+      "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n",
+    );
+    mkdirSync(join(dir, "docs/adrs"), { recursive: true });
+    write(
+      dir,
+      "docs/adrs/ADR-0001-stack.md",
+      "# ADR-0001\n## Decision\nUse TypeScript.\n",
+    );
+    write(
+      dir,
+      "docs/use-cases.md",
+      "# Use Cases\n## UC-001\n**Actor**: user\nPrecondition: logged in\n",
+    );
+  }
+
+  const ROADMAP_CONTENT = `# Test Roadmap
+
+## Phase 1: Core Implementation
+
+| ID | Title | Status | Prompt |
+|---|---|---|---|
+| RM-001 | Implement UC-001: user login | pending | docs/session-prompts/RM-001.md |
+| RM-002 | Implement UC-002: user profile | pending | docs/session-prompts/RM-002.md |
+`;
+
+  beforeEach(() => {
+    tempDir = join(
+      require("os").tmpdir(),
+      `forgecraft-roadmap-test-${Date.now()}`,
+    );
+    mkdirSync(tempDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("auto-selects next pending roadmap item when item_description is omitted", async () => {
+    buildCompleteCascade(tempDir);
+    write(tempDir, "docs/roadmap.md", ROADMAP_CONTENT);
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      session_type: "feature",
+    });
+    expect(result.content[0]!.text).toContain("RM-001");
+    expect(result.content[0]!.text).toContain("Implement UC-001");
+  });
+
+  it("selects specific roadmap item when roadmap_item_id is provided", async () => {
+    buildCompleteCascade(tempDir);
+    write(tempDir, "docs/roadmap.md", ROADMAP_CONTENT);
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      roadmap_item_id: "RM-002",
+      session_type: "feature",
+    });
+    expect(result.content[0]!.text).toContain("RM-002");
+    expect(result.content[0]!.text).toContain("Implement UC-002");
+  });
+
+  it("marks selected roadmap item as in-progress in roadmap.md", async () => {
+    buildCompleteCascade(tempDir);
+    write(tempDir, "docs/roadmap.md", ROADMAP_CONTENT);
+    await generateSessionPromptHandler({
+      project_dir: tempDir,
+      session_type: "feature",
+    });
+    const updated = readFileSync(join(tempDir, "docs", "roadmap.md"), "utf-8");
+    expect(updated).toContain("in-progress");
+    expect(updated).not.toMatch(/RM-001.*pending/);
+  });
+
+  it("writes bound prompt to docs/session-prompts/RM-001.md", async () => {
+    buildCompleteCascade(tempDir);
+    write(tempDir, "docs/roadmap.md", ROADMAP_CONTENT);
+    await generateSessionPromptHandler({
+      project_dir: tempDir,
+      session_type: "feature",
+    });
+    const promptPath = join(tempDir, "docs", "session-prompts", "RM-001.md");
+    expect(existsSync(promptPath)).toBe(true);
+    expect(readFileSync(promptPath, "utf-8")).toContain("Implement UC-001");
+  });
+
+  it("returns error when no roadmap and no item_description provided", async () => {
+    buildCompleteCascade(tempDir);
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      session_type: "feature",
+    });
+    expect(result.content[0]!.text).toContain("Session Prompt Blocked");
+    expect(result.content[0]!.text).toContain("No docs/roadmap.md found");
+  });
+
+  it("returns error when roadmap has no pending items", async () => {
+    buildCompleteCascade(tempDir);
+    write(
+      tempDir,
+      "docs/roadmap.md",
+      "# Roadmap\n| RM-001 | Done item | done | docs/session-prompts/RM-001.md |\n",
+    );
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      session_type: "feature",
+    });
+    expect(result.content[0]!.text).toContain("no pending items");
+  });
+
+  it("explicit item_description takes precedence over roadmap auto-select", async () => {
+    buildCompleteCascade(tempDir);
+    write(tempDir, "docs/roadmap.md", ROADMAP_CONTENT);
+    const EXPLICIT =
+      "Add an explicit endpoint not in the roadmap for testing purposes.";
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: EXPLICIT,
+      session_type: "feature",
+    });
+    expect(result.content[0]!.text).toContain(EXPLICIT);
+    expect(result.content[0]!.text).not.toContain("RM-001");
   });
 });
