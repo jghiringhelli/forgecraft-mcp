@@ -851,6 +851,20 @@ export interface ProjectGatesFile {
 }
 
 /** User override configuration from forgecraft.yaml / .forgecraft.json. */
+/**
+ * Configuration for an active experiment run (e.g. a DX workshop cohort).
+ * When present in forgecraft.yaml, close_cycle auto-contributes gates and
+ * labels them with the experiment id.
+ */
+export interface ExperimentConfig {
+  /** Short identifier for this experiment run, e.g. "dx-2026-vaquita". Used as label on gate contributions. */
+  readonly id: string;
+  /** Project type being tested */
+  readonly type: "greenfield" | "brownfield" | "takeover" | "migration";
+  /** Which group this participant is in */
+  readonly group: "gs" | "control";
+}
+
 export interface ForgeCraftConfig {
   /** Human-readable project name. */
   readonly projectName?: string;
@@ -912,6 +926,8 @@ export interface ForgeCraftConfig {
   readonly cascade?: {
     readonly steps: CascadeDecision[];
   };
+  /** Optional experiment metadata. When present, close_cycle auto-contributes gates with this id as label. */
+  readonly experiment?: ExperimentConfig;
 }
 
 // ── Cascade Decisions ────────────────────────────────────────────────

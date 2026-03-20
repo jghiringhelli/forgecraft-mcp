@@ -35,6 +35,7 @@ import {
   getActiveProjectGates,
   readProjectGates,
 } from "../shared/project-gates.js";
+import { readExperimentConfig } from "../shared/config.js";
 
 const logger = createLogger("tools/setup-project");
 
@@ -261,6 +262,12 @@ function buildPhase1Response(context: ProjectContext): ToolResult {
     text += buildAmbiguitySection(context.ambiguities);
   }
   text += buildPhase1Questions();
+
+  const experiment = readExperimentConfig(context.projectDir);
+  if (experiment?.id) {
+    text += `\n🧪 Experiment mode: ${experiment.id} (${experiment.type}) — gates will be auto-contributed at end of each cycle.\n`;
+  }
+
   return { content: [{ type: "text", text }] };
 }
 
@@ -400,6 +407,7 @@ async function executePhase2(
     decisions,
     isSensitive,
   );
+  setExperimentGroupIfMissing(projectDir);
   const prdWritten = specContent
     ? writePrd(projectDir, projectName, specContent)
     : false;
@@ -452,7 +460,12 @@ async function executePhase2(
     mcpServerNames,
     projectDir,
     indexMdWritten: writeCntFiles(projectDir, projectName, effectiveTags),
-    coreMdWritten: writeCoreMd(projectDir, projectName, effectiveTags, specContent),
+    coreMdWritten: writeCoreMd(
+      projectDir,
+      projectName,
+      effectiveTags,
+      specContent,
+    ),
     adrIndexWritten: writeAdrIndex(projectDir),
     gatesIndexWritten: writeGatesIndex(projectDir),
   });
@@ -568,6 +581,44 @@ function writeForgeYaml(
   }
 
   return false;
+}
+
+/**
+ * If forgecraft.yaml has an experiment block with an id but no group (or an empty group),
+ * sets experiment.group = 'gs'. Called after writeForgeYaml because setup_project implies
+ * the GS group by definition.
+ *
+ * @param projectDir - Project root
+ */
+function setExperimentGroupIfMissing(projectDir: string): void {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+  if (!existsSync(yamlPath)) return;
+
+  let config: Record<string, unknown>;
+  try {
+    config = yaml.load(readFileSync(yamlPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    return;
+  }
+
+  if (!config || typeof config !== "object") return;
+
+  const experiment = config["experiment"];
+  if (!experiment || typeof experiment !== "object") return;
+
+  const exp = experiment as Record<string, unknown>;
+  if (typeof exp["id"] !== "string" || exp["id"].trim() === "") return;
+  if (exp["group"] === "gs" || exp["group"] === "control") return;
+
+  exp["group"] = "gs";
+  writeFileSync(
+    yamlPath,
+    yaml.dump(config, { lineWidth: 120, noRefs: true }),
+    "utf-8",
+  );
 }
 
 /**
@@ -811,9 +862,12 @@ function buildPhase2Response(params: Phase2ResponseParams): string {
   if (prdWritten) text += `  docs/PRD.md (from spec)\n`;
   if (useCasesWritten) text += `  docs/use-cases.md (from spec)\n`;
   if (indexMdWritten) text += `  .claude/index.md (CNT routing root)\n`;
-  if (coreMdWritten) text += `  .claude/core.md (CNT always-loaded invariants)\n`;
-  if (adrIndexWritten) text += `  .claude/adr/index.md (ADR navigation index)\n`;
-  if (gatesIndexWritten) text += `  .claude/gates/index.md (active quality gates)\n`;
+  if (coreMdWritten)
+    text += `  .claude/core.md (CNT always-loaded invariants)\n`;
+  if (adrIndexWritten)
+    text += `  .claude/adr/index.md (ADR navigation index)\n`;
+  if (gatesIndexWritten)
+    text += `  .claude/gates/index.md (active quality gates)\n`;
 
   const scaffoldFiles = extractScaffoldFiles(params.scaffoldText);
   for (const f of scaffoldFiles) text += `  ${f}\n`;
@@ -1075,10 +1129,9 @@ function buildCoreMdContent(
   spec: ReturnType<typeof parseSpec> | null,
   tags: readonly string[],
 ): string {
-  const identity =
-    spec?.problem
-      ? spec.problem.slice(0, 200).replace(/\n/g, " ").trim()
-      : `${projectName} — purpose not yet defined in spec.`;
+  const identity = spec?.problem
+    ? spec.problem.slice(0, 200).replace(/\n/g, " ").trim()
+    : `${projectName} — purpose not yet defined in spec.`;
 
   const entitiesLines =
     spec?.components && spec.components.length > 0
@@ -1177,7 +1230,10 @@ function scanAdrFiles(projectDir: string): string[] {
 function readFirstHeading(filePath: string): string {
   try {
     const firstLine =
-      readFileSync(filePath, "utf-8").split("\n")[0]?.replace(/^#+\s*/, "").trim() ?? filePath;
+      readFileSync(filePath, "utf-8")
+        .split("\n")[0]
+        ?.replace(/^#+\s*/, "")
+        .trim() ?? filePath;
     return firstLine;
   } catch {
     return filePath;

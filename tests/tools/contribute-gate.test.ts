@@ -352,4 +352,43 @@ describe("contributeGates", () => {
     expect(result.submitted).toHaveLength(1);
     expect(result.submitted[0].gateId).toBe("gate-legacy");
   });
+
+  it("submitGate includes experimentId in payload when provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "submitted",
+        issueUrl: "https://github.com/org/repo/issues/42",
+      }),
+    } as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    writeForgecraftYaml(tempDir, { contribute_gates: "anonymous" });
+    writeProjectGates(tempDir, [
+      {
+        id: "gate-experiment",
+        title: "Experiment Gate",
+        description: "desc",
+        domain: "security",
+        gsProperty: "defended",
+        phase: "development",
+        check: "check",
+        passCriterion: "passes",
+        generalizable: true,
+        evidence: "Would have caught X",
+      },
+    ]);
+
+    await contributeGates({
+      projectRoot: tempDir,
+      serverUrl: "https://api.example.com",
+      experimentId: "dx-2026-vaquita",
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body["experimentId"]).toBe("dx-2026-vaquita");
+  });
 });

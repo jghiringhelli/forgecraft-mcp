@@ -38,6 +38,7 @@ export interface ContributeGateOptions {
   readonly projectRoot: string;
   readonly serverUrl?: string;
   readonly dryRun?: boolean;
+  readonly experimentId?: string;
 }
 
 export interface ContributionResult {
@@ -142,6 +143,7 @@ function recordSubmission(projectRoot: string, gate: ContributedGate): void {
  * @param serverUrl - Target API URL.
  * @param githubUser - GitHub username for attributed mode.
  * @param projectType - Optional project type context.
+ * @param experimentId - Optional experiment identifier to tag the submission.
  * @returns Submission result with status and optional issue URL.
  */
 async function submitGate(
@@ -150,6 +152,7 @@ async function submitGate(
   serverUrl: string,
   githubUser?: string,
   projectType?: string,
+  experimentId?: string,
 ): Promise<{ status: "submitted" | "pending"; issueUrl?: string }> {
   try {
     const response = await fetch(`${serverUrl}/contribute/gate`, {
@@ -175,6 +178,7 @@ async function submitGate(
           mode === "attributed"
             ? { github: githubUser, projectType }
             : undefined,
+        ...(experimentId ? { experimentId } : {}),
       }),
       signal: AbortSignal.timeout(8000),
     });
@@ -206,7 +210,7 @@ async function submitGate(
 export async function contributeGates(
   options: ContributeGateOptions,
 ): Promise<ContributionResult> {
-  const { projectRoot, dryRun = false } = options;
+  const { projectRoot, dryRun = false, experimentId } = options;
   const config = readContributionConfig(projectRoot);
 
   if (!config.contributeGates) {
@@ -249,7 +253,14 @@ export async function contributeGates(
       continue;
     }
 
-    const result = await submitGate(gate, mode, serverUrl, config.githubUser);
+    const result = await submitGate(
+      gate,
+      mode,
+      serverUrl,
+      config.githubUser,
+      undefined,
+      experimentId,
+    );
     const contributed: ContributedGate = { gateId: gate.id, ...result, mode };
     submitted.push(contributed);
     recordSubmission(projectRoot, contributed);

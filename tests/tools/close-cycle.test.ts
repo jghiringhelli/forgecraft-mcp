@@ -331,4 +331,65 @@ describe("closeCycle", () => {
       expect(suggestion).toMatch(/v\d+\.\d+\.\d+/);
     }
   });
+
+  it("close_cycle in experiment mode forces auto-contribute (dryRun=false)", async () => {
+    buildCompleteCascade(tempDir);
+
+    write(
+      tempDir,
+      "forgecraft.yaml",
+      "contribute_gates: anonymous\nexperiment:\n  id: dx-2026-test\n  type: greenfield\n  group: gs\n",
+    );
+
+    writeActiveGate(tempDir, {
+      id: "experiment-gate-dryrun",
+      title: "Experiment Gate DryRun",
+      description: "A gate for experiment dry run test",
+      domain: "security",
+      gsProperty: "correctness",
+      phase: "build",
+      hook: "pre-commit",
+      check: "npm audit",
+      passCriterion: "no critical vulnerabilities",
+      implementation: "logic",
+      source: "project",
+      status: "ready",
+      os: "cross-platform",
+      addedAt: "2024-01-01T00:00:00Z",
+      generalizable: true,
+      evidence: "Caught a critical vulnerability before production deploy",
+    });
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "submitted",
+        issueUrl: "https://github.com/example/repo/issues/99",
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    // Pass dryRun=true, but experiment mode should override it to false
+    const result = await closeCycle({ projectRoot: tempDir, dryRun: true });
+
+    expect(result.cascadeStatus).toBe("pass");
+    // fetch was called despite dryRun=true because experiment mode forced effectiveDryRun=false
+    expect(fetchMock).toHaveBeenCalled();
+    expect(result.experimentId).toBe("dx-2026-test");
+  });
+
+  it("close_cycle sets experimentId in result when experiment config present", async () => {
+    buildCompleteCascade(tempDir);
+
+    write(
+      tempDir,
+      "forgecraft.yaml",
+      "contribute_gates: anonymous\nexperiment:\n  id: dx-2026-vaquita\n  type: brownfield\n  group: gs\n",
+    );
+
+    const result = await closeCycle({ projectRoot: tempDir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.experimentId).toBe("dx-2026-vaquita");
+  });
 });

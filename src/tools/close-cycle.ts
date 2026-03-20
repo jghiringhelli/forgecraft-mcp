@@ -30,6 +30,7 @@ import {
   computeSRealized,
   appendGsScoreRow,
 } from "../shared/gs-score-logger.js";
+import { readExperimentConfig } from "../shared/config.js";
 
 // -- Types ------------------------------------------------------------
 
@@ -61,6 +62,8 @@ export interface CloseCycleResult {
   readonly gsScoreLogged?: boolean;
   /** The loop number used for the GS score row (1-based) */
   readonly gsScoreLoop?: number;
+  /** Experiment id when experiment mode is active — gates are auto-contributed */
+  readonly experimentId?: string;
 }
 
 // -- Implementation --------------------------------------------------
@@ -465,14 +468,21 @@ export async function closeCycle(
   const activeGates = getActiveProjectGates(projectRoot);
   const gatesAssessed = activeGates.length;
 
-  const contributionResult = await contributeGates({ projectRoot, dryRun });
+  const experiment = readExperimentConfig(projectRoot);
+  const effectiveDryRun = experiment?.id ? false : dryRun;
+
+  const contributionResult = await contributeGates({
+    projectRoot,
+    dryRun: effectiveDryRun,
+    experimentId: experiment?.id,
+  });
 
   const submittedIds = new Set(
     contributionResult.submitted.map((g) => g.gateId),
   );
   let gatesPromoted = 0;
 
-  if (!dryRun) {
+  if (!effectiveDryRun) {
     for (const gateId of submittedIds) {
       try {
         promoteGate(projectRoot, gateId);
@@ -587,6 +597,7 @@ export async function closeCycle(
     gsScoreLogged,
     ...(gsScoreLoop !== undefined ? { gsScoreLoop } : {}),
     ...(driftResult.driftDetected ? { driftWarning: driftResult.message } : {}),
+    ...(experiment?.id ? { experimentId: experiment.id } : {}),
   };
 }
 
@@ -674,6 +685,13 @@ export function formatCloseCycleResult(result: CloseCycleResult): string {
           ? `loop ${result.gsScoreLoop}`
           : "logged";
       lines.push("", `📊 S_realized logged to docs/gs-score.md (${loopLabel})`);
+    }
+
+    if (result.experimentId) {
+      lines.push(
+        "",
+        `🧪 Experiment: ${result.experimentId} — gates auto-contributed`,
+      );
     }
   }
 
