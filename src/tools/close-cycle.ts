@@ -46,6 +46,8 @@ export interface CloseCycleResult {
   readonly versionSuggestion?: string;
   readonly changelogUpdated?: boolean;
   readonly driftWarning?: string;
+  /** True when all roadmap items are complete — suggests entering hardening phase */
+  readonly roadmapComplete?: boolean;
 }
 
 // -- Implementation --------------------------------------------------
@@ -475,6 +477,9 @@ export async function closeCycle(
 
   // Step 5 -- Roadmap next item
   const nextRoadmapItem = findNextRoadmapItem(projectRoot);
+  const roadmapComplete =
+    nextRoadmapItem === null &&
+    existsSync(join(projectRoot, "docs", "roadmap.md"));
 
   // Step 6 -- Version suggestion and CHANGELOG
   const versionSuggestion = suggestVersionBump(projectRoot);
@@ -524,6 +529,7 @@ export async function closeCycle(
     nextRoadmapItem,
     versionSuggestion: versionSuggestion ?? undefined,
     changelogUpdated,
+    roadmapComplete,
     ...(driftResult.driftDetected ? { driftWarning: driftResult.message } : {}),
   };
 }
@@ -578,6 +584,15 @@ export function formatCloseCycleResult(result: CloseCycleResult): string {
         `Next roadmap item: **${result.nextRoadmapItem.id} -- ${result.nextRoadmapItem.title}**`,
         `Run: \`generate_session_prompt\` with item_description="${result.nextRoadmapItem.title}"`,
         `Or load the stub at: docs/session-prompts/${result.nextRoadmapItem.id}.md`,
+      );
+    }
+
+    if (result.roadmapComplete) {
+      lines.push(
+        "",
+        "## 🎉 Roadmap Complete!",
+        "All roadmap items are done. The project is ready for hardening.",
+        "Run: `start_hardening` to generate the hardening session prompts (pre-release → rc → deployment).",
       );
     }
 
