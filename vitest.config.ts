@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     globals: false,
-    pool: "threads",
+    pool: "forks",
     testTimeout: 10_000,
     coverage: {
       provider: "v8",
