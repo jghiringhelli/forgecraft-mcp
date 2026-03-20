@@ -134,7 +134,9 @@ function countFileLines(filePath: string): number | null {
   if (!existsSync(filePath)) return null;
   try {
     const content = readFileSync(filePath, "utf-8");
-    return content.split("\n").length;
+    return content
+      .split("\n")
+      .filter((l, i, arr) => i < arr.length - 1 || l !== "").length;
   } catch {
     return null;
   }
