@@ -96,7 +96,7 @@ export interface VerifiableSpec {
 export interface QualityGate {
   readonly id: string;
   readonly description: string;
-  readonly phase: "pre-commit" | "pre-push" | "ci" | "pre-merge";
+  readonly phase: "pre-commit" | "pre-push" | "ci" | "pre-merge" | "commit-msg";
 
   /**
    * Execute this gate.

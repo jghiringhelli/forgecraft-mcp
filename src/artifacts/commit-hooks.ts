@@ -34,6 +34,7 @@ const REQUIRED_HOOKS = [
   "pre-commit-prod-quality.sh",
   "pre-commit-compile.sh",
   "pre-commit-test.sh",
+  "commit-msg.sh",
 ] as const;
 
 /**
@@ -55,6 +56,7 @@ export class CommitHooksArtifact implements GenerativeSpec {
     "TypeScript compilation gate",
     "Test + coverage gate",
     "Dangerous command prevention",
+    "Conventional commit message format enforcement",
   ] as const;
   readonly excludes = [
     "Hook implementation details (those live in .claude/hooks/)",
@@ -106,6 +108,21 @@ export class CommitHooksArtifact implements GenerativeSpec {
                 exitCode: 1,
                 message:
                   ".git/hooks/pre-commit missing — run: bash scripts/setup-hooks.sh",
+              };
+        },
+      },
+      {
+        id: "git-commit-msg-hook-installed",
+        description:
+          ".git/hooks/commit-msg must exist (installed via setup-hooks.sh)",
+        phase: "commit-msg",
+        async run() {
+          return existsSync(join(projectDir, ".git", "hooks", "commit-msg"))
+            ? { exitCode: 0, message: ".git/hooks/commit-msg installed" }
+            : {
+                exitCode: 1,
+                message:
+                  ".git/hooks/commit-msg missing — run: bash scripts/setup-hooks.sh",
               };
         },
       },
