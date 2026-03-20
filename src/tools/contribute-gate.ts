@@ -3,6 +3,37 @@ import { join } from "path";
 import { getContributableGates } from "../shared/project-gates.js";
 import type { ProjectGate } from "../shared/types.js";
 
+/**
+ * Validate that a generalizable gate satisfies all five community convergence attributes.
+ * Returns a human-readable rejection reason, or null if the gate passes.
+ *
+ * The five attributes (GS White Paper §10.2):
+ *   prescriptive, agnostic, promptHealthy, deterministic, convergent
+ *
+ * If convergenceAttributes is absent, we skip validation (backward compat: pre-existing gates).
+ * If present, all five must be true for the gate to pass.
+ *
+ * @param gate - The project gate to validate
+ * @returns Rejection reason string, or null if valid
+ */
+function validateConvergenceAttributes(gate: ProjectGate): string | null {
+  const attrs = gate.convergenceAttributes;
+  if (!attrs) return null;
+
+  const failing: string[] = [];
+  if (!attrs.prescriptive) failing.push("prescriptive");
+  if (!attrs.agnostic) failing.push("agnostic");
+  if (!attrs.promptHealthy) failing.push("prompt-healthy");
+  if (!attrs.deterministic) failing.push("deterministic");
+  if (!attrs.convergent) failing.push("convergent");
+
+  if (failing.length === 0) return null;
+  return (
+    `convergence attribute check failed: [${failing.join(", ")}]. ` +
+    `Set these to true or fix the gate before contributing.`
+  );
+}
+
 export interface ContributeGateOptions {
   readonly projectRoot: string;
   readonly serverUrl?: string;
@@ -137,6 +168,7 @@ async function submitGate(
           passCriterion: gate.passCriterion,
           tags: gate.tags,
           evidence: gate.evidence,
+          convergenceAttributes: gate.convergenceAttributes,
         },
         mode,
         attribution:
@@ -203,6 +235,12 @@ export async function contributeGates(
         gateId: gate.id,
         reason: "evidence field is empty — required for contribution",
       });
+      continue;
+    }
+
+    const convergenceIssue = validateConvergenceAttributes(gate);
+    if (convergenceIssue) {
+      skipped.push({ gateId: gate.id, reason: convergenceIssue });
       continue;
     }
 

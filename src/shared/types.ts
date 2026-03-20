@@ -614,6 +614,48 @@ export interface ToolVariant {
 }
 
 /**
+ * Self-assessment of a quality gate against the five community convergence attributes
+ * described in GS White Paper §10.2. Required for generalizable gates before
+ * they can be merged into the community registry.
+ *
+ * The five attributes form the ratchet: a discipline that is prescriptive,
+ * agnostic, validated, versioned, and quality-gated cannot regress.
+ */
+export interface ConvergenceAttributeCheck {
+  /**
+   * Gate gives clear, actionable instructions that narrow the specification space.
+   * Advisory language ("consider", "may", "if applicable") is not prescriptive.
+   * True when: the check produces a binary pass/fail with no human judgment required.
+   */
+  readonly prescriptive: boolean;
+  /**
+   * Gate is model-agnostic (works with Claude, GPT, Gemini, Cursor, etc.)
+   * and is domain-agnostic (or correctly scoped if intentionally domain-specific).
+   * True when: the gate does not reference a specific AI model or assume a domain
+   * the project type doesn't declare.
+   */
+  readonly agnostic: boolean;
+  /**
+   * Gate's check and passCriterion are unambiguous and machine-evaluable.
+   * True when: an automated runner can evaluate pass/fail without reading prose.
+   * False when: the check says "review the output" with no concrete criterion.
+   */
+  readonly promptHealthy: boolean;
+  /**
+   * Gate produces consistent, idempotent results on re-run.
+   * True when: running the gate twice on the same codebase returns the same result.
+   * False when: the gate depends on timing, randomness, or external state.
+   */
+  readonly deterministic: boolean;
+  /**
+   * Applying this gate raises S_realized (closes a real specification gap).
+   * True when: the gate enforces a constraint that, if absent, would cause a known class of defects.
+   * False when: the gate is duplicated by an existing registry gate.
+   */
+  readonly convergent: boolean;
+}
+
+/**
  * A tool required by a quality gate to perform its check.
  */
 export interface ToolRequirement {
@@ -781,6 +823,13 @@ export interface ProjectGate {
   readonly discoveredBy?: "ai" | "user";
   /** ISO timestamp when added */
   readonly addedAt: string;
+
+  // ── Community flywheel admission ─────────────────────────────────────────
+  /**
+   * Self-assessment against the five community convergence attributes (GS White Paper §10.2).
+   * Required for gates marked generalizable: true. Reviewed by maintainers before registry merge.
+   */
+  readonly convergenceAttributes?: ConvergenceAttributeCheck;
 }
 
 /** Gate filesystem state -- determined by which folder the gate file lives in */
