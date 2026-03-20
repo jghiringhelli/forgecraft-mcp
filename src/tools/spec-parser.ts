@@ -472,26 +472,32 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
 
 // ── Directory-based tag inference ─────────────────────────────────────
 
-/** Keywords that imply sensitive data handling. */
+/**
+ * Keywords that imply sensitive data handling.
+ *
+ * Rules:
+ * - All matched with word boundaries (\b) to avoid substring false positives
+ *   (e.g. "phi" must not match "physiology", "pii" must not match "opinion").
+ * - Omit words that are too generic across non-sensitive domains
+ *   ("health" matches game health bars; "incident" matches story inciting incidents).
+ * - Multi-word phrases are matched as exact sequences.
+ */
 const SENSITIVE_DATA_KEYWORDS: readonly string[] = [
-  "health",
-  "safety",
-  "injury",
-  "incident",
   "medical",
   "osha",
   "phi",
   "hipaa",
-  "patient",
+  "patient record",
+  "patient data",
   "payment",
-  "financial",
+  "financial data",
   "transaction",
   "invoice",
   "banking",
   "fintech",
   "defi",
-  "wallet",
-  "credit",
+  "crypto wallet",
+  "credit card",
   "user profile",
   "personal data",
   "pii",
@@ -499,7 +505,7 @@ const SENSITIVE_DATA_KEYWORDS: readonly string[] = [
   "credentials",
   "social security",
   "date of birth",
-  "passport",
+  "passport number",
   "biometric",
   "salary",
   "tax id",
@@ -579,7 +585,13 @@ export function inferSensitiveData(
     .join(" ")
     .toLowerCase();
 
-  return SENSITIVE_DATA_KEYWORDS.some((keyword) => fullText.includes(keyword));
+  // Use word-boundary matching to prevent substring false positives
+  // (e.g. "phi" must not match "physiology", "pii" must not match "opinion").
+  return SENSITIVE_DATA_KEYWORDS.some((keyword) => {
+    const escapedKeyword = keyword.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+    const pattern = new RegExp(`\\b${escapedKeyword}\\b`);
+    return pattern.test(fullText);
+  });
 }
 
 /** Build-system indicator files — presence means a software project is being developed. */
