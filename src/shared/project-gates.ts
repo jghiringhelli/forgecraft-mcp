@@ -9,7 +9,11 @@ import {
 } from "fs";
 import { join } from "path";
 import { load as yamlLoad, dump as yamlDump } from "js-yaml";
-import type { ProjectGate, ProjectGatesFile } from "./types.js";
+import type {
+  ProjectGate,
+  ProjectGatesFile,
+  ToolRequirement,
+} from "./types.js";
 
 // ── Path constants ────────────────────────────────────────────────────────
 
@@ -359,4 +363,34 @@ function migrateFlatFileIfNeeded(projectRoot: string): void {
       writeFileSync(dest, yamlDump(gate), "utf-8");
     }
   }
+}
+
+// ── Tool resolution ───────────────────────────────────────────────────────
+
+/**
+ * Resolve the active tool list for a gate given the project's primary language.
+ * If toolVariants contains a matching language entry, returns that tool (wrapped in array).
+ * Falls back to gate.tools if no variant matches.
+ *
+ * @param gate - The quality gate
+ * @param language - Primary language (lowercase, e.g. "typescript")
+ * @returns Array of ToolRequirements to use for this gate in this project
+ */
+export function resolveToolsForLanguage(
+  gate: ProjectGate,
+  language: string,
+): readonly ToolRequirement[] {
+  const normalizedLanguage = language.toLowerCase();
+
+  if (gate.toolVariants) {
+    for (const variant of gate.toolVariants) {
+      if (
+        variant.languages.some((l) => l.toLowerCase() === normalizedLanguage)
+      ) {
+        return [variant.tool];
+      }
+    }
+  }
+
+  return gate.tools ?? [];
 }

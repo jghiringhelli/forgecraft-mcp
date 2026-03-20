@@ -37,6 +37,8 @@ import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
 import { createLogger } from "../shared/logger/index.js";
 import { pullRegistryGates, formatRefreshResult } from "./registry-refresh.js";
+import { detectCntDrift } from "../shared/cnt-health.js";
+import type { CntDriftResult } from "../shared/cnt-health.js";
 
 const logger = createLogger("tools/refresh-project");
 
@@ -132,6 +134,9 @@ export async function refreshProjectHandler(
     existingConfig.gates_registry_url,
   );
 
+  // ── Step 2.5: CNT drift check ─────────────────────────────────────
+  const cntDrift = detectCntDrift(projectDir);
+
   // ── Step 3: Re-analyze project ─────────────────────────────────
   const drift = analyzeDrift(projectDir, existingConfig, args);
 
@@ -177,7 +182,8 @@ export async function refreshProjectHandler(
               updatedTier as ContentTier,
             ) +
             "\n\n" +
-            formatRefreshResult(registryResult),
+            formatRefreshResult(registryResult) +
+            formatCntDriftSection(cntDrift),
         },
       ],
     };
@@ -271,7 +277,8 @@ export async function refreshProjectHandler(
             migrationWarning,
           ) +
           "\n\n" +
-          formatRefreshResult(registryResult),
+          formatRefreshResult(registryResult) +
+          formatCntDriftSection(cntDrift),
       },
     ],
   };
@@ -663,4 +670,36 @@ function buildAppliedOutput(
   text += `> Re-add it when needed: \`claude mcp add forgecraft -- npx -y forgecraft-mcp\`\n\n`;
   text += `⚠️ **Restart required** to pick up CLAUDE.md changes.`;
   return text;
+}
+
+/**
+ * Format the CNT drift section for refresh output.
+ *
+ * @param drift - The CNT drift detection result
+ * @returns Formatted section string (empty string if no CNT or no drift)
+ */
+function formatCntDriftSection(drift: CntDriftResult): string {
+  if (!drift.hasCnt) return "";
+
+  const lines: string[] = ["", "## CNT Drift"];
+
+  if (drift.staleNodes.length === 0 && drift.uncoveredModules.length === 0) {
+    lines.push("✅ CNT tree is in sync with src/ modules.");
+    return lines.join("\n");
+  }
+
+  if (drift.staleNodes.length > 0) {
+    lines.push(
+      `**Stale nodes** (no matching src/ module): ${drift.staleNodes.join(", ")}`,
+    );
+  }
+
+  if (drift.uncoveredModules.length > 0) {
+    lines.push(
+      `**Uncovered modules** (no CNT node): ${drift.uncoveredModules.join(", ")}`,
+    );
+    lines.push(`Run \`cnt_add_node\` to add nodes for uncovered modules.`);
+  }
+
+  return lines.join("\n");
 }

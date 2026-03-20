@@ -9,6 +9,8 @@ import { ALL_TAGS } from "../shared/types.js";
 import type { Tag, AuditResult } from "../shared/types.js";
 import { checkCompleteness } from "../analyzers/completeness.js";
 import { scanAntiPatterns } from "../analyzers/anti-pattern.js";
+import { auditCntHealth } from "../shared/cnt-health.js";
+import type { CntAuditResult } from "../shared/cnt-health.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -48,17 +50,35 @@ export async function auditProjectHandler(
     antiPatternWarnings = antiPatterns.warnings;
   }
 
+  // Run CNT health audit
+  const cntAudit = auditCntHealth(args.project_dir);
+
   // Combine results
-  const allPassing = [...completeness.passing, ...antiPatternWarnings.filter((w) => !w.severity)];
+  const allPassing = [
+    ...completeness.passing,
+    ...antiPatternWarnings.filter((w) => !w.severity),
+  ];
   const allFailing = [
     ...completeness.failing,
     ...antiPatternViolations,
     ...antiPatternWarnings.filter((w) => w.severity),
   ];
 
+  // Add CNT issues as completeness items when CNT is present
+  if (cntAudit.hasCnt) {
+    for (const issue of cntAudit.issues) {
+      allFailing.push({
+        check: "cnt_health",
+        message: issue,
+        severity: "warning" as const,
+      });
+    }
+  }
+
   // Calculate score
   const totalChecks = allPassing.length + allFailing.length;
-  const score = totalChecks > 0 ? Math.round((allPassing.length / totalChecks) * 100) : 0;
+  const score =
+    totalChecks > 0 ? Math.round((allPassing.length / totalChecks) * 100) : 0;
 
   // Generate recommendations
   const recommendations = generateRecommendations(allFailing);
@@ -77,7 +97,15 @@ export async function auditProjectHandler(
 
   // Grade
   const grade =
-    score >= 90 ? "A" : score >= 80 ? "B" : score >= 70 ? "C" : score >= 60 ? "D" : "F";
+    score >= 90
+      ? "A"
+      : score >= 80
+        ? "B"
+        : score >= 70
+          ? "C"
+          : score >= 60
+            ? "D"
+            : "F";
   text += `**Grade:** ${grade}\n\n`;
 
   if (result.passing.length > 0) {
@@ -90,7 +118,12 @@ export async function auditProjectHandler(
     text += `## Failing (${result.failing.length})\n`;
     text += result.failing
       .map((f) => {
-        const icon = f.severity === "error" ? "🔴" : f.severity === "warning" ? "🟡" : "🔵";
+        const icon =
+          f.severity === "error"
+            ? "🔴"
+            : f.severity === "warning"
+              ? "🟡"
+              : "🔵";
         return `- ${icon} **${f.check}**: ${f.message}`;
       })
       .join("\n");
@@ -100,6 +133,11 @@ export async function auditProjectHandler(
   if (result.recommendations.length > 0) {
     text += `## Recommendations\n`;
     text += result.recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n");
+    text += "\n\n";
+  }
+
+  if (cntAudit.hasCnt) {
+    text += formatCntAuditSection(cntAudit);
   }
 
   return { content: [{ type: "text", text }] };
@@ -108,9 +146,7 @@ export async function auditProjectHandler(
 /**
  * Generate actionable recommendations from failing checks.
  */
-function generateRecommendations(
-  failing: AuditResult["failing"],
-): string[] {
+function generateRecommendations(failing: AuditResult["failing"]): string[] {
   const recommendations: string[] = [];
 
   const failingChecks = new Set(failing.map((f) => f.check));
@@ -121,7 +157,10 @@ function generateRecommendations(
     );
   }
 
-  if (failingChecks.has("status_md_exists") || failingChecks.has("status_md_current")) {
+  if (
+    failingChecks.has("status_md_exists") ||
+    failingChecks.has("status_md_current")
+  ) {
     recommendations.push(
       "Create/update Status.md — update it at the end of each coding session.",
     );
@@ -133,7 +172,10 @@ function generateRecommendations(
     );
   }
 
-  if (failingChecks.has("hardcoded_url") || failingChecks.has("hardcoded_credential")) {
+  if (
+    failingChecks.has("hardcoded_url") ||
+    failingChecks.has("hardcoded_credential")
+  ) {
     recommendations.push(
       "Move hardcoded values to config module or environment variables.",
     );
@@ -145,11 +187,46 @@ function generateRecommendations(
     );
   }
 
-  if (failingChecks.has("prd_exists") || failingChecks.has("tech_spec_exists")) {
+  if (
+    failingChecks.has("prd_exists") ||
+    failingChecks.has("tech_spec_exists")
+  ) {
     recommendations.push(
       "Create project documentation in docs/ — PRD.md and TechSpec.md.",
     );
   }
 
   return recommendations;
+}
+
+/**
+ * Format CNT health audit results as a markdown section.
+ *
+ * @param cntAudit - The CNT audit result
+ * @returns Formatted markdown string
+ */
+function formatCntAuditSection(cntAudit: CntAuditResult): string {
+  let text = `### CNT Health\n`;
+  text += `**Score:** ${cntAudit.score}/100\n\n`;
+
+  if (cntAudit.issues.length === 0 && cntAudit.leafViolations.length === 0) {
+    text += "✅ All CNT structural constraints pass.\n";
+    return text;
+  }
+
+  if (cntAudit.issues.length > 0) {
+    text += "**Issues:**\n";
+    text += cntAudit.issues.map((i) => `- 🟡 ${i}`).join("\n");
+    text += "\n\n";
+  }
+
+  if (cntAudit.leafViolations.length > 0) {
+    text += "**Leaf node violations (>30 lines):**\n";
+    text += cntAudit.leafViolations
+      .map((v) => `- ${v.file}: ${v.lines} lines`)
+      .join("\n");
+    text += "\n";
+  }
+
+  return text;
 }

@@ -20,6 +20,7 @@ import {
 import { contributeGates } from "./contribute-gate.js";
 import { getActiveProjectGates, promoteGate } from "../shared/project-gates.js";
 import { CommitHistoryArtifact } from "../artifacts/commit-history.js";
+import { detectSpecRoadmapDrift } from "../shared/drift-detector.js";
 
 // -- Types ------------------------------------------------------------
 
@@ -44,6 +45,7 @@ export interface CloseCycleResult {
   } | null;
   readonly versionSuggestion?: string;
   readonly changelogUpdated?: boolean;
+  readonly driftWarning?: string;
 }
 
 // -- Implementation --------------------------------------------------
@@ -493,6 +495,12 @@ export async function closeCycle(
     );
   }
 
+  // Step 8 -- Drift check
+  const driftResult = detectSpecRoadmapDrift(projectRoot);
+  if (driftResult.driftDetected && driftResult.message) {
+    nextSteps.push(`⚠️ Drift: ${driftResult.message}`);
+  }
+
   if (nextSteps.length === 0) {
     nextSteps.push(
       "Cycle complete. Commit your changes with: git commit -m 'feat(...): ...'",
@@ -516,6 +524,7 @@ export async function closeCycle(
     nextRoadmapItem,
     versionSuggestion: versionSuggestion ?? undefined,
     changelogUpdated,
+    ...(driftResult.driftDetected ? { driftWarning: driftResult.message } : {}),
   };
 }
 
@@ -582,6 +591,10 @@ export function formatCloseCycleResult(result: CloseCycleResult): string {
       if (result.changelogUpdated) {
         lines.push("CHANGELOG.md updated with this version entry.");
       }
+    }
+
+    if (result.driftWarning) {
+      lines.push("", `> ${result.driftWarning}`);
     }
   }
 
