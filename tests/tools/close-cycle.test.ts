@@ -11,7 +11,13 @@ import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { dump as yamlDump } from "js-yaml";
-import { closeCycle, deriveTestCommand } from "../../src/tools/close-cycle.js";
+import {
+  closeCycle,
+  deriveTestCommand,
+  findNextRoadmapItem,
+  suggestVersionBump,
+  readCommitsSinceLastTag,
+} from "../../src/tools/close-cycle.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -223,5 +229,59 @@ describe("closeCycle", () => {
     expect(result.gatesAssessed).toBe(1);
     // No evidence → contributeGates skips it → gatesPromoted = 0
     expect(result.gatesPromoted).toBe(0);
+  });
+
+  it("close_cycle suggests next roadmap item when roadmap.md exists", async () => {
+    buildCompleteCascade(tempDir);
+
+    const roadmapContent = [
+      "# My Project Roadmap",
+      "",
+      "## Phase 1: Core Implementation",
+      "",
+      "| ID | Title | Status | Prompt |",
+      "|---|---|---|---|",
+      "| RM-001 | Implement UC-001: Login | pending | docs/session-prompts/RM-001.md |",
+      "| RM-002 | Implement UC-002: Register | pending | docs/session-prompts/RM-002.md |",
+      "",
+    ].join("\n");
+    write(tempDir, "docs/roadmap.md", roadmapContent);
+
+    const result = await closeCycle({ projectRoot: tempDir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.nextRoadmapItem).not.toBeNull();
+    expect(result.nextRoadmapItem?.id).toBe("RM-001");
+    expect(result.nextRoadmapItem?.title).toContain("UC-001");
+  });
+
+  it("close_cycle skips roadmap suggestion when roadmap.md absent", async () => {
+    buildCompleteCascade(tempDir);
+
+    const result = await closeCycle({ projectRoot: tempDir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.nextRoadmapItem).toBeNull();
+  });
+
+  it("close_cycle suggests semver bump when git history available", async () => {
+    // Use the actual project dir which has real git history to validate
+    // the function returns a non-null suggestion when commits exist.
+    // In a temp dir (no git repo), readCommitsSinceLastTag returns [] and
+    // suggestVersionBump returns null — this test exercises the non-null path.
+    const actualProjectDir = process.cwd();
+    const commits = readCommitsSinceLastTag(actualProjectDir);
+
+    if (commits.length === 0) {
+      // No git history available in this environment — skip gracefully
+      const suggestion = suggestVersionBump(actualProjectDir);
+      expect(suggestion).toBeNull();
+    } else {
+      const suggestion = suggestVersionBump(actualProjectDir);
+      expect(suggestion).not.toBeNull();
+      expect(typeof suggestion).toBe("string");
+      // Should contain a version number pattern
+      expect(suggestion).toMatch(/v\d+\.\d+\.\d+/);
+    }
   });
 });

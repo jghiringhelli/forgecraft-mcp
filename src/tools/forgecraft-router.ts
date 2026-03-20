@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unified forgecraft tool router.
  *
  * Consolidates 15 individual MCP tools into a single tool with an `action`
@@ -55,6 +55,7 @@ import { generateDiagramHandler } from "./generate-diagram.js";
 import { setCascadeRequirementHandler } from "./set-cascade-requirement.js";
 import { setupProjectHandler } from "./setup-project.js";
 import { closeCycleHandler } from "./close-cycle.js";
+import { generateRoadmapHandler } from "./generate-roadmap.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ const ACTIONS = [
   "generate_diagram",
   "set_cascade_requirement",
   "close_cycle",
+  "generate_roadmap",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -136,6 +138,7 @@ export const forgecraftSchema = z.object({
         "  get_verification_strategy — uncertainty-aware verification plan\n" +
         "  record_verification — upsert acceptance decision for a verification step\n\n" +
         "  close_cycle         — end-of-cycle gate: re-run cascade, assess gates, promote generalizable ones\n\n" +
+        "  generate_roadmap    — generate a phased docs/roadmap.md from PRD.md + use-cases.md (gated on cascade)\n\n" +
         "Quick usage examples:\n" +
         '  To run a cascade check:              action="check_cascade"\n' +
         '  To generate a session prompt:        action="generate_session_prompt"\n' +
@@ -815,6 +818,15 @@ async function dispatchForgecraft(args: ForgecraftArgs): Promise<ToolResult> {
 
     case "close_cycle":
       return closeCycleHandler(args);
+
+    case "generate_roadmap":
+      return generateRoadmapHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "generate_roadmap",
+        ),
+      });
 
     default:
       return errorResult(
