@@ -7,7 +7,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+  readFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { dump as yamlDump } from "js-yaml";
@@ -18,6 +24,23 @@ import {
   suggestVersionBump,
   readCommitsSinceLastTag,
 } from "../../src/tools/close-cycle.js";
+
+vi.mock("../../src/analyzers/gs-scorer.js", () => {
+  const mockPropertyScores = [
+    { property: "self-describing", score: 2, evidence: [] },
+    { property: "bounded", score: 2, evidence: [] },
+    { property: "verifiable", score: 2, evidence: [] },
+    { property: "defended", score: 1, evidence: [] },
+    { property: "auditable", score: 1, evidence: [] },
+    { property: "composable", score: 2, evidence: [] },
+    { property: "executable", score: 2, evidence: [] },
+  ];
+  return {
+    scoreGsProperties: () => mockPropertyScores,
+    findDirectDbCallsInRoutes: () => [],
+    findMissingTestFiles: () => [],
+  };
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -262,6 +285,30 @@ describe("closeCycle", () => {
 
     expect(result.cascadeStatus).toBe("pass");
     expect(result.nextRoadmapItem).toBeNull();
+  });
+
+  it("closeCycle logs gs score to docs/gs-score.md on successful cycle", async () => {
+    buildCompleteCascade(tempDir);
+
+    await closeCycle({ projectRoot: tempDir });
+
+    const gsScorePath = join(tempDir, "docs", "gs-score.md");
+    expect(existsSync(gsScorePath)).toBe(true);
+    const content = readFileSync(gsScorePath, "utf-8");
+    expect(content).toContain("# GS Score Log");
+    // Should have at least one data row
+    const dataRows = content.split("\n").filter((l) => l.startsWith("| 20"));
+    expect(dataRows.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("closeCycle sets gsScoreLogged=true on success", async () => {
+    buildCompleteCascade(tempDir);
+
+    const result = await closeCycle({ projectRoot: tempDir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.gsScoreLogged).toBe(true);
+    expect(result.gsScoreLoop).toBe(1);
   });
 
   it("close_cycle suggests semver bump when git history available", async () => {

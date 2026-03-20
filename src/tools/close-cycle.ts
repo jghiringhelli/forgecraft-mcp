@@ -21,6 +21,15 @@ import { contributeGates } from "./contribute-gate.js";
 import { getActiveProjectGates, promoteGate } from "../shared/project-gates.js";
 import { CommitHistoryArtifact } from "../artifacts/commit-history.js";
 import { detectSpecRoadmapDrift } from "../shared/drift-detector.js";
+import {
+  scoreGsProperties,
+  findDirectDbCallsInRoutes,
+  findMissingTestFiles,
+} from "../analyzers/gs-scorer.js";
+import {
+  computeSRealized,
+  appendGsScoreRow,
+} from "../shared/gs-score-logger.js";
 
 // -- Types ------------------------------------------------------------
 
@@ -48,6 +57,10 @@ export interface CloseCycleResult {
   readonly driftWarning?: string;
   /** True when all roadmap items are complete — suggests entering hardening phase */
   readonly roadmapComplete?: boolean;
+  /** True when the GS score row was successfully appended to docs/gs-score.md */
+  readonly gsScoreLogged?: boolean;
+  /** The loop number used for the GS score row (1-based) */
+  readonly gsScoreLoop?: number;
 }
 
 // -- Implementation --------------------------------------------------
@@ -485,6 +498,47 @@ export async function closeCycle(
   const versionSuggestion = suggestVersionBump(projectRoot);
   const changelogUpdated = appendChangelogEntry(projectRoot, versionSuggestion);
 
+  // Step 7.5 -- GS score logging
+  let gsScoreLogged = false;
+  let gsScoreLoop: number | undefined;
+  try {
+    const sRealized = computeSRealized(cascadeSteps);
+    const layerViolations = findDirectDbCallsInRoutes(projectRoot);
+    const missingTestFiles = findMissingTestFiles(projectRoot);
+    const propertyScores = scoreGsProperties(
+      projectRoot,
+      true,
+      layerViolations,
+      missingTestFiles,
+    );
+
+    const gsScorePath = join(projectRoot, "docs", "gs-score.md");
+    let existingRowCount = 0;
+    if (existsSync(gsScorePath)) {
+      const content = readFileSync(gsScorePath, "utf-8");
+      existingRowCount = content
+        .split("\n")
+        .filter(
+          (line) => line.startsWith("|") && !line.startsWith("|---"),
+        ).length;
+      // Subtract 1 for the header row
+      existingRowCount = Math.max(0, existingRowCount - 1);
+    }
+    gsScoreLoop = existingRowCount + 1;
+
+    appendGsScoreRow({
+      projectDir: projectRoot,
+      loop: gsScoreLoop,
+      roadmapItemId: nextRoadmapItem?.id,
+      sRealized,
+      propertyScores,
+    });
+    gsScoreLogged = true;
+  } catch {
+    // Log failures are non-fatal — continue with cycle close
+    gsScoreLogged = false;
+  }
+
   // Step 7 -- Next steps
   const nextSteps: string[] = [];
 
@@ -530,6 +584,8 @@ export async function closeCycle(
     versionSuggestion: versionSuggestion ?? undefined,
     changelogUpdated,
     roadmapComplete,
+    gsScoreLogged,
+    ...(gsScoreLoop !== undefined ? { gsScoreLoop } : {}),
     ...(driftResult.driftDetected ? { driftWarning: driftResult.message } : {}),
   };
 }
@@ -610,6 +666,14 @@ export function formatCloseCycleResult(result: CloseCycleResult): string {
 
     if (result.driftWarning) {
       lines.push("", `> ${result.driftWarning}`);
+    }
+
+    if (result.gsScoreLogged) {
+      const loopLabel =
+        result.gsScoreLoop !== undefined
+          ? `loop ${result.gsScoreLoop}`
+          : "logged";
+      lines.push("", `📊 S_realized logged to docs/gs-score.md (${loopLabel})`);
     }
   }
 
