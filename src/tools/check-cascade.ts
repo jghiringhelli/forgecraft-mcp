@@ -61,18 +61,33 @@ const FUNCTIONAL_SPEC_PATHS = [
 ] as const;
 
 const ADR_DIRS = ["docs/adrs", "docs/adr"] as const;
-const USE_CASE_PATHS = ["docs/use-cases.md", "docs/UseCases.md", "docs/use-cases"] as const;
+const USE_CASE_PATHS = [
+  "docs/use-cases.md",
+  "docs/UseCases.md",
+  "docs/use-cases",
+] as const;
 const CONSTITUTION_LINE_LIMIT = 300;
 
 /** Sections that indicate a document is a functional specification. */
 const FUNCTIONAL_SPEC_STRUCTURAL_SECTIONS = [
-  "## background", "## problem", "## users", "## requirements",
-  "## user stories", "## stakeholders", "## goals", "## success",
+  "## background",
+  "## problem",
+  "## users",
+  "## requirements",
+  "## user stories",
+  "## stakeholders",
+  "## goals",
+  "## success",
 ] as const;
 
 /** Python build/package files that indicate a Python project. */
 const PYTHON_PACKAGE_FILES = [
-  "pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "poetry.lock",
+  "pyproject.toml",
+  "setup.py",
+  "setup.cfg",
+  "requirements.txt",
+  "Pipfile",
+  "poetry.lock",
 ] as const;
 
 // ── Stub Detection ────────────────────────────────────────────────────
@@ -85,7 +100,9 @@ const PYTHON_PACKAGE_FILES = [
  * @returns Whether the content contains unfilled template markers
  */
 function isStub(content: string): boolean {
-  return /<!--\s*(FILL|TODO|UNFILLED)|(\[DESCRIBE|\[YOUR |fill in here)/i.test(content);
+  return /<!--\s*(FILL|TODO|UNFILLED)|(\[DESCRIBE|\[YOUR |fill in here)/i.test(
+    content,
+  );
 }
 
 // ── Config Loader ─────────────────────────────────────────────────────
@@ -101,7 +118,9 @@ export function loadCascadeDecisions(projectDir: string): CascadeDecision[] {
   const yamlPath = join(projectDir, "forgecraft.yaml");
   if (!existsSync(yamlPath)) return [];
   try {
-    const config = yaml.load(readFileSync(yamlPath, "utf-8")) as ForgeCraftConfig;
+    const config = yaml.load(
+      readFileSync(yamlPath, "utf-8"),
+    ) as ForgeCraftConfig;
     return (config?.cascade?.steps as CascadeDecision[] | undefined) ?? [];
   } catch {
     return [];
@@ -170,7 +189,11 @@ function applyDecision(
   // Required step → keep as-is
   if (decision.required) return step;
   // Optional step that failed or was a stub → SKIP
-  if (step.status === "FAIL" || step.status === "STUB" || step.status === "WARN") {
+  if (
+    step.status === "FAIL" ||
+    step.status === "STUB" ||
+    step.status === "WARN"
+  ) {
     return {
       step: step.step,
       name: step.name,
@@ -198,12 +221,19 @@ export async function checkCascadeHandler(
   const steps = runCascadeChecks(projectDir, decisions);
 
   const passingCount = steps.filter((s) => s.status === "PASS").length;
-  const failingCount = steps.filter((s) => s.status === "FAIL" || s.status === "STUB").length;
+  const failingCount = steps.filter(
+    (s) => s.status === "FAIL" || s.status === "STUB",
+  ).length;
 
   const noCascadeConfig = decisions.length === 0;
 
   return {
-    content: [{ type: "text", text: formatReport(steps, passingCount, failingCount, noCascadeConfig) }],
+    content: [
+      {
+        type: "text",
+        text: formatReport(steps, passingCount, failingCount, noCascadeConfig),
+      },
+    ],
   };
 }
 
@@ -233,7 +263,9 @@ export function isCascadeComplete(steps: readonly CascadeStep[]): boolean {
  * @returns Markdown-formatted remediation guidance
  */
 export function buildGuidedRemediation(steps: readonly CascadeStep[]): string {
-  const failing = steps.filter((s) => s.status === "FAIL" || s.status === "STUB");
+  const failing = steps.filter(
+    (s) => s.status === "FAIL" || s.status === "STUB",
+  );
   if (failing.length === 0) return "All cascade steps are complete.";
 
   const firstFailing = failing[0]!;
@@ -271,12 +303,18 @@ export function buildGuidedRemediation(steps: readonly CascadeStep[]): string {
  */
 function getArtifactPath(step: number): string {
   switch (step) {
-    case 1: return "docs/PRD.md";
-    case 2: return "docs/diagrams/c4-context.md";
-    case 3: return "CLAUDE.md";
-    case 4: return "docs/adrs/ADR-0001.md";
-    case 5: return "docs/use-cases.md";
-    default: return "docs/";
+    case 1:
+      return "docs/PRD.md";
+    case 2:
+      return "docs/diagrams/c4-context.md";
+    case 3:
+      return "CLAUDE.md";
+    case 4:
+      return "docs/adrs/ADR-0001.md";
+    case 5:
+      return "docs/use-cases.md";
+    default:
+      return "docs/";
   }
 }
 
@@ -297,16 +335,23 @@ function findFunctionalSpecFallback(projectDir: string): string | null {
     for (const file of files) {
       if (!file.endsWith(".md")) continue;
       const relPath = `docs/${file}`;
-      if ((FUNCTIONAL_SPEC_PATHS as readonly string[]).includes(relPath)) continue;
+      if ((FUNCTIONAL_SPEC_PATHS as readonly string[]).includes(relPath))
+        continue;
       try {
         const content = readFileSync(join(docsDir, file), "utf-8");
         if (content.length <= 500) continue;
         const lower = content.toLowerCase();
-        const matchCount = FUNCTIONAL_SPEC_STRUCTURAL_SECTIONS.filter((s) => lower.includes(s)).length;
+        const matchCount = FUNCTIONAL_SPEC_STRUCTURAL_SECTIONS.filter((s) =>
+          lower.includes(s),
+        ).length;
         if (matchCount >= 2) return relPath;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
-  } catch { /* skip */ }
+  } catch {
+    /* skip */
+  }
   return null;
 }
 
@@ -326,7 +371,9 @@ function findBehavioralContractFallback(projectDir: string): string | null {
       (f) => f.endsWith(".md") && /spec|contract|use.?case/i.test(f),
     );
     return fallback ? `docs/${fallback}` : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -340,13 +387,18 @@ function detectPlaceholderTestScript(projectDir: string): string | null {
   const pkgPath = join(projectDir, "package.json");
   if (!existsSync(pkgPath)) return null;
   try {
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as Record<string, unknown>;
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
     const scripts = pkg["scripts"] as Record<string, string> | undefined;
     const testScript = scripts?.["test"];
     if (testScript && /echo.*no test|echo.*exit 0|true$/i.test(testScript)) {
       return testScript;
     }
-  } catch { /* skip */ }
+  } catch {
+    /* skip */
+  }
   return null;
 }
 
@@ -366,10 +418,15 @@ function detectUnsafeDeserializationCast(projectDir: string): boolean {
       try {
         const content = readFileSync(join(srcDir, file), "utf-8");
         if (/yaml\.load\((?![^)]*,\s*[A-Za-z])/i.test(content)) return true;
-        if (/(?:JSON\.parse|yaml\.load)\([^)]+\)\s+as\s+\w/i.test(content)) return true;
-      } catch { /* skip */ }
+        if (/(?:JSON\.parse|yaml\.load)\([^)]+\)\s+as\s+\w/i.test(content))
+          return true;
+      } catch {
+        /* skip */
+      }
     }
-  } catch { /* skip */ }
+  } catch {
+    /* skip */
+  }
   return false;
 }
 
@@ -388,7 +445,9 @@ function checkFunctionalSpec(projectDir: string): CascadeStep {
     "What does a successful outcome look like for them?",
   ] as const;
 
-  const found = FUNCTIONAL_SPEC_PATHS.find((p) => existsSync(join(projectDir, p)));
+  const found = FUNCTIONAL_SPEC_PATHS.find((p) =>
+    existsSync(join(projectDir, p)),
+  );
   if (!found) {
     const fallback = findFunctionalSpecFallback(projectDir);
     if (fallback) {
@@ -405,7 +464,8 @@ function checkFunctionalSpec(projectDir: string): CascadeStep {
       step: 1,
       name: "Functional Specification",
       status: "FAIL",
-      detail: "No functional specification found. The cascade has no axiom set.",
+      detail:
+        "No functional specification found. The cascade has no axiom set.",
       action:
         "Create docs/PRD.md or docs/TechSpec.md: what the system does, for whom, and what constitutes success.",
       questions: STEP_QUESTIONS,
@@ -466,7 +526,8 @@ function checkDiagrams(projectDir: string): CascadeStep {
       name: "Architecture Diagrams",
       status: "WARN",
       detail: "docs/diagrams/ exists but contains no diagram files.",
-      action: "Add docs/diagrams/c4-context.md with a Mermaid C4 context or container diagram.",
+      action:
+        "Add docs/diagrams/c4-context.md with a Mermaid C4 context or container diagram.",
       questions: STEP_QUESTIONS,
     };
   }
@@ -505,18 +566,24 @@ function checkDiagrams(projectDir: string): CascadeStep {
  * @returns Cascade step result
  */
 function checkConstitution(projectDir: string): CascadeStep {
-  const foundPath = CONSTITUTION_PATHS.find((p) => existsSync(join(projectDir, p)));
+  const foundPath = CONSTITUTION_PATHS.find((p) =>
+    existsSync(join(projectDir, p)),
+  );
   if (!foundPath) {
     return {
       step: 3,
       name: "Architectural Constitution",
       status: "FAIL",
-      detail: "No AI assistant instruction file found (CLAUDE.md, AGENTS.md, etc.).",
-      action: "Run `setup_project` or `forgecraft scaffold` to generate CLAUDE.md.",
+      detail:
+        "No AI assistant instruction file found (CLAUDE.md, AGENTS.md, etc.).",
+      action:
+        "Run `setup_project` or `forgecraft scaffold` to generate CLAUDE.md.",
       questions: [],
     };
   }
-  const lines = readFileSync(join(projectDir, foundPath), "utf-8").split("\n").length;
+  const lines = readFileSync(join(projectDir, foundPath), "utf-8").split(
+    "\n",
+  ).length;
   if (lines > CONSTITUTION_LINE_LIMIT) {
     return {
       step: 3,
@@ -553,7 +620,12 @@ function checkAdrs(projectDir: string): CascadeStep {
   for (const dir of ADR_DIRS) {
     const fullDir = join(projectDir, dir);
     if (existsSync(fullDir) && statSync(fullDir).isDirectory()) {
-      const adrs = readdirSync(fullDir).filter((f) => f.endsWith(".md"));
+      const adrs = readdirSync(fullDir).filter(
+        (f) =>
+          f.endsWith(".md") &&
+          f.toLowerCase() !== "readme.md" &&
+          /^adr[-_]?\d/i.test(f),
+      );
       if (adrs.length > 0) {
         return {
           step: 4,
@@ -569,9 +641,10 @@ function checkAdrs(projectDir: string): CascadeStep {
     step: 4,
     name: "Architecture Decision Records",
     status: "FAIL",
-    detail: "No ADRs found in docs/adrs/ or docs/adr/.",
+    detail:
+      "No ADRs found in docs/adrs/ or docs/adr/. README.md alone does not count — an ADR-NNN-*.md file is required.",
     action:
-      "Write at least one ADR recording the primary architectural decision. " +
+      "Write at least one ADR named ADR-NNN-description.md (e.g. ADR-001-tech-stack.md) recording the primary architectural decision. " +
       "An unrecorded decision is a grammar gap — the AI will treat it as a defect to correct.",
     questions: STEP_QUESTIONS,
   };
@@ -606,12 +679,15 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
         `  Add vitest, jest, or pytest before implementation continues.`,
         `  Gate: implementation sessions are blocked until tests exist.`,
       ].join("\n"),
-      action: "Add a test framework (vitest, jest, or pytest) and update the test script.",
+      action:
+        "Add a test framework (vitest, jest, or pytest) and update the test script.",
       questions: STEP_QUESTIONS,
     };
   }
 
-  const foundUseCase = USE_CASE_PATHS.find((p) => existsSync(join(projectDir, p)));
+  const foundUseCase = USE_CASE_PATHS.find((p) =>
+    existsSync(join(projectDir, p)),
+  );
   if (foundUseCase) {
     const content = readFileSync(join(projectDir, foundUseCase), "utf-8");
     if (isStub(content)) {
@@ -644,7 +720,8 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
 
   // Fix 4: Python/Node test directories express behavioral contracts
   const hasTestDir =
-    existsSync(join(projectDir, "tests")) || existsSync(join(projectDir, "test"));
+    existsSync(join(projectDir, "tests")) ||
+    existsSync(join(projectDir, "test"));
   const hasBuildFile =
     existsSync(join(projectDir, "package.json")) ||
     PYTHON_PACKAGE_FILES.some((f) => existsSync(join(projectDir, f)));
@@ -653,7 +730,8 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
       step: 5,
       name: "Use Cases / Behavioral Contracts",
       status: "PASS",
-      detail: "Test directory found (tests/ or test/) — automated tests express the behavioral contracts.",
+      detail:
+        "Test directory found (tests/ or test/) — automated tests express the behavioral contracts.",
       questions: [],
     };
   }
@@ -666,7 +744,8 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
       name: "Use Cases / Behavioral Contracts",
       status: "WARN",
       detail: `Behavioral contract found at ${fallbackDoc}. Consider renaming to docs/use-cases.md for standard compliance.`,
-      action: "Rename or create docs/use-cases.md with use cases in UC-NNN format.",
+      action:
+        "Rename or create docs/use-cases.md with use cases in UC-NNN format.",
       questions: STEP_QUESTIONS,
     };
   }
@@ -681,7 +760,8 @@ function checkBehavioralContracts(projectDir: string): CascadeStep {
       step: 5,
       name: "Use Cases / Behavioral Contracts",
       status: "WARN",
-      detail: "No use-cases.md found. Status.md has next-steps content — partial coverage only.",
+      detail:
+        "No use-cases.md found. Status.md has next-steps content — partial coverage only.",
       action:
         "Create docs/use-cases.md. Each use case (UC-NNN format) seeds: implementation contract, acceptance test, user documentation.",
       questions: STEP_QUESTIONS,
@@ -718,7 +798,9 @@ function formatReport(
 ): string {
   const cascadeComplete = failingCount === 0;
   const statusLabel = cascadeComplete
-    ? passingCount === 5 ? "COMPLETE" : "COMPLETE (with warnings)"
+    ? passingCount === 5
+      ? "COMPLETE"
+      : "COMPLETE (with warnings)"
     : "BLOCKED";
   const headerIcon = cascadeComplete ? "✅" : "❌";
 
@@ -735,11 +817,15 @@ function formatReport(
 
   for (const step of steps) {
     const icon =
-      step.status === "PASS" ? "✅" :
-      step.status === "WARN" ? "⚠️ " :
-      step.status === "STUB" ? "⚠ STUB" :
-      step.status === "SKIP" ? "○ SKIP" :
-      "❌";
+      step.status === "PASS"
+        ? "✅"
+        : step.status === "WARN"
+          ? "⚠️ "
+          : step.status === "STUB"
+            ? "⚠ STUB"
+            : step.status === "SKIP"
+              ? "○ SKIP"
+              : "❌";
     text += `${icon} **Step ${step.step}: ${step.name}**\n`;
     text += `   ${step.detail}\n`;
     if (step.action) {

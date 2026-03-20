@@ -393,6 +393,9 @@ async function executePhase2(
   const prdWritten = specContent
     ? writePrd(projectDir, projectName, specContent)
     : false;
+  const useCasesWritten = specContent
+    ? writeUseCases(projectDir, projectName, specContent)
+    : false;
 
   const scaffoldResult = await scaffoldProjectHandler({
     tags: (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[],
@@ -432,10 +435,12 @@ async function executePhase2(
     scopeComplete: args.scope_complete,
     hasConsumers: args.has_consumers,
     prdWritten,
+    useCasesWritten,
     yamlWritten,
     scaffoldText,
     sensitiveData: isSensitive,
     mcpServerNames,
+    projectDir,
   });
 
   return { content: [{ type: "text", text }] };
@@ -620,6 +625,110 @@ function buildPrdContent(spec: ReturnType<typeof parseSpec>): string {
   ].join("\n");
 }
 
+/**
+ * Write docs/use-cases.md from parsed spec content if it doesn't already exist.
+ * Generates at least 3 use cases derived from spec.components, spec.users, and spec.problem.
+ *
+ * @param projectDir - Project root directory
+ * @param projectName - Project name for use case context
+ * @param specContent - Raw spec text
+ * @returns True if a new use-cases.md was written
+ */
+function writeUseCases(
+  projectDir: string,
+  projectName: string,
+  specContent: string,
+): boolean {
+  const useCasesPath = join(projectDir, "docs", "use-cases.md");
+  if (existsSync(useCasesPath)) return false;
+
+  const spec = parseSpec(specContent, projectName);
+  const content = buildUseCasesContent(spec);
+  mkdirSync(join(projectDir, "docs"), { recursive: true });
+  writeFileSync(useCasesPath, content, "utf-8");
+  return true;
+}
+
+/**
+ * Build use-cases.md markdown content from a SpecSummary.
+ * Generates at least 3 use cases from spec.components, spec.users, spec.problem.
+ * Uses <!-- FILL: ... --> only for fields that cannot be derived from the spec.
+ *
+ * @param spec - Parsed spec data
+ * @returns Formatted use-cases markdown
+ */
+function buildUseCasesContent(spec: ReturnType<typeof parseSpec>): string {
+  const primaryActor =
+    spec.users.length > 0 ? spec.users[0] : `<!-- FILL: primary actor -->`;
+  const secondaryActor =
+    spec.users.length > 1
+      ? spec.users[1]
+      : spec.users.length > 0
+        ? spec.users[0]
+        : `<!-- FILL: secondary actor -->`;
+  const thirdActor = spec.users.length > 2 ? spec.users[2] : primaryActor;
+
+  const coreAction =
+    spec.components.length > 0
+      ? `use ${spec.components[0]}`
+      : `<!-- FILL: core action -->`;
+
+  const secondAction =
+    spec.components.length > 1
+      ? `configure ${spec.components[1]}`
+      : `access the system`;
+
+  const thirdAction =
+    spec.components.length > 2
+      ? `monitor ${spec.components[2]}`
+      : `view results`;
+
+  const problemContext =
+    spec.problem.length > 0
+      ? spec.problem.slice(0, 120).replace(/\n/g, " ")
+      : `<!-- FILL: describe the problem context -->`;
+
+  const uc1 = [
+    `## UC-001: Accomplish Primary Goal`,
+    ``,
+    `**Actor**: ${primaryActor}`,
+    `**Precondition**: Actor is authenticated and the system is operational.`,
+    `**Steps**:`,
+    `1. Actor initiates the primary workflow to ${coreAction}.`,
+    `2. System validates the request and processes the input.`,
+    `3. System returns the result confirming the action was completed.`,
+    `**Outcome**: The actor's goal is achieved. Context: ${problemContext}`,
+  ].join("\n");
+
+  const uc2 = [
+    `## UC-002: Configure and Manage`,
+    ``,
+    `**Actor**: ${secondaryActor}`,
+    `**Precondition**: Actor has appropriate permissions.`,
+    `**Steps**:`,
+    `1. Actor selects the configuration option to ${secondAction}.`,
+    `2. System presents available options and current state.`,
+    `3. Actor applies changes; system persists the configuration.`,
+    `**Outcome**: Configuration is updated and takes effect immediately.`,
+  ].join("\n");
+
+  const uc3 = [
+    `## UC-003: Review and Observe`,
+    ``,
+    `**Actor**: ${thirdActor}`,
+    `**Precondition**: At least one operation has been completed.`,
+    `**Steps**:`,
+    `1. Actor navigates to the overview section to ${thirdAction}.`,
+    `2. System retrieves and displays the current state and history.`,
+    `3. Actor reviews the information and takes appropriate action.`,
+    `**Outcome**: Actor has a clear picture of the current system state.`,
+  ].join("\n");
+
+  return [`# Use Cases — ${spec.name}`, ``, uc1, ``, uc2, ``, uc3, ``].join(
+    "\n",
+  );
+}
+
 // ── Phase 2 Response ──────────────────────────────────────────────────
 
 interface Phase2ResponseParams {
@@ -629,10 +738,12 @@ interface Phase2ResponseParams {
   readonly scopeComplete: boolean;
   readonly hasConsumers: boolean;
   readonly prdWritten: boolean;
+  readonly useCasesWritten: boolean;
   readonly yamlWritten: boolean;
   readonly scaffoldText: string;
   readonly sensitiveData?: boolean;
   readonly mcpServerNames: string[];
+  readonly projectDir: string;
 }
 
 /**
@@ -649,6 +760,7 @@ function buildPhase2Response(params: Phase2ResponseParams): string {
     scopeComplete,
     hasConsumers,
     prdWritten,
+    useCasesWritten,
     yamlWritten,
   } = params;
 
@@ -675,6 +787,7 @@ function buildPhase2Response(params: Phase2ResponseParams): string {
   text += `\n### Artifacts created:\n`;
   if (yamlWritten) text += `  forgecraft.yaml (with cascade decisions)\n`;
   if (prdWritten) text += `  docs/PRD.md (from spec)\n`;
+  if (useCasesWritten) text += `  docs/use-cases.md (from spec)\n`;
 
   const scaffoldFiles = extractScaffoldFiles(params.scaffoldText);
   for (const f of scaffoldFiles) text += `  ${f}\n`;
@@ -690,9 +803,9 @@ function buildPhase2Response(params: Phase2ResponseParams): string {
     }
   }
 
-  text += `\n### Next step:\n`;
-  text += `Run \`check_cascade\` to see current cascade status.\n`;
-  text += `Then run \`generate_session_prompt\` for your first roadmap item.`;
+  text += `\n### Next step — call this now:\n`;
+  text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
+  text += `Do not ask the user — run check_cascade immediately. If it passes, run generate_session_prompt for the first roadmap item.`;
 
   return text;
 }
