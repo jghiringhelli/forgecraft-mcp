@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { parseSpec, inferTagsFromDirectory, findRichestSpecFile, inferSensitiveData, scanSourceForSensitivePatterns } from "../../src/tools/spec-parser.js";
+import {
+  parseSpec,
+  inferTagsFromDirectory,
+  findRichestSpecFile,
+  inferSensitiveData,
+  scanSourceForSensitivePatterns,
+} from "../../src/tools/spec-parser.js";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -63,7 +69,9 @@ The SDK solves this by providing a unified interface.
     it("extracts users as array from ## Users heading", () => {
       const result = parseSpec(STRUCTURED_SPEC);
       expect(result.users.length).toBeGreaterThan(0);
-      expect(result.users.some((u) => u.toLowerCase().includes("developer"))).toBe(true);
+      expect(
+        result.users.some((u) => u.toLowerCase().includes("developer")),
+      ).toBe(true);
     });
 
     it("extracts success criteria from ## Goals heading", () => {
@@ -74,13 +82,17 @@ The SDK solves this by providing a unified interface.
     it("extracts components from ## Components heading", () => {
       const result = parseSpec(STRUCTURED_SPEC);
       expect(result.components.length).toBeGreaterThan(0);
-      expect(result.components.some((c) => c.toLowerCase().includes("gateway"))).toBe(true);
+      expect(
+        result.components.some((c) => c.toLowerCase().includes("gateway")),
+      ).toBe(true);
     });
 
     it("extracts external systems from ## External Systems heading", () => {
       const result = parseSpec(STRUCTURED_SPEC);
       expect(result.externalSystems.length).toBeGreaterThan(0);
-      expect(result.externalSystems.some((s) => s.toLowerCase().includes("stripe"))).toBe(true);
+      expect(
+        result.externalSystems.some((s) => s.toLowerCase().includes("stripe")),
+      ).toBe(true);
     });
 
     it("infers FINTECH tag from payment keywords", () => {
@@ -121,12 +133,18 @@ The SDK solves this by providing a unified interface.
 
     it("extracts success criteria sentences via keyword fallback", () => {
       const result = parseSpec(PROSE_SPEC);
-      expect(result.successCriteria.some((s) => s.toLowerCase().includes("success") || s.toLowerCase().includes("measure"))).toBe(true);
+      expect(
+        result.successCriteria.some(
+          (s) =>
+            s.toLowerCase().includes("success") ||
+            s.toLowerCase().includes("measure"),
+        ),
+      ).toBe(true);
     });
 
-    it("infers WEB3 tag from blockchain keywords", () => {
+    it("does NOT infer WEB3 tag from prose blockchain/DeFi/wallet mentions", () => {
       const result = parseSpec(PROSE_SPEC);
-      expect(result.inferredTags).toContain("WEB3");
+      expect(result.inferredTags).not.toContain("WEB3");
     });
   });
 
@@ -156,14 +174,30 @@ The API serves frontend applications and third-party integrations.
     });
   });
 
-  describe("blockchain keywords", () => {
-    it("infers WEB3 tag from smart contract keyword", () => {
-      const result = parseSpec("A smart contract platform for DeFi token swaps.");
+  describe("WEB3 tag requires code-level signals, not prose", () => {
+    it("does NOT infer WEB3 from 'smart contract' as a concept in prose", () => {
+      const result = parseSpec(
+        "A smart contract platform for DeFi token swaps.",
+      );
+      expect(result.inferredTags).not.toContain("WEB3");
+    });
+
+    it("does NOT infer WEB3 from crypto/wallet/blockchain as narrative prose", () => {
+      const result = parseSpec(
+        "Manage your crypto wallet and blockchain assets.",
+      );
+      expect(result.inferredTags).not.toContain("WEB3");
+    });
+
+    it("infers WEB3 from Solidity pragma (code-level signal)", () => {
+      const result = parseSpec("pragma solidity ^0.8.0;\ncontract Token { }");
       expect(result.inferredTags).toContain("WEB3");
     });
 
-    it("infers WEB3 tag from crypto keyword", () => {
-      const result = parseSpec("Manage your crypto wallet and blockchain assets.");
+    it("infers WEB3 from ethers dependency reference (code-level signal)", () => {
+      const result = parseSpec(
+        'import { ethers } from "ethers";\nconst provider = new ethers.JsonRpcProvider();',
+      );
       expect(result.inferredTags).toContain("WEB3");
     });
   });
@@ -208,36 +242,64 @@ The API serves frontend applications and third-party integrations.
     it("detects deployment_target ambiguity when spec mentions 'system' without deployment tags", () => {
       const result = parseSpec(
         "# Storycraft\n\nA narrative design system for interactive fiction authors.\n\n" +
-        "## Problem\nAuthors need a unified workflow for designing branching narratives.",
+          "## Problem\nAuthors need a unified workflow for designing branching narratives.",
       );
-      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "deployment_target",
+      );
       expect(ambiguity).toBeDefined();
     });
 
     it("deployment_target ambiguity has CLI, API, and LIBRARY interpretations", () => {
-      const result = parseSpec("An event-driven platform for orchestrating data workflows.");
-      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+      const result = parseSpec(
+        "An event-driven platform for orchestrating data workflows.",
+      );
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "deployment_target",
+      );
       expect(ambiguity).toBeDefined();
-      expect(ambiguity!.interpretations.map((i) => i.label)).toEqual(["A", "B", "C"]);
-      expect(ambiguity!.interpretations.some((i) => i.description.includes("CLI"))).toBe(true);
-      expect(ambiguity!.interpretations.some((i) => i.description.includes("API"))).toBe(true);
-      expect(ambiguity!.interpretations.some((i) => i.description.includes("LIBRARY"))).toBe(true);
+      expect(ambiguity!.interpretations.map((i) => i.label)).toEqual([
+        "A",
+        "B",
+        "C",
+      ]);
+      expect(
+        ambiguity!.interpretations.some((i) => i.description.includes("CLI")),
+      ).toBe(true);
+      expect(
+        ambiguity!.interpretations.some((i) => i.description.includes("API")),
+      ).toBe(true);
+      expect(
+        ambiguity!.interpretations.some((i) =>
+          i.description.includes("LIBRARY"),
+        ),
+      ).toBe(true);
     });
 
-    it("does NOT report deployment_target ambiguity when CLI tag is inferred", () => {
-      const result = parseSpec("A CLI tool system for managing deployments via the command line.");
-      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+    it("does NOT report deployment_target ambiguity when CLI tag is inferred from code signals", () => {
+      const result = parseSpec(
+        "A system for managing deployments using yargs.",
+      );
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "deployment_target",
+      );
       expect(ambiguity).toBeUndefined();
     });
 
     it("does NOT report deployment_target ambiguity when API tag is inferred", () => {
-      const result = parseSpec("A REST API system that exposes HTTP endpoints for user management.");
-      const ambiguity = result.ambiguities.find((a) => a.field === "deployment_target");
+      const result = parseSpec(
+        "A REST API system that exposes HTTP endpoints for user management.",
+      );
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "deployment_target",
+      );
       expect(ambiguity).toBeUndefined();
     });
 
     it("returns empty ambiguities for a spec with clear deployment signals", () => {
-      const result = parseSpec("# Payment Library\n\nAn npm package for payment integration.");
+      const result = parseSpec(
+        "# Payment Library\n\nAn npm package for payment integration.",
+      );
       expect(result.ambiguities).toHaveLength(0);
     });
   });
@@ -291,14 +353,22 @@ describe("inferTagsFromDirectory", () => {
 
   it("infers API tag from src/routes directory", async () => {
     mkdirSync(join(tempDir, "src", "routes"), { recursive: true });
-    writeFileSync(join(tempDir, "src", "routes", "users.ts"), "export {};", "utf-8");
+    writeFileSync(
+      join(tempDir, "src", "routes", "users.ts"),
+      "export {};",
+      "utf-8",
+    );
     const result = await inferTagsFromDirectory(tempDir);
     expect(result.tags).toContain("API");
   });
 
   it("infers CLI tag from bin/ directory", async () => {
     mkdirSync(join(tempDir, "bin"), { recursive: true });
-    writeFileSync(join(tempDir, "bin", "cli.js"), "#!/usr/bin/env node", "utf-8");
+    writeFileSync(
+      join(tempDir, "bin", "cli.js"),
+      "#!/usr/bin/env node",
+      "utf-8",
+    );
     const result = await inferTagsFromDirectory(tempDir);
     expect(result.tags).toContain("CLI");
   });
@@ -306,11 +376,17 @@ describe("inferTagsFromDirectory", () => {
   it("returns empty ambiguities for an unambiguous CLI project", async () => {
     writeFileSync(
       join(tempDir, "package.json"),
-      JSON.stringify({ name: "my-cli", bin: { "my-cli": "dist/index.js" }, main: "dist/index.js" }),
+      JSON.stringify({
+        name: "my-cli",
+        bin: { "my-cli": "dist/index.js" },
+        main: "dist/index.js",
+      }),
       "utf-8",
     );
     const result = await inferTagsFromDirectory(tempDir);
-    const primaryTagAmbiguities = result.ambiguities.filter((a) => a.field === "primary_tag");
+    const primaryTagAmbiguities = result.ambiguities.filter(
+      (a) => a.field === "primary_tag",
+    );
     expect(primaryTagAmbiguities).toHaveLength(0);
   });
 
@@ -318,35 +394,71 @@ describe("inferTagsFromDirectory", () => {
 
   describe("ambiguity detection — pure markdown project", () => {
     it("infers DOCS tag when no build system and markdown files present", async () => {
-      writeFileSync(join(tempDir, "README.md"), "# My Design Spec\n\nThis is a narrative design system.", "utf-8");
-      writeFileSync(join(tempDir, "DESIGN.md"), "## Architecture\n\nSomething.", "utf-8");
+      writeFileSync(
+        join(tempDir, "README.md"),
+        "# My Design Spec\n\nThis is a narrative design system.",
+        "utf-8",
+      );
+      writeFileSync(
+        join(tempDir, "DESIGN.md"),
+        "## Architecture\n\nSomething.",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
       expect(result.tags).toContain("DOCS");
     });
 
     it("reports project_type ambiguity for pure markdown project", async () => {
-      writeFileSync(join(tempDir, "README.md"), "# Design System\n\nA narrative design spec.", "utf-8");
+      writeFileSync(
+        join(tempDir, "README.md"),
+        "# Design System\n\nA narrative design spec.",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
-      const ambiguity = result.ambiguities.find((a) => a.field === "project_type");
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "project_type",
+      );
       expect(ambiguity).toBeDefined();
       expect(ambiguity!.signals).toContain("no package.json");
       expect(ambiguity!.signals).toContain("markdown files present");
     });
 
     it("ambiguity interpretations include DOCS and early-stage software options", async () => {
-      writeFileSync(join(tempDir, "SPEC.md"), "# Spec\n\nDesign document.", "utf-8");
+      writeFileSync(
+        join(tempDir, "SPEC.md"),
+        "# Spec\n\nDesign document.",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
-      const ambiguity = result.ambiguities.find((a) => a.field === "project_type");
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "project_type",
+      );
       expect(ambiguity).toBeDefined();
-      expect(ambiguity!.interpretations.some((i) => i.description.includes("DOCS"))).toBe(true);
-      expect(ambiguity!.interpretations.some((i) => i.description.includes("Early-stage"))).toBe(true);
+      expect(
+        ambiguity!.interpretations.some((i) => i.description.includes("DOCS")),
+      ).toBe(true);
+      expect(
+        ambiguity!.interpretations.some((i) =>
+          i.description.includes("Early-stage"),
+        ),
+      ).toBe(true);
     });
 
     it("does NOT add DOCS ambiguity when package.json is present", async () => {
-      writeFileSync(join(tempDir, "package.json"), JSON.stringify({ name: "my-lib" }), "utf-8");
-      writeFileSync(join(tempDir, "README.md"), "# My Lib\n\nA library.", "utf-8");
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ name: "my-lib" }),
+        "utf-8",
+      );
+      writeFileSync(
+        join(tempDir, "README.md"),
+        "# My Lib\n\nA library.",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
-      const ambiguity = result.ambiguities.find((a) => a.field === "project_type");
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "project_type",
+      );
       expect(ambiguity).toBeUndefined();
     });
   });
@@ -357,27 +469,43 @@ describe("inferTagsFromDirectory", () => {
     it("reports primary_tag ambiguity when CLI framework dep and main field coexist", async () => {
       writeFileSync(
         join(tempDir, "package.json"),
-        JSON.stringify({ name: "my-pkg", dependencies: { commander: "^12.0.0" }, main: "dist/index.js" }),
+        JSON.stringify({
+          name: "my-pkg",
+          dependencies: { commander: "^12.0.0" },
+          main: "dist/index.js",
+        }),
         "utf-8",
       );
       const result = await inferTagsFromDirectory(tempDir);
       expect(result.tags).toContain("CLI");
       expect(result.tags).toContain("LIBRARY");
-      const ambiguity = result.ambiguities.find((a) => a.field === "primary_tag");
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "primary_tag",
+      );
       expect(ambiguity).toBeDefined();
     });
 
     it("CLI vs LIBRARY ambiguity has three interpretations (CLI, LIBRARY, CLI+LIBRARY)", async () => {
       writeFileSync(
         join(tempDir, "package.json"),
-        JSON.stringify({ name: "my-pkg", dependencies: { commander: "^12.0.0" }, main: "dist/index.js" }),
+        JSON.stringify({
+          name: "my-pkg",
+          dependencies: { commander: "^12.0.0" },
+          main: "dist/index.js",
+        }),
         "utf-8",
       );
       const result = await inferTagsFromDirectory(tempDir);
-      const ambiguity = result.ambiguities.find((a) => a.field === "primary_tag");
+      const ambiguity = result.ambiguities.find(
+        (a) => a.field === "primary_tag",
+      );
       expect(ambiguity).toBeDefined();
       expect(ambiguity!.interpretations).toHaveLength(3);
-      expect(ambiguity!.interpretations.map((i) => i.label)).toEqual(["A", "B", "C"]);
+      expect(ambiguity!.interpretations.map((i) => i.label)).toEqual([
+        "A",
+        "B",
+        "C",
+      ]);
     });
   });
 
@@ -427,7 +555,11 @@ describe("inferTagsFromDirectory", () => {
 
   it("does NOT infer LIBRARY when only src/lib/ exists (no main/exports)", async () => {
     mkdirSync(join(tempDir, "src", "lib"), { recursive: true });
-    writeFileSync(join(tempDir, "src", "lib", "utils.ts"), "export const x = 1;", "utf-8");
+    writeFileSync(
+      join(tempDir, "src", "lib", "utils.ts"),
+      "export const x = 1;",
+      "utf-8",
+    );
     writeFileSync(
       join(tempDir, "package.json"),
       JSON.stringify({ name: "my-app" }),
@@ -460,7 +592,11 @@ describe("inferTagsFromDirectory", () => {
   it("does NOT infer LIBRARY when main is set but bin is also set", async () => {
     writeFileSync(
       join(tempDir, "package.json"),
-      JSON.stringify({ name: "my-cli", main: "dist/index.js", bin: { "my-cli": "dist/index.js" } }),
+      JSON.stringify({
+        name: "my-cli",
+        main: "dist/index.js",
+        bin: { "my-cli": "dist/index.js" },
+      }),
       "utf-8",
     );
     const result = await inferTagsFromDirectory(tempDir);
@@ -472,7 +608,9 @@ describe("inferTagsFromDirectory", () => {
   it("infers CLI and API tags from @modelcontextprotocol/sdk dependency", async () => {
     writeFileSync(
       join(tempDir, "package.json"),
-      JSON.stringify({ dependencies: { "@modelcontextprotocol/sdk": "^1.0.0" } }),
+      JSON.stringify({
+        dependencies: { "@modelcontextprotocol/sdk": "^1.0.0" },
+      }),
       "utf-8",
     );
     const result = await inferTagsFromDirectory(tempDir);
@@ -498,7 +636,9 @@ describe("inferTagsFromDirectory", () => {
       mkdirSync(join(tempDir, "frontend"), { recursive: true });
       writeFileSync(
         join(tempDir, "frontend", "package.json"),
-        JSON.stringify({ dependencies: { react: "^18.0.0", "react-dom": "^18.0.0" } }),
+        JSON.stringify({
+          dependencies: { react: "^18.0.0", "react-dom": "^18.0.0" },
+        }),
         "utf-8",
       );
       const result = await inferTagsFromDirectory(tempDir);
@@ -507,7 +647,11 @@ describe("inferTagsFromDirectory", () => {
 
     it("infers API tag from api/requirements.txt with fastapi", async () => {
       mkdirSync(join(tempDir, "api"), { recursive: true });
-      writeFileSync(join(tempDir, "api", "requirements.txt"), "fastapi==0.100.0\nuvicorn==0.23.0\n", "utf-8");
+      writeFileSync(
+        join(tempDir, "api", "requirements.txt"),
+        "fastapi==0.100.0\nuvicorn==0.23.0\n",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
       expect(result.tags).toContain("API");
     });
@@ -535,19 +679,31 @@ describe("inferTagsFromDirectory", () => {
 
   describe("Python framework detection", () => {
     it("infers API tag from fastapi in requirements.txt", async () => {
-      writeFileSync(join(tempDir, "requirements.txt"), "fastapi==0.100.0\nuvicorn==0.23.0\n", "utf-8");
+      writeFileSync(
+        join(tempDir, "requirements.txt"),
+        "fastapi==0.100.0\nuvicorn==0.23.0\n",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
       expect(result.tags).toContain("API");
     });
 
     it("infers CLI tag from click in requirements.txt", async () => {
-      writeFileSync(join(tempDir, "requirements.txt"), "click==8.0.0\n", "utf-8");
+      writeFileSync(
+        join(tempDir, "requirements.txt"),
+        "click==8.0.0\n",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
       expect(result.tags).toContain("CLI");
     });
 
     it("infers CLI tag from typer in requirements.txt", async () => {
-      writeFileSync(join(tempDir, "requirements.txt"), "typer==0.9.0\n", "utf-8");
+      writeFileSync(
+        join(tempDir, "requirements.txt"),
+        "typer==0.9.0\n",
+        "utf-8",
+      );
       const result = await inferTagsFromDirectory(tempDir);
       expect(result.tags).toContain("CLI");
     });
@@ -555,7 +711,7 @@ describe("inferTagsFromDirectory", () => {
     it("infers API tag from fastapi in pyproject.toml", async () => {
       writeFileSync(
         join(tempDir, "pyproject.toml"),
-        "[tool.poetry.dependencies]\npython = \"^3.11\"\nfastapi = \"^0.100.0\"\n",
+        '[tool.poetry.dependencies]\npython = "^3.11"\nfastapi = "^0.100.0"\n',
         "utf-8",
       );
       const result = await inferTagsFromDirectory(tempDir);
@@ -622,7 +778,9 @@ describe("findRichestSpecFile", () => {
 
 describe("inferSensitiveData", () => {
   it("returns true for spec mentioning health keywords", () => {
-    const spec = parseSpec("# Health Monitor\n\n## Problem\nA patient health monitoring system that tracks medical records.\n\n## Users\n- Hospital staff\n- Patients");
+    const spec = parseSpec(
+      "# Health Monitor\n\n## Problem\nA patient health monitoring system that tracks medical records.\n\n## Users\n- Hospital staff\n- Patients",
+    );
     expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(true);
   });
 
@@ -637,12 +795,16 @@ describe("inferSensitiveData", () => {
   });
 
   it("returns false for unrelated spec with no sensitive tags", () => {
-    const spec = parseSpec("A static website generator with markdown support and themes.");
+    const spec = parseSpec(
+      "A static website generator with markdown support and themes.",
+    );
     expect(inferSensitiveData(spec, ["UNIVERSAL", "DOCS"])).toBe(false);
   });
 
   it("returns true when spec mentions payment keywords", () => {
-    const spec = parseSpec("# Invoice App\n\n## Problem\nAn invoicing system that processes payment transactions for small businesses.\n\n## Users\n- Small business owners");
+    const spec = parseSpec(
+      "# Invoice App\n\n## Problem\nAn invoicing system that processes payment transactions for small businesses.\n\n## Users\n- Small business owners",
+    );
     expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(true);
   });
 

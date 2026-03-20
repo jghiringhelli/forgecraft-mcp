@@ -528,12 +528,13 @@ function isPlaceholderTestScript(script: string): boolean {
 
 /**
  * Derive the test command for this project from configuration files.
- * Priority: package.json scripts.test → pyproject.toml → requirements.txt → go.mod → fallback.
+ * Priority: package.json scripts.test → pyproject.toml → requirements.txt → go.mod → Cargo.toml.
+ * Returns undefined when no build-system file exists (command should not be guessed).
  *
  * @param projectDir - Absolute project root
- * @returns Test command string
+ * @returns Test command string, or undefined if no build system is present
  */
-function deriveTestCommand(projectDir: string): string {
+function deriveTestCommand(projectDir: string): string | undefined {
   const packageJsonPath = join(projectDir, "package.json");
   if (existsSync(packageJsonPath)) {
     try {
@@ -547,6 +548,7 @@ function deriveTestCommand(projectDir: string): string {
     } catch {
       // Fall through to next check
     }
+    return "npm test";
   }
 
   if (existsSync(join(projectDir, "pyproject.toml"))) {
@@ -566,7 +568,11 @@ function deriveTestCommand(projectDir: string): string {
     return "go test ./...";
   }
 
-  return existsSync(packageJsonPath) ? "npm test" : "pytest";
+  if (existsSync(join(projectDir, "Cargo.toml"))) {
+    return "cargo test";
+  }
+
+  return undefined;
 }
 
 /**
@@ -619,10 +625,13 @@ function buildContextRetrievalSection(projectDir: string): string {
 /**
  * Build the Execution Loop section with the derived test command.
  *
- * @param testCommand - The test command to embed
+ * @param testCommand - The test command to embed, or undefined when not yet configured
  * @returns Formatted Execution Loop section
  */
-function buildExecutionLoopSection(testCommand: string): string {
+function buildExecutionLoopSection(testCommand: string | undefined): string {
+  const commandLine = testCommand
+    ? `**Test command for this project:** \`${testCommand}\``
+    : `**Test command**: Not configured yet — add package.json/pyproject.toml first`;
   return (
     `## Execution Loop\n\n` +
     `Every implementation unit follows this loop. Do not exit until all tests are green.\n\n` +
@@ -630,7 +639,7 @@ function buildExecutionLoopSection(testCommand: string): string {
     `2. **Write minimum implementation** (GREEN) — run tests, if any fail go back to step 2\n` +
     `3. **Refactor** (CLEAN) — run tests again, confirm still green\n` +
     `4. **Commit** — only when all tests pass\n\n` +
-    `**Test command for this project:** \`${testCommand}\`\n\n` +
+    `${commandLine}\n\n` +
     `If tests fail after implementation: fix and re-run immediately. Do not move to the next\n` +
     `unit, do not update Status.md, do not ask the user for direction — loop until green.\n\n` +
     `If you are blocked for more than 2 iterations on the same failure: surface the exact\n` +
