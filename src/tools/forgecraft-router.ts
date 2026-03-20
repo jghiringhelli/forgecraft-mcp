@@ -57,6 +57,7 @@ import { setupProjectHandler } from "./setup-project.js";
 import { closeCycleHandler } from "./close-cycle.js";
 import { generateRoadmapHandler } from "./generate-roadmap.js";
 import { cntAddNodeHandler } from "./cnt-add-node.js";
+import { startHardeningHandler } from "./start-hardening.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ const ACTIONS = [
   "close_cycle",
   "generate_roadmap",
   "cnt_add_node",
+  "start_hardening",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -142,6 +144,7 @@ export const forgecraftSchema = z.object({
         "  close_cycle         — end-of-cycle gate: re-run cascade, assess gates, promote generalizable ones\n\n" +
         "  generate_roadmap    — generate a phased docs/roadmap.md from PRD.md + use-cases.md (gated on cascade)\n\n" +
         "  cnt_add_node        — add a new CNT leaf node (.claude/standards/<domain>-<concern>.md)\n\n" +
+        "  start_hardening     — generate hardening session prompts (pre-release → rc → load test)\n\n" +
         "Quick usage examples:\n" +
         '  To run a cascade check:              action="check_cascade"\n' +
         '  To generate a session prompt:        action="generate_session_prompt"\n' +
@@ -517,6 +520,18 @@ export const forgecraftSchema = z.object({
     .describe(
       "Markdown content for a CNT leaf node (≤30 lines). If omitted, a placeholder is generated. Used by: cnt_add_node.",
     ),
+  deployment_url: z
+    .string()
+    .optional()
+    .describe(
+      "Override deployment URL for smoke test. Used by: start_hardening. Default: read from forgecraft.yaml or 'http://localhost:3000'.",
+    ),
+  skip_load_test: z
+    .boolean()
+    .optional()
+    .describe(
+      "Skip load test phase (HARDEN-003). Used by: start_hardening. Default: true (skip when no load gates defined).",
+    ),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -860,6 +875,9 @@ async function dispatchForgecraft(args: ForgecraftArgs): Promise<ToolResult> {
         concern: requireParam(args.cnt_concern, "cnt_concern", "cnt_add_node"),
         content: args.cnt_content,
       });
+
+    case "start_hardening":
+      return startHardeningHandler(args);
 
     default:
       return errorResult(
