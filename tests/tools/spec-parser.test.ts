@@ -777,9 +777,9 @@ describe("findRichestSpecFile", () => {
 // ── inferSensitiveData ──────────────────────────────────────────────
 
 describe("inferSensitiveData", () => {
-  it("returns true for spec mentioning health keywords", () => {
+  it("returns true for spec mentioning medical keywords", () => {
     const spec = parseSpec(
-      "# Health Monitor\n\n## Problem\nA patient health monitoring system that tracks medical records.\n\n## Users\n- Hospital staff\n- Patients",
+      "# Health Monitor\n\n## Problem\nA patient data system that tracks medical records.\n\n## Users\n- Hospital staff\n- Patients",
     );
     expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(true);
   });
@@ -811,6 +811,36 @@ describe("inferSensitiveData", () => {
   it("returns true for SOCIAL tag (SOCIAL always implies sensitive data)", () => {
     const spec = parseSpec("A social platform tool.");
     expect(inferSensitiveData(spec, ["UNIVERSAL", "SOCIAL"])).toBe(true);
+  });
+
+  it("does not trigger on 'health' used as game/network metric (false positive regression)", () => {
+    // Storycraft spec uses "network health", "character health: integer 0-100"
+    const spec = parseSpec(
+      "## Problem\nA narrative OS with network health monitoring and character physiology tracking.\n\n## Users\n- Authors using scene generation\n\n## Components\n- Health bar: integer 0-100 per character\n- Inciting incident tracking for plot arcs",
+    );
+    expect(inferSensitiveData(spec, ["UNIVERSAL", "API"])).toBe(false);
+  });
+
+  it("does not trigger on 'phi' inside 'physiology' (substring false positive regression)", () => {
+    const spec = parseSpec(
+      "## Problem\nStory generation system.\n\n## Components\n- physiology: { age: string, health: integer }\n- philosophy module for character motivation",
+    );
+    expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(false);
+  });
+
+  it("triggers on 'phi' as a standalone acronym (Protected Health Information)", () => {
+    const spec = parseSpec(
+      "## Problem\nA HIPAA-compliant system that handles PHI including patient records.\n\n## Components\n- PHI vault with encryption",
+    );
+    expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(true);
+  });
+
+  it("does not trigger on 'incident' in a story/narrative context (false positive regression)", () => {
+    // Inciting incident is a story structure term
+    const spec = parseSpec(
+      "## Problem\nNarrative OS. Each scene has an inciting incident that disturbs life balance.\n\n## Components\n- incident tracking for plot structure",
+    );
+    expect(inferSensitiveData(spec, ["UNIVERSAL"])).toBe(false);
   });
 });
 

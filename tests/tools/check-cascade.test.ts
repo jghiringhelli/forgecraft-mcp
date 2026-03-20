@@ -9,6 +9,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   mkdirSync,
   writeFileSync,
+  readFileSync,
+  existsSync,
   rmSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -26,20 +28,38 @@ function makeTempDir(): string {
 /** Write a file at a relative path, creating parent dirs as needed. */
 function write(dir: string, relPath: string, content: string): void {
   const fullPath = join(dir, relPath);
-  mkdirSync(join(dir, relPath.includes("/") ? relPath.split("/").slice(0, -1).join("/") : ""), {
-    recursive: true,
-  });
+  mkdirSync(
+    join(
+      dir,
+      relPath.includes("/") ? relPath.split("/").slice(0, -1).join("/") : "",
+    ),
+    {
+      recursive: true,
+    },
+  );
   writeFileSync(fullPath, content, "utf-8");
 }
 
 /** Build a fully passing cascade in tempDir. */
 function buildCompleteCascade(dir: string): void {
-  write(dir, "docs/PRD.md", "# PRD\n## Functional Scope\nWhat the system does.\n");
+  write(
+    dir,
+    "docs/PRD.md",
+    "# PRD\n## Functional Scope\nWhat the system does.\n",
+  );
   mkdirSync(join(dir, "docs/diagrams"), { recursive: true });
   write(dir, "docs/diagrams/c4-context.md", "```mermaid\nC4Context\n```\n");
-  write(dir, "CLAUDE.md", "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n");
+  write(
+    dir,
+    "CLAUDE.md",
+    "# CLAUDE.md\n## Architecture Rules\n- Keep layers separate.\n",
+  );
   mkdirSync(join(dir, "docs/adrs"), { recursive: true });
-  write(dir, "docs/adrs/ADR-0001-stack.md", "# ADR-0001\n## Decision\nUse TypeScript.\n");
+  write(
+    dir,
+    "docs/adrs/ADR-0001-stack.md",
+    "# ADR-0001\n## Decision\nUse TypeScript.\n",
+  );
   write(dir, "docs/use-cases.md", "# Use Cases\n## UC-001\nActor: user\n");
 }
 
@@ -48,8 +68,12 @@ function buildCompleteCascade(dir: string): void {
 describe("checkCascadeHandler", () => {
   let tempDir: string;
 
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 
   // ── Step 1: Functional Specification ─────────────────────────────
 
@@ -108,7 +132,9 @@ describe("checkCascadeHandler", () => {
       mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
       write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
       const result = await checkCascadeHandler({ project_dir: tempDir });
-      expect(result.content[0]!.text).toContain("No AI assistant instruction file");
+      expect(result.content[0]!.text).toContain(
+        "No AI assistant instruction file",
+      );
     });
 
     it("reports WARN when CLAUDE.md exceeds 300 lines", async () => {
@@ -116,7 +142,11 @@ describe("checkCascadeHandler", () => {
       mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
       write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
       // 310 non-empty lines
-      write(tempDir, "CLAUDE.md", Array.from({ length: 310 }, (_, i) => `- rule ${i}`).join("\n"));
+      write(
+        tempDir,
+        "CLAUDE.md",
+        Array.from({ length: 310 }, (_, i) => `- rule ${i}`).join("\n"),
+      );
       const result = await checkCascadeHandler({ project_dir: tempDir });
       expect(result.content[0]!.text).toContain("300-line threshold");
     });
@@ -125,7 +155,11 @@ describe("checkCascadeHandler", () => {
       write(tempDir, "docs/PRD.md", "# PRD\n");
       mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
       write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
-      write(tempDir, ".github/copilot-instructions.md", "# Copilot Instructions\nRules here.\n");
+      write(
+        tempDir,
+        ".github/copilot-instructions.md",
+        "# Copilot Instructions\nRules here.\n",
+      );
       const result = await checkCascadeHandler({ project_dir: tempDir });
       expect(result.content[0]!.text).toContain("copilot-instructions.md");
     });
@@ -183,7 +217,11 @@ describe("checkCascadeHandler", () => {
       write(tempDir, "CLAUDE.md", "# Rules\n");
       mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
       write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
-      write(tempDir, "Status.md", "# Status\n## Next Steps\n- Add auth endpoint\n");
+      write(
+        tempDir,
+        "Status.md",
+        "# Status\n## Next Steps\n- Add auth endpoint\n",
+      );
       const result = await checkCascadeHandler({ project_dir: tempDir });
       expect(result.content[0]!.text).toContain("partial coverage only");
     });
@@ -219,6 +257,39 @@ describe("checkCascadeHandler", () => {
       expect(result.content[0]!.text).toContain("files_created");
       expect(result.content[0]!.text).toContain("next_steps");
     });
+
+    it("writes docs/session-prompt-initial.md when cascade first completes", async () => {
+      buildCompleteCascade(tempDir);
+      await checkCascadeHandler({ project_dir: tempDir });
+      const promptPath = join(tempDir, "docs", "session-prompt-initial.md");
+      expect(existsSync(promptPath)).toBe(true);
+      const content = readFileSync(promptPath, "utf-8");
+      expect(content).toContain("Initial Implementation Session Prompt");
+      expect(content).toContain("UC-001");
+      expect(content).toContain("check_cascade");
+    });
+
+    it("does not overwrite docs/session-prompt-initial.md on subsequent cascade checks", async () => {
+      buildCompleteCascade(tempDir);
+      await checkCascadeHandler({ project_dir: tempDir });
+      const promptPath = join(tempDir, "docs", "session-prompt-initial.md");
+      // Modify the file to detect overwrite
+      writeFileSync(promptPath, "# Custom content", "utf-8");
+      await checkCascadeHandler({ project_dir: tempDir });
+      expect(readFileSync(promptPath, "utf-8")).toBe("# Custom content");
+    });
+
+    it("does not write session-prompt-initial.md when cascade is incomplete", async () => {
+      // Only step 1 done — cascade not complete
+      write(
+        tempDir,
+        "docs/PRD.md",
+        "# PRD\n## Functional Scope\nWhat the system does.\n",
+      );
+      await checkCascadeHandler({ project_dir: tempDir });
+      const promptPath = join(tempDir, "docs", "session-prompt-initial.md");
+      expect(existsSync(promptPath)).toBe(false);
+    });
   });
 
   // ── Fix 1: doc aliasing ───────────────────────────────────────────
@@ -226,24 +297,28 @@ describe("checkCascadeHandler", () => {
   describe("doc aliasing — content-based fallback", () => {
     it("returns WARN (not FAIL) when docs/ has a non-standard spec file with structural sections", async () => {
       mkdirSync(join(tempDir, "docs"), { recursive: true });
-      write(tempDir, "docs/master_playbook_v2.md", [
-        "# Master Playbook",
-        "",
-        "## Background",
-        "This project solves the problem of too many manual workflows.",
-        "",
-        "## Goals",
-        "- Automate onboarding",
-        "- Reduce time-to-deploy by 50%",
-        "",
-        "## Users",
-        "- Platform engineers",
-        "- DevOps teams",
-        "",
-        "## Requirements",
-        "- Must integrate with GitHub Actions",
-        "".padEnd(500, "x"),
-      ].join("\n"));
+      write(
+        tempDir,
+        "docs/master_playbook_v2.md",
+        [
+          "# Master Playbook",
+          "",
+          "## Background",
+          "This project solves the problem of too many manual workflows.",
+          "",
+          "## Goals",
+          "- Automate onboarding",
+          "- Reduce time-to-deploy by 50%",
+          "",
+          "## Users",
+          "- Platform engineers",
+          "- DevOps teams",
+          "",
+          "## Requirements",
+          "- Must integrate with GitHub Actions",
+          "".padEnd(500, "x"),
+        ].join("\n"),
+      );
       const result = await checkCascadeHandler({ project_dir: tempDir });
       const text = result.content[0]!.text;
       expect(text).toContain("master_playbook_v2.md");
@@ -252,18 +327,22 @@ describe("checkCascadeHandler", () => {
 
     it("returns WARN with a hint to rename to docs/PRD.md", async () => {
       mkdirSync(join(tempDir, "docs"), { recursive: true });
-      write(tempDir, "docs/master_playbook_v2.md", [
-        "# Playbook",
-        "## Problem",
-        "We need a solution for X.",
-        "## Background",
-        "Context about X.",
-        "## Goals",
-        "Achieve Y.",
-        "## Users",
-        "Engineers.",
-        "".padEnd(500, "x"),
-      ].join("\n"));
+      write(
+        tempDir,
+        "docs/master_playbook_v2.md",
+        [
+          "# Playbook",
+          "## Problem",
+          "We need a solution for X.",
+          "## Background",
+          "Context about X.",
+          "## Goals",
+          "Achieve Y.",
+          "## Users",
+          "Engineers.",
+          "".padEnd(500, "x"),
+        ].join("\n"),
+      );
       const result = await checkCascadeHandler({ project_dir: tempDir });
       const text = result.content[0]!.text;
       expect(text).toContain("PRD.md");
@@ -276,7 +355,11 @@ describe("checkCascadeHandler", () => {
       write(tempDir, "CLAUDE.md", "# Rules\n");
       mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
       write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
-      write(tempDir, "docs/api-spec.md", "# API Spec\n\n## Overview\nThis spec describes the API.\n");
+      write(
+        tempDir,
+        "docs/api-spec.md",
+        "# API Spec\n\n## Overview\nThis spec describes the API.\n",
+      );
       const result = await checkCascadeHandler({ project_dir: tempDir });
       const text = result.content[0]!.text;
       expect(text).toContain("api-spec.md");
@@ -294,7 +377,7 @@ describe("checkCascadeHandler", () => {
       write(tempDir, "CLAUDE.md", "# Rules\n");
       mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
       write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
-      write(tempDir, "pyproject.toml", "[tool.poetry]\nname = \"myapp\"\n");
+      write(tempDir, "pyproject.toml", '[tool.poetry]\nname = "myapp"\n');
       mkdirSync(join(tempDir, "tests"), { recursive: true });
       write(tempDir, "tests/test_main.py", "def test_example(): assert True\n");
       const result = await checkCascadeHandler({ project_dir: tempDir });
@@ -328,10 +411,14 @@ describe("checkCascadeHandler", () => {
       write(tempDir, "CLAUDE.md", "# Rules\n");
       mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
       write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
-      write(tempDir, "package.json", JSON.stringify({
-        name: "my-app",
-        scripts: { test: "echo \"Error: no test specified\" && exit 1" },
-      }));
+      write(
+        tempDir,
+        "package.json",
+        JSON.stringify({
+          name: "my-app",
+          scripts: { test: 'echo "Error: no test specified" && exit 1' },
+        }),
+      );
       const result = await checkCascadeHandler({ project_dir: tempDir });
       const text = result.content[0]!.text;
       expect(text).toContain("No test suite configured");
@@ -345,10 +432,14 @@ describe("checkCascadeHandler", () => {
       write(tempDir, "CLAUDE.md", "# Rules\n");
       mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
       write(tempDir, "docs/adrs/ADR-0001.md", "# ADR\n");
-      write(tempDir, "package.json", JSON.stringify({
-        name: "my-app",
-        scripts: { test: "vitest run" },
-      }));
+      write(
+        tempDir,
+        "package.json",
+        JSON.stringify({
+          name: "my-app",
+          scripts: { test: "vitest run" },
+        }),
+      );
       mkdirSync(join(tempDir, "tests"), { recursive: true });
       write(tempDir, "tests/main.test.ts", "// tests\n");
       const result = await checkCascadeHandler({ project_dir: tempDir });
