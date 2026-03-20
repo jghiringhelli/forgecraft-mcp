@@ -56,6 +56,7 @@ import { setCascadeRequirementHandler } from "./set-cascade-requirement.js";
 import { setupProjectHandler } from "./setup-project.js";
 import { closeCycleHandler } from "./close-cycle.js";
 import { generateRoadmapHandler } from "./generate-roadmap.js";
+import { cntAddNodeHandler } from "./cnt-add-node.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ const ACTIONS = [
   "set_cascade_requirement",
   "close_cycle",
   "generate_roadmap",
+  "cnt_add_node",
 ] as const;
 
 type Action = (typeof ACTIONS)[number];
@@ -139,6 +141,7 @@ export const forgecraftSchema = z.object({
         "  record_verification — upsert acceptance decision for a verification step\n\n" +
         "  close_cycle         — end-of-cycle gate: re-run cascade, assess gates, promote generalizable ones\n\n" +
         "  generate_roadmap    — generate a phased docs/roadmap.md from PRD.md + use-cases.md (gated on cascade)\n\n" +
+        "  cnt_add_node        — add a new CNT leaf node (.claude/standards/<domain>-<concern>.md)\n\n" +
         "Quick usage examples:\n" +
         '  To run a cascade check:              action="check_cascade"\n' +
         '  To generate a session prompt:        action="generate_session_prompt"\n' +
@@ -496,6 +499,24 @@ export const forgecraftSchema = z.object({
         "Provide this when the AI detected conflicting signals and you want to specify the correct interpretation. " +
         "Used by: setup_project (phase 2).",
     ),
+  cnt_domain: z
+    .string()
+    .optional()
+    .describe(
+      "Domain prefix for a CNT leaf node. Lowercase kebab-case. E.g. 'tools', 'shared'. Used by: cnt_add_node.",
+    ),
+  cnt_concern: z
+    .string()
+    .optional()
+    .describe(
+      "Concern name within a CNT domain. Lowercase kebab-case. E.g. 'routing', 'auth'. Used by: cnt_add_node.",
+    ),
+  cnt_content: z
+    .string()
+    .optional()
+    .describe(
+      "Markdown content for a CNT leaf node (≤30 lines). If omitted, a placeholder is generated. Used by: cnt_add_node.",
+    ),
 });
 
 type ForgecraftArgs = z.infer<typeof forgecraftSchema>;
@@ -826,6 +847,18 @@ async function dispatchForgecraft(args: ForgecraftArgs): Promise<ToolResult> {
           "project_dir",
           "generate_roadmap",
         ),
+      });
+
+    case "cnt_add_node":
+      return cntAddNodeHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "cnt_add_node",
+        ),
+        domain: requireParam(args.cnt_domain, "cnt_domain", "cnt_add_node"),
+        concern: requireParam(args.cnt_concern, "cnt_concern", "cnt_add_node"),
+        content: args.cnt_content,
       });
 
     default:

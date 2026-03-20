@@ -601,6 +601,19 @@ export interface McpDiscoveryOptions {
 }
 
 /**
+ * A language-specific tool alternative for a quality gate.
+ * When the project language matches, this tool is preferred.
+ */
+export interface ToolVariant {
+  /** Language(s) this variant applies to. Lowercase: "python", "typescript", "go", "java", "rust" */
+  readonly languages: readonly string[];
+  /** The tool to use for these languages */
+  readonly tool: ToolRequirement;
+  /** Optional link to tool documentation or configuration guide */
+  readonly documentationUrl?: string;
+}
+
+/**
  * A tool required by a quality gate to perform its check.
  */
 export interface ToolRequirement {
@@ -682,6 +695,17 @@ export interface ProjectGate {
   readonly fixHint?: string;
   /** Tools required to run this gate. Only for implementation: tooled | mcp | cli */
   readonly tools?: readonly ToolRequirement[];
+  /**
+   * Language-specific tool alternatives.
+   * When the project's primary language matches one of the language entries,
+   * the associated tool is preferred over the generic tools list for that gate.
+   *
+   * Examples:
+   *   { languages: ["python"], tool: { name: "bandit", ... } }
+   *   { languages: ["typescript", "javascript"], tool: { name: "eslint-plugin-security", ... } }
+   *   { languages: ["go"], tool: { name: "gosec", ... } }
+   */
+  readonly toolVariants?: readonly ToolVariant[];
   /**
    * File path patterns this gate applies to.
    * Absent means all files.

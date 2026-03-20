@@ -31,6 +31,7 @@ import {
 import { findNextRoadmapItem } from "./close-cycle.js";
 import { resolveTemplatesDir } from "../registry/loader.js";
 import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
+import { detectSpecRoadmapDrift } from "../shared/drift-detector.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -135,6 +136,9 @@ export async function generateSessionPromptHandler(
     };
   }
 
+  // Drift check: warn if spec was modified after roadmap was generated
+  const driftResult = detectSpecRoadmapDrift(projectDir);
+
   // ── Resolve roadmap item ─────────────────────────────────────────────
   let resolvedDescription = args.item_description;
   let resolvedItemId: string | undefined;
@@ -194,8 +198,12 @@ export async function generateSessionPromptHandler(
       `> Persisted to docs/session-prompts/${resolvedItemId}.md\n\n`
     : "";
 
+  const driftBanner = driftResult.driftDetected
+    ? `> ${driftResult.message}\n\n`
+    : "";
+
   return {
-    content: [{ type: "text", text: header + prompt }],
+    content: [{ type: "text", text: driftBanner + header + prompt }],
     ...(ambiguities ? { ambiguities: [ambiguities] } : {}),
   };
 }
