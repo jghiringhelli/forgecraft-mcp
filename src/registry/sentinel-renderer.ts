@@ -325,95 +325,45 @@ function renderDomainFile(
 }
 
 /**
- * Render the sentinel CLAUDE.md.
+ * Render the CNT root CLAUDE.md — exactly 3 lines: project identity + pointer.
  *
- * Contains: project identity, a compact hardcoded critical-rules summary
- * (always-active invariants distilled from UNIVERSAL blocks), and wayfinding.
- * Target size: ~60-80 lines regardless of tag count.
+ * Full rules live in .claude/index.md (routing) and .claude/core.md (invariants).
+ * Domain standards files are in .claude/standards/{domain}.md (generated alongside).
  *
- * Full block content is in the domain standards files — loaded on demand.
- *
- * @param domains - Domains that have standards files (for wayfinding table)
+ * @param _domains - Domains with standards files (unused; wayfinding moved to index.md)
  * @param context - Render context
- * @returns CLAUDE.md content ready to write
+ * @returns 3-line CLAUDE.md content ready to write
  */
 function renderSentinelClaudeMd(
-  domains: Array<{ domain: string; description: string }>,
+  _domains: Array<{ domain: string; description: string }>,
   context: RenderContext,
 ): string {
   const date = new Date().toISOString().split("T")[0];
-  const tagList = context.tags.map((t) => `[${t}]`).join(" ");
+  const description = buildProjectDescription(context);
+  return [
+    `# ${context.projectName}`,
+    `<!-- ForgeCraft sentinel | ${date} | npx forgecraft-mcp refresh . --apply to update -->`,
+    description,
+    ``,
+    `Read \`.claude/index.md\` before any task. Navigate to the relevant branch. Load core.md always.`,
+    ``,
+  ].join("\n");
+}
 
-  const lines: string[] = [
-    `# CLAUDE.md — ${context.projectName}`,
-    "",
-    `<!-- ForgeCraft sentinel | ${date} | tags: ${context.tags.join(", ")} | npx forgecraft-mcp refresh . --apply to update -->`,
-    `<!-- Load standards files only when the current task requires them. -->`,
-    "",
-    `## Project Identity`,
-    `- **Project**: ${context.projectName}`,
-    `- **Language**: ${context.language}`,
-    `- **Release Phase**: ${context.releasePhase ?? "development"}`,
-    `- **Tags**: ${tagList}`,
-    "",
-    `**Current work → read \`Status.md\` first.**`,
-    "",
-    `---`,
-    "",
-    `## Critical Rules — Always Active`,
-    `_These apply regardless of task. Never defer them._`,
-    "",
-    `**Hygiene (disk safety)**`,
-    `- Check before installing: \`code --list-extensions | grep -i <name>\` · \`docker ps -a --filter name=<svc>\` · \`.venv\` reuse if major.minor matches.`,
-    `- Never \`docker run\` without checking for an existing container. Prefer \`docker compose up\`.`,
-    `- Workspace >2 GB outside \`node_modules/\`/\`.next/\`/\`dist/\` → warn before continuing.`,
-    `- Synthetic data >100 MB or >7 days old without reference → ask before retaining.`,
-    "",
-    `**Code integrity**`,
-    `- No hardcoded config. No mocks in production code. Never skip layers: API → services → repositories.`,
-    `- Every public function has a JSDoc comment with typed params and returns.`,
-    `- Split a file when you use "and" to describe what it does.`,
-    "",
-    `**Commits**`,
-    `- Conventional commits: \`feat|fix|refactor|docs|test|chore(scope): description\``,
-    `- One logical change per commit. Update \`Status.md\` at end of every session.`,
-    `- Commit BEFORE any risky refactor.`,
-    "",
-    `**Data**`,
-    `- NEVER sample, truncate, or subset data unless explicitly instructed.`,
-    `- State exact row counts, column sets, and filters for every data operation.`,
-    "",
-    `**TDD**`,
-    `- Write a failing test (\`test: [RED]\` commit) BEFORE the implementation commit.`,
-    `- Tests are specifications — name them as behaviors, not as code paths.`,
-    "",
-    `---`,
-    "",
-  ];
-
-  // Wayfinding table — always rendered; project-specific.md is always present
-  lines.push(`## Wayfinding — Load Standards on Demand`);
-  lines.push(`| When working on… | Read |`);
-  lines.push(`|---|---|`);
-  for (const { domain, description } of domains) {
-    lines.push(`| ${description} | \`.claude/standards/${domain}.md\` |`);
+/**
+ * Build the one-sentence project description line for CLAUDE.md.
+ * Uses domain context if available, falls back to tag names.
+ *
+ * @param context - Render context
+ * @returns Single sentence describing the project
+ */
+function buildProjectDescription(context: RenderContext): string {
+  const nonUniversal = context.tags.filter((t) => t !== "UNIVERSAL");
+  if (context.domain && context.domain !== "none") {
+    return `A ${context.domain} project. Must not become a monolith — navigate via \`.claude/index.md\`.`;
   }
-  lines.push(
-    `| Project-specific rules, framework choices, corrections log | \`.claude/standards/project-specific.md\` |`,
-  );
-  lines.push("");
-  lines.push(`---`);
-  lines.push("");
-
-  lines.push(`## Session Protocol`);
-  lines.push(
-    `1. Read \`Status.md\` — know what's in progress before writing a line.`,
-  );
-  lines.push(
-    `2. Load the relevant standards file(s) from the wayfinding table above.`,
-  );
-  lines.push(`3. Update \`Status.md\` before ending the session.`);
-  lines.push("");
-
-  return lines.join("\n");
+  if (nonUniversal.length > 0) {
+    return `A ${nonUniversal.map((t) => t.toLowerCase()).join(", ")} project. Must not become a monolith.`;
+  }
+  return `<!-- FILL: one sentence — what this project is and what it must not become -->`;
 }

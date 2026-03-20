@@ -362,5 +362,101 @@ describe("setupProjectHandler", () => {
       expect(yamlContent).not.toContain("sensitiveData: true");
     });
   });
+
+  // ── CNT generation ───────────────────────────────────────────────────
+
+  describe("CNT generation", () => {
+    it("setup_project generates .claude/index.md with navigation protocol", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const indexPath = join(tempDir, ".claude", "index.md");
+      expect(existsSync(indexPath)).toBe(true);
+      const content = readFileSync(indexPath, "utf-8");
+      expect(content).toContain("Context Index");
+      expect(content).toContain("Navigation Protocol");
+      expect(content).toContain(".claude/core.md");
+      expect(content).toContain("Architecture decisions");
+    });
+
+    it("setup_project generates .claude/core.md under 50 lines", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        spec_text: SAMPLE_SPEC,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const corePath = join(tempDir, ".claude", "core.md");
+      expect(existsSync(corePath)).toBe(true);
+      const content = readFileSync(corePath, "utf-8");
+      const lineCount = content.split("\n").length;
+      expect(lineCount).toBeLessThanOrEqual(50);
+      expect(content).toContain("Core");
+      expect(content).toContain("Layer Map");
+      expect(content).toContain("Invariants");
+    });
+
+    it("setup_project generates .claude/adr/index.md", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const adrIndexPath = join(tempDir, ".claude", "adr", "index.md");
+      expect(existsSync(adrIndexPath)).toBe(true);
+      const content = readFileSync(adrIndexPath, "utf-8");
+      expect(content).toContain("Architecture Decisions");
+      expect(content).toContain("| ID | Decision | Status | Node |");
+    });
+
+    it("setup_project generates .claude/gates/index.md", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const gatesIndexPath = join(tempDir, ".claude", "gates", "index.md");
+      expect(existsSync(gatesIndexPath)).toBe(true);
+      const content = readFileSync(gatesIndexPath, "utf-8");
+      expect(content).toContain("Active Quality Gates");
+      expect(content).toContain("close_cycle");
+    });
+
+    it("CLAUDE.md is 3-5 lines (identity + pointer only)", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const claudePath = join(tempDir, "CLAUDE.md");
+      expect(existsSync(claudePath)).toBe(true);
+      const content = readFileSync(claudePath, "utf-8");
+      const nonEmptyLines = content.split("\n").filter((l) => l.trim().length > 0);
+      expect(nonEmptyLines.length).toBeLessThanOrEqual(5);
+      expect(content).toContain(".claude/index.md");
+    });
+
+    it("ADR-000 is created on first setup", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const adr000Path = join(tempDir, "docs", "adrs", "ADR-000-cnt-init.md");
+      expect(existsSync(adr000Path)).toBe(true);
+      const content = readFileSync(adr000Path, "utf-8");
+      expect(content).toContain("ADR-000");
+      expect(content).toContain("Context Navigation Tree");
+      expect(content).toContain("Accepted");
+    });
+  });
 });
 
