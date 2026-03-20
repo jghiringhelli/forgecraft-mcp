@@ -285,7 +285,7 @@ describe("refreshProjectHandler", () => {
       expect(after).toContain("Deploy to Railway");
     });
 
-    it("CLAUDE.md wayfinding table links to project-specific.md", async () => {
+    it("CLAUDE.md contains navigation pointer to .claude/index.md", async () => {
       writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
       await refreshProjectHandler({
         project_dir: tempDir,
@@ -293,7 +293,8 @@ describe("refreshProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      expect(content).toContain("project-specific.md");
+      // Wayfinding is now in .claude/index.md; CLAUDE.md is the 3-line CNT root
+      expect(content).toContain(".claude/index.md");
     });
 
     it("response text indicates sentinel was used and explains scaffold scope", async () => {

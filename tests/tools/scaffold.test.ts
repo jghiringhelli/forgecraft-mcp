@@ -105,8 +105,8 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      // UNIVERSAL blocks appear in all CLAUDE.md outputs
-      expect(content).toContain("CLAUDE.md");
+      // UNIVERSAL blocks appear in all CLAUDE.md outputs — sentinel comment always present
+      expect(content).toContain("ForgeCraft sentinel");
     });
 
     it("returns response text listing created files", async () => {
@@ -152,8 +152,8 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(claudeMdPath, "utf-8");
-      // New content should include standard CLAUDE.md header
-      expect(content).toContain("CLAUDE.md");
+      // New content should include standard sentinel comment
+      expect(content).toContain("ForgeCraft sentinel");
     });
   });
 
@@ -235,7 +235,7 @@ describe("scaffoldProjectHandler", () => {
       expect(after).toContain("Deploy to Fly.io");
     });
 
-    it("CLAUDE.md wayfinding table includes project-specific.md link", async () => {
+    it("CLAUDE.md contains navigation pointer to .claude/index.md", async () => {
       await scaffoldProjectHandler({
         tags: ["UNIVERSAL"],
         project_dir: tempDir,
@@ -246,7 +246,8 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      expect(content).toContain("project-specific.md");
+      // Wayfinding is now in .claude/index.md; CLAUDE.md points to it
+      expect(content).toContain(".claude/index.md");
     });
   });
 

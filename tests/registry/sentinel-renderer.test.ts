@@ -72,7 +72,8 @@ describe("renderSentinelTree — structure", () => {
   it("claude_md_is_sentinel_not_monolithic", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    expect(content.split("\n").length).toBeLessThan(100);
+    // CNT root is ≤10 lines — pointer only, no rules
+    expect(content.split("\n").length).toBeLessThan(10);
     expect(content).toContain("ForgeCraft sentinel");
   });
 
@@ -80,10 +81,8 @@ describe("renderSentinelTree — structure", () => {
     const files = renderSentinelTree([], context);
     expect(files).toHaveLength(1);
     expect(files[0]!.relativePath).toBe("CLAUDE.md");
-    // Wayfinding table must still appear (only project-specific row when no domains)
+    // Wayfinding moved to .claude/index.md — CLAUDE.md must not list domain files
     const { content } = claudeMd(files);
-    expect(content).toContain("project-specific.md");
-    // No domain rows should appear
     expect(content).not.toContain(".claude/standards/architecture.md");
   });
 
@@ -120,60 +119,60 @@ describe("renderSentinelTree — structure", () => {
 // ── CLAUDE.md content tests ──────────────────────────────────────────────
 
 describe("renderSentinelTree — CLAUDE.md content", () => {
-  it("contains_project_name_in_header", () => {
+  it("claude_md_is_sentinel_not_monolithic", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    // Must be in the title or identity section, not just anywhere
-    expect(content).toContain(`# CLAUDE.md — ${context.projectName}`);
+    // CNT root is ≤10 lines — pointer only, no rules
+    expect(content.split("\n").length).toBeLessThan(10);
+    expect(content).toContain("ForgeCraft sentinel");
   });
 
-  it("contains_all_five_critical_rule_sections", () => {
+  it("empty_blocks_returns_only_claude_md_with_no_domain_files", () => {
+    const files = renderSentinelTree([], context);
+    expect(files).toHaveLength(1);
+    expect(files[0]!.relativePath).toBe("CLAUDE.md");
+    // Wayfinding moved to .claude/index.md — CLAUDE.md must not list domain files
+    const { content } = claudeMd(files);
+    expect(content).not.toContain(".claude/standards/architecture.md");
+  });
+
+  it("contains_project_name_as_h1_title", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    expect(content).toContain("**Hygiene");
-    expect(content).toContain("**Code integrity**");
-    expect(content).toContain("**Commits**");
-    expect(content).toContain("**Data**");
-    expect(content).toContain("**TDD**");
+    expect(content).toContain(`# ${context.projectName}`);
   });
 
-  it("formats_tags_as_bracketed_list", () => {
+  it("contains_navigation_pointer_to_index_md", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    // Tags must be [UNIVERSAL] [API] format, not raw strings
-    expect(content).toContain("[UNIVERSAL]");
-    expect(content).toContain("[API]");
+    expect(content).toContain(".claude/index.md");
+    expect(content).toContain("Navigate to the relevant branch");
   });
 
-  it("includes_release_phase_from_context", () => {
-    const files = renderSentinelTree([architectureBlock], context);
-    const { content } = claudeMd(files);
-    // context.releasePhase is "staging" — must appear, not fallback "development"
-    expect(content).toContain("staging");
-  });
-
-  it("wayfinding_table_lists_active_domains", () => {
+  it("claude_md_does_not_contain_wayfinding_table", () => {
     const files = renderSentinelTree([architectureBlock, testingBlock], context);
     const { content } = claudeMd(files);
-    expect(content).toContain(".claude/standards/architecture.md");
-    expect(content).toContain(".claude/standards/testing.md");
+    // Wayfinding is now in .claude/index.md, not CLAUDE.md
+    expect(content).not.toContain(".claude/standards/architecture.md");
+    expect(content).not.toContain(".claude/standards/testing.md");
   });
 
-  it("wayfinding_table_always_includes_project_specific_row", () => {
+  it("uses_tag_names_in_description_when_no_domain_set", () => {
+    // context has domain: "none" and tags ["UNIVERSAL", "API"]
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    expect(content).toContain("project-specific.md");
+    // "API" tag (non-universal) should appear lowercased in description
+    expect(content).toContain("api");
   });
 
-  it("architecture_appears_before_testing_in_wayfinding_order", () => {
-    const files = renderSentinelTree([testingBlock, architectureBlock], context);
+  it("uses_domain_in_description_when_domain_is_set", () => {
+    const domainContext: RenderContext = {
+      ...context,
+      domain: "financial technology",
+    };
+    const files = renderSentinelTree([architectureBlock], domainContext);
     const { content } = claudeMd(files);
-    const archIdx = content.indexOf("architecture.md");
-    const testIdx = content.indexOf("testing.md");
-    // Architecture must precede testing regardless of input block order
-    expect(archIdx).toBeGreaterThan(-1);
-    expect(testIdx).toBeGreaterThan(-1);
-    expect(archIdx).toBeLessThan(testIdx);
+    expect(content).toContain("financial technology");
   });
 });
 
@@ -237,25 +236,24 @@ describe("renderSentinelTree — domain file content", () => {
 
   it("unknown_domain_description_falls_back_to_domain_name", () => {
     // Use a block ID that maps to a domain not in DOMAIN_DESCRIPTIONS — we simulate
-    // this by temporarily testing via "game" domain which has a description, but we
-    // validate via the wayfinding table that DOMAIN_DESCRIPTIONS fallback works.
-    // Direct test: map a block to an unmapped path by using a known-unmapped domain
-    // (protocols exists in DOMAIN_DESCRIPTIONS, so we use it to verify description appears)
+    // this by testing via "protocols" which has a description, verifying that the
+    // block is correctly routed and its domain file is produced.
     const protocolBlock = makeBlock(
       "clarification-protocol",
       "Clarification",
       "## Clarification\nAsk before assuming.",
     );
     const files = renderSentinelTree([protocolBlock], context);
-    const { content } = files.find((f) => f.relativePath === "CLAUDE.md")!;
-    // The description for "protocols" should appear in the wayfinding, not just "protocols"
-    expect(content).toContain("protocols.md");
-    // The description must be non-empty (not just the domain name repeated)
-    const wayfindingLine = content
-      .split("\n")
-      .find((l) => l.includes("protocols.md"));
-    expect(wayfindingLine).toBeDefined();
-    expect(wayfindingLine!.length).toBeGreaterThan("| protocols |".length);
+    // The protocols.md file must be produced (domain routing works)
+    const protocolsFile = files.find((f) =>
+      f.relativePath.includes("protocols.md"),
+    );
+    expect(protocolsFile).toBeDefined();
+    // The domain file content must contain the rendered block
+    expect(protocolsFile!.content).toContain("Ask before assuming");
+    // Wayfinding is now in .claude/index.md, not CLAUDE.md
+    const { content } = claudeMd(files);
+    expect(content).not.toContain("protocols.md");
   });
 });
 
