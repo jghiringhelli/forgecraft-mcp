@@ -15,7 +15,7 @@
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { load as yamlLoad } from "js-yaml";
-import { findNextRoadmapItem } from "./close-cycle.js";
+// findNextRoadmapItem no longer used here — phase-aware check is local
 import { getActiveProjectGates } from "../shared/project-gates.js";
 import type { ForgeCraftConfig, ProjectGate } from "../shared/types.js";
 
@@ -328,6 +328,65 @@ function writeHardeningPrompt(
 // ── Main handler ─────────────────────────────────────────────────────
 
 /**
+ * Find pending roadmap items in the current active phase only.
+ *
+ * The "current phase" is the phase section (## Phase N: ...) that contains
+ * at least one `done` item. If no phase has any done items yet, the first
+ * phase is current. Future phases (no done items, come after current) are
+ * ignored — their pending items do not block hardening.
+ *
+ * @param projectDir - Absolute path to project root
+ * @returns Array of pending item IDs/titles in the current phase only
+ */
+function findPendingItemsInCurrentPhase(
+  projectDir: string,
+): ReadonlyArray<{ readonly id: string; readonly title: string }> {
+  const roadmapPath = join(projectDir, "docs", "roadmap.md");
+  if (!existsSync(roadmapPath)) return [];
+
+  const content = readFileSync(roadmapPath, "utf-8");
+
+  // Split into phase sections by markdown h2 headings
+  const sections = content.split(/(?=^## Phase \d+)/m).filter(Boolean);
+  if (sections.length === 0) {
+    // No phase headers — treat the whole file as one phase
+    return extractPendingItems(content);
+  }
+
+  // Find the current phase: the last phase with at least one done item
+  let currentSection: string | null = null;
+  for (const section of sections) {
+    if (/\|\s*done\s*\|/i.test(section)) {
+      currentSection = section;
+    }
+  }
+  // If no phase has done items yet, use the first phase
+  if (!currentSection) {
+    currentSection = sections[0] ?? "";
+  }
+
+  return extractPendingItems(currentSection);
+}
+
+/**
+ * Extract all pending RM-NNN items from a roadmap section text.
+ *
+ * @param text - Roadmap text (may be a single phase section)
+ * @returns Array of pending items with id and title
+ */
+function extractPendingItems(
+  text: string,
+): ReadonlyArray<{ readonly id: string; readonly title: string }> {
+  const results: Array<{ id: string; title: string }> = [];
+  const rowRegex = /\|\s*(RM-\d+)\s*\|\s*([^|]+)\s*\|\s*pending\s*\|/gi;
+  let match: RegExpExecArray | null;
+  while ((match = rowRegex.exec(text)) !== null) {
+    results.push({ id: match[1]!.trim(), title: match[2]!.trim() });
+  }
+  return results;
+}
+
+/**
  * Generate hardening session prompts for the three hardening phases.
  *
  * @param input - Project directory, optional deployment URL, optional skip_load_test flag
@@ -351,12 +410,15 @@ export function startHardening(
     };
   }
 
-  const nextItem = findNextRoadmapItem(projectDir);
-  if (nextItem !== null) {
+  // Only block on pending items in the current phase — not future phases.
+  // Current phase = the phase that contains at least one done item, or
+  // the first phase if nothing is done yet.
+  const pendingInCurrentPhase = findPendingItemsInCurrentPhase(projectDir);
+  if (pendingInCurrentPhase.length > 0) {
+    const ids = pendingInCurrentPhase.map((i) => i.id).join(", ");
     return {
       phases: [],
-      blockedReason:
-        "Roadmap has pending items. Complete Loop 2 before hardening.",
+      blockedReason: `Current phase has pending items: ${ids}. Complete them before hardening.`,
       ready: false,
     };
   }
