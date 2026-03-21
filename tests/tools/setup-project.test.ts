@@ -6,10 +6,19 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { setupProjectHandler } from "../../src/tools/setup-project.js";
+import {
+  setupProjectHandler,
+  detectProjectMode,
+} from "../../src/tools/setup-project.js";
 
 // ── Fixtures ──────────────────────────────────────────────────────────
 
@@ -205,7 +214,11 @@ describe("setupProjectHandler", () => {
 
     it("does not overwrite existing docs/PRD.md", async () => {
       mkdirSync(join(tempDir, "docs"), { recursive: true });
-      writeFileSync(join(tempDir, "docs", "PRD.md"), "# Existing PRD\nKeep me.", "utf-8");
+      writeFileSync(
+        join(tempDir, "docs", "PRD.md"),
+        "# Existing PRD\nKeep me.",
+        "utf-8",
+      );
       await setupProjectHandler({
         project_dir: tempDir,
         spec_text: SAMPLE_SPEC,
@@ -259,7 +272,11 @@ describe("setupProjectHandler", () => {
     });
 
     it("phase 1 ambiguity section appears BEFORE the three calibration questions", async () => {
-      writeFileSync(join(tempDir, "SPEC.md"), "# Design System\n\nPure docs project.", "utf-8");
+      writeFileSync(
+        join(tempDir, "SPEC.md"),
+        "# Design System\n\nPure docs project.",
+        "utf-8",
+      );
       const result = await setupProjectHandler({ project_dir: tempDir });
       const text = result.content[0]!.text;
       const ambiguityIdx = text.indexOf("Ambiguity Detected");
@@ -281,7 +298,11 @@ describe("setupProjectHandler", () => {
     });
 
     it("phase 2 with project_type_override='docs' uses DOCS cascade defaults", async () => {
-      writeFileSync(join(tempDir, "README.md"), "# Design System\n\nPure docs project.", "utf-8");
+      writeFileSync(
+        join(tempDir, "README.md"),
+        "# Design System\n\nPure docs project.",
+        "utf-8",
+      );
       await setupProjectHandler({
         project_dir: tempDir,
         project_type_override: "docs",
@@ -289,7 +310,10 @@ describe("setupProjectHandler", () => {
         scope_complete: true,
         has_consumers: false,
       });
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
       // DOCS: constitution is optional
       expect(yamlContent).toMatch(/constitution[\s\S]{0,300}required: false/);
       // DOCS: functional_spec is still required
@@ -304,9 +328,14 @@ describe("setupProjectHandler", () => {
         scope_complete: true,
         has_consumers: false,
       });
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
       // CLI: architecture_diagrams is optional
-      expect(yamlContent).toMatch(/architecture_diagrams[\s\S]{0,300}required: false/);
+      expect(yamlContent).toMatch(
+        /architecture_diagrams[\s\S]{0,300}required: false/,
+      );
     });
 
     // ── findRichestSpecFile fallback ─────────────────────────────
@@ -329,19 +358,24 @@ describe("setupProjectHandler", () => {
     it("sets sensitiveData in forgecraft.yaml when spec mentions health keywords", async () => {
       await setupProjectHandler({
         project_dir: tempDir,
-        spec_text: "# Health Monitor\n\n## Problem\nA patient health monitoring system tracking medical records.\n\n## Users\n- Hospital staff\n- Patients",
+        spec_text:
+          "# Health Monitor\n\n## Problem\nA patient health monitoring system tracking medical records.\n\n## Users\n- Hospital staff\n- Patients",
         mvp: false,
         scope_complete: true,
         has_consumers: false,
       });
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
       expect(yamlContent).toContain("sensitiveData: true");
     });
 
     it("includes sensitive data warning in phase 2 response when detected", async () => {
       const result = await setupProjectHandler({
         project_dir: tempDir,
-        spec_text: "# Payment System\n\n## Problem\nA payment processing platform handling financial transactions.\n\n## Users\n- Merchants",
+        spec_text:
+          "# Payment System\n\n## Problem\nA payment processing platform handling financial transactions.\n\n## Users\n- Merchants",
         mvp: false,
         scope_complete: true,
         has_consumers: false,
@@ -353,12 +387,16 @@ describe("setupProjectHandler", () => {
     it("does NOT set sensitiveData for non-sensitive project", async () => {
       await setupProjectHandler({
         project_dir: tempDir,
-        spec_text: "# Static Blog\n\n## Problem\nA static site generator for personal blogs.\n\n## Users\n- Bloggers",
+        spec_text:
+          "# Static Blog\n\n## Problem\nA static site generator for personal blogs.\n\n## Users\n- Bloggers",
         mvp: false,
         scope_complete: true,
         has_consumers: false,
       });
-      const yamlContent = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
       expect(yamlContent).not.toContain("sensitiveData: true");
     });
   });
@@ -438,7 +476,9 @@ describe("setupProjectHandler", () => {
       const claudePath = join(tempDir, "CLAUDE.md");
       expect(existsSync(claudePath)).toBe(true);
       const content = readFileSync(claudePath, "utf-8");
-      const nonEmptyLines = content.split("\n").filter((l) => l.trim().length > 0);
+      const nonEmptyLines = content
+        .split("\n")
+        .filter((l) => l.trim().length > 0);
       expect(nonEmptyLines.length).toBeLessThanOrEqual(5);
       expect(content).toContain(".claude/index.md");
     });
@@ -458,5 +498,36 @@ describe("setupProjectHandler", () => {
       expect(content).toContain("Accepted");
     });
   });
-});
 
+  // ── Brownfield detection ─────────────────────────────────────────────
+
+  describe("brownfield detection", () => {
+    it("detectProjectMode returns brownfield when src/*.ts exists and no spec doc", () => {
+      mkdirSync(join(tempDir, "src"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "src", "index.ts"),
+        "export const x = 1;",
+        "utf-8",
+      );
+      expect(detectProjectMode(tempDir)).toBe("brownfield");
+    });
+
+    it("detectProjectMode returns greenfield when no src files exist", () => {
+      expect(detectProjectMode(tempDir)).toBe("greenfield");
+    });
+
+    it("setupProjectHandler phase1 uses brownfield questions when brownfield detected", async () => {
+      mkdirSync(join(tempDir, "src"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "src", "server.ts"),
+        "export const x = 1;",
+        "utf-8",
+      );
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Brownfield Project Detected");
+      expect(text).toContain("What is currently broken or incomplete");
+      expect(text).toContain("docs/PRD.md");
+    });
+  });
+});
