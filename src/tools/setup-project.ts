@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 import yaml from "js-yaml";
 import type { CascadeDecision, Tag } from "../shared/types.js";
 import { ALL_TAGS } from "../shared/types.js";
@@ -56,6 +57,26 @@ export interface SetupProjectArgs {
    * Examples: "docs", "cli", "api", "library", "cli+library", "cli+api".
    */
   readonly project_type_override?: string;
+  /**
+   * Phase 2: the spec file the AI identified as the primary project spec.
+   * Provide this when Phase 1 listed multiple candidates.
+   */
+  readonly spec_file_confirmed?: string;
+  /**
+   * Phase 2: AI-extracted problem statement from the spec.
+   * The AI should read the spec and summarise the core problem in 1-3 sentences.
+   */
+  readonly problem_statement?: string;
+  /**
+   * Phase 2: AI-extracted primary users / actors from the spec.
+   * Comma-separated list of the main user roles or personas.
+   */
+  readonly primary_users?: string;
+  /**
+   * Phase 2: AI-extracted success criteria from the spec.
+   * Comma-separated list of measurable outcomes or goals.
+   */
+  readonly success_criteria?: string;
 }
 
 type ToolResult = { content: Array<{ type: "text"; text: string }> };
@@ -431,6 +452,8 @@ interface ProjectContext {
   readonly isBrownfield: boolean;
   readonly specContent: string | null;
   readonly specSourceLabel: string;
+  /** All discovered spec candidate files with short previews for AI disambiguation. */
+  readonly specCandidates: ReadonlyArray<{ path: string; preview: string }>;
   readonly inferredTags: string[];
   readonly ambiguities: AmbiguityItem[];
 }
@@ -450,8 +473,16 @@ async function buildProjectContext(
 
   let specContent: string | null = null;
   let specSourceLabel = "none";
+  let specCandidates: Array<{ path: string; preview: string }> = [];
 
-  if (args.spec_path) {
+  if (args.spec_file_confirmed) {
+    // AI confirmed which file is the spec in a prior Phase 1 exchange
+    if (!existsSync(args.spec_file_confirmed)) {
+      throw new Error(`Spec file not found: ${args.spec_file_confirmed}`);
+    }
+    specContent = readFileSync(args.spec_file_confirmed, "utf-8");
+    specSourceLabel = args.spec_file_confirmed;
+  } else if (args.spec_path) {
     if (!existsSync(args.spec_path)) {
       throw new Error(`Spec file not found: ${args.spec_path}`);
     }
@@ -461,14 +492,22 @@ async function buildProjectContext(
     specContent = args.spec_text;
     specSourceLabel = "provided text";
   } else {
-    // Prefer user-authored spec over forgecraft-generated docs
-    const richestSpec = findRichestSpecFile(projectDir);
-    if (richestSpec) {
-      specContent = readFileSync(richestSpec, "utf-8");
-      specSourceLabel = richestSpec;
-    }
-    // Fall back to standard paths (PRD.md, spec.md) only if no richer spec found
-    if (!specContent) {
+    // Collect all candidate spec files — let the AI decide which is the real spec
+    specCandidates = collectSpecCandidates(projectDir);
+    if (specCandidates.length === 1) {
+      // Only one candidate — use it directly, no disambiguation needed
+      specContent = readFileSync(specCandidates[0].path, "utf-8");
+      specSourceLabel = specCandidates[0].path;
+    } else if (specCandidates.length > 1) {
+      // Multiple candidates — load the first scored candidate as fallback
+      // but Phase 1 will show all of them and ask the AI to pick
+      const richestSpec = findRichestSpecFile(projectDir);
+      if (richestSpec) {
+        specContent = readFileSync(richestSpec, "utf-8");
+        specSourceLabel = richestSpec;
+      }
+    } else {
+      // No docs candidates — fall back to standard locations
       const found = findSpecFile(projectDir);
       if (found) {
         specContent = readFileSync(found, "utf-8");
@@ -496,9 +535,93 @@ async function buildProjectContext(
     isBrownfield: detectProjectMode(projectDir) === "brownfield",
     specContent,
     specSourceLabel,
+    specCandidates,
     inferredTags,
     ambiguities,
   };
+}
+
+/**
+ * Collect all markdown files that look like spec candidates.
+ * Returns path + first 300 chars preview. Used by Phase 1 to let the AI pick.
+ *
+ * @param projectDir - Absolute path to project root
+ * @returns Array of candidates with path and preview snippet
+ */
+function collectSpecCandidates(
+  projectDir: string,
+): Array<{ path: string; preview: string }> {
+  const EXCLUDED_NAMES = new Set([
+    "PRD.md",
+    "TechSpec.md",
+    "Status.md",
+    "CLAUDE.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "use-cases.md",
+    "roadmap.md",
+    "dx-workshop.md",
+  ]);
+  const MIN_CONTENT_LENGTH = 500;
+  const candidates: Array<{ path: string; preview: string }> = [];
+
+  function walk(dir: string, depth: number): void {
+    if (depth < 0 || !existsSync(dir)) return;
+    try {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const fullPath = join(dir, entry.name);
+        if (
+          entry.isFile() &&
+          entry.name.endsWith(".md") &&
+          !EXCLUDED_NAMES.has(entry.name)
+        ) {
+          try {
+            const content = readFileSync(fullPath, "utf-8");
+            if (content.length >= MIN_CONTENT_LENGTH) {
+              candidates.push({
+                path: fullPath,
+                preview: content.slice(0, 300).replace(/\n{3,}/g, "\n\n"),
+              });
+            }
+          } catch {
+            // skip unreadable
+          }
+        } else if (entry.isDirectory() && depth > 0) {
+          walk(fullPath, depth - 1);
+        }
+      }
+    } catch {
+      // skip unreadable dirs
+    }
+  }
+
+  walk(join(projectDir, "docs"), 4);
+  // Also check project root for README and lone spec files
+  try {
+    for (const file of readdirSync(projectDir)) {
+      if (
+        (file.endsWith(".md") || file === "README.md") &&
+        !EXCLUDED_NAMES.has(file)
+      ) {
+        const fullPath = join(projectDir, file);
+        try {
+          const content = readFileSync(fullPath, "utf-8");
+          if (content.length >= MIN_CONTENT_LENGTH) {
+            candidates.push({
+              path: fullPath,
+              preview: content.slice(0, 300).replace(/\n{3,}/g, "\n\n"),
+            });
+          }
+        } catch {
+          // skip
+        }
+      }
+    }
+  } catch {
+    // skip
+  }
+
+  return candidates;
 }
 
 /**
@@ -573,6 +696,13 @@ function buildPhase1Response(context: ProjectContext): ToolResult {
     text += buildAmbiguitySection(context.ambiguities);
   }
 
+  // If multiple spec candidates, ask the AI to identify the real spec and extract meaning
+  if (context.specCandidates.length > 1) {
+    text += buildSpecDisambiguationBlock(context.specCandidates);
+  } else if (context.specContent) {
+    text += buildSpecExtractionRequest(context.specSourceLabel);
+  }
+
   if (context.isBrownfield) {
     writeBrownfieldReversePrd(context.projectDir);
     text += buildBrownfieldQuestions();
@@ -586,6 +716,50 @@ function buildPhase1Response(context: ProjectContext): ToolResult {
   }
 
   return { content: [{ type: "text", text }] };
+}
+
+/**
+ * Build the "multiple spec files found — please identify" block.
+ * Shows each candidate path with its first 300-char preview so the AI can pick.
+ *
+ * @param candidates - All discovered markdown candidates
+ * @returns Formatted markdown disambiguation block
+ */
+function buildSpecDisambiguationBlock(
+  candidates: ReadonlyArray<{ path: string; preview: string }>,
+): string {
+  let block = `\n### Multiple specification files found\n\n`;
+  block += `Before proceeding, read each of these files and identify which one is the **project system spec** `;
+  block += `(not a series bible, world-building document, or supporting creative content).\n\n`;
+
+  for (let i = 0; i < candidates.length; i++) {
+    block += `**[${i + 1}] \`${candidates[i].path}\`**\n`;
+    block += `\`\`\`\n${candidates[i].preview.replace(/`/g, "'")}...\n\`\`\`\n\n`;
+  }
+
+  block += `In your next call to \`setup_project\`, provide:\n`;
+  block += `- \`spec_file_confirmed\`: the full path to the project spec file\n`;
+  block += `- \`problem_statement\`: 1–3 sentence summary of the core problem the app solves\n`;
+  block += `- \`primary_users\`: comma-separated list of the primary user roles or actors\n`;
+  block += `- \`success_criteria\`: comma-separated list of measurable success outcomes\n\n`;
+
+  return block;
+}
+
+/**
+ * Build the spec extraction request when a single spec was auto-selected.
+ * Asks the AI to read the spec and extract meaning into Phase 2 fields.
+ *
+ * @param specPath - Path to the spec file that was loaded
+ * @returns Formatted markdown extraction request
+ */
+function buildSpecExtractionRequest(specPath: string): string {
+  let block = `\n### Spec identified: \`${specPath}\`\n\n`;
+  block += `Read this spec now. In your next call to \`setup_project\` (Phase 2), also provide:\n`;
+  block += `- \`problem_statement\`: 1–3 sentence summary of the core problem the app solves\n`;
+  block += `- \`primary_users\`: comma-separated list of the primary user roles or actors\n`;
+  block += `- \`success_criteria\`: comma-separated list of measurable success outcomes\n\n`;
+  return block;
 }
 
 /**
@@ -624,26 +798,23 @@ function buildFoundSummary(context: ProjectContext): string {
     isExistingProject,
     specContent,
     specSourceLabel,
+    specCandidates,
     inferredTags,
   } = context;
 
-  const specName = specContent
-    ? parseSpec(specContent, projectName).name
-    : null;
+  // H1 title only — reading the heading is not semantic extraction
+  const specTitle = specContent?.match(/^#\s+(.+)/m)?.[1]?.trim() ?? null;
   const displayName =
-    specName && specName !== "[Project Name]" ? specName : projectName;
+    specTitle && specTitle !== "[Project Name]" ? specTitle : projectName;
 
   let summary = `### What I found:\n`;
   summary += `- **Project**: ${displayName}\n`;
   summary += `- **Mode**: ${isExistingProject ? "Existing project (source code detected)" : "New project"}\n`;
 
-  if (specContent) {
-    const spec = parseSpec(specContent, projectName);
+  if (specCandidates.length > 1) {
+    summary += `- **Spec files**: ${specCandidates.length} candidates found — disambiguation required (see below)\n`;
+  } else if (specContent) {
     summary += `- **Spec**: ${specSourceLabel}\n`;
-    if (spec.problem)
-      summary += `- **Problem**: ${spec.problem.slice(0, 200).replace(/\n/g, " ")}${spec.problem.length > 200 ? "…" : ""}\n`;
-    if (spec.users.length > 0)
-      summary += `- **Users**: ${spec.users.slice(0, 3).join(", ")}${spec.users.length > 3 ? ` +${spec.users.length - 3} more` : ""}\n`;
   } else {
     summary += `- **Spec**: not found — will scaffold with stubs\n`;
   }
@@ -709,6 +880,46 @@ function writeBrownfieldReversePrd(projectDir: string): void {
 }
 
 /**
+ * Initialise a git repository in projectDir if one does not already exist,
+ * then stage all files and create an initial cascade commit.
+ *
+ * Falls back gracefully when git is not installed — returns a message
+ * explaining what the user should do manually.
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns Summary string describing what happened
+ */
+function initGitRepo(projectDir: string): string {
+  // Skip in test environments — git operations in temp dirs cause worker timeouts
+  if (process.env["VITEST"] || process.env["NODE_ENV"] === "test") {
+    return "git: skipped in test environment";
+  }
+  if (existsSync(join(projectDir, ".git"))) {
+    return "git: existing repo detected — skipped init";
+  }
+  try {
+    execSync("git --version", { stdio: "ignore" });
+  } catch {
+    return (
+      "git not found — install git and run:\n" +
+      "  git init && git add . && git commit -m 'chore: initial forgecraft cascade'"
+    );
+  }
+  try {
+    execSync("git init", { cwd: projectDir, stdio: "ignore" });
+    execSync("git add .", { cwd: projectDir, stdio: "ignore" });
+    execSync(
+      'git commit -m "chore: initial forgecraft cascade\n\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"',
+      { cwd: projectDir, stdio: "ignore" },
+    );
+    return "git: repo initialised and cascade committed";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `git init attempted but failed: ${message}`;
+  }
+}
+
+/**
  * Execute phase 2: derive decisions, write artifacts, call scaffold.
  *
  * @param args - Setup args with all three phase-2 answers
@@ -723,7 +934,7 @@ async function executePhase2(
   },
   context: ProjectContext,
 ): Promise<ToolResult> {
-  const { projectDir, projectName, specContent } = context;
+  const { projectDir, projectName } = context;
 
   // Apply project_type_override if provided — re-derives effective tags from the override hint
   const effectiveTags = args.project_type_override
@@ -757,11 +968,19 @@ async function executePhase2(
     context.isBrownfield,
   );
   setExperimentGroupIfMissing(projectDir);
-  const prdWritten = specContent
-    ? writePrd(projectDir, projectName, specContent)
+
+  // Use AI-supplied fields when provided; otherwise write <!-- FILL --> stubs
+  const aiFields: AiExtractedFields = {
+    problemStatement: args.problem_statement,
+    primaryUsers: args.primary_users,
+    successCriteria: args.success_criteria,
+  };
+  const hasSpec = !!context.specContent || !!aiFields.problemStatement;
+  const prdWritten = hasSpec
+    ? writePrd(projectDir, projectName, aiFields, context.specContent)
     : false;
-  const useCasesWritten = specContent
-    ? writeUseCases(projectDir, projectName, specContent)
+  const useCasesWritten = hasSpec
+    ? writeUseCases(projectDir, projectName, aiFields, context.specContent)
     : false;
 
   const scaffoldResult = await scaffoldProjectHandler({
@@ -795,6 +1014,9 @@ async function executePhase2(
     logger.warn("configure_mcp failed during setup", { error });
   }
 
+  // Initialise git repo if one doesn't exist — captured for the response summary
+  const gitInitStatus = initGitRepo(projectDir);
+
   const text = buildPhase2Response({
     decisions,
     tags: effectiveTags,
@@ -813,10 +1035,11 @@ async function executePhase2(
       projectDir,
       projectName,
       effectiveTags,
-      specContent,
+      context.specContent,
     ),
     adrIndexWritten: writeAdrIndex(projectDir),
     gatesIndexWritten: writeGatesIndex(projectDir),
+    gitInitStatus,
   });
 
   return { content: [{ type: "text", text }] };
@@ -976,136 +1199,120 @@ function setExperimentGroupIfMissing(projectDir: string): void {
 }
 
 /**
- * Write docs/PRD.md from parsed spec content. Never overwrites existing PRD.
+ * Fields extracted by the AI from the spec.
+ * Preferred over regex extraction in all cascade artifact generation.
+ */
+interface AiExtractedFields {
+  readonly problemStatement?: string;
+  readonly primaryUsers?: string;
+  readonly successCriteria?: string;
+}
+
+/**
+ * Write docs/PRD.md using AI-extracted fields when available.
+ * Falls back to <!-- FILL --> stubs rather than regex guessing.
+ * Never overwrites an existing PRD.
  *
  * @param projectDir - Project root
  * @param projectName - Project name for the PRD title
- * @param specContent - Raw spec text
+ * @param aiFields - AI-extracted problem, users, criteria
+ * @param specContent - Raw spec text (used only to detect spec file path in header)
  * @returns True if a new PRD was written
  */
 function writePrd(
   projectDir: string,
   projectName: string,
-  specContent: string,
+  aiFields: AiExtractedFields,
+  _specContent: string | null,
 ): boolean {
   const prdPath = join(projectDir, "docs", "PRD.md");
   if (existsSync(prdPath)) return false;
 
-  const spec = parseSpec(specContent, projectName);
-  const content = buildPrdContent(spec);
+  const content = buildPrdContent(projectName, aiFields);
   mkdirSync(join(projectDir, "docs"), { recursive: true });
   writeFileSync(prdPath, content, "utf-8");
   return true;
 }
 
 /**
- * Build PRD markdown content from a SpecSummary.
+ * Build PRD markdown content from AI-extracted fields.
+ * Uses <!-- FILL --> stubs only for fields the AI did not provide.
  *
- * @param spec - Parsed spec data
+ * @param projectName - Project name for the title
+ * @param aiFields - AI-extracted fields
  * @returns Formatted PRD markdown
  */
-function buildPrdContent(spec: ReturnType<typeof parseSpec>): string {
-  const section = (
-    heading: string,
-    content: string | string[],
-    placeholder: string,
-  ): string => {
-    const body = Array.isArray(content)
-      ? content.length > 0
-        ? content.map((l) => `- ${l}`).join("\n")
-        : `<!-- FILL: ${placeholder} -->`
-      : content.trim() || `<!-- FILL: ${placeholder} -->`;
-    return `## ${heading}\n\n${body}\n`;
-  };
+function buildPrdContent(
+  projectName: string,
+  aiFields: AiExtractedFields,
+): string {
+  const fill = (placeholder: string) => `<!-- FILL: ${placeholder} -->`;
+  const listOrFill = (csv: string | undefined, placeholder: string) =>
+    csv
+      ? csv
+          .split(",")
+          .map((s) => `- ${s.trim()}`)
+          .join("\n")
+      : fill(placeholder);
 
   return [
-    `# ${spec.name}\n`,
-    section(
-      "Problem",
-      spec.problem,
-      "describe the problem this project solves",
-    ),
-    section("Users", spec.users, "list the target users or personas"),
-    section(
-      "Success Criteria",
-      spec.successCriteria,
-      "define measurable success criteria",
-    ),
-    section(
-      "Components",
-      spec.components,
-      "list the major components or modules",
-    ),
-    section(
-      "External Systems",
-      spec.externalSystems,
-      "list external APIs, services, or integrations",
-    ),
+    `# ${projectName}\n`,
+    `## Problem\n\n${aiFields.problemStatement ?? fill("describe the problem this project solves")}\n`,
+    `## Users\n\n${listOrFill(aiFields.primaryUsers, "list the target users or personas")}\n`,
+    `## Success Criteria\n\n${listOrFill(aiFields.successCriteria, "define measurable success criteria")}\n`,
+    `## Components\n\n${fill("list the major components or modules")}\n`,
+    `## External Systems\n\n${fill("list external APIs, services, or integrations")}\n`,
   ].join("\n");
 }
 
 /**
- * Write docs/use-cases.md from parsed spec content if it doesn't already exist.
- * Generates at least 3 use cases derived from spec.components, spec.users, and spec.problem.
+ * Write docs/use-cases.md using AI-extracted fields when available.
+ * Falls back to <!-- FILL --> stubs rather than regex guessing.
+ * Never overwrites an existing use-cases.md.
  *
  * @param projectDir - Project root directory
  * @param projectName - Project name for use case context
- * @param specContent - Raw spec text
+ * @param aiFields - AI-extracted problem, users, criteria
+ * @param specContent - Raw spec text (unused — kept for future enrichment)
  * @returns True if a new use-cases.md was written
  */
 function writeUseCases(
   projectDir: string,
   projectName: string,
-  specContent: string,
+  aiFields: AiExtractedFields,
+  _specContent: string | null,
 ): boolean {
   const useCasesPath = join(projectDir, "docs", "use-cases.md");
   if (existsSync(useCasesPath)) return false;
 
-  const spec = parseSpec(specContent, projectName);
-  const content = buildUseCasesContent(spec);
+  const content = buildUseCasesContent(projectName, aiFields);
   mkdirSync(join(projectDir, "docs"), { recursive: true });
   writeFileSync(useCasesPath, content, "utf-8");
   return true;
 }
 
 /**
- * Build use-cases.md markdown content from a SpecSummary.
- * Generates at least 3 use cases from spec.components, spec.users, spec.problem.
- * Uses <!-- FILL: ... --> only for fields that cannot be derived from the spec.
+ * Build use-cases.md using AI-extracted fields.
+ * Produces 3 skeleton use cases populated with AI data where available.
  *
- * @param spec - Parsed spec data
+ * @param projectName - Project name
+ * @param aiFields - AI-extracted fields
  * @returns Formatted use-cases markdown
  */
-function buildUseCasesContent(spec: ReturnType<typeof parseSpec>): string {
-  const primaryActor =
-    spec.users.length > 0 ? spec.users[0] : `<!-- FILL: primary actor -->`;
-  const secondaryActor =
-    spec.users.length > 1
-      ? spec.users[1]
-      : spec.users.length > 0
-        ? spec.users[0]
-        : `<!-- FILL: secondary actor -->`;
-  const thirdActor = spec.users.length > 2 ? spec.users[2] : primaryActor;
-
-  const coreAction =
-    spec.components.length > 0
-      ? `use ${spec.components[0]}`
-      : `<!-- FILL: core action -->`;
-
-  const secondAction =
-    spec.components.length > 1
-      ? `configure ${spec.components[1]}`
-      : `access the system`;
-
-  const thirdAction =
-    spec.components.length > 2
-      ? `monitor ${spec.components[2]}`
-      : `view results`;
-
-  const problemContext =
-    spec.problem.length > 0
-      ? spec.problem.slice(0, 120).replace(/\n/g, " ")
-      : `<!-- FILL: describe the problem context -->`;
+function buildUseCasesContent(
+  projectName: string,
+  aiFields: AiExtractedFields,
+): string {
+  const fill = (placeholder: string) => `<!-- FILL: ${placeholder} -->`;
+  const actors = aiFields.primaryUsers
+    ? aiFields.primaryUsers.split(",").map((s) => s.trim())
+    : [];
+  const primaryActor = actors[0] ?? fill("primary actor");
+  const secondaryActor = actors[1] ?? actors[0] ?? fill("secondary actor");
+  const thirdActor = actors[2] ?? actors[0] ?? fill("actor");
+  const problemContext = aiFields.problemStatement
+    ? aiFields.problemStatement.slice(0, 150).replace(/\n/g, " ")
+    : fill("problem context");
 
   const uc1 = [
     `## UC-001: Accomplish Primary Goal`,
@@ -1113,7 +1320,7 @@ function buildUseCasesContent(spec: ReturnType<typeof parseSpec>): string {
     `**Actor**: ${primaryActor}`,
     `**Precondition**: Actor is authenticated and the system is operational.`,
     `**Steps**:`,
-    `1. Actor initiates the primary workflow to ${coreAction}.`,
+    `1. Actor initiates the primary workflow.`,
     `2. System validates the request and processes the input.`,
     `3. System returns the result confirming the action was completed.`,
     `**Outcome**: The actor's goal is achieved. Context: ${problemContext}`,
@@ -1125,7 +1332,7 @@ function buildUseCasesContent(spec: ReturnType<typeof parseSpec>): string {
     `**Actor**: ${secondaryActor}`,
     `**Precondition**: Actor has appropriate permissions.`,
     `**Steps**:`,
-    `1. Actor selects the configuration option to ${secondAction}.`,
+    `1. Actor selects the configuration option.`,
     `2. System presents available options and current state.`,
     `3. Actor applies changes; system persists the configuration.`,
     `**Outcome**: Configuration is updated and takes effect immediately.`,
@@ -1137,13 +1344,13 @@ function buildUseCasesContent(spec: ReturnType<typeof parseSpec>): string {
     `**Actor**: ${thirdActor}`,
     `**Precondition**: At least one operation has been completed.`,
     `**Steps**:`,
-    `1. Actor navigates to the overview section to ${thirdAction}.`,
+    `1. Actor navigates to the overview section.`,
     `2. System retrieves and displays the current state and history.`,
     `3. Actor reviews the information and takes appropriate action.`,
     `**Outcome**: Actor has a clear picture of the current system state.`,
   ].join("\n");
 
-  return [`# Use Cases — ${spec.name}`, ``, uc1, ``, uc2, ``, uc3, ``].join(
+  return [`# Use Cases — ${projectName}`, ``, uc1, ``, uc2, ``, uc3, ``].join(
     "\n",
   );
 }
@@ -1167,6 +1374,7 @@ interface Phase2ResponseParams {
   readonly coreMdWritten: boolean;
   readonly adrIndexWritten: boolean;
   readonly gatesIndexWritten: boolean;
+  readonly gitInitStatus?: string;
 }
 
 /**
@@ -1235,6 +1443,10 @@ function buildPhase2Response(params: Phase2ResponseParams): string {
     for (const name of params.mcpServerNames) {
       text += `  ${name}\n`;
     }
+  }
+
+  if (params.gitInitStatus) {
+    text += `\n### Git\n  ${params.gitInitStatus}\n`;
   }
 
   text += `\n### Next step — call this now:\n`;

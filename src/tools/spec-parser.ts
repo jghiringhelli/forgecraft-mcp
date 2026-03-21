@@ -133,6 +133,10 @@ const HEADING_PATTERNS: ReadonlyArray<{
     key: "problem",
     patterns: [
       "## problem",
+      "## preamble",
+      "## purpose",
+      "## vision",
+      "## what is",
       "## overview",
       "## background",
       "## context",
@@ -144,6 +148,9 @@ const HEADING_PATTERNS: ReadonlyArray<{
     patterns: [
       "## users",
       "## user",
+      "## actors",
+      "## primary user",
+      "## who",
       "## target",
       "## audience",
       "## personas",
@@ -192,12 +199,17 @@ const HEADING_PATTERNS: ReadonlyArray<{
  * @returns Trimmed content after the heading, or null if not found
  */
 function extractHeadingContent(text: string, heading: string): string | null {
-  const lowerText = text.toLowerCase();
-  const lowerHeading = heading.toLowerCase();
-  const idx = lowerText.indexOf(lowerHeading);
-  if (idx === -1) return null;
+  // Match heading at start of a line exactly (case-insensitive), not as a substring
+  // of a longer heading. E.g. "## overview" must not match "## Architecture Overview".
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const lineStartRegex = new RegExp(
+    `(?:^|\n)${escapedHeading}\\s*(?:\n|$)`,
+    "i",
+  );
+  const match = lineStartRegex.exec(text);
+  if (!match) return null;
 
-  const afterHeading = text.slice(idx + heading.length);
+  const afterHeading = text.slice(match.index + match[0].length);
   const nextHeading = afterHeading.match(/\n#{1,3} /);
   const content = nextHeading
     ? afterHeading.slice(0, nextHeading.index)
@@ -404,16 +416,18 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
   const sections = extractStructuredSections(text);
   const name = extractName(text, hintName);
 
-  const problem =
-    (sections["problem"] ??
-      extractSentencesByKeyword(text, [
-        "problem",
-        "challenge",
-        "need",
-        "helps",
-        "solves",
-      ]).join(" ")) ||
-    "";
+  // Keyword fallback: cap at 3 sentences to avoid philosophical overload.
+  // Structured section is always preferred when a matching heading is found.
+  const problemFallback = extractSentencesByKeyword(text, [
+    "problem",
+    "challenge",
+    "need",
+    "helps",
+    "solves",
+  ])
+    .slice(0, 3)
+    .join(" ");
+  const problem = (sections["problem"] ?? problemFallback) || "";
 
   const users = sections["users"]
     ? extractBulletItems(sections["users"])
@@ -423,7 +437,7 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
         "customer",
         "team",
         "company",
-      ]);
+      ]).slice(0, 5);
 
   const successCriteria = sections["success"]
     ? extractBulletItems(sections["success"])
@@ -433,7 +447,7 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
         "objective",
         "metric",
         "measure",
-      ]);
+      ]).slice(0, 5);
 
   const components = sections["components"]
     ? extractBulletItems(sections["components"])
@@ -443,7 +457,7 @@ export function parseSpec(text: string, hintName?: string): SpecSummary {
         "database",
         "cache",
         "queue",
-      ]);
+      ]).slice(0, 8);
 
   const externalSystems = sections["external"]
     ? extractBulletItems(sections["external"])
