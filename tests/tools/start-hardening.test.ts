@@ -112,6 +112,66 @@ describe("startHardening", () => {
     expect(result.phases).toHaveLength(0);
   });
 
+  it("allows hardening when Phase 1 is complete and Phase 2 is pending (future phase)", () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    write(
+      dir,
+      "docs/roadmap.md",
+      [
+        "# Roadmap",
+        "",
+        "## Phase 1: MVP",
+        "| ID | Title | Status |",
+        "|----|-------|--------|",
+        "| RM-001 | Feature A | done |",
+        "| RM-002 | Feature B | done |",
+        "",
+        "## Phase 2: Extensions",
+        "| ID | Title | Status |",
+        "|----|-------|--------|",
+        "| RM-010 | Feature C | pending |",
+        "| RM-011 | Feature D | pending |",
+      ].join("\n"),
+    );
+    write(dir, "forgecraft.yaml", "projectName: Test Project\n");
+
+    const result = startHardening({ project_dir: dir });
+
+    // Phase 1 is done, Phase 2 is future — hardening should be allowed
+    expect(result.ready).toBe(true);
+  });
+
+  it("blocks hardening when current phase has mixed done and pending items", () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    write(
+      dir,
+      "docs/roadmap.md",
+      [
+        "# Roadmap",
+        "",
+        "## Phase 1: MVP",
+        "| ID | Title | Status |",
+        "|----|-------|--------|",
+        "| RM-001 | Feature A | done |",
+        "| RM-002 | Feature B | pending |",
+        "",
+        "## Phase 2: Extensions",
+        "| ID | Title | Status |",
+        "|----|-------|--------|",
+        "| RM-010 | Feature C | pending |",
+      ].join("\n"),
+    );
+    write(dir, "forgecraft.yaml", "projectName: Test Project\n");
+
+    const result = startHardening({ project_dir: dir });
+
+    // Phase 1 has pending RM-002 — blocked
+    expect(result.ready).toBe(false);
+    expect(result.blockedReason).toMatch(/RM-002/);
+  });
+
   it("generates 3 phases when roadmap is complete and no project gates exist", () => {
     const dir = makeTempDir();
     dirs.push(dir);

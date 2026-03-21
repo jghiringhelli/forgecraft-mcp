@@ -21,8 +21,10 @@ import {
   closeCycle,
   deriveTestCommand,
   findNextRoadmapItem,
+  markRoadmapItemDone,
   suggestVersionBump,
   readCommitsSinceLastTag,
+  closeCycleHandler,
 } from "../../src/tools/close-cycle.js";
 
 vi.mock("../../src/analyzers/gs-scorer.js", () => {
@@ -391,5 +393,125 @@ describe("closeCycle", () => {
 
     expect(result.cascadeStatus).toBe("pass");
     expect(result.experimentId).toBe("dx-2026-vaquita");
+  });
+});
+
+// ── markRoadmapItemDone tests ─────────────────────────────────────────
+
+describe("markRoadmapItemDone", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `mark-roadmap-done-${Date.now()}`);
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("marks a pending item as done in roadmap.md", () => {
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    writeFileSync(
+      join(dir, "docs", "roadmap.md"),
+      [
+        "# Roadmap",
+        "| ID | Title | Status |",
+        "|----|-------|--------|",
+        "| RM-001 | Feature A | pending |",
+        "| RM-002 | Feature B | pending |",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    markRoadmapItemDone(dir, "RM-001");
+
+    const updated = readFileSync(join(dir, "docs", "roadmap.md"), "utf-8");
+    expect(updated).toContain("| RM-001 | Feature A | done |");
+    expect(updated).toContain("| RM-002 | Feature B | pending |");
+  });
+
+  it("does not modify roadmap when item is already done", () => {
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    const original = [
+      "# Roadmap",
+      "| ID | Title | Status |",
+      "|----|-------|--------|",
+      "| RM-001 | Feature A | done |",
+    ].join("\n");
+    writeFileSync(join(dir, "docs", "roadmap.md"), original, "utf-8");
+
+    markRoadmapItemDone(dir, "RM-001");
+
+    const content = readFileSync(join(dir, "docs", "roadmap.md"), "utf-8");
+    expect(content).toBe(original);
+  });
+
+  it("no-ops when roadmap.md does not exist", () => {
+    // Should not throw
+    expect(() => markRoadmapItemDone(dir, "RM-001")).not.toThrow();
+  });
+});
+
+// ── closeCycleHandler roadmap_item writeback tests ────────────────────
+
+describe("closeCycleHandler roadmap_item writeback", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-handler-rm-${Date.now()}`);
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("marks roadmap item done after successful cycle with roadmap_item arg", async () => {
+    buildCompleteCascade(dir);
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    writeFileSync(
+      join(dir, "docs", "roadmap.md"),
+      [
+        "# Roadmap",
+        "| ID | Title | Status |",
+        "|----|-------|--------|",
+        "| RM-001 | Bootstrap | pending |",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    await closeCycleHandler({
+      project_dir: dir,
+      roadmap_item: "RM-001",
+      dry_run: false,
+    });
+
+    const updated = readFileSync(join(dir, "docs", "roadmap.md"), "utf-8");
+    expect(updated).toContain("| RM-001 | Bootstrap | done |");
+  });
+
+  it("does NOT mark roadmap item done when dry_run is true", async () => {
+    buildCompleteCascade(dir);
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    writeFileSync(
+      join(dir, "docs", "roadmap.md"),
+      [
+        "# Roadmap",
+        "| ID | Title | Status |",
+        "|----|-------|--------|",
+        "| RM-001 | Bootstrap | pending |",
+      ].join("\n"),
+      "utf-8",
+    );
+
+    await closeCycleHandler({
+      project_dir: dir,
+      roadmap_item: "RM-001",
+      dry_run: true,
+    });
+
+    const content = readFileSync(join(dir, "docs", "roadmap.md"), "utf-8");
+    expect(content).toContain("| RM-001 | Bootstrap | pending |");
   });
 });

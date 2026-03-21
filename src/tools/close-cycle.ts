@@ -193,6 +193,31 @@ export function findNextRoadmapItem(
 }
 
 /**
+ * Mark a roadmap item as done in docs/roadmap.md.
+ * Finds the row for the given item ID and replaces "| pending |" with "| done |".
+ * No-ops silently if the file or item is not found.
+ *
+ * @param projectDir - Absolute path to project root
+ * @param itemId - Roadmap item ID, e.g. "RM-001"
+ */
+export function markRoadmapItemDone(projectDir: string, itemId: string): void {
+  const roadmapPath = join(projectDir, "docs", "roadmap.md");
+  if (!existsSync(roadmapPath)) return;
+
+  const content = readFileSync(roadmapPath, "utf-8");
+  // Match the exact row for this item and replace its status cell
+  const escapedId = itemId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rowRegex = new RegExp(
+    `(\\|\\s*${escapedId}\\s*\\|[^|]+\\|\\s*)pending(\\s*\\|)`,
+    "g",
+  );
+  const updated = content.replace(rowRegex, "$1done$2");
+  if (updated !== content) {
+    writeFileSync(roadmapPath, updated, "utf-8");
+  }
+}
+
+/**
  * Parse the current version from the last git tag, or return "0.0.0" as base.
  *
  * @param projectDir - Absolute path to project root
@@ -725,7 +750,14 @@ export async function closeCycleHandler(
   }
 
   const dryRun = (args["dry_run"] as boolean | undefined) ?? false;
+  const roadmapItem = args["roadmap_item"] as string | undefined;
   const result = await closeCycle({ projectRoot, dryRun });
+
+  // Write roadmap status back if cycle succeeded and caller named the item
+  if (roadmapItem && result.cascadeStatus === "pass" && !dryRun) {
+    markRoadmapItemDone(projectRoot, roadmapItem);
+  }
+
   return {
     content: [{ type: "text", text: formatCloseCycleResult(result) }],
   };
