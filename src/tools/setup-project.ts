@@ -76,6 +76,311 @@ const SPEC_SEARCH_PATHS = [
 /** Valid ALL_TAGS values as a Set for fast membership testing. */
 const VALID_TAGS_SET = new Set<string>(ALL_TAGS);
 
+/** Source file extensions that indicate existing code. */
+const SOURCE_EXTENSIONS = [".ts", ".js", ".py"] as const;
+
+/** Directories to search for source files during brownfield detection. */
+const BROWNFIELD_SOURCE_DIRS = ["src", "app", "lib"] as const;
+
+/** Glob patterns to exclude when scanning for source files. */
+const BROWNFIELD_EXCLUDE_DIRS = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "__pycache__",
+]);
+
+/** Minimum README length (chars) to count as a substantial spec. */
+const SUBSTANTIAL_README_MIN_CHARS = 800;
+
+/** Route-related patterns signalling HTTP route files. */
+const ROUTE_PATTERN =
+  /\b(router|app\.get|app\.post|app\.put|app\.delete|@app\.route|@router|Blueprint)\b/;
+
+/** Maximum route files to list in the reverse-PRD. */
+const MAX_ROUTE_FILES = 8;
+
+// ── Brownfield Detection ──────────────────────────────────────────────
+
+/**
+ * Determine whether a project is greenfield (no existing source) or brownfield
+ * (source files present, no substantial spec document).
+ *
+ * A project is brownfield when BOTH conditions hold:
+ * - At least one .ts, .js, or .py file exists under src/, app/, lib/, or root.
+ * - No substantial spec: no docs/spec.md, docs/PRD.md, docs/specs/ with content,
+ *   or README >800 chars.
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns 'brownfield' or 'greenfield'
+ */
+export function detectProjectMode(
+  projectDir: string,
+): "greenfield" | "brownfield" {
+  if (!hasSourceFiles(projectDir)) return "greenfield";
+  if (hasSubstantialSpec(projectDir)) return "greenfield";
+  return "brownfield";
+}
+
+/**
+ * Check whether any source files (.ts, .js, .py) exist in the candidate dirs.
+ *
+ * @param projectDir - Project root
+ * @returns True if at least one source file is found
+ */
+function hasSourceFiles(projectDir: string): boolean {
+  const dirsToCheck = [
+    ...BROWNFIELD_SOURCE_DIRS.map((d) => join(projectDir, d)),
+    projectDir,
+  ];
+
+  for (const dir of dirsToCheck) {
+    if (existsSync(dir) && containsSourceFile(dir, dir === projectDir)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Recursively scan a directory for source files, skipping excluded dirs.
+ *
+ * @param dir - Directory to scan
+ * @param rootOnly - When true, only scan the immediate directory (not recursive)
+ * @returns True if a source file is found
+ */
+function containsSourceFile(dir: string, rootOnly: boolean): boolean {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return false;
+  }
+
+  for (const entry of entries) {
+    if (BROWNFIELD_EXCLUDE_DIRS.has(entry)) continue;
+    const fullPath = join(dir, entry);
+    const ext = fullPath.slice(fullPath.lastIndexOf("."));
+    if (SOURCE_EXTENSIONS.includes(ext as (typeof SOURCE_EXTENSIONS)[number])) {
+      return true;
+    }
+    if (!rootOnly) {
+      try {
+        const stat = readdirSync(fullPath);
+        if (stat && containsSourceFile(fullPath, false)) return true;
+      } catch {
+        // not a directory — skip
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Check whether a substantial spec document exists in the project.
+ *
+ * @param projectDir - Project root
+ * @returns True if a substantial spec is found
+ */
+function hasSubstantialSpec(projectDir: string): boolean {
+  const candidates = [
+    join(projectDir, "docs", "spec.md"),
+    join(projectDir, "docs", "PRD.md"),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return true;
+  }
+
+  const specsDir = join(projectDir, "docs", "specs");
+  if (existsSync(specsDir)) {
+    try {
+      const files = readdirSync(specsDir);
+      if (files.length > 0) return true;
+    } catch {
+      // ignore read errors
+    }
+  }
+
+  const readmePath = join(projectDir, "README.md");
+  if (existsSync(readmePath)) {
+    try {
+      const content = readFileSync(readmePath, "utf-8");
+      if (content.length > SUBSTANTIAL_README_MIN_CHARS) return true;
+    } catch {
+      // ignore read errors
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Generate a reverse-engineered PRD stub from existing project artifacts.
+ *
+ * Reads package.json (name, description, scripts), the first 60 lines of
+ * README.md, and scans for route-like files to produce a markdown spec stub.
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns Markdown string formatted as a reverse-PRD stub
+ */
+export function generateReversePrd(projectDir: string): string {
+  const { name, description } = readPackageJsonMetadata(projectDir);
+  const readmeSummary = readReadmeSummary(projectDir);
+  const routeFiles = findRouteFiles(projectDir);
+
+  const routeLines =
+    routeFiles.length > 0
+      ? routeFiles.map((f) => `- ${f}`).join("\n")
+      : "- (no route files detected)";
+
+  return [
+    `> ⚠️ Generated from existing code — review and complete this spec before proceeding.`,
+    ``,
+    `# ${name} — Reverse-Engineered Spec`,
+    ``,
+    `## What this project appears to do`,
+    ``,
+    description,
+    ``,
+    `## Detected entry points / routes`,
+    ``,
+    routeLines,
+    ``,
+    `## README summary`,
+    ``,
+    readmeSummary,
+    ``,
+    `## What you need to fill in`,
+    ``,
+    `- [ ] Clarify the primary user problem this solves`,
+    `- [ ] List all business rules that must be enforced`,
+    `- [ ] Define non-functional requirements (auth, performance, data retention)`,
+  ].join("\n");
+}
+
+/**
+ * Read project name and description from package.json.
+ *
+ * @param projectDir - Project root
+ * @returns Object with name and description strings
+ */
+function readPackageJsonMetadata(projectDir: string): {
+  name: string;
+  description: string;
+} {
+  const pkgPath = join(projectDir, "package.json");
+  if (!existsSync(pkgPath)) {
+    return {
+      name: inferProjectName(projectDir),
+      description: "No description found",
+    };
+  }
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const name =
+      typeof pkg["name"] === "string" && pkg["name"]
+        ? pkg["name"]
+        : inferProjectName(projectDir);
+    const description =
+      typeof pkg["description"] === "string" && pkg["description"]
+        ? pkg["description"]
+        : "No description found";
+    return { name, description };
+  } catch {
+    return {
+      name: inferProjectName(projectDir),
+      description: "No description found",
+    };
+  }
+}
+
+/**
+ * Read the first 60 lines of README.md.
+ *
+ * @param projectDir - Project root
+ * @returns First 60 lines of README, or fallback message
+ */
+function readReadmeSummary(projectDir: string): string {
+  const readmePath = join(projectDir, "README.md");
+  if (!existsSync(readmePath)) return "No README found";
+  try {
+    const lines = readFileSync(readmePath, "utf-8").split("\n");
+    return lines.slice(0, 60).join("\n");
+  } catch {
+    return "No README found";
+  }
+}
+
+/**
+ * Scan src/ and app/ for files that contain route-like patterns.
+ *
+ * @param projectDir - Project root
+ * @returns Up to MAX_ROUTE_FILES relative file paths
+ */
+function findRouteFiles(projectDir: string): string[] {
+  const results: string[] = [];
+  const searchDirs = ["src", "app"].map((d) => join(projectDir, d));
+
+  for (const dir of searchDirs) {
+    if (!existsSync(dir)) continue;
+    collectRouteFiles(dir, projectDir, results);
+    if (results.length >= MAX_ROUTE_FILES) break;
+  }
+
+  return results.slice(0, MAX_ROUTE_FILES);
+}
+
+/**
+ * Recursively collect route files from a directory.
+ *
+ * @param dir - Current directory to scan
+ * @param projectDir - Project root (for computing relative paths)
+ * @param results - Accumulator for found paths
+ */
+function collectRouteFiles(
+  dir: string,
+  projectDir: string,
+  results: string[],
+): void {
+  if (results.length >= MAX_ROUTE_FILES) return;
+
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (results.length >= MAX_ROUTE_FILES) return;
+    if (BROWNFIELD_EXCLUDE_DIRS.has(entry)) continue;
+
+    const fullPath = join(dir, entry);
+    const ext = fullPath.slice(fullPath.lastIndexOf("."));
+
+    if (SOURCE_EXTENSIONS.includes(ext as (typeof SOURCE_EXTENSIONS)[number])) {
+      try {
+        const content = readFileSync(fullPath, "utf-8");
+        if (ROUTE_PATTERN.test(content)) {
+          const relativePath = fullPath
+            .replace(projectDir, "")
+            .replace(/\\/g, "/")
+            .replace(/^\//, "");
+          results.push(relativePath);
+        }
+      } catch {
+        // skip unreadable files
+      }
+    } else {
+      collectRouteFiles(fullPath, projectDir, results);
+    }
+  }
+}
+
 // ── Handler ──────────────────────────────────────────────────────────
 
 /**
@@ -123,6 +428,7 @@ interface ProjectContext {
   readonly projectDir: string;
   readonly projectName: string;
   readonly isExistingProject: boolean;
+  readonly isBrownfield: boolean;
   readonly specContent: string | null;
   readonly specSourceLabel: string;
   readonly inferredTags: string[];
@@ -187,6 +493,7 @@ async function buildProjectContext(
     projectDir,
     projectName,
     isExistingProject,
+    isBrownfield: detectProjectMode(projectDir) === "brownfield",
     specContent,
     specSourceLabel,
     inferredTags,
@@ -252,16 +559,26 @@ function mergeTags(primary: string[], secondary: string[]): string[] {
 /**
  * Build the phase 1 "what I found + three questions" response.
  *
+ * For brownfield projects, writes a reverse-PRD stub and returns brownfield-specific
+ * calibration questions instead of the standard three.
+ *
  * @param context - Assembled project context
  * @returns MCP tool response with analysis summary and calibration questions
  */
 function buildPhase1Response(context: ProjectContext): ToolResult {
   let text = `## Project Setup — Step 0\n\n`;
   text += buildFoundSummary(context);
+
   if (context.ambiguities.length > 0) {
     text += buildAmbiguitySection(context.ambiguities);
   }
-  text += buildPhase1Questions();
+
+  if (context.isBrownfield) {
+    writeBrownfieldReversePrd(context.projectDir);
+    text += buildBrownfieldQuestions();
+  } else {
+    text += buildPhase1Questions();
+  }
 
   const experiment = readExperimentConfig(context.projectDir);
   if (experiment?.id) {
@@ -358,7 +675,38 @@ function buildPhase1Questions(): string {
 Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, and \`has_consumers\` to proceed.`;
 }
 
-// ── Phase 2 ───────────────────────────────────────────────────────────
+/**
+ * Build brownfield-specific calibration questions for phase 1.
+ *
+ * @returns Formatted markdown brownfield questions block
+ */
+function buildBrownfieldQuestions(): string {
+  return `## Brownfield Project Detected
+
+I found existing source code. Before we proceed:
+
+1. **What is currently broken or incomplete?** (Describe the known issues or missing features)
+2. **What new feature or improvement are you adding?** (Describe the specific change)
+3. **Do tests exist, and do they currently pass?** (Run \`npm test\` or \`pytest\` to check)
+
+I've generated a reverse-engineered spec stub at \`docs/PRD.md\`. Review and complete it.
+
+Create a \`work/\` branch before making changes: \`git checkout -b work/forgecraft-setup\`
+
+Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, and \`has_consumers\` to proceed.`;
+}
+
+/**
+ * Write a reverse-PRD to docs/PRD.md if one does not already exist.
+ *
+ * @param projectDir - Project root
+ */
+function writeBrownfieldReversePrd(projectDir: string): void {
+  const prdPath = join(projectDir, "docs", "PRD.md");
+  if (existsSync(prdPath)) return;
+  mkdirSync(join(projectDir, "docs"), { recursive: true });
+  writeFileSync(prdPath, generateReversePrd(projectDir), "utf-8");
+}
 
 /**
  * Execute phase 2: derive decisions, write artifacts, call scaffold.
@@ -406,6 +754,7 @@ async function executePhase2(
     forgeCraftTags,
     decisions,
     isSensitive,
+    context.isBrownfield,
   );
   setExperimentGroupIfMissing(projectDir);
   const prdWritten = specContent
@@ -539,6 +888,7 @@ function deriveCascadeDecisions(
  * @param tags - Valid forgecraft tags to record
  * @param decisions - Cascade decisions to embed
  * @param sensitiveData - Whether the project handles sensitive data
+ * @param brownfield - Whether this is a brownfield project
  * @returns True if the file was written or updated
  */
 function writeForgeYaml(
@@ -547,6 +897,7 @@ function writeForgeYaml(
   tags: string[],
   decisions: CascadeDecision[],
   sensitiveData?: boolean,
+  brownfield?: boolean,
 ): boolean {
   const yamlPath = join(projectDir, "forgecraft.yaml");
   let config: Record<string, unknown>;
@@ -564,6 +915,9 @@ function writeForgeYaml(
     config = { projectName, tags: tags.length > 0 ? tags : ["UNIVERSAL"] };
     if (sensitiveData !== undefined) {
       config["sensitiveData"] = sensitiveData;
+    }
+    if (brownfield === true) {
+      config["brownfield"] = true;
     }
   }
 

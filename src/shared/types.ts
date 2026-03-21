@@ -928,6 +928,11 @@ export interface ForgeCraftConfig {
   };
   /** Optional experiment metadata. When present, close_cycle auto-contributes gates with this id as label. */
   readonly experiment?: ExperimentConfig;
+  /**
+   * When true, the project was detected as brownfield (existing source code, no substantial spec).
+   * setup_project writes this flag and uses brownfield calibration questions.
+   */
+  readonly brownfield?: boolean;
 }
 
 // ── Cascade Decisions ────────────────────────────────────────────────
