@@ -202,8 +202,13 @@ export function auditCntHealth(projectDir: string): CntAuditResult {
   };
 }
 
+/** Prefix written by the sentinel renderer on the first line of scaffold-generated files. */
+const SCAFFOLD_SENTINEL_PREFIX = "<!-- ForgeCraft sentinel:";
+
 /**
  * Find leaf node files that exceed the 30-line limit.
+ * Scaffold-generated files (starting with the ForgeCraft sentinel comment) are exempt —
+ * they intentionally contain full domain content and are not user-managed nodes.
  *
  * @param projectDir - Absolute path to project root
  * @returns Array of violations with file name and line count
@@ -217,7 +222,10 @@ function findLeafViolations(
     return readdirSync(standardsDir)
       .filter((f) => f.endsWith(".md"))
       .flatMap((f) => {
-        const lines = countFileLines(join(standardsDir, f));
+        const fullPath = join(standardsDir, f);
+        const content = readFileSync(fullPath, "utf-8");
+        if (content.startsWith(SCAFFOLD_SENTINEL_PREFIX)) return [];
+        const lines = countFileLines(fullPath);
         return lines !== null && lines > 30 ? [{ file: f, lines }] : [];
       });
   } catch {
