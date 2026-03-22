@@ -58,6 +58,7 @@ import { closeCycleHandler } from "./close-cycle.js";
 import { generateRoadmapHandler } from "./generate-roadmap.js";
 import { cntAddNodeHandler } from "./cnt-add-node.js";
 import { startHardeningHandler } from "./start-hardening.js";
+import { loadUserOverrides } from "../registry/loader.js";
 
 // ── Constants ───────────────────────────────────────────────────────
 
@@ -117,8 +118,8 @@ export const forgecraftSchema = z.object({
         "  generate_session_prompt — produce a bound session prompt for a single roadmap item (gated on cascade)\n" +
         "  generate_diagram    — generate Mermaid C4 context diagram from spec artifacts\n" +
         "  refresh             — re-sync instruction files after tag changes\n" +
-        "  audit_project       — check project standards compliance\n" +
-        "  check_compliance    — alias for audit_project (same check)\n" +
+        "  audit               — check project standards compliance\n" +
+        "  review              — structured code review checklist\n" +
         "  set_cascade_requirement — revise a cascade step as required or optional\n" +
         "  set_release_phase   — set project release phase (development/pre-release/production)\n" +
         "  contribute_gate     — submit generalizable gates to the community registry\n" +
@@ -623,12 +624,19 @@ async function dispatchForgecraft(args: ForgecraftArgs): Promise<ToolResult> {
         release_phase: args.release_phase ?? "development",
       });
 
-    case "audit":
+    case "audit": {
+      const resolvedTags =
+        args.tags && args.tags.length > 0
+          ? args.tags
+          : args.project_dir
+            ? (loadUserOverrides(args.project_dir)?.tags ?? undefined)
+            : undefined;
       return auditProjectHandler({
-        tags: requireParam(args.tags, "tags", "audit"),
+        tags: requireParam(resolvedTags, "tags", "audit"),
         project_dir: requireParam(args.project_dir, "project_dir", "audit"),
         include_anti_patterns: args.include_anti_patterns ?? true,
       });
+    }
 
     case "review":
       return reviewProjectHandler({

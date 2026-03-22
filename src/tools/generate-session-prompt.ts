@@ -591,8 +591,7 @@ function loadMcpServerDescriptions(): Map<string, McpServerYamlEntry> {
 }
 
 /** Primary-use text shown for the forgecraft server entry. */
-const FORGECRAFT_PRIMARY_USE =
-  "check_cascade, generate_session_prompt, audit_project";
+const FORGECRAFT_PRIMARY_USE = "check_cascade, generate_session_prompt, audit";
 
 /**
  * Build the Active MCP Tools section.

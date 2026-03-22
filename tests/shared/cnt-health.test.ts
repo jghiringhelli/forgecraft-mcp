@@ -139,6 +139,31 @@ describe("auditCntHealth", () => {
     expect(result.leafViolations[0]!.file).toBe("tools-routing.md");
   });
 
+  it("skips scaffold-generated files from leaf violation check", () => {
+    write(tempDir, ".claude/index.md", "# Index\n");
+    write(tempDir, ".claude/core.md", makeLines(10));
+    write(tempDir, "CLAUDE.md", "sentinel\n");
+    const scaffoldContent =
+      `<!-- ForgeCraft sentinel: architecture | 2024-01-01 | npx forgecraft-mcp refresh . --apply to update -->\n\n` +
+      makeLines(150);
+    write(tempDir, ".claude/standards/architecture.md", scaffoldContent);
+
+    const result = auditCntHealth(tempDir);
+    expect(result.leafViolations).toHaveLength(0);
+    expect(result.score).toBe(100);
+  });
+
+  it("still flags user-created files that exceed 30 lines", () => {
+    write(tempDir, ".claude/index.md", "# Index\n");
+    write(tempDir, ".claude/core.md", makeLines(10));
+    write(tempDir, "CLAUDE.md", "sentinel\n");
+    write(tempDir, ".claude/standards/my-custom-rules.md", makeLines(35));
+
+    const result = auditCntHealth(tempDir);
+    expect(result.leafViolations).toHaveLength(1);
+    expect(result.leafViolations[0]!.file).toBe("my-custom-rules.md");
+  });
+
   it("returns score 100 when all checks pass", () => {
     write(tempDir, ".claude/index.md", "# Index\n");
     write(tempDir, ".claude/core.md", makeLines(10));

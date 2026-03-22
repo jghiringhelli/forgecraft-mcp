@@ -1,5 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { forgecraftHandler } from "../../src/tools/forgecraft-router.js";
+
+function makeTempDir(): string {
+  const dir = join(tmpdir(), `fc-router-test-${Date.now()}`);
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
 
 describe("forgecraft router", () => {
   // ── List action dispatches ──────────────────────────────────────────
@@ -131,13 +140,36 @@ describe("forgecraft router", () => {
   // ── Required parameter validation ───────────────────────────────────
 
   describe("parameter validation", () => {
+    let tempDir: string;
+    beforeEach(() => {
+      tempDir = makeTempDir();
+    });
+    afterEach(() => {
+      rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it("reads tags from forgecraft.yaml when audit is called without explicit tags", async () => {
+      writeFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "tags:\n  - UNIVERSAL\n  - API\n",
+        "utf-8",
+      );
+      const result = await forgecraftHandler({
+        action: "audit",
+        project_dir: tempDir,
+      });
+      expect(result.content[0]!.text).toMatch(/\*\*Score:\*\*/);
+    });
+
     it("should throw when scaffold is missing project_dir", async () => {
       await expect(
         forgecraftHandler({
           action: "scaffold",
           tags: ["UNIVERSAL"],
         }),
-      ).rejects.toThrow("Missing required parameter 'project_dir' for action 'scaffold'");
+      ).rejects.toThrow(
+        "Missing required parameter 'project_dir' for action 'scaffold'",
+      );
     });
 
     it("should throw when scaffold is missing tags", async () => {
@@ -146,7 +178,9 @@ describe("forgecraft router", () => {
           action: "scaffold",
           project_dir: "/tmp/test",
         }),
-      ).rejects.toThrow("Missing required parameter 'tags' for action 'scaffold'");
+      ).rejects.toThrow(
+        "Missing required parameter 'tags' for action 'scaffold'",
+      );
     });
 
     it("should throw when audit is missing project_dir", async () => {
@@ -155,7 +189,9 @@ describe("forgecraft router", () => {
           action: "audit",
           tags: ["UNIVERSAL"],
         }),
-      ).rejects.toThrow("Missing required parameter 'project_dir' for action 'audit'");
+      ).rejects.toThrow(
+        "Missing required parameter 'project_dir' for action 'audit'",
+      );
     });
 
     it("should throw when add_hook is missing name", async () => {
@@ -164,7 +200,9 @@ describe("forgecraft router", () => {
           action: "add_hook",
           project_dir: "/tmp/test",
         }),
-      ).rejects.toThrow("Missing required parameter 'name' for action 'add_hook'");
+      ).rejects.toThrow(
+        "Missing required parameter 'name' for action 'add_hook'",
+      );
     });
 
     it("should throw when add_module is missing name", async () => {
@@ -173,7 +211,9 @@ describe("forgecraft router", () => {
           action: "add_module",
           project_dir: "/tmp/test",
         }),
-      ).rejects.toThrow("Missing required parameter 'name' for action 'add_module'");
+      ).rejects.toThrow(
+        "Missing required parameter 'name' for action 'add_module'",
+      );
     });
 
     it("should throw when convert is missing project_dir", async () => {
@@ -182,7 +222,9 @@ describe("forgecraft router", () => {
           action: "convert",
           tags: ["UNIVERSAL"],
         }),
-      ).rejects.toThrow("Missing required parameter 'project_dir' for action 'convert'");
+      ).rejects.toThrow(
+        "Missing required parameter 'project_dir' for action 'convert'",
+      );
     });
 
     it("should throw when generate is missing tags", async () => {
@@ -190,7 +232,9 @@ describe("forgecraft router", () => {
         forgecraftHandler({
           action: "generate",
         }),
-      ).rejects.toThrow("Missing required parameter 'tags' for action 'generate'");
+      ).rejects.toThrow(
+        "Missing required parameter 'tags' for action 'generate'",
+      );
     });
 
     it("should treat empty tags array as missing", async () => {
@@ -199,7 +243,9 @@ describe("forgecraft router", () => {
           action: "generate",
           tags: [],
         }),
-      ).rejects.toThrow("Missing required parameter 'tags' for action 'generate'");
+      ).rejects.toThrow(
+        "Missing required parameter 'tags' for action 'generate'",
+      );
     });
   });
 
