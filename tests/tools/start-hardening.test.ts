@@ -305,6 +305,38 @@ describe("startHardening", () => {
     expect(content).toContain("UC-001 User login");
     expect(content).toContain("UC-002 Add item to cart");
   });
+
+  it("HARDEN-002 includes Playwright APIRequestContext smoke test scaffold for API-tagged projects", () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    buildCompletedRoadmap(dir);
+    write(dir, "forgecraft.yaml", "projectName: My API\ntags:\n  - UNIVERSAL\n  - API\n");
+
+    startHardening({ project_dir: dir });
+
+    const content = readFileSync(
+      join(dir, "docs", "session-prompts", "HARDEN-002.md"),
+      "utf-8",
+    );
+    expect(content).toContain("APIRequestContext");
+    expect(content).toContain("playwright.smoke.config.ts");
+    expect(content).toContain("npx playwright test");
+  });
+
+  it("HARDEN-002 does not include Playwright scaffold for non-API projects", () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    buildCompletedRoadmap(dir);
+    write(dir, "forgecraft.yaml", "projectName: My CLI\ntags:\n  - UNIVERSAL\n  - CLI\n");
+
+    startHardening({ project_dir: dir });
+
+    const content = readFileSync(
+      join(dir, "docs", "session-prompts", "HARDEN-002.md"),
+      "utf-8",
+    );
+    expect(content).not.toContain("APIRequestContext");
+  });
 });
 
 describe("startHardeningHandler", () => {
