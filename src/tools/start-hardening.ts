@@ -63,6 +63,23 @@ const DEFAULT_LOAD_GATES: ReadonlyArray<string> = [
 // ── Config helpers ───────────────────────────────────────────────────
 
 /**
+ * Read project classification tags from forgecraft.yaml.
+ *
+ * @param projectDir - Absolute path to project root
+ * @returns Array of tag strings, or empty array if none found
+ */
+function readProjectTags(projectDir: string): ReadonlyArray<string> {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+  if (!existsSync(yamlPath)) return [];
+  try {
+    const config = yamlLoad(readFileSync(yamlPath, "utf-8")) as ForgeCraftConfig;
+    return Array.isArray(config?.tags) ? config.tags : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Read project name from forgecraft.yaml or fall back to directory basename.
  *
  * @param projectDir - Absolute path to project root
@@ -203,12 +220,75 @@ function buildPreReleasePrompt(
 }
 
 /**
+ * Build the Playwright APIRequestContext smoke test scaffold for API-tagged projects.
+ *
+ * @param deploymentUrl - Target deployment URL
+ * @param useCaseTitles - Use-case titles for labelling test stubs
+ * @returns Markdown block with playwright.smoke.config.ts and api.smoke.ts stubs
+ */
+function buildApiPlaywrightScaffold(
+  deploymentUrl: string,
+  useCaseTitles: ReadonlyArray<string>,
+): string {
+  const uc1Label =
+    useCaseTitles[0] ?? "Critical user journey 1 (see docs/use-cases.md)";
+  const uc2Label =
+    useCaseTitles[1] ?? "Critical user journey 2 (see docs/use-cases.md)";
+
+  return [
+    "## Playwright API Smoke Tests",
+    "",
+    "This project is tagged `API`. Run smoke tests using Playwright's `APIRequestContext`",
+    "(no browser required). Create these files if they don't exist:",
+    "",
+    "### playwright.smoke.config.ts",
+    "```typescript",
+    "import { defineConfig } from '@playwright/test';",
+    "export default defineConfig({",
+    "  testMatch: '**/*.smoke.ts',",
+    "  retries: 1,",
+    "  timeout: 15_000,",
+    "  use: {",
+    `    baseURL: process.env['PLAYWRIGHT_BASE_URL'] ?? '${deploymentUrl}',`,
+    "  },",
+    "});",
+    "```",
+    "",
+    "### tests/smoke/api.smoke.ts",
+    "```typescript",
+    "import { test, expect } from '@playwright/test';",
+    "",
+    "test('health check returns 200', async ({ request }) => {",
+    "  const res = await request.get('/health');",
+    "  expect(res.status()).toBe(200);",
+    "});",
+    "",
+    `test('UC-001: ${uc1Label}', async ({ request }) => {`,
+    "  // TODO: implement smoke assertion for this use case",
+    "  const res = await request.get('/health');",
+    "  expect(res.ok()).toBe(true);",
+    "});",
+    "",
+    `test('UC-002: ${uc2Label}', async ({ request }) => {`,
+    "  // TODO: implement smoke assertion for this use case",
+    "  const res = await request.get('/health');",
+    "  expect(res.ok()).toBe(true);",
+    "});",
+    "```",
+    "",
+    "Run with: `npx playwright test --config playwright.smoke.config.ts`",
+    "",
+  ].join("\n");
+}
+
+/**
  * Build the HARDEN-002 (rc smoke test) prompt content.
  *
  * @param projectName - Human-readable project name
  * @param deploymentUrl - Target deployment URL
  * @param useCaseTitles - Titles of use cases for smoke test steps
  * @param projectGates - Gates specific to the rc phase
+ * @param tags - Project classification tags (used to select smoke strategy)
  * @returns Markdown prompt string
  */
 function buildRcPrompt(
@@ -216,6 +296,7 @@ function buildRcPrompt(
   deploymentUrl: string,
   useCaseTitles: ReadonlyArray<string>,
   projectGates: ReadonlyArray<string>,
+  tags: ReadonlyArray<string> = [],
 ): string {
   const uc1 =
     useCaseTitles[0] ?? "Critical user journey 1 (see docs/use-cases.md)";
@@ -226,6 +307,11 @@ function buildRcPrompt(
     projectGates.length > 0
       ? projectGates.map((g) => `- [ ] ${g}`).join("\n")
       : "_No project-specific RC gates configured._";
+
+  const isApi = tags.includes("API");
+  const playwrightSection = isApi
+    ? buildApiPlaywrightScaffold(deploymentUrl, useCaseTitles)
+    : "";
 
   return [
     `# Hardening Session: Release Candidate Smoke Test — ${projectName}`,
@@ -238,12 +324,14 @@ function buildRcPrompt(
     "- [ ] Deploy: `railway up` (or `docker-compose up -d` for local)",
     `- [ ] Verify: \`curl ${deploymentUrl}/health\` returns 200`,
     "",
-    "## Smoke Tests",
-    "- [ ] Health check passes",
-    `- [ ] Critical user journey 1: ${uc1}`,
-    `- [ ] Critical user journey 2: ${uc2}`,
-    "- [ ] No 5xx errors in logs after smoke run",
-    "",
+    ...(isApi ? [playwrightSection] : [
+      "## Smoke Tests",
+      "- [ ] Health check passes",
+      `- [ ] Critical user journey 1: ${uc1}`,
+      `- [ ] Critical user journey 2: ${uc2}`,
+      "- [ ] No 5xx errors in logs after smoke run",
+      "",
+    ]),
     "### Project-Specific Gates",
     gateLines,
     "",
@@ -428,6 +516,7 @@ export function startHardening(
     deployment_url ?? readDeploymentUrl(projectDir) ?? "http://localhost:3000";
   const useCaseTitles = readUseCaseTitles(projectDir);
   const activeGates = getActiveProjectGates(projectDir);
+  const projectTags = readProjectTags(projectDir);
 
   const preReleaseGates = filterGateDescriptions(
     activeGates,
@@ -455,6 +544,7 @@ export function startHardening(
     resolvedUrl,
     useCaseTitles,
     rcGates,
+    projectTags,
   );
   writeHardeningPrompt(projectDir, "HARDEN-002", rcPrompt);
   phases.push({
