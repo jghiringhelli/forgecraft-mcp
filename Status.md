@@ -1,5 +1,29 @@
 # Status.md
 
+## Last Updated: 2026-03-22 (Session 34)
+
+## Session 34 Summary
+
+Dogfeed fixes from Storycraft ForgeCraft workflow experiment. Three bugs identified
+during real usage, fixed via TDD on `fix/dogfeed-bugs` branch, merged to main.
+
+### BUG-FC-001 — CNT health gate no longer flags scaffold-generated files
+`findLeafViolations` now skips `.claude/standards/*.md` files that start with
+`<!-- ForgeCraft sentinel:` (written by `renderSentinelTree`). These intentionally
+contain full domain content (100–400 lines). Only user-created nodes (via
+`cnt_add_node`) are subject to the 30-line limit.
+
+### BUG-FC-002 — `audit` auto-reads tags from `forgecraft.yaml`
+The `audit` action in the router now falls back to `loadUserOverrides(project_dir).tags`
+when `tags` param is not supplied. Eliminates friction for AI-driven and CI workflows.
+
+### BUG-FC-003 — Action description naming fixed
+`audit_project` → `audit`, `check_compliance` removed from description text.
+`FORGECRAFT_PRIMARY_USE` in `generate-session-prompt.ts` updated to match.
+
+### Test count
+1123 tests passing (74 test files). 2 new CNT health tests, 1 new router test.
+
 ## Last Updated: 2026-03-19 (Session 28)
 
 ## Session 28 Summary
