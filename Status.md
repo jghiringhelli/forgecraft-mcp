@@ -1,6 +1,29 @@
 # Status.md
 
-## Last Updated: 2026-03-22 (Session 34)
+## Last Updated: 2026-03-23 (Session 35)
+
+## Session 35 Summary
+
+Dogfeed fix from Storycraft RM-030 brownfield run. One bug confirmed via actual
+generated output (`HARDEN-002.md` in Storycraft had `UC-001: UC-001:` doubled prefix).
+
+### BUG-FC-004 — Playwright smoke test names had doubled UC prefix
+`buildApiPlaywrightScaffold()` hardcoded `UC-001:` and `UC-002:` prefixes before
+interpolating `useCaseTitles[0/1]`, which already contain the full `UC-NNN:` heading
+text from `readUseCaseTitles()`. Fixed by removing the hardcoded prefixes from the
+template literals. 1 new RED test, then GREEN.
+
+## Dogfeed findings (Session 35)
+
+**What worked correctly:**
+- `check_cascade` re-validated spec correctly after UC/roadmap extensions
+- TDD commit log is a readable specification
+- DI wiring pattern in `app.ts` was natural to follow
+- BUG-FC-001/002/003 fixes were non-issues (not triggered by this workflow)
+
+**Confirmed gap (not a bug):**
+- `generate_roadmap` correctly refuses on brownfield — but there's no brownfield
+  roadmap extension helper. ENHANCEMENT-FC-001 covers related spec drift detection.
 
 ## Session 34 Summary
 
