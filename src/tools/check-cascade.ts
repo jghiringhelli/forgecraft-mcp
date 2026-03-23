@@ -652,7 +652,7 @@ function checkAdrs(projectDir: string): CascadeStep {
         (f) =>
           f.endsWith(".md") &&
           f.toLowerCase() !== "readme.md" &&
-          /^adr[-_]?\d/i.test(f),
+          /^(adr[-_]?\d|\d{1,4}[-_])/i.test(f),
       );
       if (adrs.length > 0) {
         return {
