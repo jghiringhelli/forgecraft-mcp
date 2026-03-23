@@ -212,3 +212,55 @@ skills:
       - **Multiple behaviors failing at once** — you wrote too much implementation at once
         in Phase 2. Revert to the minimum, pass the test, then add the next behavior in a
         new RED cycle.
+
+  - id: static-analysis-duplication
+    name: Check Code Duplication
+    filename: static-analysis-duplication.md
+    description: "Run jscpd to detect copy-paste duplication. Threshold: < 5% duplicated lines (min-tokens 50)."
+    tier: recommended
+    tags: [UNIVERSAL, CLI, API]
+    content: |
+      Run jscpd on the src/ directory to detect copy-paste duplication.
+
+      ```
+      npx jscpd src/ --min-tokens 50
+      ```
+
+      Pass condition: Duplicated lines percentage < 5%.
+      If above threshold, extract duplicated logic to shared utilities before committing.
+
+      Evidence: AX experiment — treatment-v6 achieved 2.50% with explicit DRY gate; treatment-v3 reached 7.99% without it.
+
+  - id: static-analysis-circular-deps
+    name: Check Circular Dependencies
+    filename: static-analysis-circular-deps.md
+    description: "Run madge --circular to detect circular import chains. Zero tolerance."
+    tier: recommended
+    tags: [UNIVERSAL, CLI, API]
+    content: |
+      Run madge on the src/ directory to detect circular imports.
+
+      ```
+      npx madge --circular --extensions ts src/
+      ```
+
+      Pass condition: No circular dependency found.
+      If circular deps are found, refactor to break the cycle before committing.
+
+  - id: static-analysis-mutation
+    name: Run Mutation Tests (Stryker)
+    filename: static-analysis-mutation.md
+    description: "Run Stryker mutation testing. MSI must be >= 65% overall, >= 70% on changed code."
+    tier: recommended
+    tags: [UNIVERSAL, CLI, API]
+    content: |
+      Run Stryker on the changed module to verify test assertions actually catch bugs.
+
+      ```
+      npx stryker run
+      ```
+
+      Pass condition: Mutation Score Indicator (MSI) >= 65% overall, >= 70% on new/changed code.
+      Surviving mutants = missing assertions. Add targeted assertions before proceeding.
+
+      Run after writing each test batch, not only pre-release.

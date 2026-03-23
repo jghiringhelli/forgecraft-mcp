@@ -3,4 +3,62 @@ version: "1"
 # Gates you discover while working that should be enforced for this project.
 # Set generalizable: true + fill in evidence to contribute to the community registry.
 # See: https://github.com/genspec-dev/quality-gates/issues/new?template=quality-gate-proposal.md
-gates: []
+gates:
+  - id: static-analysis-duplication
+    title: "Code duplication below threshold"
+    description: "Run jscpd on src/ directory. Duplicated lines must be < 5% for production code. Threshold: min-tokens 50."
+    domain: code-quality
+    property: DRY
+    tool: jscpd
+    command: "npx jscpd src/ --min-tokens 50"
+    pass_condition: "Duplicated lines percentage < 5%"
+    fail_action: "Extract duplicated logic to shared utilities before committing"
+    status: ready
+    source: project
+    os: cross-platform
+    evidence: "AX experiment: treatment-v6 achieved 2.50% after explicit DRY gate; treatment-v3 reached 7.99% without it. See experiments/ax/EXTERNAL_ANALYSIS.md"
+    generalizable: true
+
+  - id: static-analysis-circular-deps
+    title: "No circular dependencies"
+    description: "Run madge --circular on src/ to detect circular import chains. Zero tolerance."
+    domain: architecture
+    property: Bounded
+    tool: madge
+    command: "npx madge --circular --extensions ts src/"
+    pass_condition: "No circular dependency found"
+    fail_action: "Refactor to break circular dependency before committing"
+    status: ready
+    source: project
+    os: cross-platform
+    generalizable: true
+
+  - id: static-analysis-interface-completeness
+    title: "Repository interface completeness"
+    description: "Every method declared in an I*Repository interface must be implemented in the corresponding Prisma*Repository. Missing implementations are silent runtime failures."
+    domain: architecture
+    property: Composable
+    tool: tsc
+    command: "npx tsc --noEmit"
+    pass_condition: "Zero TypeScript errors"
+    fail_action: "Implement missing interface methods before committing"
+    status: ready
+    source: project
+    os: cross-platform
+    evidence: "AX treatment-v3: IArticleRepository missing favorite()/unfavorite() — 24 tsc errors, undetected by GS rubric alone"
+    generalizable: true
+
+  - id: static-analysis-lint
+    title: "Zero ESLint errors"
+    description: "ESLint must be configured as a P1 gate from project infrastructure. Zero errors permitted at commit time. no-explicit-any: error, no-unused-vars: error."
+    domain: code-quality
+    property: Defended
+    tool: eslint
+    command: "npx eslint src/ --ext .ts"
+    pass_condition: "No ESLint errors (warnings permitted)"
+    fail_action: "Fix ESLint errors before committing. Do not disable rules without ADR."
+    status: ready
+    source: project
+    os: cross-platform
+    evidence: "AX treatment-v3: 38 ESLint errors when config added post-hoc. treatment-v6: 0 errors when ESLint emitted in P0."
+    generalizable: true
