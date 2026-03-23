@@ -1,21 +1,30 @@
-# External Static Analysis Tools
+# External Static Analysis Gates — Tool Reference
 
-These tools provide objective code quality signals independent of the GS rubric.
-Used in AX experiment to mitigate circularity concern (F1 adversarial audit finding).
+These gates provide objective code quality signals independent of the GS rubric.
+Introduced in AX experiment to mitigate circularity concern (F1 adversarial audit finding).
 
-| Tool | Install | Command | Measures | Threshold |
-|------|---------|---------|----------|-----------|
-| jscpd | npx jscpd | `npx jscpd src/ --min-tokens 50` | Copy-paste duplication | < 5% lines |
-| madge | npx madge | `npx madge --circular --extensions ts src/` | Circular imports | 0 |
-| ESLint | npm install -D eslint @typescript-eslint/... | `npx eslint src/ --ext .ts` | Lint errors | 0 errors |
-| tsc | included in typescript | `npx tsc --noEmit` | Type errors + interface completeness | 0 errors |
-| stryker | npx stryker | `npx stryker run` | Mutation score | MSI ≥ 65% |
+Gates are tech-agnostic. The table below maps each gate to per-language tool implementations.
+
+## Gate → Tool Matrix
+
+| Gate | Constraint | TypeScript/JS | Python | Go | Java | Rust |
+|------|-----------|--------------|--------|-----|------|------|
+| no-code-duplication | < 5% duplicated lines | jscpd | pylint (--duplicate-code) | dupl | PMD CPD | simian |
+| no-circular-dependencies | 0 circular imports | madge | pydeps | go build (native) | JDepend | cargo build (native) |
+| interface-contract-completeness | 0 type errors | tsc --noEmit | mypy | go build (native) | javac (native) | cargo build (native) |
+| zero-static-analysis-errors | 0 lint errors | eslint | ruff | golangci-lint | checkstyle | clippy |
+| mutation-coverage | MSI ≥ 65% | stryker | mutmut | go-mutesting | PIT | cargo-mutants |
 
 ## When to run
-- jscpd + madge: before each PR merge
-- ESLint + tsc: on every commit (pre-commit hook)
-- stryker: before release or after adding new test coverage
+
+| Gate | Phase | Hook |
+|------|-------|------|
+| no-code-duplication | development | pre-commit |
+| no-circular-dependencies | development | pre-commit |
+| interface-contract-completeness | development | pre-commit |
+| zero-static-analysis-errors | development | pre-commit |
+| mutation-coverage | pre-release | pre-push / PR |
 
 ## Evidence
 AX experiment results documented in:
-`C:\workspace\generative-specification\experiments\ax\EXTERNAL_ANALYSIS.md`
+`experiments/ax/EXTERNAL_ANALYSIS.md` (generative-specification repo)

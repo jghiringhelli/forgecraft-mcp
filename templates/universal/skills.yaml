@@ -216,36 +216,32 @@ skills:
   - id: static-analysis-duplication
     name: Check Code Duplication
     filename: static-analysis-duplication.md
-    description: "Run jscpd to detect copy-paste duplication. Threshold: < 5% duplicated lines (min-tokens 50)."
+    description: "Detect copy-paste duplication in source files. Duplicated lines must be < 5% (min 50 tokens per clone)."
     tier: recommended
     tags: [UNIVERSAL, CLI, API]
     content: |
-      Run jscpd on the src/ directory to detect copy-paste duplication.
+      Run a copy-paste duplication detector on the source directory.
+      Use the tool appropriate for your language (see project-gates.yaml: no-code-duplication).
 
-      ```
-      npx jscpd src/ --min-tokens 50
-      ```
+      Pass condition: Duplicated lines < 5% of total source lines (min-tokens: 50).
+      If above threshold, extract duplicated logic to a shared utility before committing.
 
-      Pass condition: Duplicated lines percentage < 5%.
-      If above threshold, extract duplicated logic to shared utilities before committing.
-
-      Evidence: AX experiment — treatment-v6 achieved 2.50% with explicit DRY gate; treatment-v3 reached 7.99% without it.
+      Evidence: AX experiment — treatment-v6 achieved 2.50% with explicit DRY gate;
+      treatment-v3 reached 7.99% without it.
 
   - id: static-analysis-circular-deps
     name: Check Circular Dependencies
     filename: static-analysis-circular-deps.md
-    description: "Run madge --circular to detect circular import chains. Zero tolerance."
+    description: "Detect circular import chains in the source directory. Zero tolerance."
     tier: recommended
     tags: [UNIVERSAL, CLI, API]
     content: |
-      Run madge on the src/ directory to detect circular imports.
+      Run a dependency graph analyzer on the source directory.
+      Use the tool appropriate for your language (see project-gates.yaml: no-circular-dependencies).
+      Some languages (Go, Rust) reject circular imports at compile time natively.
 
-      ```
-      npx madge --circular --extensions ts src/
-      ```
-
-      Pass condition: No circular dependency found.
-      If circular deps are found, refactor to break the cycle before committing.
+      Pass condition: Zero circular dependencies detected.
+      If cycles are found, extract a shared abstraction or invert the dependency direction.
 
   - id: static-analysis-mutation
     name: Run Mutation Tests (Stryker)

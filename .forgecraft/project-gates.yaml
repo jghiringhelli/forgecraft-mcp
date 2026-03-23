@@ -1,64 +1,152 @@
 version: "1"
 # Project-specific quality gates.
-# Gates you discover while working that should be enforced for this project.
+# Gates are tech-agnostic: they define WHAT to enforce and WHY.
+# Tool implementations (the HOW) are in toolVariants, keyed by language.
 # Set generalizable: true + fill in evidence to contribute to the community registry.
 # See: https://github.com/genspec-dev/quality-gates/issues/new?template=quality-gate-proposal.md
 gates:
-  - id: static-analysis-duplication
-    title: "Code duplication below threshold"
-    description: "Run jscpd on src/ directory. Duplicated lines must be < 5% for production code. Threshold: min-tokens 50."
+  - id: no-code-duplication
+    title: "Duplicate code ratio within threshold"
+    description: >
+      Copy-paste duplication in source must stay below 5% (min 50 tokens per clone).
+      Unchecked duplication accumulates maintenance debt and is a leading indicator
+      of missing abstractions.
     domain: code-quality
-    property: DRY
-    tool: jscpd
-    command: "npx jscpd src/ --min-tokens 50"
-    pass_condition: "Duplicated lines percentage < 5%"
-    fail_action: "Extract duplicated logic to shared utilities before committing"
+    gsProperty: verifiable
+    implementation: tooled
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    check: >
+      Scan all source files for duplicated token sequences (minimum 50 tokens per clone).
+      Report total duplicated lines as a percentage of total source lines.
+    passCriterion: "Duplicated lines < 5% of total source lines"
+    fixHint: "Extract duplicated logic to a shared utility before committing"
+    parameters:
+      min_tokens: "50"
+      threshold_percent: "5"
+    toolVariants:
+      - languages: [typescript, javascript]
+        tool: { name: jscpd, category: npm, installCommand: "npm install -D jscpd" }
+      - languages: [python]
+        tool: { name: pylint, category: pip, installCommand: "pip install pylint", purpose: "--duplicate-code flag" }
+      - languages: [java]
+        tool: { name: pmd-cpd, category: binary, installCommand: "https://pmd.github.io/pmd/pmd_userdocs_cpd.html" }
+      - languages: [go]
+        tool: { name: dupl, category: binary, installCommand: "go install github.com/mibk/dupl@latest" }
+      - languages: [csharp]
+        tool: { name: simian, category: binary, installCommand: "https://www.harukizaemon.com/simian/" }
     status: ready
     source: project
-    os: cross-platform
-    evidence: "AX experiment: treatment-v6 achieved 2.50% after explicit DRY gate; treatment-v3 reached 7.99% without it. See experiments/ax/EXTERNAL_ANALYSIS.md"
     generalizable: true
+    evidence: >
+      AX experiment: treatment-v6 achieved 2.50% with explicit DRY gate in verification protocol;
+      treatment-v3 reached 7.99% without it.
+      See experiments/ax/EXTERNAL_ANALYSIS.md
 
-  - id: static-analysis-circular-deps
-    title: "No circular dependencies"
-    description: "Run madge --circular on src/ to detect circular import chains. Zero tolerance."
+  - id: no-circular-dependencies
+    title: "No circular module dependencies"
+    description: >
+      Circular imports create unpredictable initialization order, make modules impossible
+      to test in isolation, and indicate architectural violations. Zero tolerance.
     domain: architecture
-    property: Bounded
-    tool: madge
-    command: "npx madge --circular --extensions ts src/"
-    pass_condition: "No circular dependency found"
-    fail_action: "Refactor to break circular dependency before committing"
+    gsProperty: bounded
+    implementation: tooled
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    check: >
+      Analyze the import/dependency graph of all source files.
+      Report any cycle in the graph.
+    passCriterion: "Zero circular dependencies detected"
+    fixHint: "Extract shared abstraction or invert the dependency direction to break the cycle"
+    toolVariants:
+      - languages: [typescript, javascript]
+        tool: { name: madge, category: npm, installCommand: "npm install -D madge" }
+      - languages: [python]
+        tool: { name: pydeps, category: pip, installCommand: "pip install pydeps" }
+      - languages: [go]
+        tool: { name: go-build, category: cli, installCommand: "built-in — Go compiler rejects circular imports" }
+      - languages: [java]
+        tool: { name: jdepend, category: binary, installCommand: "https://github.com/clarkware/jdepend" }
+      - languages: [rust]
+        tool: { name: cargo-build, category: cli, installCommand: "built-in — Rust compiler rejects circular crates" }
     status: ready
     source: project
-    os: cross-platform
     generalizable: true
 
-  - id: static-analysis-interface-completeness
-    title: "Repository interface completeness"
-    description: "Every method declared in an I*Repository interface must be implemented in the corresponding Prisma*Repository. Missing implementations are silent runtime failures."
+  - id: interface-contract-completeness
+    title: "Interface contract completeness"
+    description: >
+      Every method declared in an interface or abstract contract must be implemented
+      by all concrete classes. Missing implementations are silent runtime failures
+      that bypass the type system only when using dynamic dispatch or reflection.
+      Static type checking must pass without errors.
     domain: architecture
-    property: Composable
-    tool: tsc
-    command: "npx tsc --noEmit"
-    pass_condition: "Zero TypeScript errors"
-    fail_action: "Implement missing interface methods before committing"
+    gsProperty: composable
+    implementation: tooled
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    check: >
+      Run the language's static type checker across all source files.
+      Report any unimplemented interface or abstract method.
+    passCriterion: "Zero type errors across all source files"
+    fixHint: "Implement all methods declared in the interface before committing"
+    toolVariants:
+      - languages: [typescript]
+        tool: { name: tsc, category: npm, installCommand: "npm install -D typescript", purpose: "tsc --noEmit" }
+      - languages: [python]
+        tool: { name: mypy, category: pip, installCommand: "pip install mypy" }
+      - languages: [go]
+        tool: { name: go-build, category: cli, installCommand: "built-in — Go compiler enforces interface implementation" }
+      - languages: [java]
+        tool: { name: javac, category: cli, installCommand: "built-in (JDK)" }
+      - languages: [csharp]
+        tool: { name: dotnet-build, category: cli, installCommand: "built-in (.NET SDK)" }
+      - languages: [rust]
+        tool: { name: cargo-build, category: cli, installCommand: "built-in — Rust compiler enforces trait implementation" }
     status: ready
     source: project
-    os: cross-platform
-    evidence: "AX treatment-v3: IArticleRepository missing favorite()/unfavorite() — 24 tsc errors, undetected by GS rubric alone"
     generalizable: true
+    evidence: >
+      AX treatment-v3: IArticleRepository missing favorite()/unfavorite()/isFavorited() —
+      24 type errors, undetected by GS rubric audit alone. Gate prevents silent runtime
+      contract violations at compile time.
 
-  - id: static-analysis-lint
-    title: "Zero ESLint errors"
-    description: "ESLint must be configured as a P1 gate from project infrastructure. Zero errors permitted at commit time. no-explicit-any: error, no-unused-vars: error."
+  - id: zero-static-analysis-errors
+    title: "Zero static analysis errors"
+    description: >
+      The language linter must be configured from project infrastructure (committed to the repo)
+      and report zero errors at commit time. Linter configuration added post-hoc produces
+      compounding debt. Warnings are permitted; errors are not.
     domain: code-quality
-    property: Defended
-    tool: eslint
-    command: "npx eslint src/ --ext .ts"
-    pass_condition: "No ESLint errors (warnings permitted)"
-    fail_action: "Fix ESLint errors before committing. Do not disable rules without ADR."
+    gsProperty: defended
+    implementation: tooled
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    check: >
+      Run the language-appropriate linter on all source files using the repository's
+      committed configuration. Count errors (not warnings).
+    passCriterion: "Zero linter errors (warnings permitted)"
+    fixHint: "Fix lint errors before committing. Document any rule suppression in an ADR."
+    toolVariants:
+      - languages: [typescript, javascript]
+        tool: { name: eslint, category: npm, installCommand: "npm install -D eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin" }
+      - languages: [python]
+        tool: { name: ruff, category: pip, installCommand: "pip install ruff" }
+      - languages: [go]
+        tool: { name: golangci-lint, category: binary, installCommand: "https://golangci-lint.run/usage/install/" }
+      - languages: [java]
+        tool: { name: checkstyle, category: binary, installCommand: "https://checkstyle.org" }
+      - languages: [rust]
+        tool: { name: clippy, category: cli, installCommand: "rustup component add clippy" }
+      - languages: [csharp]
+        tool: { name: roslyn-analyzers, category: cli, installCommand: "built-in (dotnet build)" }
     status: ready
     source: project
-    os: cross-platform
-    evidence: "AX treatment-v3: 38 ESLint errors when config added post-hoc. treatment-v6: 0 errors when ESLint emitted in P0."
     generalizable: true
+    evidence: >
+      AX treatment-v3: 38 lint errors when linter config added post-hoc.
+      treatment-v6: 0 errors when linter configuration emitted in P0 (infrastructure turn).
