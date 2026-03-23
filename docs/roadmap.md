@@ -39,6 +39,33 @@
 | RM-030 | ENHANCEMENT-FC-001: session prompt proactive spec-implementation conflict detection | pending | docs/session-prompts/RM-030.md |
 | RM-031 | Brownfield roadmap extension helper (detect roadmap vs PRD drift) | pending | docs/session-prompts/RM-031.md |
 
+
+## Phase 5: Confidence Hardening — Spec & TDD Quality
+
+| ID | Title | Status | Prompt |
+|---|---|---|---|
+| RM-040 | cascade: detect stub markers in PRD.md (step 1 parity with step 5) | pending | docs/session-prompts/RM-040.md |
+| RM-041 | cascade: UC completeness validation (actor + precondition + steps + success required) | pending | docs/session-prompts/RM-041.md |
+| RM-042 | close_cycle: TDD commit pattern check (feat without preceding [RED] test flags warning) | pending | docs/session-prompts/RM-042.md |
+| RM-043 | generate_session_prompt: auto-inject verification strategy for current item | pending | docs/session-prompts/RM-043.md |
+| RM-044 | hardening: Playwright stubs extract endpoint hints from UC steps (not just /health) | pending | docs/session-prompts/RM-044.md |
+| RM-045 | close_cycle: run npm audit / pip audit, fail on critical CVEs | pending | docs/session-prompts/RM-045.md |
+| RM-046 | setup_project: scaffold dependency-cruiser config for API + LIBRARY tags | pending | docs/session-prompts/RM-046.md |
+
+## Phase 6: Domain-Specific Validation — Non-Web UI + Vertical Tags
+
+| ID | Title | Status | Prompt |
+|---|---|---|---|
+| RM-050 | CLI tag: add smoke test via pexpect / node-pty instead of Playwright | pending | docs/session-prompts/RM-050.md |
+| RM-051 | FINTECH tag: add backtesting gate + statistical property test scaffold | pending | docs/session-prompts/RM-051.md |
+| RM-052 | ML tag: add model evaluation gate (accuracy / F1 / drift thresholds) | pending | docs/session-prompts/RM-052.md |
+| RM-053 | GAME tag: add performance profiling gate (frame budget, memory ceiling) | pending | docs/session-prompts/RM-053.md |
+| RM-054 | Artistic/generative tag: add adversarial critique gate scaffold (RAG + technique registry) | pending | docs/session-prompts/RM-054.md |
+| RM-055 | get_reference resource=workflows: pre-made prompt recipes for all 8 workflow scenarios | pending | docs/session-prompts/RM-055.md |
+
 ---
 _Updated: 2026-03-23_
 _Spec: docs/PRD.md_
+
+_Spec: docs/PRD.md_
+
