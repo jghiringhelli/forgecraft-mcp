@@ -306,6 +306,27 @@ describe("startHardening", () => {
     expect(content).toContain("UC-002 Add item to cart");
   });
 
+  it("does not double the UC prefix when use-case headings already contain 'UC-NNN:' in API Playwright scaffold", () => {
+    const dir = makeTempDir();
+    dirs.push(dir);
+    buildCompletedRoadmap(dir);
+    write(dir, "forgecraft.yaml", "projectName: My API\ntags:\n  - UNIVERSAL\n  - API\n");
+    write(
+      dir,
+      "docs/use-cases.md",
+      "# Use Cases\n## UC-001: Register Series Bible\n## UC-002: Add item to cart\n",
+    );
+
+    startHardening({ project_dir: dir });
+
+    const content = readFileSync(
+      join(dir, "docs", "session-prompts", "HARDEN-002.md"),
+      "utf-8",
+    );
+    expect(content).toContain("UC-001: Register Series Bible");
+    expect(content).not.toContain("UC-001: UC-001:");
+  });
+
   it("HARDEN-002 includes Playwright APIRequestContext smoke test scaffold for API-tagged projects", () => {
     const dir = makeTempDir();
     dirs.push(dir);
