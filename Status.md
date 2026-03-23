@@ -1,8 +1,27 @@
 # Status.md
 
-## Last Updated: 2026-03-23 (Session 35)
+## Last Updated: 2026-03-23 (Session 35 continued)
 
-## Session 35 Summary
+## Session 35 continued
+
+Three more dogfeed fixes from running ForgeCraft's MCP tools against itself:
+
+### BUG-FC-005 — check_cascade step 4 rejected MADR-style ADR naming
+The ADR regex `/^adr[-_]?\d/i` rejected `0001-description.md` format (MADR convention).
+ForgeCraft's own `docs/adrs/` uses this format — its cascade was blocked by its own
+check. Fixed regex to `/^(adr[-_]?\d|\d{1,4}[-_])/i`. 1 RED + GREEN.
+
+### FIX — docs/use-cases.md was an unfilled stub (blocked cascade step 5)
+Wrote 5 real ForgeCraft use cases (UC-001 through UC-005) covering onboard, cascade
+check, session prompt, audit, and close_cycle.
+
+### NEW — docs/roadmap.md generated via generate_roadmap (dogfeed)
+ForgeCraft now has its own roadmap. Phase 1-2 marked done (production code exists).
+Phase 3 (security/load/docs) pending. Phase 4 adds ENHANCEMENT-FC-001 (spec-conflict
+detection) and RM-031 (brownfield roadmap drift helper).
+
+Also confirmed: MCP tool name is ``forgecraft_actions``, not the action name. Prior
+session invocation error was tool-name confusion, not a server problem.
 
 Dogfeed fix from Storycraft RM-030 brownfield run. One bug confirmed via actual
 generated output (`HARDEN-002.md` in Storycraft had `UC-001: UC-001:` doubled prefix).
