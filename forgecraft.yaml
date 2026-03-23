@@ -14,7 +14,8 @@ tools:
   mutation: npx stryker run stryker.sentinel.json
   audit: npm audit --audit-level=high
 gates_registry_url: https://raw.githubusercontent.com/jghiringhelli/quality-gates/master/index.json
-server_url: https://forgecraft-server-production.up.railway.app
+server_url: https://api.forgecraft.tools
+# api_key: fg_your_key_here  # get your key at https://forgecraft.tools
 cascade:
   steps:
     - step: functional_spec

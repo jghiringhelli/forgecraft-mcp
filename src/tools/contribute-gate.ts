@@ -37,6 +37,7 @@ function validateConvergenceAttributes(gate: ProjectGate): string | null {
 export interface ContributeGateOptions {
   readonly projectRoot: string;
   readonly serverUrl?: string;
+  readonly apiKey?: string;
   readonly dryRun?: boolean;
   readonly experimentId?: string;
 }
@@ -65,20 +66,24 @@ const SUBMITTED_CONTRIBUTIONS_FILE = ".forgecraft/contributions.json";
 /**
  * Reads the forgecraft.yaml config for contribution settings.
  */
+const DEFAULT_SERVER_URL = "https://api.forgecraft.tools";
+
 function readContributionConfig(projectRoot: string): {
   contributeGates: false | "anonymous" | "attributed";
   serverUrl: string;
+  apiKey?: string;
   githubUser?: string;
 } {
   const forgecraftPath = join(projectRoot, "forgecraft.yaml");
   if (!existsSync(forgecraftPath)) {
-    return { contributeGates: false, serverUrl: "https://api.genspec.dev" };
+    return { contributeGates: false, serverUrl: DEFAULT_SERVER_URL };
   }
   try {
     // Simple parse — avoid importing js-yaml to keep this lightweight
     const raw = readFileSync(forgecraftPath, "utf-8");
     const contributeMatch = raw.match(/contribute_gates:\s*(\S+)/);
     const serverMatch = raw.match(/server_url:\s*(\S+)/);
+    const apiKeyMatch = raw.match(/api_key:\s*(\S+)/);
     const githubMatch = raw.match(/github_user:\s*(\S+)/);
     const val = contributeMatch?.[1];
     const contributeGates =
@@ -89,11 +94,12 @@ function readContributionConfig(projectRoot: string): {
           : false;
     return {
       contributeGates,
-      serverUrl: serverMatch?.[1] ?? "https://api.genspec.dev",
+      serverUrl: serverMatch?.[1] ?? DEFAULT_SERVER_URL,
+      apiKey: apiKeyMatch?.[1],
       githubUser: githubMatch?.[1],
     };
   } catch {
-    return { contributeGates: false, serverUrl: "https://api.genspec.dev" };
+    return { contributeGates: false, serverUrl: DEFAULT_SERVER_URL };
   }
 }
 
@@ -150,14 +156,19 @@ async function submitGate(
   gate: ProjectGate,
   mode: "anonymous" | "attributed",
   serverUrl: string,
+  apiKey?: string,
   githubUser?: string,
   projectType?: string,
   experimentId?: string,
 ): Promise<{ status: "submitted" | "pending"; issueUrl?: string }> {
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
     const response = await fetch(`${serverUrl}/contribute/gate`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         gate: {
           id: gate.id,
@@ -214,15 +225,12 @@ export async function contributeGates(
   const config = readContributionConfig(projectRoot);
 
   if (!config.contributeGates) {
-    return {
-      submitted: [],
-      skipped: [],
-      pendingFile: undefined,
-    };
+    return { submitted: [], skipped: [], pendingFile: undefined };
   }
 
   const mode = config.contributeGates;
   const serverUrl = options.serverUrl ?? config.serverUrl;
+  const apiKey = options.apiKey ?? config.apiKey;
   const gates = getContributableGates(projectRoot);
   const alreadySubmitted = getAlreadySubmitted(projectRoot);
 
@@ -257,6 +265,7 @@ export async function contributeGates(
       gate,
       mode,
       serverUrl,
+      apiKey,
       config.githubUser,
       undefined,
       experimentId,
