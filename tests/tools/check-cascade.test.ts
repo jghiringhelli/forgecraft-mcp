@@ -194,6 +194,18 @@ describe("checkCascadeHandler", () => {
       const result = await checkCascadeHandler({ project_dir: tempDir });
       expect(result.content[0]!.text).toContain("ADR");
     });
+
+    it("accepts MADR-style NNNN-description.md naming (no ADR prefix)", async () => {
+      write(tempDir, "docs/PRD.md", "# PRD\n");
+      mkdirSync(join(tempDir, "docs/diagrams"), { recursive: true });
+      write(tempDir, "docs/diagrams/c4.md", "```mermaid\n```\n");
+      write(tempDir, "CLAUDE.md", "# Rules\n");
+      mkdirSync(join(tempDir, "docs/adrs"), { recursive: true });
+      write(tempDir, "docs/adrs/0001-use-typescript.md", "# ADR\n");
+      write(tempDir, "docs/use-cases.md", "# Use Cases\n");
+      const result = await checkCascadeHandler({ project_dir: tempDir });
+      expect(result.content[0]!.text).toMatch(/ADR\(s\) in docs\/adrs/);
+    });
   });
 
   // ── Step 5: Behavioral Contracts ────────────────────────────────
