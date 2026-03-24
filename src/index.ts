@@ -52,7 +52,7 @@ async function startMcpServer(): Promise<void> {
     "forgecraft_actions",
     "Full ForgeCraft action suite. Use action='setup_project' to onboard, 'check_cascade' to verify GS steps, 'generate_session_prompt' for a bound prompt, 'audit' for compliance score. Remove after setup to save tokens.",
     forgecraftSchema.shape,
-    async (args) => {
+    async (args: Parameters<typeof forgecraftHandler>[0]) => {
       const result = await forgecraftHandler(
         args as Parameters<typeof forgecraftHandler>[0],
       );
