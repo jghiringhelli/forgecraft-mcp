@@ -20,6 +20,7 @@ import {
 } from "../analyzers/gs-scorer.js";
 import { analyzeProject } from "../analyzers/package-json.js";
 import { loadUserOverrides } from "../registry/loader.js";
+import { formatReport } from "./verify-formatter.js";
 import type { VerifyResult, GsPropertyScore, Tag } from "../shared/types.js";
 
 // ── Schema ─────────────────────────────────────────────────────────────

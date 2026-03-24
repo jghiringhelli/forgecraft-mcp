@@ -1,35 +1,8 @@
 /**
- * advice tool handler.
- *
- * Returns a tag-tailored quality cycle: ordered steps, tool stack, and
- * example Playwright smoke config — so developers know exactly what to
- * build and when to run it.
+ * Tag-specific advice registry: tool stacks, cycle additions, and smoke config.
  */
 
-import { z } from "zod";
-import { resolve } from "node:path";
-import { loadUserOverrides } from "../registry/loader.js";
-import { ALL_TAGS } from "../shared/types.js";
 import type { Tag } from "../shared/types.js";
-import { TAG_ADVICE, BASE_TOOLS, BASE_CYCLE, smokeConfigExample } from "./advice-registry.js";
-
-// ── Schema ─────────────────────────────────────────────────────────────
-
-export const adviceSchema = z.object({
-  project_dir: z
-    .string()
-    .optional()
-    .describe(
-      "Absolute path to the project root. When provided, tags are read from " +
-      "forgecraft.yaml unless overridden by the `tags` parameter.",
-    ),
-  tags: z
-    .array(z.enum(ALL_TAGS as unknown as [string, ...string[]]))
-    .optional()
-    .describe("Override tags — skip auto-detection from forgecraft.yaml."),
-});
-
-export type AdviceInput = z.infer<typeof adviceSchema>;
 
 // ── Tag-specific tool registry ─────────────────────────────────────────
 
@@ -39,7 +12,7 @@ interface TagAdvice {
   readonly smokeNote: string;
 }
 
-const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
+export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
   API: {
     tools: [
       { layer: "Contract (CDC)", tools: "Pact, Spring Cloud Contract" },
@@ -196,7 +169,7 @@ const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
 
 // ── Base quality cycle ─────────────────────────────────────────────────
 
-const BASE_TOOLS = [
+export const BASE_TOOLS = [
   { layer: "Unit (Solitary)", tools: "Vitest / Jest (JS/TS), pytest (Python)" },
   { layer: "Unit (Sociable)", tools: "Same runner — allow real, fast non-I/O collaborators" },
   { layer: "Integration (DB)", tools: "Testcontainers, SQLite in-process, pg-mem" },
@@ -204,7 +177,7 @@ const BASE_TOOLS = [
   { layer: "SAST", tools: "npm audit, Semgrep, ESLint security plugins, Snyk" },
 ];
 
-const BASE_CYCLE = [
+export const BASE_CYCLE = [
   "**File save (background)**: type-check (`tsc --noEmit`), lint",
   "**Pre-commit**: unit tests (solitary + sociable) — must be < 30s",
   "**PR gate**: full unit suite + coverage gate (≥ 80% overall, ≥ 90% on changed code)",
@@ -218,8 +191,14 @@ const BASE_CYCLE = [
 
 // ── Playwright config example ──────────────────────────────────────────
 
-function smokeConfigExample(tags: Tag[]): string {
-  const hasBrowser = tags.some(t => ["WEB-REACT", "WEB-STATIC", "GAME"].includes(t));
+/**
+ * Generate a Playwright smoke config example for the given tags.
+ *
+ * @param tags - Active project tags
+ * @returns Markdown code block string, or empty string if not applicable
+ */
+export function smokeConfigExample(tags: Tag[]): string {
+  const hasBrowser = tags.some((t) => ["WEB-REACT", "WEB-STATIC", "GAME"].includes(t));
   const hasApi = tags.includes("API");
 
   if (!hasBrowser && !hasApi) return "";
@@ -255,102 +234,4 @@ export default defineConfig({
 
 Run with: \`npx playwright test --config playwright.smoke.config.ts\`
 `;
-}
-
-// ── Handler ────────────────────────────────────────────────────────────
-
-/**
- * Return a tag-tailored quality cycle: ordered steps, tool stack table,
- * and example smoke config.
- *
- * @param args - Validated input matching `adviceSchema`
- * @returns MCP-style content array with a single formatted markdown report
- */
-export async function adviceHandler(
-  args: AdviceInput,
-): Promise<{ content: Array<{ type: "text"; text: string }> }> {
-  const tags = resolveAdviceTags(args);
-  const report = buildAdviceReport(tags);
-  return { content: [{ type: "text", text: report }] };
-}
-
-// ── Internal helpers ───────────────────────────────────────────────────
-
-/**
- * Resolve tags from explicit input or forgecraft.yaml.
- *
- * @param args - Handler input
- * @returns Resolved tag list (always includes UNIVERSAL)
- */
-function resolveAdviceTags(args: AdviceInput): Tag[] {
-  if (args.tags && args.tags.length > 0) return args.tags as Tag[];
-  if (args.project_dir) {
-    const config = loadUserOverrides(resolve(args.project_dir));
-    if (config?.tags && config.tags.length > 0) return config.tags;
-  }
-  return ["UNIVERSAL"];
-}
-
-/**
- * Build the full advice markdown report for the given tags.
- *
- * @param tags - Project tags to generate advice for
- * @returns Markdown-formatted report string
- */
-function buildAdviceReport(tags: Tag[]): string {
-  const tagLabel = tags.join(", ");
-
-  // Aggregate tools
-  const toolRows = [...BASE_TOOLS];
-  for (const tag of tags) {
-    const advice = TAG_ADVICE[tag];
-    if (advice) toolRows.push(...advice.tools);
-  }
-
-  // Deduplicate by layer label
-  const seenLayers = new Set<string>();
-  const dedupedTools = toolRows.filter(row => {
-    if (seenLayers.has(row.layer)) return false;
-    seenLayers.add(row.layer);
-    return true;
-  });
-
-  // Aggregate cycle steps
-  const cycleSteps = [...BASE_CYCLE];
-  for (const tag of tags) {
-    const advice = TAG_ADVICE[tag];
-    if (advice) cycleSteps.push(...advice.cycleAdditions);
-  }
-
-  // Smoke notes per tag
-  const smokeNotes: string[] = [];
-  for (const tag of tags) {
-    const advice = TAG_ADVICE[tag];
-    if (advice?.smokeNote) smokeNotes.push(`- **${tag}**: ${advice.smokeNote}`);
-  }
-
-  const toolTable =
-    "| Layer | Tooling |\n|---|---|\n" +
-    dedupedTools.map(r => `| ${r.layer} | ${r.tools} |`).join("\n");
-
-  const smokeSection =
-    smokeNotes.length > 0
-      ? `\n## Smoke Testing Notes\n${smokeNotes.join("\n")}\n`
-      : "";
-
-  const configSection = smokeConfigExample(tags);
-
-  return [
-    `# Quality Cycle Advice — ${tagLabel}`,
-    "",
-    "## Recommended Tool Stack",
-    toolTable,
-    "",
-    "## Quality Cycle (Ordered Gates)",
-    cycleSteps.map((s, i) => `${i + 1}. ${s}`).join("\n"),
-    smokeSection,
-    configSection,
-    "---",
-    "> Generated by `forgecraft advice`. Run `forgecraft refresh` if your project's tags have changed.",
-  ].join("\n");
 }
