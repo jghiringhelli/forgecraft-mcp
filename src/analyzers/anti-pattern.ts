@@ -65,9 +65,10 @@ export function scanAntiPatterns(
         const urlMatches = findPattern(
           lines,
           /(localhost|127\.0\.0\.1|0\.0\.0\.0)/,
-          // Exclude: comments, test/spec/mock paths, regex literals containing the pattern,
-          // and env-var fallback defaults (process.env.X ?? 'http://localhost...')
-          /^\s*(\/\/|\/\*|\*|#)|test|spec|mock|\/\(.*localhost|\?\?.*['"`]/i,
+          // Exclude: comments, test/spec/mock paths, regex literals,
+          // JS/TS env-var fallback defaults (process.env.X ?? 'localhost'),
+          // and Python env-var fallback defaults (os.environ.get("X", "localhost"))
+          /^\s*(\/\/|\/\*|\*|#)|test|spec|mock|\/\(.*localhost|\?\?.*['"`]|os\.environ|os\.getenv|environ\.get/i,
         );
         if (urlMatches.length > 0) {
           violations.push({

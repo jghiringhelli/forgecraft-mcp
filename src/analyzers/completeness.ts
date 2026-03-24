@@ -9,9 +9,8 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createLogger } from "../shared/logger/index.js";
 import type { AuditCheck, Tag } from "../shared/types.js";
-import {
-  checkInstructionFileExists,
-} from "./completeness-helpers.js";
+import { checkInstructionFileExists } from "./completeness-helpers.js";
+import { readExceptions, findMatchingException } from "../shared/exceptions.js";
 
 const logger = createLogger("analyzers/completeness");
 
@@ -24,11 +23,26 @@ export function checkCompleteness(
 ): { passing: AuditCheck[]; failing: AuditCheck[] } {
   const passing: AuditCheck[] = [];
   const failing: AuditCheck[] = [];
+  const exceptions = readExceptions(projectDir);
 
   // UNIVERSAL checks — always run
   checkInstructionFileExists(projectDir, passing, failing);
-  checkFileExists(projectDir, "Status.md", "status_md_exists", "Status.md enables session continuity", passing, failing);
-  checkFileExists(projectDir, ".env.example", "env_example_exists", ".env.example documents required env vars", passing, failing);
+  checkFileExists(
+    projectDir,
+    "Status.md",
+    "status_md_exists",
+    "Status.md enables session continuity",
+    passing,
+    failing,
+  );
+  checkFileExists(
+    projectDir,
+    ".env.example",
+    "env_example_exists",
+    ".env.example documents required env vars",
+    passing,
+    failing,
+  );
 
   // Check Status.md freshness
   checkStatusMdFreshness(projectDir, passing, failing);
@@ -37,15 +51,29 @@ export function checkCompleteness(
   checkHooksInstalled(projectDir, passing, failing);
 
   // Check docs
-  checkFileExists(projectDir, "docs/PRD.md", "prd_exists", "PRD documents requirements", passing, failing);
-  checkFileExists(projectDir, "docs/TechSpec.md", "tech_spec_exists", "Tech Spec documents architecture", passing, failing);
+  checkFileExists(
+    projectDir,
+    "docs/PRD.md",
+    "prd_exists",
+    "PRD documents requirements",
+    passing,
+    failing,
+  );
+  checkFileExists(
+    projectDir,
+    "docs/TechSpec.md",
+    "tech_spec_exists",
+    "Tech Spec documents architecture",
+    passing,
+    failing,
+  );
 
   // Check shared modules
   checkSharedModules(projectDir, passing, failing);
 
   // Tag-specific checks
   if (activeTags.includes("API") || activeTags.includes("LIBRARY")) {
-    checkPackageJson(projectDir, passing, failing);
+    checkPackageJson(projectDir, passing, failing, exceptions);
   }
 
   if (activeTags.includes("WEB-REACT")) {
@@ -59,7 +87,10 @@ export function checkCompleteness(
     ];
     const hasI18n = i18nPaths.some((p) => existsSync(join(projectDir, p)));
     if (hasI18n) {
-      passing.push({ check: "i18n_setup", message: "✅ i18n locale files configured" });
+      passing.push({
+        check: "i18n_setup",
+        message: "✅ i18n locale files configured",
+      });
     } else {
       failing.push({
         check: "i18n_setup",
@@ -113,7 +144,8 @@ function checkStatusMdFreshness(
 
   try {
     const stat = statSync(statusPath);
-    const daysSinceModified = (Date.now() - stat.mtimeMs) / (1000 * 60 * 60 * 24);
+    const daysSinceModified =
+      (Date.now() - stat.mtimeMs) / (1000 * 60 * 60 * 24);
 
     if (daysSinceModified <= 7) {
       passing.push({
@@ -144,7 +176,8 @@ function checkHooksInstalled(
   if (!existsSync(hooksDir)) {
     failing.push({
       check: "hooks_installed",
-      message: ".claude/hooks/ directory missing — quality gate hooks not installed",
+      message:
+        ".claude/hooks/ directory missing — quality gate hooks not installed",
       severity: "error",
     });
     return;
@@ -208,7 +241,8 @@ function checkSharedModules(
   } else {
     failing.push({
       check: "shared_modules",
-      message: "No shared modules found — create config, errors, logging modules in src/shared/",
+      message:
+        "No shared modules found — create config, errors, logging modules in src/shared/",
       severity: "warning",
     });
   }
@@ -221,9 +255,19 @@ function checkPackageJson(
   projectDir: string,
   passing: AuditCheck[],
   failing: AuditCheck[],
+  exceptions: ReturnType<typeof readExceptions> = [],
 ): void {
   const pkgPath = join(projectDir, "package.json");
   if (!existsSync(pkgPath)) {
+    // Check if there's a registered exception for this project type
+    const exc = findMatchingException(exceptions, "package_json", "**");
+    if (exc) {
+      passing.push({
+        check: "package_json",
+        message: `✅ package.json exception: ${exc.reason}`,
+      });
+      return;
+    }
     failing.push({
       check: "package_json",
       message: "package.json missing",
@@ -255,7 +299,10 @@ function checkPackageJson(
     // Check for scripts
     const scripts = pkg["scripts"] as Record<string, string> | undefined;
     if (scripts?.["test"]) {
-      passing.push({ check: "test_script", message: "✅ Test script configured" });
+      passing.push({
+        check: "test_script",
+        message: "✅ Test script configured",
+      });
     } else {
       failing.push({
         check: "test_script",
