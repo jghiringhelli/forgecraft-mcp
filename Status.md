@@ -1,5 +1,55 @@
 # Status.md
 
+## Last Updated: 2026-03-24 (Session 36)
+
+## Session 36 Summary — Workspace-Wide Forgecraft Setup + Gate Harvest
+
+Ran `refresh` and `audit` across 15 projects in the workspace using forgecraft CLI.
+New quality gates discovered from cross-project audit patterns.
+
+### Projects processed (refresh/setup + audit)
+
+| Project | Action | Audit Score | Key findings |
+|---|---|---|---|
+| argos-gtm | refresh | 45/100 | Tags: +API +LIBRARY. Hardcoded URLs, 7 oversized files |
+| safetyCorePro | refresh | 6/100 | Tags: +ANALYTICS. 136 failures, 120+ oversized files, 5 hardcoded creds |
+| CodeSeeker | refresh | 2/100 | 157 oversized files, god objects: mcp-server=1854, setup-cmd=1312 |
+| conclave | refresh | 16/100 | Tags: +STATE-MACHINE +REALTIME. 21 oversized files, pipeline-template=2260 |
+| scholaris-mcp | setup+refresh | 75/100 | CLI+API+LIBRARY. Old CLAUDE.md sentinel migrated. generate-rebuttal.ts 305 lines |
+| storycraft | refresh | 91/100 | Tags: +LIBRARY. One CNT issue only |
+| content | refresh | 11/100 | Tags: +DATA-PIPELINE +ANALYTICS +ML. Missing PRD, 4 hardcoded credentials |
+| brad | refresh | 31/100 | routes.py=5660 lines. No lock file. Status.md stale 22 days |
+| forgecraft-mcp | refresh | 27/100 | Dogfeed: hardcoded URLs, mock_in_source, 17 oversized files |
+| forgecraft-web | setup | 90/100 | WEB-REACT+AUTH. All artifacts present. CNT CLAUDE.md=5 lines |
+| forgecraft-server | setup | 91/100 | FINTECH+DATABASE+AUTH. sensitiveData=true. Strong start |
+| invellum | setup | 4/100 | 233 failures. swagger.ts=1866, seed-feed-data=1556, 14 creds |
+| lumen | setup | 38/100 | Python data governance API. False-positive package.json failure |
+| compass | setup+retag | 73/100 | HIPAA+DATA-PIPELINE+DATA-LINEAGE+MEDALLION. Docs-only project, good setup |
+| automaton | setup | 19/100 | WEB3+FINTECH. agent/tools.ts=3388 lines, state/database.ts=2532 |
+
+### New gates added to .forgecraft/project-gates.yaml
+
+8 new gates from cross-project audit harvest:
+1. `seed-data-file-length` — seed/migration scripts over 300 lines (5/5 WEB-REACT projects affected)
+2. `test-credentials-in-test-setup` — hardcoded creds in e2e/jest setup files (5/5 TS projects)
+3. `swagger-spec-file-length` — hand-coded swagger.ts god objects (invellum: 1866 lines)
+4. `python-cascade-detection` — false-positive package.json failure on Python projects (3/3 affected)
+5. `cnt-core-md-line-limit` — .claude/core.md over 50 lines (automaton: 327, compass: 326)
+6. `agent-tools-decomposition` — agent/tools.ts over 1000 lines (automaton: 3388)
+7. `route-handler-decomposition` — route handler files over 500 lines (brad: 5660, conclave: 1247)
+8. `zero-static-analysis-errors` evidence updated with AX data
+
+### Forgecraft-mcp gaps found (dogfeed)
+- `python-cascade-detection`: audit falsely fails Python projects on package.json check
+- `cnt-core-md-line-limit`: setup generates overly long core.md for complex tag sets — refresh fixes it
+- Tags: auto-detection missed LIBRARY on several TypeScript projects
+
+### Pending
+- [ ] Aegis — user asked to hold until simulations complete
+- [ ] npm publish 1.0.0 — still needs OTP (user action)
+- [ ] Restore `prepare` script in package.json after publish
+- [ ] forgecraft-server Railway deployment
+
 ## Last Updated: 2026-03-23 (Session 35 continued)
 
 ## Session 35 continued

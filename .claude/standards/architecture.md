@@ -1,13 +1,13 @@
-<!-- ForgeCraft sentinel: architecture | 2026-03-18 | npx forgecraft-mcp refresh . --apply to update -->
+<!-- ForgeCraft sentinel: architecture | 2026-03-24 | npx forgecraft-mcp refresh . --apply to update -->
 
 ## Project Identity
-- **Repo**: https://github.com/jghiringhelli/forgekit
+- **Repo**: https://github.com/jghiringhelli/forgecraft-mcp
 - **Primary Language**: typescript
 - **Framework**: {{framework}}
 - **Domain**: {{domain}}
 - **Sensitive Data**: NO
 - **Project Tags**: `[UNIVERSAL]` `[LIBRARY]` `[CLI]` `[API]`
-- **Release Phase**: development
+- **Release Phase**: production
 
 ## Code Standards
 - Maximum function/method length: 50 lines. If a function reads like it does two things, decompose it.

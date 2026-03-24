@@ -1,6 +1,6 @@
-<!-- ForgeCraft sentinel: spec | 2026-03-18 | npx forgecraft-mcp refresh . --apply to update -->
+<!-- ForgeCraft sentinel: spec | 2026-03-24 | npx forgecraft-mcp refresh . --apply to update -->
 
-## Active Release Phase: development
+## Active Release Phase: production
 
 Your current phase determines which test gates are **required now**, not advisory.
 The full taxonomy and trigger mapping are in the Testing section above.
@@ -13,7 +13,7 @@ Read your phase row below and apply every requirement listed.
 | **release-candidate** | All staging requirements + manual penetration test (OWASP Top 10, JWT vectors, BOLA/IDOR) + full a11y audit (if UI) + compatibility matrix + mutation score ≥ 80% overall + zero unresolved HIGH/CRITICAL CVEs | Production canary |
 | **production** | Canary deploy + automatic rollback on error rate spike + synthetic health probes + incident runbook verified | — |
 
-**Current active phase: `development`**
+**Current active phase: `production`**
 
 > If the phase is `pre-release` or `release-candidate`:
 > Hardening tests (load, DAST, penetration) are REQUIRED in this session, not deferred.

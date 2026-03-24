@@ -1,4 +1,4 @@
-<!-- ForgeCraft sentinel: testing | 2026-03-18 | npx forgecraft-mcp refresh . --apply to update -->
+<!-- ForgeCraft sentinel: testing | 2026-03-24 | npx forgecraft-mcp refresh . --apply to update -->
 
 ## Testing Pyramid
 
