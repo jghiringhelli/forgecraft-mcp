@@ -11,11 +11,7 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { createLogger } from "../shared/logger/index.js";
 import { TemplateNotFoundError } from "../shared/errors/index.js";
-import type {
-  Tag,
-  TagTemplateSet,
-  ForgeCraftConfig,
-} from "../shared/types.js";
+import type { Tag, TagTemplateSet, ForgeCraftConfig } from "../shared/types.js";
 import { loadTagTemplateSet, tagDirNameToTag } from "./loader-tag.js";
 import {
   mergeInstructionTemplates,
@@ -59,7 +55,10 @@ export function resolveTemplatesDir(): string {
     return devTemplatesDir;
   }
 
-  throw new TemplateNotFoundError("templates", "Could not locate templates directory");
+  throw new TemplateNotFoundError(
+    "templates",
+    "Could not locate templates directory",
+  );
 }
 
 /**
@@ -107,9 +106,7 @@ export function loadAllTemplates(
  * @param projectDir - Absolute path to the project directory
  * @returns Parsed config, or null if not found
  */
-export function loadUserOverrides(
-  projectDir: string,
-): ForgeCraftConfig | null {
+export function loadUserOverrides(projectDir: string): ForgeCraftConfig | null {
   // Prefer YAML config
   const yamlPath = join(projectDir, "forgecraft.yaml");
   if (existsSync(yamlPath)) {
@@ -160,7 +157,9 @@ export function loadAllTemplatesWithExtras(
   for (const dir of extraDirs) {
     const resolvedDir = resolve(dir);
     if (!existsSync(resolvedDir)) {
-      logger.warn("Community template directory not found, skipping", { dir: resolvedDir });
+      logger.warn("Community template directory not found, skipping", {
+        dir: resolvedDir,
+      });
       continue;
     }
 
@@ -177,14 +176,23 @@ export function loadAllTemplatesWithExtras(
 
       const merged: TagTemplateSet = {
         tag,
-        instructions: mergeInstructionTemplates(baseSet.instructions, extraSet.instructions),
+        instructions: mergeInstructionTemplates(
+          baseSet.instructions,
+          extraSet.instructions,
+        ),
         nfr: mergeNfrTemplates(baseSet.nfr, extraSet.nfr),
         structure: extraSet.structure ?? baseSet.structure,
         hooks: mergeHookTemplates(baseSet.hooks, extraSet.hooks),
         skills: mergeSkillTemplates(baseSet.skills, extraSet.skills),
         review: mergeReviewTemplates(baseSet.review, extraSet.review),
-        mcpServers: mergeMcpServersTemplates(baseSet.mcpServers, extraSet.mcpServers),
-        reference: mergeReferenceTemplates(baseSet.reference, extraSet.reference),
+        mcpServers: mergeMcpServersTemplates(
+          baseSet.mcpServers,
+          extraSet.mcpServers,
+        ),
+        reference: mergeReferenceTemplates(
+          baseSet.reference,
+          extraSet.reference,
+        ),
       };
       base.set(tag, merged);
     }
