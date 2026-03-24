@@ -140,6 +140,29 @@ npx forgecraft-mcp generate_adr . --title "Use event sourcing for order history"
 | **Session continuity** | None | `Status.md` + `forgecraft.yaml` persist context |
 | **Drift detection** | None | `refresh` detects scope changes |
 
+## Workflow Playbook
+
+After setup, your AI has the context. These prompts direct the work. Copy, paste, run.
+
+| Situation | Prompt |
+|---|---|
+| New project — scaffold structure | [Greenfield Setup](WORKFLOWS.md#greenfield-setup) |
+| Existing project — integrate ForgeCraft | [Brownfield Integration](WORKFLOWS.md#brownfield-integration) |
+| Audit shows `file_length` failures | [Decompose by responsibility](WORKFLOWS.md#file_length--file-too-large) |
+| Audit shows `hardcoded_url` failures | [Extract to env vars](WORKFLOWS.md#hardcoded_url--urls-or-hosts-in-source) |
+| Audit shows `hardcoded_credential` failures | [Remove secrets — do this first](WORKFLOWS.md#hardcoded_credential--secrets-in-source) |
+| Audit shows `layer_violation` failures | [Fix route → DB direct calls](WORKFLOWS.md#layer_violation--direct-db-call-in-route-handler) |
+| Audit shows `mock_in_source` failures | [Move mocks out of production](WORKFLOWS.md#mock_in_source--mock-data-in-production-code) |
+| Audit shows `missing_prd` failures | [Reverse-engineer spec docs](WORKFLOWS.md#missing_prd--missing_techspec--no-spec-docs) |
+| Audit shows `stale_status` failures | [Update Status.md](WORKFLOWS.md#stale_status--statusmd-not-updated) |
+| Score ≥ 80 and preparing to ship | [Pre-release hardening](WORKFLOWS.md#pre-release-hardening) |
+| Just deployed to production | [Post-deployment checklist](WORKFLOWS.md#post-deployment) |
+| Project scope changed | [Drift detection](WORKFLOWS.md#drift-detection) |
+
+→ [Full Workflow Playbook](WORKFLOWS.md) · [Online version](https://forgecraft.tools/docs/workflows)
+
+---
+
 ## How It Works
 
 ```bash
