@@ -6,15 +6,10 @@
  *
  * Phase 2 (all three answers provided): Derives cascade decisions from answers
  * and tags, writes forgecraft.yaml, creates docs/PRD.md, and scaffolds the project.
- *
- * Decomposed: detection → setup-detector.ts, context → setup-context.ts,
- * phase1 response → setup-phase1.ts, phase2 response → setup-phase2.ts,
- * artifact writers → setup-artifact-writers.ts, CNT writers → setup-cnt.ts
  */
-
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Tag } from "../shared/types.js";
+import type { Tag, ToolResult } from "../shared/types.js";
 import { ALL_TAGS } from "../shared/types.js";
 import { scaffoldProjectHandler, scaffoldHooks } from "./scaffold.js";
 import { configureMcpHandler } from "./configure-mcp.js";
@@ -23,8 +18,6 @@ import { parseSpec, inferSensitiveData } from "./spec-parser.js";
 import { buildProjectContext } from "./setup-context.js";
 import type { ProjectContext } from "./setup-context.js";
 import { buildPhase1Response } from "./setup-phase1.js";
-import { deriveCascadeDecisions, buildPhase2Response } from "./setup-phase2.js";
-import type { Phase2ResponseParams } from "./setup-phase2.js";
 import {
   writeForgeYaml,
   setExperimentGroupIfMissing,
@@ -33,6 +26,7 @@ import {
   initGitRepo,
 } from "./setup-artifact-writers.js";
 import type { AiExtractedFields } from "./setup-artifact-writers.js";
+import { deriveCascadeDecisions, buildPhase2Response } from "./setup-phase2.js";
 import { writeCntFiles, writeCoreMd, writeAdrIndex, writeGatesIndex } from "./setup-cnt.js";
 
 const logger = createLogger("tools/setup-project");
@@ -49,20 +43,34 @@ export interface SetupProjectArgs {
   readonly scope_complete?: boolean;
   /** Phase 2: does this project have existing users or downstream consumers? */
   readonly has_consumers?: boolean;
-  /** Phase 2: override the inferred project type when ambiguities were reported in phase 1. */
+  /**
+   * Phase 2: override the inferred project type when ambiguities were reported in phase 1.
+   * Examples: "docs", "cli", "api", "library", "cli+library", "cli+api".
+   */
   readonly project_type_override?: string;
-  /** Phase 2: the spec file the AI identified as the primary project spec. */
+  /**
+   * Phase 2: the spec file the AI identified as the primary project spec.
+   * Provide this when Phase 1 listed multiple candidates.
+   */
   readonly spec_file_confirmed?: string;
-  /** Phase 2: AI-extracted problem statement from the spec. */
+  /**
+   * Phase 2: AI-extracted problem statement from the spec.
+   * The AI should read the spec and summarise the core problem in 1-3 sentences.
+   */
   readonly problem_statement?: string;
-  /** Phase 2: AI-extracted primary users / actors from the spec. */
+  /**
+   * Phase 2: AI-extracted primary users / actors from the spec.
+   * Comma-separated list of the main user roles or personas.
+   */
   readonly primary_users?: string;
-  /** Phase 2: AI-extracted success criteria from the spec. */
+  /**
+   * Phase 2: AI-extracted success criteria from the spec.
+   * Comma-separated list of measurable outcomes or goals.
+   */
   readonly success_criteria?: string;
 }
 
-type ToolResult = { content: Array<{ type: "text"; text: string }> };
-
+/** Valid ALL_TAGS values as a Set for fast membership testing. */
 const VALID_TAGS_SET = new Set<string>(ALL_TAGS);
 
 // ── Handler ───────────────────────────────────────────────────────────
@@ -76,7 +84,9 @@ const VALID_TAGS_SET = new Set<string>(ALL_TAGS);
  * @param args - Setup arguments
  * @returns MCP tool response
  */
-export async function setupProjectHandler(args: SetupProjectArgs): Promise<ToolResult> {
+export async function setupProjectHandler(
+  args: SetupProjectArgs,
+): Promise<ToolResult> {
   const isPhase2 =
     args.mvp !== undefined &&
     args.scope_complete !== undefined &&
@@ -86,7 +96,9 @@ export async function setupProjectHandler(args: SetupProjectArgs): Promise<ToolR
 
   const context = await buildProjectContext(args);
 
-  if (!isPhase2) return buildPhase1Response(context);
+  if (!isPhase2) {
+    return buildPhase1Response(context);
+  }
 
   return executePhase2(
     { ...args, mvp: args.mvp!, scope_complete: args.scope_complete!, has_consumers: args.has_consumers! },
@@ -94,8 +106,15 @@ export async function setupProjectHandler(args: SetupProjectArgs): Promise<ToolR
   );
 }
 
-// ── Phase 2 Execution ─────────────────────────────────────────────────
+// ── Phase 2 Orchestration ─────────────────────────────────────────────
 
+/**
+ * Execute phase 2: derive decisions, write artifacts, call scaffold.
+ *
+ * @param args - Setup args with all three phase-2 answers guaranteed defined
+ * @param context - Assembled project context
+ * @returns MCP tool response with completion summary
+ */
 async function executePhase2(
   args: SetupProjectArgs & { mvp: boolean; scope_complete: boolean; has_consumers: boolean },
   context: ProjectContext,
@@ -106,15 +125,21 @@ async function executePhase2(
     ? applyProjectTypeOverride(context.inferredTags, args.project_type_override)
     : context.inferredTags;
 
-  const decisions = deriveCascadeDecisions(effectiveTags, projectName, args.mvp, args.scope_complete, args.has_consumers);
+  const decisions = deriveCascadeDecisions(
+    effectiveTags, projectName, args.mvp, args.scope_complete, args.has_consumers,
+  );
   const forgeCraftTags = filterToValidTags(effectiveTags);
 
-  const specSummaryForSensitive = context.specContent ? parseSpec(context.specContent, context.projectName) : null;
+  const specSummaryForSensitive = context.specContent
+    ? parseSpec(context.specContent, context.projectName)
+    : null;
   const isSensitive = specSummaryForSensitive
     ? inferSensitiveData(specSummaryForSensitive, effectiveTags)
     : effectiveTags.some((t) => ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"].includes(t));
 
-  const yamlWritten = writeForgeYaml(projectDir, projectName, forgeCraftTags, decisions, isSensitive, context.isBrownfield);
+  const yamlWritten = writeForgeYaml(
+    projectDir, projectName, forgeCraftTags, decisions, isSensitive, context.isBrownfield,
+  );
   setExperimentGroupIfMissing(projectDir);
 
   const aiFields: AiExtractedFields = {
@@ -126,8 +151,9 @@ async function executePhase2(
   const prdWritten = hasSpec ? writePrd(projectDir, projectName, aiFields, context.specContent) : false;
   const useCasesWritten = hasSpec ? writeUseCases(projectDir, projectName, aiFields, context.specContent) : false;
 
+  const validTagsForHooks = (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[];
   const scaffoldResult = await scaffoldProjectHandler({
-    tags: (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[],
+    tags: validTagsForHooks,
     project_dir: projectDir,
     project_name: projectName,
     language: "typescript",
@@ -138,12 +164,16 @@ async function executePhase2(
   });
   const scaffoldText = scaffoldResult.content[0]?.text ?? "";
 
-  const validTagsForHooks = (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[];
   await scaffoldHooks(projectDir, validTagsForHooks);
 
   let mcpServerNames: string[] = [];
   try {
-    await configureMcpHandler({ tags: validTagsForHooks, project_dir: projectDir, auto_approve_tools: true, include_remote: false });
+    await configureMcpHandler({
+      tags: validTagsForHooks,
+      project_dir: projectDir,
+      auto_approve_tools: true,
+      include_remote: false,
+    });
     mcpServerNames = readConfiguredMcpServerNames(projectDir);
   } catch (error) {
     logger.warn("configure_mcp failed during setup", { error });
@@ -151,7 +181,7 @@ async function executePhase2(
 
   const gitInitStatus = initGitRepo(projectDir);
 
-  const params: Phase2ResponseParams = {
+  const text = buildPhase2Response({
     decisions,
     tags: effectiveTags,
     mvp: args.mvp,
@@ -169,18 +199,30 @@ async function executePhase2(
     adrIndexWritten: writeAdrIndex(projectDir),
     gatesIndexWritten: writeGatesIndex(projectDir),
     gitInitStatus,
-  };
+  });
 
-  return { content: [{ type: "text", text: buildPhase2Response(params) }] };
+  return { content: [{ type: "text", text }] };
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────
 
-function filterToValidTags(tags: string[]): string[] {
+/**
+ * Filter inferred tag strings to only valid ALL_TAGS values.
+ *
+ * @param tags - Raw inferred tags (may include API, CLI, etc.)
+ * @returns Tags filtered to valid Tag enum members
+ */
+export function filterToValidTags(tags: string[]): string[] {
   return tags.filter((t) => VALID_TAGS_SET.has(t));
 }
 
-function readConfiguredMcpServerNames(projectDir: string): string[] {
+/**
+ * Read the names of configured MCP servers from .claude/settings.json.
+ *
+ * @param projectDir - Project root
+ * @returns Array of server names, or empty array if file not found or unreadable
+ */
+export function readConfiguredMcpServerNames(projectDir: string): string[] {
   const settingsPath = join(projectDir, ".claude", "settings.json");
   if (!existsSync(settingsPath)) return [];
   try {
@@ -192,17 +234,27 @@ function readConfiguredMcpServerNames(projectDir: string): string[] {
   }
 }
 
-const PROJECT_TYPE_OVERRIDE_MAP: Readonly<Record<string, string[]>> = {
-  docs: ["UNIVERSAL", "DOCS"],
-  cli: ["UNIVERSAL", "CLI"],
-  api: ["UNIVERSAL", "API"],
-  library: ["UNIVERSAL", "LIBRARY"],
-  "cli+library": ["UNIVERSAL", "CLI", "LIBRARY"],
-  "cli+api": ["UNIVERSAL", "CLI", "API"],
-  "api+library": ["UNIVERSAL", "API", "LIBRARY"],
-};
-
-function applyProjectTypeOverride(existingTags: readonly string[], override: string): string[] {
-  const mapped = PROJECT_TYPE_OVERRIDE_MAP[override.toLowerCase()];
-  return mapped ?? Array.from(existingTags);
+/**
+ * Apply a project_type_override to replace inferred tags with the user-specified type.
+ *
+ * @param existingTags - Previously inferred tags
+ * @param override - User-supplied override string, e.g. "docs", "cli+library"
+ * @returns Revised tag set
+ */
+export function applyProjectTypeOverride(
+  existingTags: readonly string[],
+  override: string,
+): string[] {
+  const overrideMap: Readonly<Record<string, string[]>> = {
+    docs: ["UNIVERSAL", "DOCS"],
+    cli: ["UNIVERSAL", "CLI"],
+    api: ["UNIVERSAL", "API"],
+    library: ["UNIVERSAL", "LIBRARY"],
+    "cli+library": ["UNIVERSAL", "CLI", "LIBRARY"],
+    "cli+api": ["UNIVERSAL", "CLI", "API"],
+    "api+library": ["UNIVERSAL", "API", "LIBRARY"],
+  };
+  const mapped = overrideMap[override.toLowerCase()];
+  if (!mapped) return Array.from(existingTags);
+  return mapped;
 }
