@@ -20,7 +20,7 @@
     "test:mutation:sentinel": "stryker run stryker.sentinel.json",
     "lint": "eslint src/",
     "clean": "rimraf dist",
-    "prepare": "bash scripts/setup-hooks.sh",
+    "prepare": "node -e \"if(require('fs').existsSync('.git')&&require('fs').existsSync('scripts/setup-hooks.sh')){require('child_process').execSync('bash scripts/setup-hooks.sh',{stdio:'inherit'})}\"",
     "prepublishOnly": "npm run clean && npm run build",
     "export:taxonomy": "npx ts-node --esm scripts/export-taxonomy.ts"
   },

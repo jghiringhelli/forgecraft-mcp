@@ -1,0 +1,59 @@
+# Smithery MCP Registry Configuration
+# https://smithery.ai/server/forgecraft-mcp
+name: forgecraft-mcp
+displayName: ForgeCraft
+description: >
+  CLI + MCP sentinel that enforces SOLID principles, testing standards, architecture
+  layers, CI/CD hygiene, and GS compliance — auto-tailored to your stack.
+  Minimal footprint (~200 tokens) via CLI-first design with an optional MCP server mode.
+
+version: 1.0.0
+license: MIT
+homepage: https://forgecraft.tools
+repository: https://github.com/jghiringhelli/forgecraft-mcp
+
+categories:
+  - developer-tools
+  - code-quality
+  - project-scaffolding
+
+tags:
+  - mcp
+  - claude
+  - copilot
+  - cursor
+  - engineering-standards
+  - solid
+  - testing
+  - architecture
+  - scaffolding
+
+runtime: node
+entrypoint: dist/index.js
+
+startCommand:
+  type: stdio
+  command: npx
+  args: ["forgecraft-mcp", "serve"]
+
+tools:
+  - name: setup_project
+    description: First-time project setup — detects stack, generates CLAUDE.md, hooks, roadmap
+  - name: audit_project
+    description: Score project against engineering standards (file length, anti-patterns, completeness)
+  - name: refresh_project
+    description: Re-sync instruction files after project scope changes
+  - name: scaffold_project
+    description: Generate project structure, folders, and instruction file skeletons
+  - name: verify_project
+    description: Run tests + score GS properties + report layer violations
+  - name: advice_project
+    description: Quality cycle checklist + tool stack recommendations for your tags
+  - name: review_project
+    description: Generate structured code review checklist
+  - name: close_cycle
+    description: Mark roadmap cycle complete, update Status.md, emit ADRs
+  - name: start_hardening
+    description: Begin pre-release hardening phase — run gates, lock quality floor
+  - name: generate_roadmap
+    description: Generate phased implementation roadmap from spec
