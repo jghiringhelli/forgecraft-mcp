@@ -167,6 +167,24 @@ describe("scanAntiPatterns", () => {
       );
       expect(violation).toBeUndefined();
     });
+
+    it("does not flag mock in tests/ file without mock keyword in name (Windows path)", () => {
+      // Regression: path.relative() on Windows returns backslash-separated paths.
+      // 'tests\qa-walkthrough.ts' must be excluded even though the filename
+      // contains no test/mock/spec keyword — the directory name 'tests' is enough.
+      mkdirSync(join(TMP_DIR, "tests"), { recursive: true });
+      writeFileSync(
+        join(TMP_DIR, "tests", "qa-walkthrough.ts"),
+        "const fake_data = [{ id: 1 }];\n",
+      );
+      const result = scanAntiPatterns(TMP_DIR);
+      const violation = result.violations.find(
+        (v) =>
+          v.check === "mock_in_source" &&
+          v.message.includes("qa-walkthrough.ts"),
+      );
+      expect(violation).toBeUndefined();
+    });
   });
 
   describe("bare_exception warning", () => {

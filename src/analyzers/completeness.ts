@@ -9,6 +9,9 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createLogger } from "../shared/logger/index.js";
 import type { AuditCheck, Tag } from "../shared/types.js";
+import {
+  checkInstructionFileExists,
+} from "./completeness-helpers.js";
 
 const logger = createLogger("analyzers/completeness");
 
@@ -72,43 +75,6 @@ export function checkCompleteness(
   });
 
   return { passing, failing };
-}
-
-/** Known AI assistant instruction file paths to check. */
-const KNOWN_INSTRUCTION_PATHS = [
-  "CLAUDE.md",
-  ".cursor/rules",
-  ".github/copilot-instructions.md",
-  ".windsurfrules",
-  ".clinerules",
-  "CONVENTIONS.md",
-];
-
-/**
- * Check if any AI assistant instruction file exists.
- */
-function checkInstructionFileExists(
-  projectDir: string,
-  passing: AuditCheck[],
-  failing: AuditCheck[],
-): void {
-  const found = KNOWN_INSTRUCTION_PATHS.filter((p) =>
-    existsSync(join(projectDir, p)),
-  );
-
-  if (found.length > 0) {
-    passing.push({
-      check: "instruction_file_exists",
-      message: `✅ Instruction file(s) found: ${found.join(", ")}`,
-    });
-  } else {
-    failing.push({
-      check: "instruction_file_exists",
-      message:
-        "No AI assistant instruction file found — run `generate_instructions` to create one",
-      severity: "error",
-    });
-  }
 }
 
 /**

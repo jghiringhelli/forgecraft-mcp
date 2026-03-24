@@ -145,7 +145,7 @@ function isSourceFile(filePath: string): boolean {
  * Check if a file is a test file.
  */
 function isTestFile(filePath: string): boolean {
-  return /(\btest[_.]|\.test\.|\.spec\.|__tests__|tests\/|test\/|fixtures\/|mock|conftest|\.d\.ts)/.test(
+  return /(\btest[_.]|\.test\.|\.spec\.|__tests__|tests[/\\]|test[/\\]|fixtures[/\\]|mock|conftest|\.d\.ts)/.test(
     filePath,
   );
 }
