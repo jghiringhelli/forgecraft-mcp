@@ -28,32 +28,12 @@ tags:
   - architecture
   - scaffolding
 
-runtime: node
-entrypoint: dist/index.js
-
-startCommand:
-  type: stdio
-  command: npx
-  args: ["forgecraft-mcp", "serve"]
+# Hosted HTTP endpoint for Smithery gallery listing
+# Local stdio mode: npx forgecraft-mcp (unchanged)
+mcpUrl: https://forgecraft-http-production.up.railway.app/mcp
 
 tools:
-  - name: setup_project
-    description: First-time project setup — detects stack, generates CLAUDE.md, hooks, roadmap
-  - name: audit_project
-    description: Score project against engineering standards (file length, anti-patterns, completeness)
-  - name: refresh_project
-    description: Re-sync instruction files after project scope changes
-  - name: scaffold_project
-    description: Generate project structure, folders, and instruction file skeletons
-  - name: verify_project
-    description: Run tests + score GS properties + report layer violations
-  - name: advice_project
-    description: Quality cycle checklist + tool stack recommendations for your tags
-  - name: review_project
-    description: Generate structured code review checklist
-  - name: close_cycle
-    description: Mark roadmap cycle complete, update Status.md, emit ADRs
-  - name: start_hardening
-    description: Begin pre-release hardening phase — run gates, lock quality floor
-  - name: generate_roadmap
-    description: Generate phased implementation roadmap from spec
+  - name: forgecraft
+    description: Diagnose ForgeCraft project state and return CLI commands to run locally
+  - name: list_tags
+    description: Return all 24 ForgeCraft classification tags
