@@ -26,6 +26,10 @@ import { adviceHandler } from "../tools/advice.js";
 import { metricsHandler } from "../tools/metrics.js";
 import type { Flags } from "./args.js";
 import { str, arr, bool } from "./args.js";
+import {
+  detectAiAssistant,
+  buildNoAssistantWarning,
+} from "./assistant-detector.js";
 
 // ── Config Resolution ────────────────────────────────────────────────
 
@@ -63,13 +67,33 @@ export function printResult(result: {
 /** @param pos - Positional args @param flags - Parsed flags */
 export async function cmdSetup(pos: string[], flags: Flags): Promise<void> {
   const projectDir = resolve(pos[0] ?? ".");
+
+  const detection = detectAiAssistant(projectDir);
+  if (!detection.detected) {
+    process.stderr.write(buildNoAssistantWarning());
+  }
+
+  // Phase 2 only when all three answers are explicitly provided via flags.
+  // Without them, default to Phase 1 (analysis + questions) so the LLM can
+  // read the spec and call Phase 2 with corrected tags.
+  const mvp =
+    flags["mvp"] !== undefined ? bool(flags, "mvp", false) : undefined;
+  const scopeComplete =
+    flags["scope-complete"] !== undefined
+      ? bool(flags, "scope-complete", true)
+      : undefined;
+  const hasConsumers =
+    flags["consumers"] !== undefined
+      ? bool(flags, "consumers", false)
+      : undefined;
+
   const result = await setupProjectHandler({
     project_dir: projectDir,
     spec_path: str(flags, "spec"),
     spec_text: str(flags, "description"),
-    mvp: flags["mvp"] === true ? true : flags["mvp"] === false ? false : false,
-    scope_complete: flags["scope-complete"] !== false,
-    has_consumers: bool(flags, "consumers", false),
+    mvp,
+    scope_complete: scopeComplete,
+    has_consumers: hasConsumers,
   });
   printResult(result);
 }
