@@ -26,7 +26,7 @@ npx forgecraft-mcp setup .
 
 ---
 
-## The only formal quality framework built for AI-generated code
+## A quality framework for AI-assisted software development
 
 Every session, every project, every AI assistant — measured against the same 7-property **Generative Specification** model. Not vibes. Not a linter score. A score out of 14 that tells you exactly where the gap is and why.
 
