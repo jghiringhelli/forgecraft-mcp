@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ForgeCraft — Quality standards for AI-assisted development</title>
+  <meta name="description" content="ForgeCraft gives your AI coding assistant a production-grade quality contract — SOLID, testing, architecture, CI/CD — from the first commit." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb;
+      --green: #3fb950;
+      --yellow: #d29922;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Nav */
+    nav {
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+    }
+    nav .logo { font-weight: 700; font-size: 1.1rem; color: var(--text); }
+    nav .links { display: flex; gap: 1.5rem; margin-left: auto; font-size: 0.9rem; color: var(--muted); }
+    nav .links a { color: var(--muted); }
+    nav .links a:hover { color: var(--text); text-decoration: none; }
+
+    /* Hero */
+    .hero {
+      max-width: 760px;
+      margin: 5rem auto 3rem;
+      padding: 0 2rem;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 580px;
+      margin: 0 auto 2rem;
+    }
+    .cta-row {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      background: var(--accent-dim);
+      color: #fff;
+      padding: 0.65rem 1.4rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 1px solid var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent); text-decoration: none; }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      padding: 0.65rem 1.4rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--accent); text-decoration: none; }
+
+    /* Install strip */
+    .install {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      max-width: 480px;
+      margin: 2.5rem auto 0;
+      padding: 0.85rem 1.25rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.9rem;
+      color: var(--green);
+      text-align: left;
+    }
+    .install .prompt { color: var(--muted); user-select: none; margin-right: 0.5rem; }
+
+    /* Problem / solution */
+    .section { max-width: 900px; margin: 0 auto; padding: 4rem 2rem; }
+    .section h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+    .section p { color: var(--muted); max-width: 680px; }
+
+    blockquote {
+      border-left: 3px solid var(--accent-dim);
+      padding: 0.75rem 1.25rem;
+      background: var(--surface);
+      border-radius: 0 6px 6px 0;
+      color: var(--muted);
+      font-style: italic;
+      margin: 2rem 0;
+      max-width: 680px;
+    }
+
+    /* Score demo */
+    .score-demo {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      overflow-x: auto;
+      margin: 2rem 0;
+    }
+    .score-demo .pass { color: var(--green); }
+    .score-demo .fail { color: #f85149; }
+    .score-demo .total { color: var(--accent); font-weight: bold; }
+
+    /* Features grid */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+    }
+    .feature h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.4rem; }
+    .feature p { font-size: 0.875rem; color: var(--muted); }
+
+    /* Assistants */
+    .assistants {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+    .pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    /* Foundation */
+    .foundation {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem 2rem;
+      margin-top: 2rem;
+    }
+    .foundation h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .foundation p { font-size: 0.875rem; color: var(--muted); }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); }
+    footer a:hover { color: var(--text); }
+
+    hr.divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      max-width: 900px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">⚒ ForgeCraft</span>
+  <div class="links">
+    <a href="https://github.com/jghiringhelli/forgecraft-mcp#readme">Docs</a>
+    <a href="https://github.com/jghiringhelli/genspec-dev-quality-gates">Quality Gates</a>
+    <a href="https://genspec.dev">Research</a>
+    <a href="https://github.com/jghiringhelli/forgecraft-mcp">GitHub</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <h1>Your AI coding assistant,<br><span>held to production standards.</span></h1>
+  <p>ForgeCraft gives every AI assistant in your team a shared quality contract — architecture, testing, CI/CD, dev hygiene — from the first commit.</p>
+  <div class="cta-row">
+    <a class="btn-primary" href="https://github.com/jghiringhelli/forgecraft-mcp#readme">Get started →</a>
+    <a class="btn-secondary" href="https://github.com/jghiringhelli/forgecraft-mcp">View on GitHub</a>
+  </div>
+  <div class="install">
+    <span class="prompt">$</span>npx forgecraft-mcp setup .
+  </div>
+</div>
+
+<hr class="divider" />
+
+<div class="section">
+  <blockquote>
+    You hired an AI engineer. It's brilliant. It also installed the same 14 VS Code extensions twice today, spun up 6 Docker containers it will never clean up, and your disk went from 12 GB free to 0 KB in one session.<br><br>
+    A full disk doesn't fail gracefully. It kills VS Code, the terminal, Docker, and the database simultaneously.
+  </blockquote>
+
+  <h2>What ForgeCraft does</h2>
+  <p>It runs once at project setup and generates instruction files for your AI assistant — tailored to your stack — covering architecture, testing, security, deployment, and dev environment hygiene. The AI works within that contract for the life of the project.</p>
+
+  <div class="features">
+    <div class="feature">
+      <h3>116 curated instruction blocks</h3>
+      <p>SOLID, hexagonal architecture, testing pyramid, CI/CD, clean code, domain patterns — assembled to match your project's tags.</p>
+    </div>
+    <div class="feature">
+      <h3>7-property quality score</h3>
+      <p>Every project scores 0–14 on the Generative Specification model. Not a linter score — a measure of whether the codebase can sustain AI-assisted development.</p>
+    </div>
+    <div class="feature">
+      <h3>Quality gates by release phase</h3>
+      <p>From unit tests on day one to OWASP and chaos engineering before release. Gates the library is community-contributed and open.</p>
+    </div>
+    <div class="feature">
+      <h3>Dev environment hygiene</h3>
+      <p>Rules injected into every project: no duplicate extensions, no orphaned containers, disk warnings before the workspace silently fills up.</p>
+    </div>
+    <div class="feature">
+      <h3>ADRs, automatically sequenced</h3>
+      <p>Every architectural decision recorded in MADR format. Your AI assistant reasons about past choices. Your team stops re-litigating them.</p>
+    </div>
+    <div class="feature">
+      <h3>Session continuity</h3>
+      <p><code>Status.md</code> and <code>forgecraft.yaml</code> keep context across sessions and engineers. The AI always knows where the project is.</p>
+    </div>
+  </div>
+</div>
+
+<hr class="divider" />
+
+<div class="section">
+  <h2>Quality score — out of 14</h2>
+  <p>Run <code>npx forgecraft-mcp verify .</code> at any point to see where the project stands:</p>
+
+  <div class="score-demo">
+<span class="pass">| Property        | Score  | Evidence                                        |</span>
+<span class="pass">|-----------------|--------|-------------------------------------------------|</span>
+<span class="pass">| Self-Describing | ✅ 2/2 | CLAUDE.md — 352 non-empty lines                 |</span>
+<span class="pass">| Bounded         | ✅ 2/2 | No direct DB calls in route files               |</span>
+<span class="pass">| Verifiable      | ✅ 2/2 | 64 test files — 87% coverage                    |</span>
+<span class="pass">| Defended        | ✅ 2/2 | Pre-commit hook + lint config present            |</span>
+<span class="pass">| Auditable       | ✅ 2/2 | 11 ADRs in docs/adrs/ + Status.md               |</span>
+<span class="pass">| Composable      | ✅ 2/2 | Service layer + repository layer detected        |</span>
+<span class="pass">| Executable      | ✅ 2/2 | Tests passed + CI pipeline configured            |</span>
+<span class="total">
+Total: 14/14 ✅ PASS · Threshold 11/14</span>
+  </div>
+</div>
+
+<hr class="divider" />
+
+<div class="section">
+  <h2>Works with every AI assistant</h2>
+  <p>One setup. Instruction files generated for whichever assistant your team uses.</p>
+  <div class="assistants">
+    <span class="pill">Claude (CLAUDE.md)</span>
+    <span class="pill">GitHub Copilot (.github/copilot-instructions.md)</span>
+    <span class="pill">Cursor (.cursor/rules/)</span>
+    <span class="pill">Windsurf (.windsurfrules)</span>
+    <span class="pill">Cline (.clinerules)</span>
+    <span class="pill">Aider (CONVENTIONS.md)</span>
+  </div>
+
+  <div class="foundation">
+    <h3>Research foundation</h3>
+    <p>ForgeCraft implements the <strong>Generative Specification</strong> model — a 7-property framework for evaluating AI-generated code quality. Published, DOI-backed, independently verifiable. <a href="https://genspec.dev">Read the white paper →</a></p>
+  </div>
+</div>
+
+<hr class="divider" />
+
+<div class="section" style="text-align:center; padding-bottom: 5rem;">
+  <h2>Open source. Free to use.</h2>
+  <p style="margin: 0 auto 2rem;">No limits, no tiers, no API keys. The quality gate library grows through community contribution.</p>
+  <div class="cta-row">
+    <a class="btn-primary" href="https://github.com/jghiringhelli/forgecraft-mcp#readme">Read the docs →</a>
+    <a class="btn-secondary" href="https://github.com/jghiringhelli/genspec-dev-quality-gates">Contribute a gate →</a>
+  </div>
+</div>
+
+<footer>
+  <p>ForgeCraft · <a href="https://github.com/jghiringhelli/forgecraft-mcp">GitHub</a> · <a href="https://www.npmjs.com/package/forgecraft-mcp">npm</a> · <a href="https://genspec.dev">Research</a> · <a href="https://forgeworkshop.dev">Workshop</a></p>
+</footer>
+
+</body>
+</html>
