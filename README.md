@@ -323,7 +323,7 @@ A side effect: every declared MCP tool is read by the model on every turn whethe
 4. Re-add it when you need to refresh or audit
 
 <details>
-<summary>Manual MCP config</summary>
+<summary>Manual MCP config — Claude</summary>
 
 Add to `.claude/settings.json`:
 ```json
@@ -338,34 +338,52 @@ Add to `.claude/settings.json`:
 ```
 </details>
 
+<details>
+<summary>Manual MCP config — GitHub Copilot (VS Code)</summary>
+
+Add to `.vscode/mcp.json` in your project root (create it if it doesn't exist):
+```json
+{
+  "servers": {
+    "forgecraft": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    }
+  }
+}
+```
+
+Then open the Copilot Chat panel, switch to **Agent mode**, and the forgecraft sentinel will appear in the tools list.
+</details>
+
+<details>
+<summary>Manual MCP config — Cursor</summary>
+
+Add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "forgecraft": {
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    }
+  }
+}
+```
+</details>
+
+> **No MCP client?** That's fine — you don't need it. Run `npx forgecraft-mcp setup .` directly in your terminal. The MCP sentinel is optional; the CLI does everything.
+
 > **Already ran `claude init`?** Use `npx forgecraft-mcp generate . --merge` to merge with your existing CLAUDE.md, keeping your custom sections while adding production standards.
 
 ---
 
-## Pricing
+## Free and open source
 
-| | **Free** | **Pro** | **Teams** |
-|---|---|---|---|
-| Projects / month | 2 | Unlimited | Unlimited |
-| GS scoring (`verify`) | ✓ | ✓ | ✓ |
-| Dev hygiene gates | ✓ | ✓ | ✓ |
-| All 24 tags | ✓ | ✓ | ✓ |
-| ADR generation | ✓ | ✓ | ✓ |
-| Quality gate flywheel | Read-only | **Contribute** | Priority |
-| Custom tags & templates | — | ✓ | ✓ |
-| Org-wide standards | — | — | ✓ |
-| Audit dashboard | — | — | ✓ |
-| Priority support | — | — | ✓ |
+ForgeCraft is free. No limits, no tiers, no API keys.
 
-_Free is for individual devs who want to experience the model. Pro is for engineers who want to contribute gates and grow the library. Teams is where organizations pay for the quality guarantee._
-
-### Earn Pro by contributing
-
-Propose a quality gate that gets accepted into the library → earn Pro months.
-
-- **Founding period** (first 6 months): 3 months Pro per accepted gate
-- **After founding period**: 1 month Pro per accepted gate  
-- **3+ accepted gates ever**: Lifetime Pro
+The quality gate library grows through community contribution. If you propose a gate that gets accepted, your name goes in [CONTRIBUTORS.md](CONTRIBUTORS.md) and you helped raise the floor for everyone building with AI.
 
 [Open a gate proposal →](.github/ISSUE_TEMPLATE/quality-gate-proposal.md) · [See contributors →](CONTRIBUTORS.md)
 
