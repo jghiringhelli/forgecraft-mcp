@@ -17,6 +17,7 @@ import { createLogger } from "../shared/logger/index.js";
 import { parseSpec, inferSensitiveData } from "./spec-parser.js";
 import { buildProjectContext } from "./setup-context.js";
 import type { ProjectContext } from "./setup-context.js";
+export { detectProjectMode } from "./setup-detector.js";
 import { buildPhase1Response } from "./setup-phase1.js";
 import {
   writeForgeYaml,
@@ -27,7 +28,12 @@ import {
 } from "./setup-artifact-writers.js";
 import type { AiExtractedFields } from "./setup-artifact-writers.js";
 import { deriveCascadeDecisions, buildPhase2Response } from "./setup-phase2.js";
-import { writeCntFiles, writeCoreMd, writeAdrIndex, writeGatesIndex } from "./setup-cnt.js";
+import {
+  writeCntFiles,
+  writeCoreMd,
+  writeAdrIndex,
+  writeGatesIndex,
+} from "./setup-cnt.js";
 
 const logger = createLogger("tools/setup-project");
 
@@ -92,7 +98,10 @@ export async function setupProjectHandler(
     args.scope_complete !== undefined &&
     args.has_consumers !== undefined;
 
-  logger.info("setup_project", { phase: isPhase2 ? 2 : 1, projectDir: args.project_dir });
+  logger.info("setup_project", {
+    phase: isPhase2 ? 2 : 1,
+    projectDir: args.project_dir,
+  });
 
   const context = await buildProjectContext(args);
 
@@ -101,7 +110,12 @@ export async function setupProjectHandler(
   }
 
   return executePhase2(
-    { ...args, mvp: args.mvp!, scope_complete: args.scope_complete!, has_consumers: args.has_consumers! },
+    {
+      ...args,
+      mvp: args.mvp!,
+      scope_complete: args.scope_complete!,
+      has_consumers: args.has_consumers!,
+    },
     context,
   );
 }
@@ -116,7 +130,11 @@ export async function setupProjectHandler(
  * @returns MCP tool response with completion summary
  */
 async function executePhase2(
-  args: SetupProjectArgs & { mvp: boolean; scope_complete: boolean; has_consumers: boolean },
+  args: SetupProjectArgs & {
+    mvp: boolean;
+    scope_complete: boolean;
+    has_consumers: boolean;
+  },
   context: ProjectContext,
 ): Promise<ToolResult> {
   const { projectDir, projectName } = context;
@@ -126,7 +144,11 @@ async function executePhase2(
     : context.inferredTags;
 
   const decisions = deriveCascadeDecisions(
-    effectiveTags, projectName, args.mvp, args.scope_complete, args.has_consumers,
+    effectiveTags,
+    projectName,
+    args.mvp,
+    args.scope_complete,
+    args.has_consumers,
   );
   const forgeCraftTags = filterToValidTags(effectiveTags);
 
@@ -135,10 +157,17 @@ async function executePhase2(
     : null;
   const isSensitive = specSummaryForSensitive
     ? inferSensitiveData(specSummaryForSensitive, effectiveTags)
-    : effectiveTags.some((t) => ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"].includes(t));
+    : effectiveTags.some((t) =>
+        ["FINTECH", "WEB3", "HEALTHCARE", "HIPAA", "SOC2"].includes(t),
+      );
 
   const yamlWritten = writeForgeYaml(
-    projectDir, projectName, forgeCraftTags, decisions, isSensitive, context.isBrownfield,
+    projectDir,
+    projectName,
+    forgeCraftTags,
+    decisions,
+    isSensitive,
+    context.isBrownfield,
   );
   setExperimentGroupIfMissing(projectDir);
 
@@ -148,10 +177,16 @@ async function executePhase2(
     successCriteria: args.success_criteria,
   };
   const hasSpec = !!context.specContent || !!aiFields.problemStatement;
-  const prdWritten = hasSpec ? writePrd(projectDir, projectName, aiFields, context.specContent) : false;
-  const useCasesWritten = hasSpec ? writeUseCases(projectDir, projectName, aiFields, context.specContent) : false;
+  const prdWritten = hasSpec
+    ? writePrd(projectDir, projectName, aiFields, context.specContent)
+    : false;
+  const useCasesWritten = hasSpec
+    ? writeUseCases(projectDir, projectName, aiFields, context.specContent)
+    : false;
 
-  const validTagsForHooks = (forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]) as Tag[];
+  const validTagsForHooks = (
+    forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]
+  ) as Tag[];
   const scaffoldResult = await scaffoldProjectHandler({
     tags: validTagsForHooks,
     project_dir: projectDir,
@@ -195,7 +230,12 @@ async function executePhase2(
     mcpServerNames,
     projectDir,
     indexMdWritten: writeCntFiles(projectDir, projectName, effectiveTags),
-    coreMdWritten: writeCoreMd(projectDir, projectName, effectiveTags, context.specContent),
+    coreMdWritten: writeCoreMd(
+      projectDir,
+      projectName,
+      effectiveTags,
+      context.specContent,
+    ),
     adrIndexWritten: writeAdrIndex(projectDir),
     gatesIndexWritten: writeGatesIndex(projectDir),
     gitInitStatus,
@@ -226,8 +266,13 @@ export function readConfiguredMcpServerNames(projectDir: string): string[] {
   const settingsPath = join(projectDir, ".claude", "settings.json");
   if (!existsSync(settingsPath)) return [];
   try {
-    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
-    const mcpServers = settings["mcpServers"] as Record<string, unknown> | undefined;
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const mcpServers = settings["mcpServers"] as
+      | Record<string, unknown>
+      | undefined;
     return mcpServers ? Object.keys(mcpServers) : [];
   } catch {
     return [];
