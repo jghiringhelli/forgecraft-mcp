@@ -252,6 +252,7 @@ async function executePhase2(
     adrIndexWritten: writeAdrIndex(projectDir),
     gatesIndexWritten: writeGatesIndex(projectDir),
     gitInitStatus,
+    isBrownfield: context.isBrownfield,
   });
 
   return { content: [{ type: "text", text }] };

@@ -54,7 +54,13 @@ export function deriveCascadeDecisions(
       rationale = `Existing consumers detected: behavioral contracts (docs/use-cases.md) are required for breaking-change detection.`;
     }
 
-    return { ...decision, required, rationale, decidedAt, decidedBy: "scaffold" as const };
+    return {
+      ...decision,
+      required,
+      rationale,
+      decidedAt,
+      decidedBy: "scaffold" as const,
+    };
   });
 }
 
@@ -78,6 +84,7 @@ export interface Phase2ResponseParams {
   readonly adrIndexWritten: boolean;
   readonly gatesIndexWritten: boolean;
   readonly gitInitStatus?: string;
+  readonly isBrownfield?: boolean;
 }
 
 /**
@@ -87,9 +94,23 @@ export interface Phase2ResponseParams {
  * @returns Formatted markdown completion message
  */
 export function buildPhase2Response(params: Phase2ResponseParams): string {
-  const { decisions, tags, mvp, scopeComplete, hasConsumers, prdWritten, useCasesWritten, yamlWritten, indexMdWritten, coreMdWritten, adrIndexWritten, gatesIndexWritten } = params;
+  const {
+    decisions,
+    tags,
+    mvp,
+    scopeComplete,
+    hasConsumers,
+    prdWritten,
+    useCasesWritten,
+    yamlWritten,
+    indexMdWritten,
+    coreMdWritten,
+    adrIndexWritten,
+    gatesIndexWritten,
+  } = params;
   const stageLabel = mvp ? "MVP" : "Production";
-  const tagLabel = tags.filter((t) => t !== "UNIVERSAL").join(", ") || "UNIVERSAL";
+  const tagLabel =
+    tags.filter((t) => t !== "UNIVERSAL").join(", ") || "UNIVERSAL";
 
   let text = `## Project Setup Complete\n\n`;
   text += `### Cascade decisions (based on ${stageLabel} + tags [${tagLabel}]):\n`;
@@ -112,14 +133,18 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
   if (prdWritten) text += `  docs/PRD.md (from spec)\n`;
   if (useCasesWritten) text += `  docs/use-cases.md (from spec)\n`;
   if (indexMdWritten) text += `  .claude/index.md (CNT routing root)\n`;
-  if (coreMdWritten) text += `  .claude/core.md (CNT always-loaded invariants)\n`;
-  if (adrIndexWritten) text += `  .claude/adr/index.md (ADR navigation index)\n`;
-  if (gatesIndexWritten) text += `  .claude/gates/index.md (active quality gates)\n`;
+  if (coreMdWritten)
+    text += `  .claude/core.md (CNT always-loaded invariants)\n`;
+  if (adrIndexWritten)
+    text += `  .claude/adr/index.md (ADR navigation index)\n`;
+  if (gatesIndexWritten)
+    text += `  .claude/gates/index.md (active quality gates)\n`;
 
   const scaffoldFiles = extractScaffoldFiles(params.scaffoldText);
   for (const f of scaffoldFiles) text += `  ${f}\n`;
 
-  if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0) text += `  (all artifacts already existed — nothing overwritten)\n`;
+  if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0)
+    text += `  (all artifacts already existed — nothing overwritten)\n`;
 
   if (params.mcpServerNames.length > 0) {
     text += `\n### MCP Tools Configured\n`;
@@ -130,7 +155,11 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
 
   text += `\n### Next step — call this now:\n`;
   text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
-  text += `Do not ask the user — run check_cascade immediately. If it passes, run generate_session_prompt for the first roadmap item.`;
+  if (params.isBrownfield) {
+    text += `Do not ask the user — run check_cascade immediately. When it passes, run audit_project to surface any existing violations in this brownfield codebase before writing new code.`;
+  } else {
+    text += `Do not ask the user — run check_cascade immediately. If it passes, run generate_session_prompt for the first roadmap item.`;
+  }
   return text;
 }
 
@@ -143,22 +172,33 @@ export function buildDecisionNote(
   scopeComplete: boolean,
   hasConsumers: boolean,
 ): string {
-  if (decision.step === "architecture_diagrams" && !decision.required && mvp) return " (MVP stage, revisit at production)";
-  if (decision.step === "adrs" && !decision.required) return scopeComplete ? " (MVP stage)" : " (scope still evolving)";
-  if (decision.step === "behavioral_contracts" && decision.required && hasConsumers) return " (existing consumers detected)";
+  if (decision.step === "architecture_diagrams" && !decision.required && mvp)
+    return " (MVP stage, revisit at production)";
+  if (decision.step === "adrs" && !decision.required)
+    return scopeComplete ? " (MVP stage)" : " (scope still evolving)";
+  if (
+    decision.step === "behavioral_contracts" &&
+    decision.required &&
+    hasConsumers
+  )
+    return " (existing consumers detected)";
   return "";
 }
 
 /**
  * Render the Cascade Decisions section for scaffold output.
  */
-export function renderCascadeDecisionsSection(decisions: readonly CascadeDecision[]): string {
+export function renderCascadeDecisionsSection(
+  decisions: readonly CascadeDecision[],
+): string {
   let text = `\n\n## Cascade Decisions (Step 0)\n\n`;
   text += `The following spec artifacts have been assessed for this project:\n\n`;
   for (const decision of decisions) {
     const icon = decision.required ? "✓" : "○";
     const artifact = STEP_ARTIFACT_DISPLAY[decision.step] ?? decision.step;
-    const label = decision.required ? `required (${artifact})` : `optional — ${decision.rationale.split(".")[0]}`;
+    const label = decision.required
+      ? `required (${artifact})`
+      : `optional — ${decision.rationale.split(".")[0]}`;
     text += `  ${icon} ${decision.step} — ${label}\n`;
   }
   text += `\nReview these decisions. To revise: use \`set_cascade_requirement\` or edit\n`;
@@ -171,7 +211,12 @@ export function renderCascadeDecisionsSection(decisions: readonly CascadeDecisio
  * Extract file paths listed in a scaffold response text.
  */
 function extractScaffoldFiles(scaffoldText: string): string[] {
-  const matches = scaffoldText.match(/^\s{2}([^\n]+\.(md|yaml|json|ts|js|sh))/gm);
+  const matches = scaffoldText.match(
+    /^\s{2}([^\n]+\.(md|yaml|json|ts|js|sh))/gm,
+  );
   if (!matches) return [];
-  return matches.map((m) => m.trim()).filter((m) => m.length > 0).slice(0, 12);
+  return matches
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0)
+    .slice(0, 12);
 }

@@ -168,12 +168,34 @@ After setup, your AI has the context. These prompts direct the work. Copy, paste
 ```bash
 # First-time setup — auto-detects your stack
 npx forgecraft-mcp setup .
+```
 
-# → scans your code → detects [API] + [WEB-REACT]
-# → creates forgecraft.yaml
-# → generates CLAUDE.md, .cursor/rules/, etc.
-# → adds quality-gate hooks
-# → done
+```mermaid
+flowchart TD
+    A["<b>setup .</b><br/>npx forgecraft-mcp setup ."] --> B["Phase 1 — Analyze<br/>Reads spec · infers tags"]
+    B --> C{AI assistant\nin the loop?}
+    C -->|"Yes (MCP)"| D["Phase 2 — Calibrate<br/>LLM corrects tags from spec<br/>Writes forgecraft.yaml · CLAUDE.md<br/>PRD.md · hooks · ADR-000"]
+    C -->|"No (CLI only)"| E["⚠️ CLI-only mode<br/>Directory heuristics only<br/>→ configure an AI assistant"]
+    D --> F["<b>check_cascade</b><br/>5-step readiness gate<br/>1 · Functional spec<br/>2 · Architecture + C4<br/>3 · Constitution<br/>4 · ADRs<br/>5 · Use cases"]
+    F --> G{All 5 passing?}
+    G -->|"Stubs / missing"| H["Fill artifacts<br/>docs/PRD.md · docs/adrs/<br/>docs/use-cases.md"]
+    H --> F
+    G -->|"✅ All pass"| I["<b>generate_session_prompt</b><br/>Bound context for next task"]
+    I --> J["Implement with TDD<br/>RED → GREEN → REFACTOR<br/>+ Documentation Cascade"]
+    J --> K["<b>audit_project</b><br/>Score 0 – 100"]
+    K --> L{Score ≥ 90?}
+    L -->|"Violations found"| M["WORKFLOWS.md remediation<br/>file_length · layer_violation<br/>hardcoded_url · missing_prd"]
+    M --> J
+    L -->|"✅ Score ≥ 90"| N["<b>close_cycle</b><br/>Re-check cascade · assess gates<br/>promote to registry · bump version"]
+    N --> O{Roadmap\ncomplete?}
+    O -->|"More features"| I
+    O -->|"All done"| P["<b>start_hardening</b><br/>Mutation tests · OWASP · load test"]
+    P --> Q["🚢 Ship"]
+
+    style A fill:#1a2e1a,color:#90ee90,stroke:#3a6e3a
+    style Q fill:#1a2a3e,color:#87ceeb,stroke:#3a5a8e
+    style E fill:#2e1a1a,color:#ffaa88,stroke:#6e3a3a
+    style M fill:#2e2a00,color:#ffd700,stroke:#6e6000
 ```
 
 ForgeCraft is a **setup-time CLI tool**. Run it once to configure your project, then remove it — it has no runtime footprint.
