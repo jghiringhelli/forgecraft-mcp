@@ -36,3 +36,15 @@ servers:
     category: testing
     tier: optional
     url: "https://github.com/Pimzino/spec-workflow-mcp"
+
+  - name: codeseeker
+    description: "Semantic code search — prevents duplication by finding existing patterns before writing new code"
+    command: npx
+    args: ["-y", "codeseeker@2", "serve", "--mcp"]
+    env:
+      CODESEEKER_STORAGE_MODE: embedded
+    tags: [UNIVERSAL, API, CLI, LIBRARY]
+    category: code-intelligence
+    tier: recommended
+    url: "https://github.com/jghiringhelli/codeseeker"
+    evidence: "AX treatment-v6 — CodeSeeker v2.0.0 active during session. Duplication dropped from v5 5.37% to 2.50%."

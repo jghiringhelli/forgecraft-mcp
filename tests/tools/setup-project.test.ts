@@ -399,6 +399,75 @@ describe("setupProjectHandler", () => {
       );
       expect(yamlContent).not.toContain("sensitiveData: true");
     });
+
+    // ── LLM tag override (tags param in Phase 2) ─────────────────────
+
+    it("phase 2 with tags param overrides directory-inferred tags in forgecraft.yaml", async () => {
+      // Simulate compass: only a docs folder, no package.json → directory scan would produce wrong tags
+      const docsDir = join(tempDir, "docs");
+      mkdirSync(docsDir, { recursive: true });
+      writeFileSync(
+        join(docsDir, "spec.md"),
+        "# ETL Pipeline\n\n## Overview\nExtracts state from cloud services.",
+        "utf-8",
+      );
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+        tags: ["DATA-PIPELINE", "UNIVERSAL"],
+      });
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
+      expect(yamlContent).toContain("DATA-PIPELINE");
+      expect(yamlContent).not.toContain("API");
+      expect(yamlContent).not.toContain("MOBILE");
+    });
+
+    it("phase 2 tags param always includes UNIVERSAL even if not passed", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+        tags: ["CLI"],
+      });
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
+      expect(yamlContent).toContain("UNIVERSAL");
+      expect(yamlContent).toContain("CLI");
+    });
+
+    it("phase 2 without tags param uses directory-inferred tags", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ name: "my-api", dependencies: { express: "^4.0.0" } }),
+        "utf-8",
+      );
+      mkdirSync(join(tempDir, "src", "routes"), { recursive: true });
+      writeFileSync(
+        join(tempDir, "src", "routes", "users.ts"),
+        "export {};",
+        "utf-8",
+      );
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+        // no tags param — directory infers API
+      });
+      const yamlContent = readFileSync(
+        join(tempDir, "forgecraft.yaml"),
+        "utf-8",
+      );
+      expect(yamlContent).toContain("API");
+    });
   });
 
   // ── CNT generation ───────────────────────────────────────────────────

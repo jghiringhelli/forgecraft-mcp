@@ -26,7 +26,7 @@ npx forgecraft-mcp setup .
 
 ---
 
-## The only formal quality framework built for AI-generated code
+## A quality framework for AI-assisted software development
 
 Every session, every project, every AI assistant — measured against the same 7-property **Generative Specification** model. Not vibes. Not a linter score. A score out of 14 that tells you exactly where the gap is and why.
 
@@ -68,6 +68,8 @@ Before installing: `code --list-extensions | grep -i <name>`. Only install if no
 **Docker containers**
 Check before creating: `docker ps -a --filter name=<service>`. If it exists, start it — don't create it. Prefer `docker compose up` (reuse) over bare `docker run` (always creates new). Logs capped at 500 MB. `docker system prune -f` is documented as a periodic maintenance step, not an emergency.
 
+> **Exception:** Multiple containers of the same service are permitted when they differ meaningfully in plugin set or major version — for example, a `postgres-pgvector` container alongside a standard `postgres` container. Name containers to reflect the variant (e.g., `db-pgvector`, `db-timescale`); otherwise the deduplication rule applies.
+
 **Python virtual environments**
 One `.venv` per project root. Reuse if the Python major.minor version matches. Never create a venv in a subdirectory unless it's a standalone installable package. Unused dependencies flagged by `pip list --not-required`.
 
@@ -86,25 +88,29 @@ Read the spec in docs/specs/, set up this project with ForgeCraft,
 scaffold it with the right tags, recommend the tech stack, start building.
 ```
 
-That's the entire onboarding prompt. ForgeCraft reads the spec, picks the tags, writes the `CLAUDE.md`, emits `Status.md`, `docs/adrs/`, `docs/PRD.md`, `docs/TechSpec.md`, hooks, and skills. The AI has full context. You start building.
+That's the entire onboarding prompt. ForgeCraft reads the spec, the AI assigns the tags, and ForgeCraft writes the instruction file, emits `Status.md`, `docs/adrs/`, `docs/PRD.md`, `docs/TechSpec.md`, hooks, and skills. The AI has full context. You start building.
 
 ForgeCraft scans your project, auto-detects your stack, and generates tailored instruction files from 116 curated blocks — SOLID, hexagonal architecture, testing pyramids, CI/CD, and 24 domain-specific rule sets — in seconds.
 
 ---
 
-## Quality gates that match your release phase
+## Quality gates
 
-Not a fixed checklist. Seven phases, each with gates that make sense for where you actually are.
+Quality gates are structured pass/fail checks your AI assistant runs at defined moments — before a commit, before a release, after a deployment. They're not linter rules. Each gate has a condition, an evidence requirement, and a flag for whether human review is mandatory.
 
-| Phase | Gates |
+Gates are organized by release phase so you're not running pre-release chaos tests on day one of a greenfield project:
+
+| Phase | Example gates |
 |---|---|
 | **development** | Unit tests pass · lint clean · no layer violations · no hardcoded secrets |
 | **pre-release hardening** | Mutation testing ≥80% · DAST scan · 2× peak load · chaos (Toxiproxy) |
 | **release candidate** | OWASP Top 10 pentest · full mutation audit · compatibility matrix · accessibility |
-| **deployment gates** | Canary config verified · smoke tests pass · observability confirmed |
+| **deployment** | Canary config verified · smoke tests pass · observability confirmed |
 | **post-deployment** | Synthetic probes live · 30-min error window monitored · incident runbook reviewed |
 
-Every hardening step is tagged `requires_human_review: true`. Some gates require a human. ForgeCraft knows which ones.
+Gates tagged `requires_human_review: true` cannot be auto-passed — some checks require a human.
+
+The full gate library, contribution guide, and schema are in the [quality gates repository →](https://github.com/jghiringhelli/genspec-dev-quality-gates)
 
 ---
 
@@ -122,14 +128,14 @@ npx forgecraft-mcp generate_adr . --title "Use event sourcing for order history"
 
 ---
 
-## `claude init` vs ForgeCraft
+## AI assistant setup vs ForgeCraft
 
-`claude init` gets you started. ForgeCraft gets you to production standards — across every AI assistant, every session, every engineer on the team.
+`claude init`, Cursor's workspace rules, or Copilot's instructions file get you started. ForgeCraft gets you to production standards — across every AI assistant, every session, every engineer on the team.
 
-| | `claude init` | ForgeCraft |
+| | Default AI setup | ForgeCraft |
 |---|---|---|
 | **Instruction file** | Generic, one-size-fits-all | 116 curated blocks matched to your stack |
-| **AI assistants** | Claude only | Claude, Cursor, Copilot, Windsurf, Cline, Aider |
+| **AI assistants** | Varies by tool | Claude, Cursor, Copilot, Windsurf, Cline, Aider |
 | **Architecture** | None | SOLID, hexagonal, clean code, DDD |
 | **Testing** | Basic mention | Testing pyramid, coverage targets, mutation gates |
 | **Domain rules** | None | 24 domains (fintech, healthcare, gaming…) |
@@ -140,17 +146,62 @@ npx forgecraft-mcp generate_adr . --title "Use event sourcing for order history"
 | **Session continuity** | None | `Status.md` + `forgecraft.yaml` persist context |
 | **Drift detection** | None | `refresh` detects scope changes |
 
+## Workflow Playbook
+
+After setup, your AI has the context. These prompts direct the work. Copy, paste, run.
+
+| Situation | Prompt |
+|---|---|
+| New project — scaffold structure | [Greenfield Setup](WORKFLOWS.md#greenfield-setup) |
+| Existing project — integrate ForgeCraft | [Brownfield Integration](WORKFLOWS.md#brownfield-integration) |
+| Audit shows `file_length` failures | [Decompose by responsibility](WORKFLOWS.md#file_length--file-too-large) |
+| Audit shows `hardcoded_url` failures | [Extract to env vars](WORKFLOWS.md#hardcoded_url--urls-or-hosts-in-source) |
+| Audit shows `hardcoded_credential` failures | [Remove secrets — do this first](WORKFLOWS.md#hardcoded_credential--secrets-in-source) |
+| Audit shows `layer_violation` failures | [Fix route → DB direct calls](WORKFLOWS.md#layer_violation--direct-db-call-in-route-handler) |
+| Audit shows `mock_in_source` failures | [Move mocks out of production](WORKFLOWS.md#mock_in_source--mock-data-in-production-code) |
+| Audit shows `missing_prd` failures | [Reverse-engineer spec docs](WORKFLOWS.md#missing_prd--missing_techspec--no-spec-docs) |
+| Audit shows `stale_status` failures | [Update Status.md](WORKFLOWS.md#stale_status--statusmd-not-updated) |
+| Score ≥ 80 and preparing to ship | [Pre-release hardening](WORKFLOWS.md#pre-release-hardening) |
+| Just deployed to production | [Post-deployment checklist](WORKFLOWS.md#post-deployment) |
+| Project scope changed | [Drift detection](WORKFLOWS.md#drift-detection) |
+
+→ [Full Workflow Playbook](WORKFLOWS.md) · [Online version](https://forgecraft.tools/docs/workflows)
+
+---
+
 ## How It Works
 
 ```bash
 # First-time setup — auto-detects your stack
 npx forgecraft-mcp setup .
+```
 
-# → scans your code → detects [API] + [WEB-REACT]
-# → creates forgecraft.yaml
-# → generates CLAUDE.md, .cursor/rules/, etc.
-# → adds quality-gate hooks
-# → done
+```mermaid
+flowchart TD
+    A["<b>setup .</b><br/>npx forgecraft-mcp setup ."] --> B["Phase 1 — Analyze<br/>Reads spec · infers tags"]
+    B --> C{AI assistant\nin the loop?}
+    C -->|"Yes (MCP)"| D["Phase 2 — Calibrate<br/>LLM corrects tags from spec<br/>Writes forgecraft.yaml · CLAUDE.md<br/>PRD.md · hooks · ADR-000"]
+    C -->|"No (CLI only)"| E["⚠️ CLI-only mode<br/>Directory heuristics only<br/>→ configure an AI assistant"]
+    D --> F["<b>check_cascade</b><br/>5-step readiness gate<br/>1 · Functional spec<br/>2 · Architecture + C4<br/>3 · Constitution<br/>4 · ADRs<br/>5 · Use cases"]
+    F --> G{All 5 passing?}
+    G -->|"Stubs / missing"| H["Fill artifacts<br/>docs/PRD.md · docs/adrs/<br/>docs/use-cases.md"]
+    H --> F
+    G -->|"✅ All pass"| I["<b>generate_session_prompt</b><br/>Bound context for next task"]
+    I --> J["Implement with TDD<br/>RED → GREEN → REFACTOR<br/>+ Documentation Cascade"]
+    J --> K["<b>audit_project</b><br/>Score 0 – 100"]
+    K --> L{Score ≥ 90?}
+    L -->|"Violations found"| M["WORKFLOWS.md remediation<br/>file_length · layer_violation<br/>hardcoded_url · missing_prd"]
+    M --> J
+    L -->|"✅ Score ≥ 90"| N["<b>close_cycle</b><br/>Re-check cascade · assess gates<br/>promote to registry · bump version"]
+    N --> O{Roadmap\ncomplete?}
+    O -->|"More features"| I
+    O -->|"All done"| P["<b>start_hardening</b><br/>Mutation tests · OWASP · load test"]
+    P --> Q["🚢 Ship"]
+
+    style A fill:#1a2e1a,color:#90ee90,stroke:#3a6e3a
+    style Q fill:#1a2a3e,color:#87ceeb,stroke:#3a5a8e
+    style E fill:#2e1a1a,color:#ffaa88,stroke:#6e3a3a
+    style M fill:#2e2a00,color:#ffd700,stroke:#6e6000
 ```
 
 ForgeCraft is a **setup-time CLI tool**. Run it once to configure your project, then remove it — it has no runtime footprint.
@@ -195,9 +246,11 @@ This is the core value. Assembled from curated blocks covering:
 
 Every block is sourced from established engineering literature (Martin, Evans, Wiggins) and adapted for AI-assisted development.
 
-## 24 Tags — Pick What Fits
+## 24 Tags — AI-detected, user-adjustable
 
-Tags are domain classifiers. ForgeCraft auto-detects them from your code, or you choose manually. Combine freely — blocks merge without conflicts.
+Tags tell ForgeCraft what your project is. On first setup, the AI analyzes your spec and codebase and assigns them. You can review and override in `forgecraft.yaml`. Blocks merge without conflicts — add or remove tags as the project evolves.
+
+The full tag list and contribution guide live in the [quality gates repository →](https://github.com/jghiringhelli/genspec-dev-quality-gates)
 
 | Tag | What it adds |
 |-----|-------------|
@@ -226,7 +279,7 @@ Tags are domain classifiers. ForgeCraft auto-detects them from your code, or you
 | `MEDALLION-ARCHITECTURE` | Bronze=immutable, Silver=validated, Gold=aggregated |
 | `ZERO-TRUST` | Deny-by-default IAM, explicit allow rules |
 
-## Content Tiers
+## Content depth tiers
 
 Not every project needs DDD on day one.
 
@@ -283,24 +336,20 @@ npx forgecraft-mcp <command> [dir] [flags]
 
 Optionally add the ForgeCraft MCP sentinel to let your AI assistant diagnose your project and suggest the right CLI command:
 
-```bash
-claude mcp add forgecraft -- npx -y forgecraft-mcp
-```
+The sentinel is a **single minimal tool** (~200 tokens per request, vs ~1,500 for a full tool suite). It checks whether `forgecraft.yaml`, your AI instruction file, and your hooks exist, then returns the targeted CLI command for the project's current state.
 
-The sentinel is a **single minimal tool** (~200 tokens per request, vs ~1,500 for a full tool suite). It checks whether `forgecraft.yaml`, `CLAUDE.md`, and `.claude/hooks` exist, then returns the targeted CLI command for the project's current state.
-
-**The design is intentional.** The full ForgeCraft command surface — 21 actions — lives in the CLI, not the MCP server. The MCP server exposes exactly one tool that reads three artifacts and returns one recommendation. This is the Generative Specification principle in the tool's own architecture: a stateless reader, a bounded artifact set, a derived action. The tool practices what it writes into your `CLAUDE.md`.
+**The design is intentional.** The full ForgeCraft command surface — 21 actions — lives in the CLI, not the MCP server. The MCP server exposes exactly one tool that reads three artifacts and returns one recommendation. This is the Generative Specification principle in the tool's own architecture: a stateless reader, a bounded artifact set, a derived action. The tool practices what it writes into your instruction files.
 
 A side effect: every declared MCP tool is read by the model on every turn whether invoked or not. One tool costs 200 tokens. Twenty-one tools costs 1,500. The sentinel keeps the methodology's recommended MCP budget (≤3 active servers) by design.
 
 **Recommended workflow:**
-1. Add the sentinel temporarily
+1. Add the sentinel to your AI assistant (see config examples below)
 2. Let your AI assistant run `npx forgecraft-mcp setup .`
-3. Remove the sentinel: `claude mcp remove forgecraft`
+3. Remove the sentinel from your active MCP config
 4. Re-add it when you need to refresh or audit
 
 <details>
-<summary>Manual MCP config</summary>
+<summary>Manual MCP config — Claude</summary>
 
 Add to `.claude/settings.json`:
 ```json
@@ -315,34 +364,52 @@ Add to `.claude/settings.json`:
 ```
 </details>
 
+<details>
+<summary>Manual MCP config — GitHub Copilot (VS Code)</summary>
+
+Add to `.vscode/mcp.json` in your project root (create it if it doesn't exist):
+```json
+{
+  "servers": {
+    "forgecraft": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    }
+  }
+}
+```
+
+Then open the Copilot Chat panel, switch to **Agent mode**, and the forgecraft sentinel will appear in the tools list.
+</details>
+
+<details>
+<summary>Manual MCP config — Cursor</summary>
+
+Add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "forgecraft": {
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    }
+  }
+}
+```
+</details>
+
+> **No MCP client?** That's fine — you don't need it. Run `npx forgecraft-mcp setup .` directly in your terminal. The MCP sentinel is optional; the CLI does everything.
+
 > **Already ran `claude init`?** Use `npx forgecraft-mcp generate . --merge` to merge with your existing CLAUDE.md, keeping your custom sections while adding production standards.
 
 ---
 
-## Pricing
+## Free and open source
 
-| | **Free** | **Pro** | **Teams** |
-|---|---|---|---|
-| Projects / month | 2 | Unlimited | Unlimited |
-| GS scoring (`verify`) | ✓ | ✓ | ✓ |
-| Dev hygiene gates | ✓ | ✓ | ✓ |
-| All 24 tags | ✓ | ✓ | ✓ |
-| ADR generation | ✓ | ✓ | ✓ |
-| Quality gate flywheel | Read-only | **Contribute** | Priority |
-| Custom tags & templates | — | ✓ | ✓ |
-| Org-wide standards | — | — | ✓ |
-| Audit dashboard | — | — | ✓ |
-| Priority support | — | — | ✓ |
+ForgeCraft is free. No limits, no tiers, no API keys.
 
-_Free is for individual devs who want to experience the model. Pro is for engineers who want to contribute gates and grow the library. Teams is where organizations pay for the quality guarantee._
-
-### Earn Pro by contributing
-
-Propose a quality gate that gets accepted into the library → earn Pro months.
-
-- **Founding period** (first 6 months): 3 months Pro per accepted gate
-- **After founding period**: 1 month Pro per accepted gate  
-- **3+ accepted gates ever**: Lifetime Pro
+The quality gate library grows through community contribution. If you propose a gate that gets accepted, your name goes in [CONTRIBUTORS.md](CONTRIBUTORS.md) and you helped raise the floor for everyone building with AI.
 
 [Open a gate proposal →](.github/ISSUE_TEMPLATE/quality-gate-proposal.md) · [See contributors →](CONTRIBUTORS.md)
 

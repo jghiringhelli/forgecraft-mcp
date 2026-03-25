@@ -150,3 +150,233 @@ gates:
     evidence: >
       AX treatment-v3: 38 lint errors when linter config added post-hoc.
       treatment-v6: 0 errors when linter configuration emitted in P0 (infrastructure turn).
+
+  - id: seed-data-file-length
+    title: "Seed and migration scripts under file length limit"
+    description: >
+      Database seed files and migration scripts that exceed 300 lines indicate
+      monolithic test data logic that is impossible to maintain, diff, or selectively
+      run. Each entity type should have its own seed module.
+    domain: code-quality
+    gsProperty: bounded
+    implementation: logic
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    tags: [UNIVERSAL, API, DATABASE, WEB-REACT]
+    check: >
+      Check that all seed/*.ts, seed/*.py, prisma/seed*.ts, scripts/seed*.ts files
+      are under 300 lines. Report any that exceed the limit.
+    passCriterion: "All seed/migration scripts under 300 lines"
+    failureMessage: "Seed file exceeds 300 lines — split by domain entity"
+    fixHint: "Extract each entity's seed data into its own module: seed/users.ts, seed/companies.ts, etc."
+    risk:
+      likelihood: high
+      impact: medium
+      confidence: high
+    status: ready
+    source: project
+    generalizable: true
+    evidence: >
+      safetyCorePro audit: prisma/seed.ts=1107 lines, seed-templates.ts=967 lines.
+      invellum audit: seed-demo-data.ts=1042 lines, seed-feed-data.ts=1556 lines.
+      Observed in all 5 brownfield WEB-REACT+API projects audited in this workspace.
+      Blocker for split-responsibility refactors because tests depend on monolithic seed state.
+
+  - id: test-credentials-in-test-setup
+    title: "Test credentials must be placeholders or env vars"
+    description: >
+      Hardcoded credentials in test setup files (e2e-setup.ts, jest.setup.ts, testHelpers.ts)
+      are committed to source control. Even if they are test-only, they establish a pattern
+      that leaks into production setup and fail secret scanning CI gates.
+      All test credentials must use process.env or a dedicated test secret store.
+    domain: security
+    gsProperty: defended
+    implementation: logic
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    tags: [UNIVERSAL, API, WEB-REACT]
+    check: >
+      Scan tests/setup/, e2e/, tests/helpers/ for hardcoded string literals that match
+      credential patterns (password, token, secret, key, credential) not sourced from
+      process.env or a config loader.
+    passCriterion: "Zero hardcoded credentials in test setup files"
+    failureMessage: "Hardcoded credential in test setup — use process.env.TEST_USER_PASSWORD"
+    fixHint: "Replace hardcoded value with process.env.TEST_* and document in .env.test.example"
+    cwe: CWE-798
+    risk:
+      likelihood: high
+      impact: medium
+      confidence: medium
+    status: ready
+    source: project
+    generalizable: true
+    evidence: >
+      invellum audit: 8 hardcoded credentials in tests/setup/e2e-setup.ts, jest.setup.ts,
+      testHelpers.ts, pact.setup.ts. safetyCorePro audit: 4 in e2e/global-setup.ts.
+      Pattern observed in every brownfield TypeScript project with e2e suites (5/5 projects).
+
+  - id: swagger-spec-file-length
+    title: "OpenAPI/Swagger spec generation files under limit"
+    description: >
+      Swagger/OpenAPI specification generator files that exceed 1000 lines are unmaintainable
+      and indicate that the spec is being hand-coded rather than auto-generated from route
+      decorators or a schema-first approach. A 1800-line swagger.ts is a god object.
+    domain: api-contract
+    gsProperty: bounded
+    implementation: logic
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    tags: [UNIVERSAL, API]
+    check: >
+      Check that any file matching swagger*.ts, openapi*.ts is under 500 lines.
+      Files over 1000 lines are P0 violations.
+    passCriterion: "Swagger/OpenAPI spec files under 500 lines"
+    failureMessage: "swagger.ts exceeds 500 lines — generate spec from decorators instead of hand-coding"
+    fixHint: "Use tsoa, NestJS Swagger decorators, or zod-openapi to generate spec from code. Delete the hand-coded file."
+    risk:
+      likelihood: medium
+      impact: high
+      confidence: high
+    status: ready
+    source: project
+    generalizable: true
+    evidence: >
+      invellum audit: swagger.ts=1866 lines, swagger-interactive.ts=1131 lines.
+      Both files accumulate every endpoint definition by hand. Spec is guaranteed to
+      drift from implementation within weeks of parallel development.
+
+  - id: python-cascade-detection
+    title: "Python project cascade detection compatibility"
+    description: >
+      The ForgeCraft cascade checker looks for package.json as the entry signal for
+      an installable project. Python projects using pyproject.toml, setup.py, or
+      requirements.txt are misclassified as non-projects, producing false negatives
+      on cascade checks.
+    domain: environment-hygiene
+    gsProperty: verifiable
+    implementation: mcp
+    phase: setup
+    hook: none
+    os: cross-platform
+    tags: [UNIVERSAL]
+    check: >
+      When audit detects Python files (*.py) in src/ and no package.json is present,
+      treat pyproject.toml, setup.py, or requirements.txt as the installable manifest.
+      Do not emit package_json FAIL for Python projects.
+    passCriterion: "Python project manifests detected without false-positive package.json failure"
+    failureMessage: "package.json FAIL on Python project — pyproject.toml present but not recognised"
+    fixHint: "This is a forgecraft-mcp gap, not a project gap. Tag the project with the Python language flag."
+    risk:
+      likelihood: high
+      impact: medium
+      confidence: high
+    status: ready
+    source: project
+    generalizable: false
+    evidence: >
+      lumen audit: 38/100 score with 'package.json missing' as top failure — pure Python FastAPI project.
+      compass audit: same false positive. aegis audit (prior session): same.
+      Affects 100% of Python projects in this workspace. Forgecraft-mcp gap ticket needed.
+
+  - id: cnt-core-md-line-limit
+    title: "CNT core.md must stay under 50 lines"
+    description: >
+      The CNT (Copilot Navigation Tree) core.md is always-loaded context. It must contain only
+      invariants — facts true on every turn, every session. Content that exceeds 50 lines means
+      standards that should be in domain files (architecture.md, testing.md) have leaked into
+      core.md, defeating the purpose of the sentinel architecture.
+    domain: environment-hygiene
+    gsProperty: composable
+    implementation: logic
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    tags: [UNIVERSAL]
+    check: >
+      Count lines in .claude/core.md. Fail if over 50 lines.
+      Check that .claude/standards/*.md files exist (domain-specific content should be there).
+    passCriterion: ".claude/core.md under 50 lines; domain content in .claude/standards/"
+    failureMessage: ".claude/core.md exceeds 50 lines — move domain content to .claude/standards/[domain].md"
+    fixHint: "Run `npx forgecraft-mcp refresh . --apply` to redistribute content to domain files"
+    risk:
+      likelihood: high
+      impact: medium
+      confidence: high
+    status: ready
+    source: project
+    generalizable: true
+    evidence: >
+      automaton: .claude/core.md=327 lines after setup. invellum: 250 lines. compass: 326 lines.
+      Pattern: fresh setup generates long core.md when project has complex tag set.
+      Token cost: a 327-line core.md vs 50-line loads 277 extra lines on EVERY turn, every session.
+      This is the single largest per-turn token waste in a forgecraft setup.
+
+  - id: agent-tools-decomposition
+    title: "Agent tools registry must be decomposed by capability domain"
+    description: >
+      An agent tools.ts / tools.py file exceeding 1000 lines indicates all tool implementations
+      live in a single module. This makes it impossible to add, test, or disable individual tool
+      capabilities independently. Each tool domain (filesystem, network, state, reasoning) must
+      be its own module.
+    domain: code-quality
+    gsProperty: composable
+    implementation: logic
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    tags: [UNIVERSAL, API, WEB3]
+    check: >
+      If an agent/tools.ts or equivalent file exceeds 500 lines, report a warning.
+      Over 1000 lines is a P0 violation.
+    passCriterion: "Agent tools file under 500 lines, each tool domain in its own module"
+    failureMessage: "agent/tools.ts exceeds 1000 lines — decompose by tool capability domain"
+    fixHint: "Create tools/filesystem.ts, tools/network.ts, tools/state.ts. Re-export from tools/index.ts"
+    risk:
+      likelihood: medium
+      impact: high
+      confidence: high
+    status: ready
+    source: project
+    generalizable: true
+    evidence: >
+      automaton audit: src/agent/tools.ts=3388 lines. This single file contains every tool
+      the agent can call. Cannot be tested in isolation. Cannot be disabled selectively.
+      Cannot be diffed meaningfully. Root cause of agent behavioral unpredictability in
+      complex multi-tool scenarios.
+
+  - id: route-handler-decomposition
+    title: "Route handler files must be decomposed"
+    description: >
+      A route handler file (routes.py, server.ts, router.ts) exceeding 500 lines indicates
+      multiple features are co-located in a single request handler module. Each feature domain
+      must have its own router/blueprint.
+    domain: architecture
+    gsProperty: composable
+    implementation: logic
+    phase: development
+    hook: pre-commit
+    os: cross-platform
+    tags: [UNIVERSAL, API]
+    check: >
+      Scan all files matching routes*.py, router*.ts, *Router.ts, *Routes.py for line count.
+      Warn at 500 lines, P0 at 1000 lines.
+    passCriterion: "No route handler file exceeds 500 lines"
+    failureMessage: "routes.py exceeds 500 lines — split by feature domain (auth/, users/, billing/)"
+    fixHint: "Create feature-specific routers: from app.routes.auth import auth_router; app.include_router(auth_router)"
+    risk:
+      likelihood: high
+      impact: high
+      confidence: high
+    status: ready
+    source: project
+    generalizable: true
+    evidence: >
+      brad audit: src/dadbot/dashboard/routes.py=5660 lines. This one file handles every
+      HTTP request in the application. conclave audit: dashboard-ui/server/index.ts=1247 lines.
+      Impossible to test individual routes without loading the entire handler context.
+    evidence: >
+      AX treatment-v3: 38 lint errors when linter config added post-hoc.
+      treatment-v6: 0 errors when linter configuration emitted in P0 (infrastructure turn).

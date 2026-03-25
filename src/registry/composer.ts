@@ -19,27 +19,17 @@ import type {
   ReferenceBlock,
   PlaybookTemplate,
   VerificationStrategy,
-  ContentTier,
   ForgeCraftConfig,
 } from "../shared/types.js";
+import {
+  TIER_HIERARCHY,
+  DEFAULT_TIER,
+  isTierAllowed,
+  isBlockAllowed,
+  normalizeTagOrder,
+} from "./composer-helpers.js";
 
 const logger = createLogger("registry/composer");
-
-/**
- * Tier inclusion hierarchy.
- * "core" → includes only core blocks.
- * "recommended" → includes core + recommended.
- * "optional" → includes core + recommended + optional.
- * Blocks without a tier field are treated as "core" (always included).
- */
-const TIER_HIERARCHY: Record<ContentTier, ContentTier[]> = {
-  core: ["core"],
-  recommended: ["core", "recommended"],
-  optional: ["core", "recommended", "optional"],
-};
-
-/** Default tier when none is specified in config. */
-const DEFAULT_TIER: ContentTier = "recommended";
 
 /** Composed output for a set of active tags. */
 export interface ComposedTemplates {
@@ -64,44 +54,6 @@ export interface ComposedTemplates {
 export interface ComposeOptions {
   /** ForgeCraft project config with tier preferences and include/exclude. */
   readonly config?: ForgeCraftConfig;
-}
-
-/**
- * Check if a block should be included based on the tier filter.
- * Blocks without a tier are treated as "core" (always included).
- *
- * @param blockTier - The tier of the block (undefined = core)
- * @param allowedTiers - The set of allowed tiers
- * @returns true if the block should be included
- */
-function isTierAllowed(
-  blockTier: ContentTier | undefined,
-  allowedTiers: Set<ContentTier>,
-): boolean {
-  const effective = blockTier ?? "core";
-  return allowedTiers.has(effective);
-}
-
-/**
- * Check if a block ID is included/excluded by the config lists.
- *
- * @param blockId - The block identifier
- * @param include - Explicit include list (if set, only these are included)
- * @param exclude - Explicit exclude list (always excluded)
- * @returns true if the block should be included
- */
-function isBlockAllowed(
-  blockId: string,
-  include?: string[],
-  exclude?: string[],
-): boolean {
-  if (exclude?.includes(blockId)) {
-    return false;
-  }
-  if (include && include.length > 0) {
-    return include.includes(blockId);
-  }
-  return true;
 }
 
 /**
@@ -277,28 +229,4 @@ export function composeTemplates(
     // Backward-compat alias
     claudeMdBlocks: instructionBlocks,
   };
-}
-
-/**
- * Ensure UNIVERSAL is always first in the tag list.
- * Remove duplicates. Preserve user order for other tags.
- */
-function normalizeTagOrder(tags: Tag[]): Tag[] {
-  const seen = new Set<Tag>();
-  const result: Tag[] = [];
-
-  // UNIVERSAL always first
-  if (!tags.includes("UNIVERSAL")) {
-    result.push("UNIVERSAL");
-    seen.add("UNIVERSAL");
-  }
-
-  for (const tag of tags) {
-    if (!seen.has(tag)) {
-      seen.add(tag);
-      result.push(tag);
-    }
-  }
-
-  return result;
 }

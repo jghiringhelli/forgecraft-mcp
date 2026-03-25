@@ -1,4 +1,4 @@
-<!-- ForgeCraft sentinel: protocols | 2026-03-18 | npx forgecraft-mcp refresh . --apply to update -->
+<!-- ForgeCraft sentinel: protocols | 2026-03-24 | npx forgecraft-mcp refresh . --apply to update -->
 
 ## Dependency Registry — AI-Maintained Security Contract
 
@@ -53,6 +53,99 @@ dependency was chosen and that it was clean at the time of addition.
 
 The correct command for **this project's ecosystem** must appear in the pre-commit hook
 emitted in P1. Discovering CVEs at code review is too late.
+
+## Adversarial Testing Posture
+
+Tests are not documentation of what the code does. Tests are adversarial assertions
+that the code does the right thing even when given inputs designed to break it.
+
+### The adversarial posture
+- Design every test as if the implementation is wrong until proven otherwise.
+- Write tests that FAIL on incorrect code — not tests that pass on any reasonable implementation.
+- If a test is hard to make fail, the specification is underspecified, not the test.
+
+### Name tests as behaviors, not paths
+- `rejects_expired_tokens` not `test_validate_token`
+- `throws_on_missing_required_field` not `test_error_handling`
+- `returns_empty_list_not_null_when_no_results` not `test_query`
+
+### Cover the adversarial surface
+For every public function or API endpoint, write tests for:
+1. **Valid boundary values**: minimum, maximum, exact-zero, single-element
+2. **Invalid boundary values**: below-minimum, above-maximum, empty, null/undefined
+3. **Constraint violations**: values that look valid but break invariants (negative balance, future birth date)
+4. **Ordering and concurrency**: does order matter? what if called twice?
+5. **Authorization boundaries**: can a user access another user's resource?
+
+A test suite that only exercises the happy path is documentation, not specification.
+Every mutation that survives is a missing adversarial test.
+
+## Property-Based Testing
+
+Example-based tests verify that `f(x) = y` for specific known pairs.
+Property-based tests verify that invariants hold for ALL inputs the generator can produce.
+Both are required. Neither replaces the other.
+
+### When to add property tests
+- Pure functions with wide input domains (serialization, parsing, math, sorting)
+- Functions where "same inputs → same outputs" must hold across edge cases
+- Any encoder/decoder pair: `decode(encode(x)) === x` must hold for all x
+- Any sort or ranking: `sort(sort(xs))` must equal `sort(xs)` (idempotence)
+- Any financial calculation: results must be within bounds for all valid inputs
+
+### Ecosystem tools (language-agnostic principle)
+Use whatever property testing library matches the project's language:
+- TypeScript / JavaScript: `fast-check`
+- Python: `hypothesis`
+- Java / Kotlin: `jqwik` or `kotest`
+- Go: `gopter` or `rapid`
+- Rust: `proptest`
+- Scala: `scalacheck`
+
+### Template invariant structure
+```
+property("encode-decode round trip", () => {
+  forAll(arbitrary_valid_input(), (input) => {
+    expect(decode(encode(input))).toEqual(input);
+  });
+});
+```
+
+If a property test fails with an unexpected input, add that input as a regression example test.
+Property failures are bugs, not edge cases to suppress.
+
+## Specification Completeness Meta-Query
+
+Before writing implementation code, ask the model:
+
+> "What dimensions of correctness does this specification not yet address?"
+
+This activates domain depth and returns the surface that is missing. A complete answer
+identifies gaps before they become bugs — not after.
+
+### Six dimensions to probe systematically
+
+1. **Concurrency behavior** — What happens when two users modify the same resource simultaneously?
+   Are there race conditions? What is the consistency model (eventual, strong, linearizable)?
+
+2. **Partial failure handling** — What state is the system in if the operation fails halfway?
+   Is the operation idempotent? Is retry safe? Is rollback possible? Who cleans up?
+
+3. **Authorization edge cases** — What happens with an expired token? A revoked role?
+   Can a user with partial permissions complete a multi-step operation?
+   What does "no access" mean vs "resource does not exist"?
+
+4. **Observable side effects** — Does this operation send emails, fire webhooks, publish events,
+   write audit logs? Are those effects specified? Are they retryable? Can they duplicate?
+
+5. **Performance constraints** — Is there an SLA? A timeout? A maximum payload size?
+   What is the expected order of magnitude of inputs? What degrades gracefully?
+
+6. **Backwards compatibility** — If this changes an existing interface, what breaks?
+   Is there a migration path? Who depends on the current behavior?
+
+Each unanswered dimension is a test to write before implementation begins.
+If the specification has no answer, the answer must be decided now — not discovered during an incident.
 
 ## Clarification Protocol
 Before writing code for any new feature or significant change:
@@ -135,6 +228,14 @@ until the following are true. Show the evidence in your response — do not clai
    the changed interface. Fixing one side without seeing the other causes oscillation:
    the model fixes `service.ts` (3-param signature) but `routes.ts` still calls it with
    an object — same error reappears inverted next pass.
+4. **§8 DRY Check**: Run duplication detector on `src/`. Duplicated lines must be < 5%
+   (min-tokens 50). Use the tool appropriate for your stack (see project-gates.yaml:
+   `no-code-duplication`). If above threshold, extract duplicated logic to a shared utility
+   before closing.
+5. **§9 Interface Completeness**: Every method declared in each interface must be implemented
+   by its concrete class. Run static type checking (0 errors required). Use the tool
+   appropriate for your stack (see project-gates.yaml: `interface-contract-completeness`).
+   If errors exist, implement missing methods before closing.
 
 ### Required evidence in the final response
 ```

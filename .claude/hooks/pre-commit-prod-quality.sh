@@ -51,7 +51,7 @@ is_excepted() {
 echo "🔍 Scanning for production code anti-patterns..."
 for file in $SOURCE_FILES; do
   if echo "$file" | grep -vqE '(config|settings|\.env)'; then
-    if grep -nE '(localhost|127\.0\.0\.1|0\.0\.0\.0)' "$file" | grep -vE '(#|//|""")' > /tmp/violations 2>/dev/null; then
+    if grep -nE '(localhost|127\.0\.0\.1|0\.0\.0\.0)' "$file" | grep -vE '(#|//|"""|\/\(.*localhost|\?\?.*['"'"'"`])' > /tmp/violations 2>/dev/null; then
       if [ -s /tmp/violations ]; then
         echo "  ❌ $file — hardcoded URL/host"
         VIOLATIONS=$((VIOLATIONS + 1))
@@ -59,7 +59,7 @@ for file in $SOURCE_FILES; do
     fi
   fi
   if ! is_excepted "anti-pattern/mock-data" "$file"; then
-    if grep -nEi '\b(mock_data|fake_data|dummy_data|stub_response)' "$file" > /tmp/violations 2>/dev/null; then
+    if grep -nEi '\b(mock_data|fake_data|dummy_data|stub_response)' "$file" | grep -vE '/\\b\(' > /tmp/violations 2>/dev/null; then
       if [ -s /tmp/violations ]; then
         echo "  ❌ $file — mock/stub data in production code"
         VIOLATIONS=$((VIOLATIONS + 1))

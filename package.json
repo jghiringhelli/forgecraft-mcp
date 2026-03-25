@@ -12,6 +12,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
+    "serve": "node dist/http-server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -20,7 +21,7 @@
     "test:mutation:sentinel": "stryker run stryker.sentinel.json",
     "lint": "eslint src/",
     "clean": "rimraf dist",
-    "prepare": "bash scripts/setup-hooks.sh",
+    "prepare": "node -e \"if(require('fs').existsSync('.git')&&require('fs').existsSync('scripts/setup-hooks.sh')){require('child_process').execSync('bash scripts/setup-hooks.sh',{stdio:'inherit'})}\"",
     "prepublishOnly": "npm run clean && npm run build",
     "export:taxonomy": "npx ts-node --esm scripts/export-taxonomy.ts"
   },
@@ -65,12 +66,14 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "express": "^5.2.1",
     "js-yaml": "^4.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.0",
     "@stryker-mutator/vitest-runner": "^9.6.0",
+    "@types/express": "^5.0.6",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.13.4",
     "@vitest/coverage-v8": "^3.2.4",

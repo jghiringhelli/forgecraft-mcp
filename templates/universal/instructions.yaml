@@ -760,6 +760,44 @@ blocks:
       module.exports = { extends: ['@commitlint/config-conventional'] };
       ```
 
+      ### Linter Config — Emit in P0, Don't Reference
+      Linter configuration is infrastructure, not application code. It must be committed to the
+      repo root in the **first response** (P0) alongside hooks and CI config — not added post-hoc.
+      A linter mentioned only in documentation does not enforce anything.
+
+      **TypeScript / JavaScript** — emit `.eslintrc.json` (or `eslint.config.js` for flat config):
+      ```json
+      {
+        "parser": "@typescript-eslint/parser",
+        "plugins": ["@typescript-eslint"],
+        "rules": {
+          "no-unused-vars": "off",
+          "@typescript-eslint/no-unused-vars": "error",
+          "@typescript-eslint/no-explicit-any": "error"
+        }
+      }
+      ```
+
+      **Python** — emit `ruff.toml` (or `[tool.ruff]` section in `pyproject.toml`):
+      ```toml
+      [tool.ruff]
+      select = ["E", "F", "I"]
+      ignore = []
+      line-length = 100
+      ```
+
+      **Go** — emit `.golangci.yaml`:
+      ```yaml
+      linters:
+        enable:
+          - unused
+          - govet
+          - errcheck
+      ```
+
+      The correct linter config for **this project's language** must be committed to the repo root
+      in the same response that emits hooks and CI. Discovering lint errors at code review is too late.
+
       ### CI Pipeline — Emit, Don't Reference
       `.github/workflows/ci.yml` must be emitted as a fenced code block in the first response.
       A CI configuration described only in documentation does not enforce anything.
@@ -909,6 +947,14 @@ blocks:
          the changed interface. Fixing one side without seeing the other causes oscillation:
          the model fixes `service.ts` (3-param signature) but `routes.ts` still calls it with
          an object — same error reappears inverted next pass.
+      4. **§8 DRY Check**: Run duplication detector on `src/`. Duplicated lines must be < 5%
+         (min-tokens 50). Use the tool appropriate for your stack (see project-gates.yaml:
+         `no-code-duplication`). If above threshold, extract duplicated logic to a shared utility
+         before closing.
+      5. **§9 Interface Completeness**: Every method declared in each interface must be implemented
+         by its concrete class. Run static type checking (0 errors required). Use the tool
+         appropriate for your stack (see project-gates.yaml: `interface-contract-completeness`).
+         If errors exist, implement missing methods before closing.
 
       ### Required evidence in the final response
       ```

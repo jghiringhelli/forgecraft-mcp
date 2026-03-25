@@ -1,0 +1,236 @@
+/**
+ * Roadmap building utilities: content generation, UC parsing, and session stub creation.
+ */
+
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+// ── Constants ────────────────────────────────────────────────────────
+
+const GENERIC_UC_TITLES = [
+  "Implement primary use case",
+  "Implement secondary use case",
+  "Implement observer use case",
+] as const;
+
+export const PHASE2_ITEMS = [
+  { id: "RM-010", title: "Integration tests: full API contract coverage" },
+  { id: "RM-011", title: "Mutation testing: achieve >80% mutation score" },
+  { id: "RM-012", title: "Architecture audit: SOLID compliance + layer check" },
+] as const;
+
+export const PHASE3_ITEMS = [
+  {
+    id: "RM-020",
+    title: "Security audit: dependency vulnerabilities + OWASP scan",
+  },
+  {
+    id: "RM-021",
+    title: "Performance baseline: establish load test benchmarks",
+  },
+  {
+    id: "RM-022",
+    title: "Documentation: README, API reference, migration guide",
+  },
+] as const;
+
+// ── UC Parsing ────────────────────────────────────────────────────────
+
+/**
+ * Parse use-case titles from docs/use-cases.md.
+ * Matches lines like "## UC-001: Title" or "## UC-001 Title".
+ * Falls back to generic titles when the file is missing or has no UC headings.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Array of { id, title } pairs
+ */
+export function parseUseCaseTitles(
+  projectDir: string,
+): ReadonlyArray<{ readonly id: string; readonly title: string }> {
+  const ucPath = join(projectDir, "docs", "use-cases.md");
+  if (!existsSync(ucPath)) return buildGenericUcTitles();
+
+  const content = readFileSync(ucPath, "utf-8");
+  const results: Array<{ id: string; title: string }> = [];
+
+  for (const line of content.split("\n")) {
+    const match = line.match(/^##\s+(UC-\d+)[:\s]+(.+)$/);
+    if (match) {
+      results.push({ id: match[1]!.trim(), title: match[2]!.trim() });
+    }
+  }
+
+  return results.length > 0 ? results : buildGenericUcTitles();
+}
+
+/**
+ * Build the three generic UC fallback items.
+ *
+ * @returns Generic { id, title } pairs
+ */
+function buildGenericUcTitles(): ReadonlyArray<{
+  readonly id: string;
+  readonly title: string;
+}> {
+  return GENERIC_UC_TITLES.map((title, i) => ({
+    id: `UC-${String(i + 1).padStart(3, "0")}`,
+    title,
+  }));
+}
+
+// ── Project Name ──────────────────────────────────────────────────────
+
+/**
+ * Read the project name from forgecraft.yaml, the first PRD heading,
+ * or fall back to the directory name.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Human-readable project name
+ */
+export function readProjectName(projectDir: string): string {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+  if (existsSync(yamlPath)) {
+    try {
+      const content = readFileSync(yamlPath, "utf-8");
+      for (const line of content.split("\n")) {
+        const match = line.match(/^(?:project_name|name):\s*(.+)$/);
+        if (match?.[1]?.trim()) return match[1].trim();
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  const prdPath = join(projectDir, "docs", "PRD.md");
+  if (existsSync(prdPath)) {
+    try {
+      const firstLine = readFileSync(prdPath, "utf-8").split("\n")[0] ?? "";
+      const match = firstLine.match(/^#\s+(.+)$/);
+      if (match?.[1]?.trim()) return match[1].trim();
+    } catch {
+      // Fall through
+    }
+  }
+
+  return inferNameFromDir(projectDir);
+}
+
+/**
+ * Infer a human-readable project name from the directory name.
+ *
+ * @param projectDir - Absolute project root
+ * @returns Title-cased project name
+ */
+function inferNameFromDir(projectDir: string): string {
+  const parts = projectDir.replace(/\\/g, "/").split("/");
+  const last = parts[parts.length - 1] ?? "Project";
+  return last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ── Roadmap Content ────────────────────────────────────────────────────
+
+/**
+ * Build the roadmap.md content string.
+ *
+ * @param projectName - Human-readable project name
+ * @param ucItems - Parsed use-case items for Phase 1
+ * @param specFilePath - Relative spec file path (for footer)
+ * @returns Complete roadmap.md string
+ */
+export function buildRoadmapContent(
+  projectName: string,
+  ucItems: ReadonlyArray<{ readonly id: string; readonly title: string }>,
+  specFilePath: string,
+): string {
+  const date = new Date().toISOString().split("T")[0]!;
+
+  const phase1Rows = ucItems
+    .map((uc, i) => {
+      const rmId = formatRmId(i + 1);
+      const title = `Implement ${uc.id}: ${uc.title}`;
+      return `| ${rmId} | ${title} | pending | docs/session-prompts/${rmId}.md |`;
+    })
+    .join("\n");
+
+  const phase2Rows = PHASE2_ITEMS.map(
+    (item) =>
+      `| ${item.id} | ${item.title} | pending | docs/session-prompts/${item.id}.md |`,
+  ).join("\n");
+
+  const phase3Rows = PHASE3_ITEMS.map(
+    (item) =>
+      `| ${item.id} | ${item.title} | pending | docs/session-prompts/${item.id}.md |`,
+  ).join("\n");
+
+  return [
+    `# ${projectName} Roadmap`,
+    "",
+    "> Generated by ForgeCraft. Each item maps to one implementation session.",
+    "> Status: pending | in-progress | done",
+    "> Run `generate_session_prompt` with the item ID to get the bound prompt.",
+    "",
+    "---",
+    "",
+    "## Phase 1: Core Implementation",
+    "",
+    "| ID | Title | Status | Prompt |",
+    "|---|---|---|---|",
+    phase1Rows,
+    "",
+    "## Phase 2: Integration & Quality Hardening",
+    "",
+    "| ID | Title | Status | Prompt |",
+    "|---|---|---|---|",
+    phase2Rows,
+    "",
+    "## Phase 3: Pre-Release Hardening",
+    "",
+    "| ID | Title | Status | Prompt |",
+    "|---|---|---|---|",
+    phase3Rows,
+    "",
+    "---",
+    `_Generated: ${date}_`,
+    `_Spec: ${specFilePath}_`,
+    "",
+  ].join("\n");
+}
+
+/**
+ * Build a session prompt stub for a Phase 1 roadmap item.
+ *
+ * @param rmId - The RM-00N identifier
+ * @param title - The item title
+ * @param ucId - The UC identifier (e.g. UC-001)
+ * @returns Stub markdown string
+ */
+export function buildSessionPromptStub(
+  rmId: string,
+  title: string,
+  ucId: string,
+): string {
+  return [
+    `# Session Prompt — ${rmId}: ${title}`,
+    `> Run \`generate_session_prompt\` with item_description="${title}" to generate the full bound prompt.`,
+    `> Or use this stub as a starting point and fill in the acceptance criteria.`,
+    "",
+    "## Task",
+    title,
+    "",
+    "## Acceptance Criteria",
+    `- [ ] ${ucId} is fully implemented (all paths covered)`,
+    "- [ ] All tests pass with >=80% coverage",
+    "- [ ] close_cycle reports no blocking gates",
+    "",
+  ].join("\n");
+}
+
+/**
+ * Format an RM ID with zero-padded 3-digit suffix.
+ *
+ * @param index - 1-based item index
+ * @returns Formatted RM-00N string
+ */
+export function formatRmId(index: number): string {
+  return `RM-${String(index).padStart(3, "0")}`;
+}

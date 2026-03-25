@@ -1,0 +1,39 @@
+# Smithery MCP Registry Configuration
+# https://smithery.ai/server/forgecraft-mcp
+name: forgecraft-mcp
+displayName: ForgeCraft
+description: >
+  CLI + MCP sentinel that enforces SOLID principles, testing standards, architecture
+  layers, CI/CD hygiene, and GS compliance — auto-tailored to your stack.
+  Minimal footprint (~200 tokens) via CLI-first design with an optional MCP server mode.
+
+version: 1.0.0
+license: MIT
+homepage: https://forgecraft.tools
+repository: https://github.com/jghiringhelli/forgecraft-mcp
+
+categories:
+  - developer-tools
+  - code-quality
+  - project-scaffolding
+
+tags:
+  - mcp
+  - claude
+  - copilot
+  - cursor
+  - engineering-standards
+  - solid
+  - testing
+  - architecture
+  - scaffolding
+
+# Hosted HTTP endpoint for Smithery gallery listing
+# Local stdio mode: npx forgecraft-mcp (unchanged)
+mcpUrl: https://forgecraft-http-production.up.railway.app/mcp
+
+tools:
+  - name: forgecraft
+    description: Diagnose ForgeCraft project state and return CLI commands to run locally
+  - name: list_tags
+    description: Return all 24 ForgeCraft classification tags

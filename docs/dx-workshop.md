@@ -9,55 +9,70 @@
 
 | Requirement | Check |
 |-------------|-------|
-| Claude CLI (`claude`) installed | `claude --version` |
-| ForgeCraft MCP server configured in `.mcp.json` | see §1 |
-| Your project has at least a `docs/spec.md` or `README.md` with requirements | — |
+| Node.js 18+ installed | `node --version` |
 | Git repo initialised | `git status` |
+| Your project has at least a `docs/spec.md` or `README.md` with requirements | — |
+
+You do **not** need Claude CLI or an AI client to run ForgeCraft. The CLI works standalone in any terminal. If you have an AI assistant (Claude, Copilot, Cursor), you can optionally add the MCP sentinel for guided setup.
 
 ---
 
-## 1. Install ForgeCraft MCP
+## 1. Install ForgeCraft
 
-Add to your project's `.mcp.json` (create if absent):
+### Option A — CLI only (works for everyone)
+
+```bash
+npx forgecraft-mcp setup .
+```
+
+That's it. ForgeCraft scans your project, auto-detects your stack, and generates all instruction files. No config needed.
+
+### Option B — MCP sentinel (Claude CLI)
+
+```bash
+claude mcp add forgecraft -- npx -y forgecraft-mcp
+```
+
+Then in Claude: `Use forgecraft to run setup_project for .`
+
+Remove the server after setup to reclaim token budget: `claude mcp remove forgecraft`
+
+### Option C — MCP sentinel (GitHub Copilot in VS Code)
+
+Create `.vscode/mcp.json` in your project root:
+
+```json
+{
+  "servers": {
+    "forgecraft": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "forgecraft-mcp"]
+    }
+  }
+}
+```
+
+Open Copilot Chat → switch to **Agent mode** → forgecraft tools appear automatically.
+
+### Option D — MCP sentinel (Cursor)
+
+Create `.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "forgecraft": {
       "command": "npx",
-      "args": ["-y", "forgecraft-mcp@latest"],
-      "env": {}
+      "args": ["-y", "forgecraft-mcp"]
     }
   }
 }
 ```
 
-Verify it loads:
-```bash
-claude mcp list   # should show "forgecraft"
-```
-
 ---
 
-## 2. Configure the Workshop Server
-
-Your `forgecraft.yaml` (created by `setup_project`) needs two fields:
-
-```yaml
-server_url: https://forgecraft-server-production.up.railway.app
-contribute_gates: attributed   # gates submitted with your GitHub username
-github_user: <your-github-handle>
-```
-
-Set your workshop API key as an environment variable:
-
-```bash
-export FORGECRAFT_API_KEY=fg_ws_<key-provided-at-workshop>
-```
-
----
-
-## 3. Run `setup_project`
+## 2. Run `setup_project`
 
 Point Claude at your project root and run:
 
@@ -76,7 +91,7 @@ Expected time: **~60 seconds**.
 
 ---
 
-## 4. Follow the Cascade
+## 3. Follow the Cascade
 
 Run `check_cascade` to see what needs completing:
 
@@ -92,7 +107,7 @@ Use forgecraft to run close_cycle for /path/to/my-project
 
 ---
 
-## 5. Contribute a Quality Gate
+## 4. Contribute a Quality Gate
 
 During your work session, ForgeCraft may suggest a gate that isn't in the
 registry yet. To submit it to the community flywheel:
@@ -129,7 +144,7 @@ contribute_gate ... convergence_attributes: { prescriptive: true, agnostic: true
 
 ---
 
-## 6. What Happens After Submission
+## 5. What Happens After Submission
 
 ```
 Your machine                ForgeCraft Server              GitHub
@@ -152,7 +167,7 @@ Your machine                ForgeCraft Server              GitHub
 
 ---
 
-## 7. Quick Reference: MCP Actions
+## 6. Quick Reference: Commands
 
 | Action | When to run |
 |--------|------------|
@@ -167,7 +182,7 @@ Your machine                ForgeCraft Server              GitHub
 
 ---
 
-## 8. Measuring Progress
+## 7. Measuring Progress
 
 After each `close_cycle`, ForgeCraft appends a row to `docs/gs-score.md`:
 
@@ -189,5 +204,4 @@ After each `close_cycle`, ForgeCraft appends a row to `docs/gs-score.md`:
 | `contribute_gate` returns `status: duplicate` | Gate already exists in registry — use `refresh_project` to pull it |
 | `check_cascade` fails on `functional_spec` | Fill in `docs/PRD.md` — at minimum a 3-sentence problem statement |
 | `setup_project` infers wrong tags | Edit `forgecraft.yaml` tags array and re-run `refresh_project` |
-| API key errors | Ensure `FORGECRAFT_API_KEY=fg_ws_...` is exported in current shell |
 | CNT audit fails line-limit check | Run `cnt_add_node` to split large `.claude/*.md` files |

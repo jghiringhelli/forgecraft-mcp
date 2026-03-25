@@ -13,38 +13,24 @@ import type {
   ReferenceBlock,
   ReviewBlock,
   ReviewDimension,
-  Tag,
   OutputTarget,
 } from "../shared/types.js";
 import {
   OUTPUT_TARGET_CONFIGS,
   DEFAULT_OUTPUT_TARGET,
 } from "../shared/types.js";
+import type { RenderContext, RenderOptions } from "./renderer-types.js";
+import { renderTemplate } from "./renderer-template.js";
+
+export type { RenderContext, RenderOptions } from "./renderer-types.js";
+export { renderTemplate } from "./renderer-template.js";
+export {
+  renderStatusMd,
+  renderPrdSkeleton,
+  renderTechSpecSkeleton,
+} from "./renderer-skeletons.js";
 
 const logger = createLogger("registry/renderer");
-
-/** Variables available for template rendering. */
-export interface RenderContext {
-  readonly projectName: string;
-  readonly language: string;
-  readonly framework?: string;
-  readonly domain?: string;
-  readonly repoUrl?: string;
-  readonly sensitiveData?: string;
-  readonly releasePhase?: string;
-  readonly tags: Tag[];
-  readonly [key: string]: unknown;
-}
-
-/** Options for instruction file rendering. */
-export interface RenderOptions {
-  /**
-   * Strip explanatory tail clauses from bullet points and deduplicate identical
-   * lines, reducing token count by ~20-40% at the cost of some explanatory prose.
-   * Recommended for projects with 3+ tags. Defaults to false.
-   */
-  readonly compact?: boolean;
-}
 
 /**
  * Render an instruction file from composed blocks and project context.
@@ -66,7 +52,6 @@ export function renderInstructionFile(
   const header = buildHeader(context);
   const sections: string[] = [];
 
-  // Cursor .mdc files use frontmatter
   if (targetConfig.usesFrontmatter) {
     sections.push(buildCursorFrontmatter(context));
   }
@@ -126,8 +111,9 @@ export function renderClaudeMd(
 
 /**
  * Build the ForgeCraft metadata header for the instruction file.
- * Intentionally minimal — a single comment line so it does not consume
- * the AI assistant's context window.
+ *
+ * @param context - Project render context
+ * @returns Single-line metadata comment
  */
 function buildHeader(context: RenderContext): string {
   const date = new Date().toISOString().split("T")[0];
@@ -137,6 +123,9 @@ function buildHeader(context: RenderContext): string {
 
 /**
  * Build Cursor-specific MDC frontmatter.
+ *
+ * @param context - Project render context
+ * @returns YAML frontmatter block
  */
 function buildCursorFrontmatter(context: RenderContext): string {
   return (
@@ -150,18 +139,16 @@ function buildCursorFrontmatter(context: RenderContext): string {
 
 /**
  * Render NFR sections from composed blocks.
+ *
+ * @param blocks - Composed NFR blocks
+ * @param context - Project context for variable substitution
+ * @returns Rendered NFR content as a string
  */
 export function renderNfrs(
   blocks: NfrBlock[],
   context: RenderContext,
 ): string {
-  const sections: string[] = [];
-
-  for (const block of blocks) {
-    sections.push(renderTemplate(block.content, context));
-  }
-
-  return sections.join("\n");
+  return blocks.map((block) => renderTemplate(block.content, context)).join("\n");
 }
 
 /**
@@ -175,13 +162,7 @@ export function renderReference(
   blocks: ReferenceBlock[],
   context: RenderContext,
 ): string {
-  const sections: string[] = [];
-
-  for (const block of blocks) {
-    sections.push(renderTemplate(block.content, context));
-  }
-
-  return sections.join("\n");
+  return blocks.map((block) => renderTemplate(block.content, context)).join("\n");
 }
 
 /**
@@ -228,7 +209,6 @@ export function renderReviewChecklist(
 ): string {
   const sections: string[] = [];
 
-  // Group blocks by dimension
   const byDimension = new Map<ReviewDimension, ReviewBlock[]>();
   for (const block of blocks) {
     const existing = byDimension.get(block.dimension) ?? [];
@@ -266,7 +246,6 @@ export function renderReviewChecklist(
     }
   }
 
-  // Add the per-issue output format guidance
   sections.push("---");
   sections.push("");
   sections.push("## Per-Issue Output Format");
@@ -279,226 +258,7 @@ export function renderReviewChecklist(
   sections.push("5. **Confirmation**: Ask whether to proceed or choose a different direction.");
   sections.push("");
 
+  logger.debug("Review checklist rendered", { blocks: blocks.length, scope });
+
   return sections.join("\n");
-}
-
-/**
- * Render a Status.md skeleton with project info.
- */
-export function renderStatusMd(context: RenderContext): string {
-  return `# Status.md
-
-## Last Updated: ${new Date().toISOString().split("T")[0]}
-## Session Summary
-Project initialized with ForgeCraft. Tags: ${context.tags.join(", ")}.
-
-## Project Structure
-\`\`\`
-[Run 'tree -L 3 --dirsfirst' to populate]
-\`\`\`
-
-## Feature Tracker
-| Feature | Status | Branch | Notes |
-|---------|--------|--------|-------|
-| | ⬚ Not Started | | |
-
-## Known Bugs
-| ID | Description | Severity | Status |
-|----|-------------|----------|--------|
-| | | | |
-
-## Technical Debt
-| Item | Impact | Effort | Priority |
-|------|--------|--------|----------|
-| | | | |
-
-## Current Context
-- Working on:
-- Blocked by:
-- Decisions pending:
-- Next steps:
-
-## Architecture Decision Log
-| Date | Decision | Rationale | Status |
-|------|----------|-----------|--------|
-| | | | |
-`;
-}
-
-/**
- * Render a PRD skeleton.
- */
-export function renderPrdSkeleton(context: RenderContext): string {
-  return `# PRD: ${context.projectName}
-
-## Background & Context
-[Why this project exists, what problem it solves]
-
-## Stakeholders
-[Who owns it, who uses it, who's affected]
-
-## User Stories
-[Organized by feature area]
-- US-001: As a [type], I want [action] so that [benefit]
-
-## Requirements
-### Functional Requirements
-- FR-001: [requirement]
-
-### Non-Functional Requirements
-[Generated from active tags: ${context.tags.join(", ")}]
-
-## Out of Scope
-[Explicitly list what this project does NOT do]
-
-## Success Metrics
-[How do we know this project succeeded?]
-
-## Open Questions
-[Unresolved decisions]
-`;
-}
-
-/**
- * Render a Tech Spec skeleton.
- */
-export function renderTechSpecSkeleton(context: RenderContext): string {
-  return `# Tech Spec: ${context.projectName}
-
-## Overview
-[One paragraph translating PRD to technical approach]
-
-## Architecture
-### System Diagram
-[Mermaid diagram or description of components]
-
-### Tech Stack
-- Runtime: ${context.language}
-- Framework: ${context.framework ?? "[TBD]"}
-
-### Data Flow
-[How data moves through the system]
-
-## API Contracts
-[Key endpoints, request/response shapes]
-
-## Security & Compliance
-[Auth approach, encryption, audit logging]
-
-## Dependencies
-[External services, APIs, libraries with version pins]
-
-## Risks & Mitigations
-| Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
-| | H/M/L | H/M/L | |
-`;
-}
-
-/**
- * Process conditional blocks in template content.
- *
- * Supports `{{#if CONDITION}}...{{/if}}` where CONDITION is evaluated
- * against the render context. Special synthetic variables:
- * - `language_is_typescript` → true when context.language === "typescript"
- * - `language_is_python` → true when context.language === "python"
- *
- * Truthy conditions keep content; falsy conditions strip the block.
- *
- * @param template - Raw template string with conditionals
- * @param context - Render context for condition evaluation
- * @returns Template with conditionals resolved
- */
-function processConditionals(
-  template: string,
-  context: RenderContext,
-): string {
-  return template.replace(
-    /\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
-    (_match, condition: string, content: string) => {
-      const value = resolveCondition(condition, context);
-      return value ? content : "";
-    },
-  );
-}
-
-/**
- * Resolve a conditional variable to a boolean value.
- */
-function resolveCondition(name: string, context: RenderContext): boolean {
-  // Synthetic language conditionals
-  if (name === "language_is_typescript") {
-    return context.language === "typescript";
-  }
-  if (name === "language_is_python") {
-    return context.language === "python";
-  }
-
-  // General context lookup (truthy check)
-  const value = resolveVariable(name, context);
-  return value !== undefined && value !== null && value !== "" && value !== false;
-}
-
-/**
- * Render a template string by substituting {{variable}} placeholders.
- * Supports {{variable | default: value}} syntax and {{#if}}...{{/if}} conditionals.
- */
-export function renderTemplate(
-  template: string,
-  context: RenderContext,
-): string {
-  // Process conditionals first, then variable substitution
-  const withConditionals = processConditionals(template, context);
-  return withConditionals.replace(
-    /\{\{(\s*[\w.]+\s*(?:\|\s*default:\s*[^}]+)?)\}\}/g,
-    (_match, expression: string) => {
-      const parts = expression.split("|").map((p) => p.trim());
-      const varName = parts[0] as string;
-
-      // Look up variable in context
-      const value = resolveVariable(varName, context);
-
-      if (value !== undefined && value !== null && value !== "") {
-        return String(value);
-      }
-
-      // Check for default value
-      if (parts.length > 1) {
-        const defaultPart = parts[1] as string;
-        const defaultMatch = defaultPart.match(/^default:\s*(.+)$/);
-        if (defaultMatch) {
-          return (defaultMatch[1] as string).trim();
-        }
-      }
-
-      // Return the original placeholder if no value and no default
-      return `{{${varName}}}`;
-    },
-  );
-}
-
-/**
- * Resolve a dotted variable name from the context.
- */
-function resolveVariable(name: string, context: RenderContext): unknown {
-  // Handle special case: tags as comma-separated string
-  if (name === "tags") {
-    return context.tags.map((t) => `\`[${t}]\``).join(" ");
-  }
-
-  // Handle snake_case to camelCase mapping
-  const camelName = name.replace(/_([a-z])/g, (_, letter: string) =>
-    letter.toUpperCase(),
-  );
-
-  if (camelName in context) {
-    return context[camelName];
-  }
-
-  if (name in context) {
-    return context[name];
-  }
-
-  logger.debug("Unresolved template variable", { variable: name });
-  return undefined;
 }
