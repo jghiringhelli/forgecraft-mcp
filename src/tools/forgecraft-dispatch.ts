@@ -57,6 +57,7 @@ export async function dispatchForgecraft(
         scope_complete: args.scope_complete,
         has_consumers: args.has_consumers,
         project_type_override: args.project_type_override,
+        tags: args.tags,
       });
 
     case "list":

@@ -74,6 +74,11 @@ export interface SetupProjectArgs {
    * Comma-separated list of measurable outcomes or goals.
    */
   readonly success_criteria?: string;
+  /**
+   * Phase 2: LLM-corrected tags based on reading the spec.
+   * When provided, these override the directory-inferred tags.
+   */
+  readonly tags?: string[];
 }
 
 /** Valid ALL_TAGS values as a Set for fast membership testing. */
@@ -139,9 +144,17 @@ async function executePhase2(
 ): Promise<ToolResult> {
   const { projectDir, projectName } = context;
 
-  const effectiveTags = args.project_type_override
-    ? applyProjectTypeOverride(context.inferredTags, args.project_type_override)
-    : context.inferredTags;
+  const llmCorrectedTags =
+    args.tags && args.tags.length > 0 ? filterToValidTags(args.tags) : null;
+
+  const effectiveTags = llmCorrectedTags
+    ? [...new Set(["UNIVERSAL", ...llmCorrectedTags])]
+    : args.project_type_override
+      ? applyProjectTypeOverride(
+          context.inferredTags,
+          args.project_type_override,
+        )
+      : context.inferredTags;
 
   const decisions = deriveCascadeDecisions(
     effectiveTags,
