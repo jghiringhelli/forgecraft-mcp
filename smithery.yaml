@@ -7,7 +7,7 @@ description: >
   layers, CI/CD hygiene, and GS compliance — auto-tailored to your stack.
   Minimal footprint (~200 tokens) via CLI-first design with an optional MCP server mode.
 
-version: 1.0.0
+version: 1.0.1
 license: MIT
 homepage: https://forgecraft.tools
 repository: https://github.com/jghiringhelli/forgecraft-mcp
