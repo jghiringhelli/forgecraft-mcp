@@ -413,6 +413,8 @@ The quality gate library grows through community contribution. If you propose a 
 
 [Open a gate proposal →](.github/ISSUE_TEMPLATE/quality-gate-proposal.md) · [See contributors →](CONTRIBUTORS.md)
 
+Running this with a team? → [forgeworkshop.dev](https://forgeworkshop.dev)
+
 ---
 
 ## Theoretical foundation
