@@ -86,6 +86,32 @@ describe("POST /contribute/gate", () => {
     );
   });
 
+  it("returns 429 when the same IP exceeds the rate limit", async () => {
+    process.env.GITHUB_TOKEN = "test-token";
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        number: 1,
+        html_url: "https://github.com/jghiringhelli/quality-gates/issues/1",
+      }),
+    });
+
+    // Build app with limit=2 so we can hit it in tests without 5+ requests
+    const { default: supertest } = await import("supertest");
+    const appWithLowLimit = express();
+    appWithLowLimit.use(express.json());
+    appWithLowLimit.use(
+      createContributeGateRouter({ maxRequestsPerWindow: 2 }),
+    );
+
+    const st = supertest(appWithLowLimit);
+    await st.post("/contribute/gate").send(VALID_PAYLOAD); // 1
+    await st.post("/contribute/gate").send(VALID_PAYLOAD); // 2
+    const res = await st.post("/contribute/gate").send(VALID_PAYLOAD); // 3 — over limit
+
+    expect(res.status).toBe(429);
+  });
+
   it("returns 502 when GitHub API returns an error status", async () => {
     process.env.GITHUB_TOKEN = "test-token";
     mockFetch.mockResolvedValueOnce({

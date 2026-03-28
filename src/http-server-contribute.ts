@@ -9,6 +9,7 @@
  */
 
 import { Router } from "express";
+import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 
 const QUALITY_GATES_REPO = "jghiringhelli/quality-gates";
@@ -105,14 +106,34 @@ function formatIssueBody(payload: GateContributionPayload): string {
   return lines.join("\n");
 }
 
+export interface ContributeGateRouterOptions {
+  /** Max gate proposals per IP per 15-minute window. Default: 5. */
+  maxRequestsPerWindow?: number;
+}
+
 /**
  * Creates an Express Router with POST /contribute/gate.
  * Requires GITHUB_TOKEN env var at request time.
- *
- * @returns Express Router
+ * Rate-limited to maxRequestsPerWindow per IP per 15 minutes.
  */
-export function createContributeGateRouter(): Router {
+export function createContributeGateRouter(
+  options: ContributeGateRouterOptions = {},
+): Router {
+  const { maxRequestsPerWindow = 5 } = options;
   const router = Router();
+
+  router.use(
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: maxRequestsPerWindow,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: {
+        error:
+          "Too many gate proposals from this IP. Please wait before submitting again.",
+      },
+    }),
+  );
 
   router.post("/contribute/gate", async (req, res) => {
     const githubToken = process.env.GITHUB_TOKEN;
