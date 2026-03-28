@@ -8,6 +8,9 @@
  * rather than local paths — the AI agent reads files locally and sends
  * them here; the server returns CLI command guidance.
  *
+ * Also exposes POST /contribute/gate — receives gate proposals from
+ * forgecraft clients and opens GitHub Issues on jghiringhelli/quality-gates.
+ *
  * Local / CLI usage stays on stdio via the main entry point (index.ts).
  */
 
@@ -16,6 +19,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { ALL_TAGS } from "./shared/types.js";
+import { createContributeGateRouter } from "./http-server-contribute.js";
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const HOST = process.env.HOST ?? "0.0.0.0";
@@ -170,6 +174,9 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", version: "1.0.0", transport: "streamable-http" });
 });
+
+// ── Gate contribution endpoint (extracted to http-server-contribute.ts) ──
+app.use(createContributeGateRouter());
 
 /** Stateless Streamable HTTP — new transport per request, no session state. */
 app.post("/mcp", async (req, res) => {
