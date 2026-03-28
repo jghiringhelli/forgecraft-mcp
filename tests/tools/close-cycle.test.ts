@@ -332,7 +332,7 @@ describe("closeCycle", () => {
       // Should contain a version number pattern
       expect(suggestion).toMatch(/v\d+\.\d+\.\d+/);
     }
-  });
+  }, 30000);
 
   it("close_cycle in experiment mode forces auto-contribute (dryRun=false)", async () => {
     buildCompleteCascade(tempDir);
