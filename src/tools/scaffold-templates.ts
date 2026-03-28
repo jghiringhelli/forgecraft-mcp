@@ -24,7 +24,8 @@ export const EXCEPTIONS_TEMPLATE =
   JSON.stringify(
     {
       version: "1",
-      _comment: "Hook false-positive exceptions. Add entries here to prevent rediscovering the same false positive each session. Each entry: {id, hook, pattern, reason, addedAt, addedBy, adr?}",
+      _comment:
+        "Hook false-positive exceptions. Add entries here to prevent rediscovering the same false positive each session. Each entry: {id, hook, pattern, reason, addedAt, addedBy, adr?}",
       exceptions: [],
     },
     null,
@@ -35,7 +36,7 @@ export const PROJECT_GATES_TEMPLATE = `version: "1"
 # Project-specific quality gates.
 # Gates you discover while working that should be enforced for this project.
 # Set generalizable: true + fill in evidence to contribute to the community registry.
-# See: https://github.com/genspec-dev/quality-gates/issues/new?template=quality-gate-proposal.md
+# See: https://github.com/jghiringhelli/quality-gates/issues/new?template=quality-gate-proposal.md
 gates: []
 `;
 
@@ -132,7 +133,15 @@ export function renderGitignore(language: "typescript" | "python"): string {
   const universal = [".env", ".env.*", "coverage/", "*.log", ".DS_Store"];
   const byLanguage: Record<string, string[]> = {
     typescript: ["node_modules/", "dist/", "build/", ".tsbuildinfo"],
-    python: ["__pycache__/", "*.pyc", ".venv/", "venv/", "dist/", "*.egg-info/", ".mypy_cache/"],
+    python: [
+      "__pycache__/",
+      "*.pyc",
+      ".venv/",
+      "venv/",
+      "dist/",
+      "*.egg-info/",
+      ".mypy_cache/",
+    ],
   };
   return [...(byLanguage[language] ?? []), ...universal].join("\n") + "\n";
 }
@@ -146,7 +155,8 @@ export function renderGitignore(language: "typescript" | "python"): string {
 export function renderInstallStep(language: "typescript" | "python"): string {
   const hints: Record<string, string> = {
     typescript: "Install dependencies (npm install / pnpm install / yarn)",
-    python: "Create a virtual environment and install dependencies (pip install -e . / poetry install / uv sync)",
+    python:
+      "Create a virtual environment and install dependencies (pip install -e . / poetry install / uv sync)",
   };
   return hints[language] ?? "Install project dependencies";
 }
@@ -184,8 +194,12 @@ export function renderGsDisclosure(): string {
  * @param deployment - Project deployment configuration
  * @returns README content string
  */
-export function renderSmokeTestsReadme(deployment: ProjectDeploymentConfig): string {
-  const smokeTool = deployment.testing?.smokeTool ?? "[TODO: set smokeTool in forgecraft.yaml deployment.testing]";
+export function renderSmokeTestsReadme(
+  deployment: ProjectDeploymentConfig,
+): string {
+  const smokeTool =
+    deployment.testing?.smokeTool ??
+    "[TODO: set smokeTool in forgecraft.yaml deployment.testing]";
   return SMOKE_TESTS_README.replace(
     "deployment.testing.smokeTool (or default to HTTP assertions)",
     `deployment.testing.smokeTool: ${smokeTool}`,
@@ -198,14 +212,36 @@ export function renderSmokeTestsReadme(deployment: ProjectDeploymentConfig): str
  * @param deployment - Project deployment configuration
  * @returns README content string
  */
-export function renderLoadTestsReadme(deployment: ProjectDeploymentConfig): string {
+export function renderLoadTestsReadme(
+  deployment: ProjectDeploymentConfig,
+): string {
   const load = deployment.testing?.load;
   let readme = LOAD_TESTS_README;
-  if (load?.concurrentUsers !== undefined) readme = readme.replace("[TODO: concurrentUsers from forgecraft.yaml]", String(load.concurrentUsers));
-  if (load?.targetRps !== undefined) readme = readme.replace("[TODO: targetRps from forgecraft.yaml]", String(load.targetRps));
-  if (load?.p99CeilingMs !== undefined) readme = readme.replace("[TODO: p99CeilingMs ms]", `${load.p99CeilingMs}ms`);
-  if (load?.durationSeconds !== undefined) readme = readme.replace("[TODO: durationSeconds seconds minimum]", `${load.durationSeconds} seconds`);
-  const tool = load?.tool ?? "[TODO: set deployment.testing.load.tool in forgecraft.yaml]";
-  readme = readme.replace("deployment.testing.load.tool (k6, Artillery, Locust, etc.)", `deployment.testing.load.tool: ${tool}`);
+  if (load?.concurrentUsers !== undefined)
+    readme = readme.replace(
+      "[TODO: concurrentUsers from forgecraft.yaml]",
+      String(load.concurrentUsers),
+    );
+  if (load?.targetRps !== undefined)
+    readme = readme.replace(
+      "[TODO: targetRps from forgecraft.yaml]",
+      String(load.targetRps),
+    );
+  if (load?.p99CeilingMs !== undefined)
+    readme = readme.replace(
+      "[TODO: p99CeilingMs ms]",
+      `${load.p99CeilingMs}ms`,
+    );
+  if (load?.durationSeconds !== undefined)
+    readme = readme.replace(
+      "[TODO: durationSeconds seconds minimum]",
+      `${load.durationSeconds} seconds`,
+    );
+  const tool =
+    load?.tool ?? "[TODO: set deployment.testing.load.tool in forgecraft.yaml]";
+  readme = readme.replace(
+    "deployment.testing.load.tool (k6, Artillery, Locust, etc.)",
+    `deployment.testing.load.tool: ${tool}`,
+  );
   return readme;
 }

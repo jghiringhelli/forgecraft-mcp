@@ -107,7 +107,7 @@ gate_parameters:
 
 | Variable | Required | Purpose |
 |---|---|---|
-| GITHUB_TOKEN | YES | Opens GitHub Issues on genspec-dev/quality-gates. Without this, /contribute/gate returns 503. |
+| GITHUB_TOKEN | YES | Opens GitHub Issues on jghiringhelli/quality-gates. Without this, /contribute/gate returns 503. |
 | ADMIN_KEY | Recommended | Enables GET /quarantine admin endpoint |
 | PORT | No | Defaults to 3000 |
 

@@ -3,7 +3,7 @@ version: "1"
 # Gates are tech-agnostic: they define WHAT to enforce and WHY.
 # Tool implementations (the HOW) are in toolVariants, keyed by language.
 # Set generalizable: true + fill in evidence to contribute to the community registry.
-# See: https://github.com/genspec-dev/quality-gates/issues/new?template=quality-gate-proposal.md
+# See: https://github.com/jghiringhelli/quality-gates/issues/new?template=quality-gate-proposal.md
 gates:
   - id: no-code-duplication
     title: "Duplicate code ratio within threshold"
