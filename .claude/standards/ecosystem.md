@@ -8,7 +8,7 @@
 |---|---|---|
 | **forgecraft-mcp** | MCP tool -- scaffolds projects, drives GS methodology, cascade enforcement | github.com/jghiringhelli/forgecraft-mcp |
 | **forgecraft-server** | HTTP backend -- API key validation, gate quarantine, GitHub Issues integration | github.com/jghiringhelli/forgecraft-server |
-| **quality-gates** | Community registry -- YAML gate files, index.json, GitHub Actions for graduation | github.com/genspec-dev/quality-gates |
+| **quality-gates** | Community registry -- YAML gate files, index.json, GitHub Actions for graduation | github.com/jghiringhelli/quality-gates |
 | **genspec-portal** | Public portal -- taxonomy browser, flywheel explainer | github.com/jghiringhelli/genspec-portal |
 
 ## Live URLs
@@ -18,7 +18,7 @@
 | forgecraft-server health | https://forgecraft-server-production.up.railway.app/health |
 | forgecraft-server gates | https://forgecraft-server-production.up.railway.app/gates |
 | forgecraft-server quarantine (admin) | https://forgecraft-server-production.up.railway.app/quarantine |
-| quality-gates index | https://raw.githubusercontent.com/genspec-dev/quality-gates/main/index.json |
+| quality-gates index | https://raw.githubusercontent.com/jghiringhelli/quality-gates/main/index.json |
 | genspec-portal | https://jghiringhelli.github.io/genspec-portal/ |
 
 ## The Flywheel Cycle
@@ -28,7 +28,7 @@
 3. **`generate_session_prompt`** — cascade gate → implementation plan; includes Execution Loop and test command
 4. **Execution loop** — TDD: write failing test → implement → run tests → loop until green; Playwright/simulations as applicable
 5. **`close_cycle`** (NEW) — cascade re-check, gate assessment, `contribute_gate` call for generalizable gates, promotes gates to `promoted/` folder, detects CodeSeeker gates to run
-6. **`contribute_gate`** — API key validated → forgecraft-server → GitHub Issue opened on `genspec-dev/quality-gates` with `gate-proposal` + `quarantine` labels → community votes
+6. **`contribute_gate`** — API key validated → forgecraft-server → GitHub Issue opened on `jghiringhelli/quality-gates` with `gate-proposal` + `quarantine` labels → community votes
 7. **Approved gate** — merged to registry YAML → `refresh_project` pulls it for next project setup
 
 ## Data Flow Diagram
@@ -53,7 +53,7 @@ user project
                           GITHUB_TOKEN required
                                       │
                                       ▼
-                          GitHub Issue on genspec-dev/quality-gates
+                          GitHub Issue on jghiringhelli/quality-gates
                           labels: gate-proposal + quarantine
                                       │
                           community votes (👍 reactions)
@@ -99,7 +99,7 @@ Old `.forgecraft/project-gates.yaml` (flat file) is still supported — auto-mig
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `GITHUB_TOKEN` | **YES** | Opens GitHub Issues on `genspec-dev/quality-gates`. Without this, `POST /contribute/gate` returns 503. |
+| `GITHUB_TOKEN` | **YES** | Opens GitHub Issues on `jghiringhelli/quality-gates`. Without this, `POST /contribute/gate` returns 503. |
 | `ADMIN_KEY` | Recommended | Enables `GET /quarantine` admin endpoint |
 | `PORT` | No | Defaults to 3000 |
 
@@ -243,7 +243,7 @@ Pending (pre-retry) gates tracked in `.forgecraft/pending-contributions.json`.
 **What happens on submission**:
 1. forgecraft-mcp sends gate to `POST /contribute/gate` with `X-Forgecraft-Key` header
 2. forgecraft-server validates API key (format + rate limit)
-3. forgecraft-server opens GitHub Issue on `genspec-dev/quality-gates` with labels `gate-proposal` + `quarantine`
+3. forgecraft-server opens GitHub Issue on `jghiringhelli/quality-gates` with labels `gate-proposal` + `quarantine`
 4. Response includes `issueUrl` pointing to the created issue
 5. Community votes via 👍 reactions; maintainers review
 6. Approved gate merged to `gates/<domain>/<id>.yaml` via PR; GitHub Action updates `index.json`
@@ -255,7 +255,7 @@ Pending (pre-retry) gates tracked in `.forgecraft/pending-contributions.json`.
 ## forgecraft.yaml Key Fields
 
 ```yaml
-gates_registry_url: https://raw.githubusercontent.com/genspec-dev/quality-gates/main/index.json
+gates_registry_url: https://raw.githubusercontent.com/jghiringhelli/quality-gates/main/index.json
 server_url: https://forgecraft-server-production.up.railway.app
 contribute_gates: false   # false | anonymous | attributed
 github_user: ""           # required for attributed mode
