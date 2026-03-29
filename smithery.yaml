@@ -6,10 +6,12 @@ description: >
   CLI + MCP sentinel that enforces SOLID principles, testing standards, architecture
   layers, CI/CD hygiene, and GS compliance — auto-tailored to your stack.
   Minimal footprint (~200 tokens) via CLI-first design with an optional MCP server mode.
+  Run once to scaffold, then remove to keep your context window clean.
 
 version: 1.0.1
 license: MIT
 homepage: https://forgecraft.tools
+icon: https://github.com/jghiringhelli.png
 repository: https://github.com/jghiringhelli/forgecraft-mcp
 
 categories:
@@ -32,8 +34,42 @@ tags:
 # Local stdio mode: npx forgecraft-mcp (unchanged)
 mcpUrl: https://forgecraft-http-production.up.railway.app/mcp
 
+# Local stdio startup config for Smithery package installations
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      githubToken:
+        type: string
+        title: GitHub Token
+        description: >
+          Optional GitHub personal access token. Required only if you use
+          contribute_gate to submit quality gates to the community registry.
+          Leave blank for all other ForgeCraft operations.
+        default: ""
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "forgecraft-mcp@latest"],
+      env: config.githubToken ? { GITHUB_TOKEN: config.githubToken } : {}
+    })
+
 tools:
   - name: forgecraft
-    description: Diagnose ForgeCraft project state and return CLI commands to run locally
+    description: >
+      Diagnose ForgeCraft project state from project artifact flags and return
+      targeted CLI commands to run locally. Pass forgecraft.yaml contents and
+      artifact presence flags to get setup, scaffold, or refresh guidance.
+    annotations:
+      readOnlyHint: true
+      openWorldHint: false
   - name: list_tags
-    description: Return all 24 ForgeCraft classification tags
+    description: >
+      Return all ForgeCraft classification tags (UNIVERSAL, API, WEB-REACT, GAME,
+      FINTECH, ML, MOBILE, CLI, LIBRARY, WEB3, and more). Use these tags to
+      configure npx forgecraft-mcp setup with the right stack-specific standards.
+    annotations:
+      readOnlyHint: true
+      openWorldHint: false
