@@ -140,8 +140,8 @@ function listTagsHandler(): { content: Array<{ type: "text"; text: string }> } {
 // ── MCP Server factory ────────────────────────────────────────────────
 
 /**
- * Create a fresh MCP server instance with all hosted tools registered.
- * Called per-request in stateless mode.
+ * Create a fresh MCP server instance with all hosted tools, prompts, and
+ * resources registered. Called per-request in stateless mode.
  */
 function createServer(): McpServer {
   const server = new McpServer({
@@ -149,18 +149,94 @@ function createServer(): McpServer {
     version: "1.0.0",
   });
 
+  // ── Tools ──────────────────────────────────────────────────────────
+
   server.tool(
     "forgecraft",
     "Diagnose ForgeCraft project state and return CLI commands to run locally. Pass forgecraft.yaml contents and artifact presence flags.",
     hostedSentinelSchema.shape,
+    { readOnlyHint: true, openWorldHint: false },
     (args: z.infer<typeof hostedSentinelSchema>) => hostedSentinelHandler(args),
   );
 
   server.tool(
     "list_tags",
-    "Return all 24 ForgeCraft classification tags. Use these to pick the right tags for npx forgecraft-mcp setup.",
+    "Return all ForgeCraft classification tags. Use these to pick the right tags for npx forgecraft-mcp setup.",
     {},
+    { readOnlyHint: true, openWorldHint: false },
     () => listTagsHandler(),
+  );
+
+  // ── Prompts ────────────────────────────────────────────────────────
+
+  server.prompt(
+    "setup-project",
+    "Scaffold ForgeCraft engineering standards for a project. Checks current state then runs setup.",
+    {
+      project_dir: z
+        .string()
+        .describe("Absolute path to the project root directory."),
+    },
+    ({ project_dir }) => ({
+      messages: [
+        {
+          role: "user" as const,
+          content: {
+            type: "text" as const,
+            text: [
+              `Set up ForgeCraft engineering standards for the project at: ${project_dir}`,
+              "",
+              "Steps:",
+              "1. Call the `forgecraft` tool with the artifact presence flags for this project.",
+              "2. Follow its recommendations: run the suggested npx forgecraft-mcp commands locally.",
+              "3. Once setup is complete, remove ForgeCraft from your MCP servers to save tokens.",
+              "",
+              "Tip: After running `npx forgecraft-mcp setup .`, your project will have a CLAUDE.md",
+              "constitution, commit hooks, and a forgecraft.yaml config — all auto-tailored to your stack.",
+            ].join("\n"),
+          },
+        },
+      ],
+    }),
+  );
+
+  // ── Resources ──────────────────────────────────────────────────────
+
+  server.resource(
+    "tag-taxonomy",
+    "forgecraft://tags",
+    {
+      description:
+        "Complete ForgeCraft tag taxonomy. Use these tags to configure stack-specific engineering standards.",
+      mimeType: "text/plain",
+    },
+    () => ({
+      contents: [
+        {
+          uri: "forgecraft://tags",
+          mimeType: "text/plain",
+          text: [
+            "# ForgeCraft Tag Taxonomy",
+            "",
+            "Use these tags with: npx forgecraft-mcp setup . --tags <TAG1> <TAG2>",
+            "",
+            ...ALL_TAGS.map((tag) => `- ${tag}`),
+            "",
+            "Stack tags (UNIVERSAL is always included):",
+            "  UNIVERSAL  — core standards for all projects",
+            "  API        — REST/GraphQL API standards",
+            "  WEB-REACT  — React/Next.js frontend standards",
+            "  GAME       — game development standards",
+            "  FINTECH    — financial/compliance standards",
+            "  ML         — machine learning pipeline standards",
+            "  MOBILE     — React Native / mobile standards",
+            "  CLI        — command-line tool standards",
+            "  LIBRARY    — npm/pip package standards",
+            "  WEB3       — smart contract / blockchain standards",
+          ].join("\n"),
+        },
+      ],
+    }),
   );
 
   return server;
