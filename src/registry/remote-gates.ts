@@ -27,7 +27,7 @@ export interface RemoteGatesIndex {
 }
 
 const DEFAULT_REGISTRY_URL =
-  "https://raw.githubusercontent.com/jghiringhelli/quality-gates/master/index.json";
+  "https://raw.githubusercontent.com/jghiringhelli/generative-specification/main/quality-gates/index.json";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -47,7 +47,7 @@ interface CacheEntry {
  */
 export async function fetchRemoteGates(
   projectRoot: string,
-  registryUrl?: string
+  registryUrl?: string,
 ): Promise<RemoteGatesIndex> {
   const url = registryUrl ?? DEFAULT_REGISTRY_URL;
   const cachePath = join(projectRoot, ".forgecraft", "gates-cache.json");
@@ -58,11 +58,11 @@ export async function fetchRemoteGates(
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(5000), // 5 second timeout
-      headers: { "Accept": "application/json" },
+      headers: { Accept: "application/json" },
     });
     if (!response.ok) return emptyIndex();
 
-    const data = await response.json() as RemoteGatesIndex;
+    const data = (await response.json()) as RemoteGatesIndex;
     writeCache(cachePath, data, projectRoot);
     return data;
   } catch {
@@ -81,14 +81,14 @@ export async function fetchRemoteGates(
  */
 export function filterGatesByTags(
   index: RemoteGatesIndex,
-  tags: string[]
+  tags: string[],
 ): readonly RemoteGate[] {
   if (tags.length === 0) return index.gates;
   return index.gates.filter(
     (g) =>
       !g.tags ||
       g.tags.length === 0 ||
-      g.tags.some((t) => tags.includes(t.toUpperCase()))
+      g.tags.some((t) => tags.includes(t.toUpperCase())),
   );
 }
 
@@ -107,7 +107,7 @@ function readCache(cachePath: string): CacheEntry | null {
 function writeCache(
   cachePath: string,
   data: RemoteGatesIndex,
-  projectRoot: string
+  projectRoot: string,
 ): void {
   try {
     const dir = join(projectRoot, ".forgecraft");
@@ -120,5 +120,11 @@ function writeCache(
 }
 
 function emptyIndex(): RemoteGatesIndex {
-  return { generatedAt: new Date().toISOString(), version: "1", gateCount: 0, tags: [], gates: [] };
+  return {
+    generatedAt: new Date().toISOString(),
+    version: "1",
+    gateCount: 0,
+    tags: [],
+    gates: [],
+  };
 }
