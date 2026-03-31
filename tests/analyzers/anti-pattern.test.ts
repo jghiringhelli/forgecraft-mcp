@@ -317,4 +317,65 @@ describe("scanAntiPatterns", () => {
       expect(violation).toBeUndefined();
     });
   });
+
+  describe("redundant_deploy_pipeline warning", () => {
+    const DEPLOY_DIR = join(tmpdir(), `forgecraft-test-deploy-${Date.now()}`);
+
+    beforeAll(() => {
+      mkdirSync(join(DEPLOY_DIR, "src"), { recursive: true });
+      mkdirSync(join(DEPLOY_DIR, ".github", "workflows"), { recursive: true });
+    });
+
+    afterAll(() => rmSync(DEPLOY_DIR, { recursive: true, force: true }));
+
+    it("warns when platform deploy config and .github/workflows/ both exist", () => {
+      writeFileSync(
+        join(DEPLOY_DIR, "railway.toml"),
+        "[deploy]\nstartCommand = 'npm start'\n",
+      );
+      writeFileSync(
+        join(DEPLOY_DIR, ".github", "workflows", "deploy.yml"),
+        "on: push\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n",
+      );
+
+      const result = scanAntiPatterns(DEPLOY_DIR);
+      const warning = result.warnings.find(
+        (w) => w.check === "redundant_deploy_pipeline",
+      );
+      expect(warning).toBeDefined();
+      expect(warning?.severity).toBe("warning");
+    });
+
+    it("does not warn when only a platform deploy config exists (no .github/workflows/)", () => {
+      const singleDir = join(tmpdir(), `forgecraft-test-single-${Date.now()}`);
+      mkdirSync(join(singleDir, "src"), { recursive: true });
+      writeFileSync(
+        join(singleDir, "railway.toml"),
+        "[deploy]\nstartCommand = 'npm start'\n",
+      );
+
+      const result = scanAntiPatterns(singleDir);
+      const warning = result.warnings.find(
+        (w) => w.check === "redundant_deploy_pipeline",
+      );
+      expect(warning).toBeUndefined();
+      rmSync(singleDir, { recursive: true, force: true });
+    });
+
+    it("does not warn when only .github/workflows/ exists (no platform config)", () => {
+      const ghDir = join(tmpdir(), `forgecraft-test-ghonly-${Date.now()}`);
+      mkdirSync(join(ghDir, ".github", "workflows"), { recursive: true });
+      writeFileSync(
+        join(ghDir, ".github", "workflows", "ci.yml"),
+        "on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n",
+      );
+
+      const result = scanAntiPatterns(ghDir);
+      const warning = result.warnings.find(
+        (w) => w.check === "redundant_deploy_pipeline",
+      );
+      expect(warning).toBeUndefined();
+      rmSync(ghDir, { recursive: true, force: true });
+    });
+  });
 });
