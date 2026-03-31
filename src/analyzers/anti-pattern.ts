@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Anti-pattern detector.
  *
  * Scans source files for production code anti-patterns:
@@ -124,12 +124,53 @@ export function scanAntiPatterns(
     }
   }
 
+  checkRedundantDeployPipeline(projectDir, warnings);
+
   logger.info("Anti-pattern scan complete", {
     violations: violations.length,
     warnings: warnings.length,
   });
 
   return { violations, warnings };
+}
+
+/** Platform deploy config filenames that indicate Railway/Vercel/Fly/Render deploys. */
+const PLATFORM_DEPLOY_CONFIGS = [
+  "railway.toml",
+  "railway.json",
+  "vercel.json",
+  "fly.toml",
+  "render.yaml",
+  "render.yml",
+] as const;
+
+/**
+ * Warn when a project has both a platform deploy config and .github/workflows/.
+ * Both will trigger on push — the CI/CD is duplicated and one should be removed.
+ */
+function checkRedundantDeployPipeline(
+  projectDir: string,
+  warnings: AuditCheck[],
+): void {
+  const hasPlatformConfig = PLATFORM_DEPLOY_CONFIGS.some((f) =>
+    existsSync(join(projectDir, f)),
+  );
+  if (!hasPlatformConfig) return;
+
+  const hasGithubWorkflows = existsSync(
+    join(projectDir, ".github", "workflows"),
+  );
+  if (!hasGithubWorkflows) return;
+
+  const platformFile = PLATFORM_DEPLOY_CONFIGS.find((f) =>
+    existsSync(join(projectDir, f)),
+  ) as string;
+
+  warnings.push({
+    check: "redundant_deploy_pipeline",
+    message: `${platformFile} and .github/workflows/ both exist. Platform deploy (Railway/Vercel/Fly/Render) and GitHub Actions may both trigger on push — remove the redundant pipeline.`,
+    severity: "warning",
+  });
 }
 
 /**
