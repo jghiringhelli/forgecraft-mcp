@@ -7,6 +7,39 @@ Breaking changes are marked **BREAKING**.
 
 ---
 
+## [1.1.0] — 2026-03-31
+
+### Added
+
+- **Anti-pattern: redundant deploy pipeline detection.** The `scanAntiPatterns` tool now
+  warns when a project has both a platform deploy config (`railway.toml`, `vercel.json`,
+  `fly.toml`, `render.yaml`) and a `.github/workflows/` directory. Both pipelines trigger
+  on push — the warning surfaces the duplication before it causes conflicting deployments.
+
+- **`agent-mechanics` template block (tier: core).** All projects scaffolded or refreshed
+  by forgecraft now receive 7 non-negotiable mechanical overrides in their CLAUDE.md:
+  1. Step 0 dead code deletion before refactors (context compaction prevention)
+  2. 5-file phase limit per response
+  3. Senior dev quality bar override (counters system-level brevity mandate)
+  4. Sub-agent parallelism for >5 independent files
+  5. 2,000-line file read cap with chunked read requirement for files >500 LOC
+  6. Tool result truncation awareness (re-scope if results look sparse)
+  7. Grep exhaustiveness checklist for renames and signature changes
+
+- **Public quality gates registry wired to `generative-specification`.** forgecraft-mcp
+  now reads the community gate library from `jghiringhelli/generative-specification`
+  (42 gates, including 9 new deployment lifecycle gates for staging, production, and
+  continuous phases). Gate proposals create issues in that repo.
+
+- **Gate: `no-redundant-deploy-pipelines`** added to the public quality-gates library.
+
+### Changed
+
+- Registry URL updated from the stale `quality-gates` repo to the canonical
+  `generative-specification/quality-gates/` path (PR #10).
+
+---
+
 ## [1.0.0] — 2026-03-13
 
 First stable release. This version ships the complete Generative Specification
