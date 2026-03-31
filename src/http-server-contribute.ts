@@ -12,7 +12,7 @@ import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 
-const QUALITY_GATES_REPO = "jghiringhelli/quality-gates";
+const QUALITY_GATES_REPO = "jghiringhelli/generative-specification";
 const GITHUB_API = "https://api.github.com";
 
 const gateContributionSchema = z.object({
