@@ -7,6 +7,29 @@ Breaking changes are marked **BREAKING**.
 
 ---
 
+## [1.2.0] — 2026-04-01
+
+### Added
+
+- **Structured diagram stubs for scaffold.** The `scaffold` action now emits real Mermaid
+  syntax for all five diagram types — sequence (participants + arrows), state machine
+  (states, transitions, `[*]` markers), flow (Start/End rounded nodes, decision diamond),
+  C4 context, and C4 container (Container + Rel declarations). Prior stubs were empty
+  placeholders; these stubs encode grammar production rules so AI assistants read a valid
+  skeleton, not a blank file.
+
+- **Emit-Don't-Reference enforcement in `artifact-grammar` template.** The template's
+  artifact table now includes explicit P1 file paths and emit instructions for every
+  diagram type. The Feature Completion Protocol steps 3–4 updated with named paths.
+  Added an "Emit-Don't-Reference" callout block. UNFILLED files are explicitly flagged
+  as known spec gaps that must appear on the cascade backlog.
+
+- **CI/CD GitHub Actions workflows.** `ci.yml` (lint → typecheck → test+coverage →
+  mutation gate) and `publish.yml` (triggered on `v*.*.*` tags → build → npm publish)
+  are now committed to `.github/workflows/`.
+
+---
+
 ## [1.1.0] — 2026-03-31
 
 ### Added
