@@ -25,7 +25,15 @@ import {
   renderSmokeTestsReadme,
   renderLoadTestsReadme,
 } from "./scaffold-templates.js";
-import { buildC4ContextStub, USE_CASES_STUB, writeSpecStub } from "./scaffold-spec-stubs.js";
+import {
+  buildC4ContextStub,
+  buildC4ContainerStub,
+  buildSequenceDiagramStub,
+  buildStateMachineDiagramStub,
+  buildFlowDiagramStub,
+  USE_CASES_STUB,
+  writeSpecStub,
+} from "./scaffold-spec-stubs.js";
 
 export interface ScaffoldWriteInput {
   readonly project_dir: string;
@@ -68,9 +76,17 @@ export function writeScaffoldFiles(
   const filesSkipped: string[] = [];
   const outputTargets = input.output_targets as OutputTarget[];
 
-  function trackWrite(relativePath: string, filePath: string, content: string): void {
+  function trackWrite(
+    relativePath: string,
+    filePath: string,
+    content: string,
+  ): void {
     const result = writeFileIfMissing(filePath, content, input.force);
-    if (result === "skipped") { filesSkipped.push(relativePath); } else { filesCreated.push(relativePath); }
+    if (result === "skipped") {
+      filesSkipped.push(relativePath);
+    } else {
+      filesCreated.push(relativePath);
+    }
   }
 
   for (const entry of composed.structureEntries) {
@@ -84,48 +100,143 @@ export function writeScaffoldFiles(
   for (const target of outputTargets) {
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
     if (target === "claude" && input.sentinel !== false) {
-      const sentinelFiles = renderSentinelTree(composed.instructionBlocks, context);
+      const sentinelFiles = renderSentinelTree(
+        composed.instructionBlocks,
+        context,
+      );
       for (const file of sentinelFiles) {
         const fullPath = join(input.project_dir, file.relativePath);
         mkdirSync(dirname(fullPath), { recursive: true });
-        trackWrite(file.relativePath, fullPath, resolveTemplatePlaceholders(file.content, placeholderContext));
+        trackWrite(
+          file.relativePath,
+          fullPath,
+          resolveTemplatePlaceholders(file.content, placeholderContext),
+        );
       }
-      const projectSpecificPath = join(input.project_dir, ".claude", "standards", "project-specific.md");
-      trackWrite(".claude/standards/project-specific.md", projectSpecificPath, PROJECT_SPECIFIC_TEMPLATE);
+      const projectSpecificPath = join(
+        input.project_dir,
+        ".claude",
+        "standards",
+        "project-specific.md",
+      );
+      trackWrite(
+        ".claude/standards/project-specific.md",
+        projectSpecificPath,
+        PROJECT_SPECIFIC_TEMPLATE,
+      );
     } else {
-      const content = renderInstructionFile(composed.instructionBlocks, context, target, { compact: userConfig?.compact });
+      const content = renderInstructionFile(
+        composed.instructionBlocks,
+        context,
+        target,
+        { compact: userConfig?.compact },
+      );
       const outputPath = targetConfig.directory
         ? join(input.project_dir, targetConfig.directory, targetConfig.filename)
         : join(input.project_dir, targetConfig.filename);
       mkdirSync(dirname(outputPath), { recursive: true });
-      const relativePath = targetConfig.directory ? `${targetConfig.directory}/${targetConfig.filename}` : targetConfig.filename;
-      trackWrite(relativePath, outputPath, resolveTemplatePlaceholders(content, placeholderContext));
+      const relativePath = targetConfig.directory
+        ? `${targetConfig.directory}/${targetConfig.filename}`
+        : targetConfig.filename;
+      trackWrite(
+        relativePath,
+        outputPath,
+        resolveTemplatePlaceholders(content, placeholderContext),
+      );
     }
   }
 
-  trackWrite("Status.md", join(input.project_dir, "Status.md"), statusMdContent);
+  trackWrite(
+    "Status.md",
+    join(input.project_dir, "Status.md"),
+    statusMdContent,
+  );
 
   mkdirSync(join(input.project_dir, "docs"), { recursive: true });
-  trackWrite("docs/PRD.md", join(input.project_dir, "docs", "PRD.md"), prdContent);
-  trackWrite("docs/TechSpec.md", join(input.project_dir, "docs", "TechSpec.md"), techSpecContent);
+  trackWrite(
+    "docs/PRD.md",
+    join(input.project_dir, "docs", "PRD.md"),
+    prdContent,
+  );
+  trackWrite(
+    "docs/TechSpec.md",
+    join(input.project_dir, "docs", "TechSpec.md"),
+    techSpecContent,
+  );
 
-  writeSpecStub("docs/diagrams/c4-context.md", join(input.project_dir, "docs", "diagrams", "c4-context.md"),
-    buildC4ContextStub(input.project_name), input.force, filesCreated, filesSkipped);
-  writeSpecStub("docs/use-cases.md", join(input.project_dir, "docs", "use-cases.md"),
-    USE_CASES_STUB, input.force, filesCreated, filesSkipped);
+  writeSpecStub(
+    "docs/diagrams/c4-context.md",
+    join(input.project_dir, "docs", "diagrams", "c4-context.md"),
+    buildC4ContextStub(input.project_name),
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
+  writeSpecStub(
+    "docs/diagrams/c4-container.md",
+    join(input.project_dir, "docs", "diagrams", "c4-container.md"),
+    buildC4ContainerStub(input.project_name),
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
+  writeSpecStub(
+    "docs/diagrams/sequence-primary.md",
+    join(input.project_dir, "docs", "diagrams", "sequence-primary.md"),
+    buildSequenceDiagramStub("Primary Flow"),
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
+  writeSpecStub(
+    "docs/diagrams/state-primary.md",
+    join(input.project_dir, "docs", "diagrams", "state-primary.md"),
+    buildStateMachineDiagramStub("Primary Entity"),
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
+  writeSpecStub(
+    "docs/diagrams/flow-primary.md",
+    join(input.project_dir, "docs", "diagrams", "flow-primary.md"),
+    buildFlowDiagramStub("UC-01: Primary Use Case"),
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
+  writeSpecStub(
+    "docs/use-cases.md",
+    join(input.project_dir, "docs", "use-cases.md"),
+    USE_CASES_STUB,
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
 
   const adrsDir = join(input.project_dir, "docs", "adrs");
   mkdirSync(adrsDir, { recursive: true });
-  trackWrite("docs/adrs/README.md", join(adrsDir, "README.md"), renderAdrsReadme(input.project_name));
+  trackWrite(
+    "docs/adrs/README.md",
+    join(adrsDir, "README.md"),
+    renderAdrsReadme(input.project_name),
+  );
 
-  trackWrite(".env.example", join(input.project_dir, ".env.example"), "# Environment configuration\n# Copy to .env and fill in values\nLOG_LEVEL=info\n");
+  trackWrite(
+    ".env.example",
+    join(input.project_dir, ".env.example"),
+    "# Environment configuration\n# Copy to .env and fill in values\nLOG_LEVEL=info\n",
+  );
 
   const hooksDir = join(input.project_dir, ".claude", "hooks");
   mkdirSync(hooksDir, { recursive: true });
   for (const hook of composed.hooks) {
     const hookPath = join(hooksDir, hook.filename);
     trackWrite(`.claude/hooks/${hook.filename}`, hookPath, hook.script);
-    try { chmodSync(hookPath, 0o755); } catch { /* chmod may fail on Windows */ }
+    try {
+      chmodSync(hookPath, 0o755);
+    } catch {
+      /* chmod may fail on Windows */
+    }
   }
 
   if (composed.skills.length > 0) {
@@ -138,7 +249,11 @@ export function writeScaffoldFiles(
     }
   }
 
-  trackWrite(".gitignore", join(input.project_dir, ".gitignore"), renderGitignore(input.language));
+  trackWrite(
+    ".gitignore",
+    join(input.project_dir, ".gitignore"),
+    renderGitignore(input.language),
+  );
 
   const forgecraftDir = join(input.project_dir, ".forgecraft");
   mkdirSync(forgecraftDir, { recursive: true });
@@ -166,9 +281,21 @@ export function writeScaffoldFiles(
     mkdirSync(smokeDir, { recursive: true });
     mkdirSync(loadDir, { recursive: true });
     mkdirSync(reportsDir, { recursive: true });
-    trackWrite("tests/smoke/README.md", join(smokeDir, "README.md"), renderSmokeTestsReadme(userConfig.deployment));
-    trackWrite("tests/load/README.md", join(loadDir, "README.md"), renderLoadTestsReadme(userConfig.deployment));
-    trackWrite(".forgecraft/reports/.gitkeep", join(reportsDir, ".gitkeep"), "");
+    trackWrite(
+      "tests/smoke/README.md",
+      join(smokeDir, "README.md"),
+      renderSmokeTestsReadme(userConfig.deployment),
+    );
+    trackWrite(
+      "tests/load/README.md",
+      join(loadDir, "README.md"),
+      renderLoadTestsReadme(userConfig.deployment),
+    );
+    trackWrite(
+      ".forgecraft/reports/.gitkeep",
+      join(reportsDir, ".gitkeep"),
+      "",
+    );
   }
 
   return { filesCreated, filesSkipped };
