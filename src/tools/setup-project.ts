@@ -88,6 +88,12 @@ export interface SetupProjectArgs {
    */
   readonly use_codeseeker?: boolean;
   /**
+   * Phase 2: whether to add Playwright MCP for browser automation and E2E/API testing.
+   * Only asked in Phase 1 for WEB-REACT, WEB-STATIC, or API projects.
+   * Defaults to true when omitted (backward compatible).
+   */
+  readonly use_playwright?: boolean;
+  /**
    * Phase 2: how to handle a spec that conflates a generative tool with a
    * specific named creative output. Only relevant when Phase 1 reports
    * a tool_vs_sample_output ambiguity.
@@ -251,7 +257,12 @@ async function executePhase2(
       project_dir: projectDir,
       auto_approve_tools: true,
       include_remote: false,
-      excluded_servers: args.use_codeseeker === false ? ["codeseeker"] : [],
+      excluded_servers: [
+        ...(args.use_codeseeker === false ? ["codeseeker"] : []),
+        ...(args.use_playwright === false
+          ? ["playwright", "playwright-mcp"]
+          : []),
+      ],
     });
     mcpServerNames = readConfiguredMcpServerNames(projectDir);
   } catch (error) {

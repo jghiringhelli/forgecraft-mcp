@@ -187,6 +187,14 @@ export const forgecraftExtendedParams = z.object({
         "Presented as Q4 in Phase 1. Defaults to true when omitted. " +
         "Set false if you already have an equivalent semantic search tool. Used by: setup_project (phase 2).",
     ),
+  use_playwright: z
+    .boolean()
+    .optional()
+    .describe(
+      "Phase 2 answer: whether to add Playwright MCP for browser automation and E2E/API testing. " +
+        "Only asked in Phase 1 for WEB-REACT, WEB-STATIC, or API projects. Defaults to true when omitted. " +
+        "Set false if you already have an equivalent browser testing tool. Used by: setup_project (phase 2).",
+    ),
   tool_sample_split: z
     .enum(["tool_and_sample", "tool_only", "content_only"])
     .optional()

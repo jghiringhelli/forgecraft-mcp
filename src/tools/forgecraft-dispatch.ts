@@ -57,6 +57,7 @@ export async function dispatchForgecraft(
         scope_complete: args.scope_complete,
         has_consumers: args.has_consumers,
         use_codeseeker: args.use_codeseeker,
+        use_playwright: args.use_playwright,
         tool_sample_split: args.tool_sample_split,
         project_type_override: args.project_type_override,
         tags: args.tags,

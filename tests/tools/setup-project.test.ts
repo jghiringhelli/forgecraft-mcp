@@ -737,4 +737,85 @@ describe("setupProjectHandler", () => {
       expect(text).not.toContain("Tool vs. Sample Output");
     });
   });
+
+  // ── Playwright MCP opt-in ─────────────────────────────────────────────
+
+  describe("Playwright MCP opt-in", () => {
+    it("phase 1 for a non-web/API project does NOT include Q5 about Playwright", async () => {
+      // tempDir has no package.json → infers UNIVERSAL + LIBRARY → no playwright tags
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).not.toContain("Q5");
+      expect(text).not.toContain("use_playwright");
+    });
+
+    it("phase 1 for a WEB-REACT project includes Q5 about Playwright", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({
+          dependencies: { react: "^18.0.0", "react-dom": "^18.0.0" },
+        }),
+        "utf-8",
+      );
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Q5");
+      expect(text).toContain("Playwright MCP");
+      expect(text).toContain("use_playwright");
+    });
+
+    it("phase 1 for an API project includes Q5 about Playwright", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ dependencies: { express: "^4.18.0" } }),
+        "utf-8",
+      );
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Q5");
+      expect(text).toContain("Playwright MCP");
+      expect(text).toContain("use_playwright");
+    });
+
+    it("phase 2 with use_playwright=false excludes playwright from .claude/settings.json", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ dependencies: { react: "^18.0.0" } }),
+        "utf-8",
+      );
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        use_playwright: false,
+      });
+      const settingsPath = join(tempDir, ".claude", "settings.json");
+      expect(existsSync(settingsPath)).toBe(true);
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(settings.mcpServers).not.toHaveProperty("playwright");
+    });
+
+    it("phase 2 with use_playwright=true includes playwright for WEB-REACT project", async () => {
+      writeFileSync(
+        join(tempDir, "package.json"),
+        JSON.stringify({ dependencies: { react: "^18.0.0" } }),
+        "utf-8",
+      );
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        use_playwright: true,
+      });
+      const settingsPath = join(tempDir, ".claude", "settings.json");
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(settings.mcpServers).toHaveProperty("playwright");
+    });
+  });
 });

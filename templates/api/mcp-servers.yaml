@@ -11,3 +11,12 @@ servers:
     url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-server-postman"
     env:
       POSTMAN_API_KEY: ""
+
+  - name: playwright
+    description: "Browser automation for API + E2E testing, request interception, and response validation"
+    command: npx
+    args: ["-y", "@anthropic/mcp-server-playwright"]
+    tags: [API]
+    category: testing
+    tier: recommended
+    url: "https://github.com/anthropics/anthropic-quickstarts/tree/main/mcp-server-playwright"
