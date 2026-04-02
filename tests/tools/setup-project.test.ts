@@ -662,28 +662,14 @@ describe("setupProjectHandler", () => {
   // ── Git pre-flight ───────────────────────────────────────────────────
 
   describe("git pre-flight", () => {
-    it("phase 1 response mentions no-repo warning when no .git directory exists", async () => {
-      // VITEST guard causes 'repo' to be returned in test env, so we test buildPhase1Response directly
-      // by importing the builder and passing the status explicitly.
-      // This validates the warning text is rendered correctly.
-      const { buildPhase1Response } =
-        await import("../../src/tools/setup-phase1.js");
-      const { buildProjectContext } =
-        await import("../../src/tools/setup-context.js");
-      const context = await buildProjectContext({ project_dir: tempDir });
-      const result = buildPhase1Response(context, "no-repo");
-      const text = result.content[0]!.text;
-      expect(text).toContain("No repository detected");
-    });
-
-    it("buildNoGitResponse is surfaced when git status is no-git", async () => {
-      // We can't easily simulate missing git binary in CI, but we can verify
-      // the normal phase 1 flow still works (VITEST guard → 'repo').
+    it("normal phase 1 flow proceeds when VITEST guard returns repo status", async () => {
+      // VITEST guard returns 'repo' so setup always reaches phase 1 in tests.
+      // Confirms neither blocker message appears in the normal path.
       const result = await setupProjectHandler({ project_dir: tempDir });
       const text = result.content[0]!.text;
-      // Should get normal phase 1, not the blocker
       expect(text).toContain("Project Setup");
       expect(text).not.toContain("Git Required");
+      expect(text).not.toContain("Repository Required");
     });
   });
 });

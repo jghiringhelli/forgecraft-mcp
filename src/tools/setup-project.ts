@@ -121,14 +121,16 @@ export async function setupProjectHandler(
       ? "repo"
       : checkGitStatus(args.project_dir);
 
-  if (gitStatus === "no-git") {
-    return buildNoGitResponse();
+  if (gitStatus === "no-git" || gitStatus === "no-repo") {
+    return gitStatus === "no-git"
+      ? buildNoGitResponse()
+      : buildNoRepoResponse();
   }
 
   const context = await buildProjectContext(args);
 
   if (!isPhase2) {
-    return buildPhase1Response(context, gitStatus);
+    return buildPhase1Response(context);
   }
 
   return executePhase2(
@@ -301,6 +303,36 @@ Git was not found on this system. To fix this:
    \`\`\`
    git init && git add . && git commit -m "chore: initial commit"
    \`\`\`
+
+Then re-run \`setup_project\`.`;
+  return { content: [{ type: "text", text }] };
+}
+
+/**
+ * Return a hard-stop response when no git repository exists in the project directory.
+ * ForgeCraft cannot guarantee cascade artifact integrity without version control.
+ *
+ * @returns MCP tool response with init instructions
+ */
+function buildNoRepoResponse(): ToolResult {
+  const text = `## ⛔ Git Repository Required
+
+ForgeCraft tracks every generated artifact in version control. **A git repository must exist before setup can proceed** — without it ForgeCraft cannot guarantee cascade integrity or metric baselines.
+
+No \`.git\` directory was found in this project. To fix this, run:
+
+\`\`\`
+git init
+git add .
+git commit -m "chore: initial commit"
+\`\`\`
+
+If this is a new project with nothing to commit yet, a single placeholder commit is enough:
+
+\`\`\`
+git init
+git commit --allow-empty -m "chore: initial commit"
+\`\`\`
 
 Then re-run \`setup_project\`.`;
   return { content: [{ type: "text", text }] };
