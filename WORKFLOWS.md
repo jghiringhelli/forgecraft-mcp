@@ -14,6 +14,9 @@
 | Getting ready to ship | [Pre-Release Hardening](#pre-release-hardening) |
 | Just shipped, what now | [Post-Deployment](#post-deployment) |
 | Project scope changed significantly | [Drift Detection](#drift-detection) |
+| Mobile app (React Native) setup | [Mobile / React Native Setup](#mobile--react-native-setup) |
+| Publishing an npm package | [npm Package Publishing](#npm-package-publishing) |
+| Monorepo with multiple packages | [Monorepo Setup](#monorepo-setup) |
 
 ---
 
@@ -67,11 +70,140 @@ Commit each fix type separately.
 
 After each fix type: run npx forgecraft-mcp audit . and report the new score.
 Target: Score ≥ 70 (grade B) before any feature work begins.
+Score thresholds: 0-59 (D) · 60-69 (C) · 70-79 (B) · 80-89 (A) · 90+ (A+)
 ```
 
 ---
 
-## Remediation by Failure Type
+## Mobile / React Native Setup
+
+Run when adding a React Native app or starting a mobile-first project:
+
+```
+Read CLAUDE.md and docs/PRD.md.
+
+Set up the React Native app inside a monorepo using npm workspaces:
+  apps/mobile/          (React Native app)
+  packages/domain/      (shared domain — zero native deps)
+  packages/services/    (shared use cases)
+
+Inside apps/mobile/src/, follow the same hexagonal layers as the server:
+  src/domain/           (entities, value objects — zero external deps, no React imports)
+  src/ports/            (abstract contracts: StoragePort, CameraPort, NetworkPort)
+  src/services/         (use cases — depends on ports only)
+  src/adapters/         (concrete: AsyncStorageAdapter, CameraAdapter, FetchAdapter)
+  src/screens/          (thin — validation + delegation only, like the API layer)
+
+Layer rules:
+- Screens call services. Services call port interfaces. Adapters implement ports.
+- No business logic in screens. No direct SDK calls in screens.
+- Gesture handlers are thin: capture gesture data, delegate to service.
+- All camera, AR, or sensor processing lives in src/adapters/.
+
+Android XR / Google Play notes (tags: MOBILE, ANDROID_XR):
+- Declare XR permissions in AndroidManifest.xml — do not request at runtime only.
+- All XR session lifecycle (create, pause, resume, destroy) managed in a dedicated XrSessionAdapter.
+- Test on physical device before any Play Store submission — emulator does not cover XR APIs.
+- Play Store review: confirm age rating, content policy compliance, and target API level before submit.
+
+Quality gates specific to mobile:
+- Zero business logic in screens — audit will flag any screen importing from src/domain/ directly.
+- All heavy processing (image, video, AR frame) offloaded to adapters, not run on the JS thread.
+- No inline styles with hardcoded colors/sizes — use a design token file.
+
+After scaffolding: run npx forgecraft-mcp audit .
+Commit: chore(scaffold): initialize React Native project structure
+```
+
+---
+
+## npm Package Publishing
+
+Run when preparing to publish or update a package on the npm registry:
+
+```
+Read CLAUDE.md and CHANGELOG.md.
+
+Pre-publish checklist:
+1. Types included — confirm package.json has "types" or "exports" pointing to .d.ts files.
+2. package.json exports correct — check "main", "module", "exports" fields cover all entry points.
+3. CHANGELOG.md updated — add an entry for this version: date, changes, breaking notes.
+4. Peer dependencies declared — frameworks (React, etc.) must be peerDependencies, not dependencies.
+5. No dev-only files in the published bundle — check .npmignore or "files" field in package.json.
+
+Version bump protocol:
+- PATCH (1.0.x): bug fixes, no API changes
+- MINOR (1.x.0): new features, backward compatible
+- MAJOR (x.0.0): breaking changes — update migration guide before publishing
+
+Commands in order:
+  npm version patch|minor|major   # bumps version, creates git tag
+  npm run build                   # compile to dist/
+  npm publish --dry-run           # inspect what will be published — review before proceeding
+  npm publish                     # publish for real
+
+After publishing:
+  git push && git push --tags     # push commit + version tag to remote
+
+Commit messages for the sequence:
+  chore(release): bump version to [X.Y.Z]
+  docs(changelog): add [X.Y.Z] release notes
+```
+
+---
+
+## Monorepo Setup
+
+Run when initializing or restructuring a project with multiple packages:
+
+```
+Read CLAUDE.md.
+
+npm workspaces structure:
+  /                         (root — one forgecraft.yaml, one package.json with workspaces)
+  packages/
+    core/                   (shared domain logic, zero framework deps)
+    api/                    (Express/Fastify server)
+    cli/                    (CLI tool)
+    mobile/                 (React Native app — optional)
+  apps/
+    web/                    (frontend — optional)
+
+Root package.json:
+  {
+    "workspaces": ["packages/*", "apps/*"]
+  }
+
+Shared tsconfig pattern:
+  tsconfig.base.json at root — defines strict settings, paths, target.
+  Each package has tsconfig.json that extends: "../../tsconfig.base.json"
+  Package-specific overrides only (outDir, rootDir).
+
+Package interdependency wiring:
+  In packages/api/package.json:
+    "dependencies": { "@myorg/core": "*" }
+  Install with: npm install (at root — workspaces resolves the link automatically)
+  No need for npm link or symlinks — workspaces handles it.
+
+Running commands across all packages:
+  npm run build --workspaces             # build all
+  npm run test --workspaces              # test all
+  npm run lint --workspaces --if-present # lint where configured
+
+Running forgecraft audit across all packages:
+  npx forgecraft-mcp audit .             # run from root — covers all workspace packages
+
+ForgeCraft in monorepos:
+  One forgecraft.yaml at the root. All packages inherit the root standards.
+  To override standards for a specific package, add forgecraft.yaml inside that package.
+  Package-level forgecraft.yaml merges with root — it does not replace it.
+  Tags (MOBILE, API, CLI) apply per-package: set them in the package-level forgecraft.yaml.
+
+After setup: run npx forgecraft-mcp audit . from root.
+Commit: chore(monorepo): initialize npm workspaces structure
+```
+
+---
 
 ### `file_length` — File Too Large
 
@@ -251,7 +383,11 @@ Run: npx forgecraft-mcp add-hook pre-commit .
 Verify hooks are installed: ls -la .claude/hooks/ and cat .git/hooks/pre-commit
 
 If hooks exist but are not running, check:
-1. Are they executable? Run: chmod +x .git/hooks/pre-commit
+1. Are they executable?
+   # Unix/macOS
+   chmod +x .git/hooks/pre-commit
+   # Windows (PowerShell)
+   icacls .git\hooks\pre-commit /grant Everyone:RX
 2. Do they have LF line endings? (Windows issue — CRLF breaks bash scripts)
 3. Is the hooks directory path correct in .git/hooks/pre-commit?
 
@@ -262,6 +398,7 @@ Commit: chore(hooks): install pre-commit quality gate hooks
 ### `cnt_bloat` — CLAUDE.md or core.md Too Large
 
 > Trigger: CNT files (CLAUDE.md, .claude/core.md) exceed their line limits (CLAUDE.md: 5 lines, core.md: 50 lines).
+> Note: This applies to project-level CLAUDE.md files generated by ForgeCraft (target: 3-5 lines pointing to .claude/index.md). It does NOT apply to workspace-level files like argos_automation/CLAUDE.md which serve as AI session context.
 
 ```
 Read CLAUDE.md and .claude/core.md.
@@ -295,6 +432,11 @@ Read CLAUDE.md and .claude/standards/testing.md.
 Run: npx forgecraft-mcp audit .
 
 Pre-release checklist (do not skip steps):
+
+Note: Skip steps that don't apply to your project type:
+- CLI tools: skip load testing (step 5)
+- npm libraries: skip OWASP review (step 4), skip load testing (step 5)
+- Mobile apps: replace load testing with device performance profiling
 
 1. MUTATION TESTING
    Run the mutation tool configured in forgecraft.yaml tools.mutation.
@@ -400,6 +542,12 @@ Commit: test(scope): [RED] [behavior description]
 # 5. Implement minimum to pass
 Commit: feat(scope): [behavior description]
 
+# 5b. Mutation check on changed modules (do not skip)
+Run the mutation tool on the files you just wrote.
+A mutation score gap > 15 points means tests execute code without asserting behavior.
+Fix before moving to step 6.
+Commit: test(scope): [RED->GREEN->mutant-killed] [behavior]
+
 # 6. Refactor with quality gate
 Run: npx forgecraft-mcp audit .
 Fix any new violations introduced.
@@ -424,5 +572,5 @@ npx forgecraft-mcp review .         # Structured code review checklist
 ```
 
 For the full command reference: [README](README.md#cli-commands)
-For the quality gate library: [Gates Registry](https://forgecraft.tools/docs/gates)
+For the quality gate library: [Gates Registry](https://genspec.dev/quality-gates/)
 For the white paper: [Generative Specification](https://genspec.dev)
