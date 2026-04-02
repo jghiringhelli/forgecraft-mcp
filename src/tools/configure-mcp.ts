@@ -10,7 +10,12 @@ import { z } from "zod";
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ALL_TAGS } from "../shared/types.js";
-import type { Tag, McpServerConfig, McpDiscoveryOptions, McpServerRecommendation } from "../shared/types.js";
+import type {
+  Tag,
+  McpServerConfig,
+  McpDiscoveryOptions,
+  McpServerRecommendation,
+} from "../shared/types.js";
 import type { McpDiscoveryService } from "../registry/mcp-discovery.js";
 import { DefaultMcpDiscoveryService } from "../registry/mcp-discovery.js";
 
@@ -39,14 +44,14 @@ export const configureMcpSchema = z.object({
     .default(true)
     .describe(
       "If true, adds permissions.allow entries for all configured MCP servers " +
-      "so tool invocations are auto-approved without manual confirmation.",
+        "so tool invocations are auto-approved without manual confirmation.",
     ),
   include_remote: z
     .boolean()
     .default(false)
     .describe(
       "If true, also queries a remote MCP server registry for additional recommendations. " +
-      "Requires FORGECRAFT_MCP_REGISTRY_URL env var or remote_registry_url parameter.",
+        "Requires FORGECRAFT_MCP_REGISTRY_URL env var or remote_registry_url parameter.",
     ),
   remote_registry_url: z
     .string()
@@ -59,7 +64,14 @@ export const configureMcpSchema = z.object({
     .optional()
     .describe(
       "Maximum number of MCP servers to configure. " +
-      "When exceeded, filters by tier priority (core > recommended > optional).",
+        "When exceeded, filters by tier priority (core > recommended > optional).",
+    ),
+  excluded_servers: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Server names to exclude from configuration. " +
+        "Use to skip servers the user already has covered by an equivalent tool.",
     ),
 });
 
@@ -73,7 +85,9 @@ let injectedDiscoveryService: McpDiscoveryService | undefined;
  *
  * @param service - Discovery service to use, or undefined to reset to default
  */
-export function setDiscoveryService(service: McpDiscoveryService | undefined): void {
+export function setDiscoveryService(
+  service: McpDiscoveryService | undefined,
+): void {
   injectedDiscoveryService = service;
 }
 
@@ -87,7 +101,8 @@ export async function configureMcpHandler(
   args: z.infer<typeof configureMcpSchema>,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   const tags = args.tags as Tag[];
-  const discovery = injectedDiscoveryService ?? new DefaultMcpDiscoveryService();
+  const discovery =
+    injectedDiscoveryService ?? new DefaultMcpDiscoveryService();
 
   // ── Discover servers ─────────────────────────────────────────────
 
@@ -98,13 +113,22 @@ export async function configureMcpHandler(
 
   let recommendations = await discovery.discoverServers(tags, discoveryOptions);
 
+  // Exclude explicitly opted-out servers (e.g. user has an equivalent tool)
+  if (args.excluded_servers && args.excluded_servers.length > 0) {
+    const excluded = new Set(args.excluded_servers);
+    recommendations = recommendations.filter((r) => !excluded.has(r.name));
+  }
+
   // Apply max_servers limit with tier-based priority filtering
   if (args.max_servers && recommendations.length > args.max_servers) {
     recommendations = filterByTierPriority(recommendations, args.max_servers);
   }
 
   // Convert recommendations to server config map
-  const servers: Record<string, McpServerConfig & { source?: string; description?: string }> = {};
+  const servers: Record<
+    string,
+    McpServerConfig & { source?: string; description?: string }
+  > = {};
 
   for (const rec of recommendations) {
     servers[rec.name] = {
@@ -125,7 +149,10 @@ export async function configureMcpHandler(
 
   // ── Build settings.json ──────────────────────────────────────────
 
-  const mcpConfig: Record<string, { command: string; args: string[]; env?: Record<string, string> }> = {};
+  const mcpConfig: Record<
+    string,
+    { command: string; args: string[]; env?: Record<string, string> }
+  > = {};
   for (const [name, config] of Object.entries(servers)) {
     mcpConfig[name] = {
       command: config.command,
@@ -155,8 +182,11 @@ export async function configureMcpHandler(
   let merged: Record<string, unknown> = settings;
   if (existsSync(settingsPath)) {
     try {
-      const existing = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
-      const existingPerms = (existing["permissions"] as Record<string, unknown>) ?? {};
+      const existing = JSON.parse(
+        readFileSync(settingsPath, "utf-8"),
+      ) as Record<string, unknown>;
+      const existingPerms =
+        (existing["permissions"] as Record<string, unknown>) ?? {};
       const existingAllow = (existingPerms["allow"] as string[]) ?? [];
 
       // Merge permissions: deduplicate existing + new rules
@@ -169,7 +199,7 @@ export async function configureMcpHandler(
           allow: mergedAllow,
         },
         mcpServers: {
-          ...(existing["mcpServers"] as Record<string, unknown> ?? {}),
+          ...((existing["mcpServers"] as Record<string, unknown>) ?? {}),
           ...mcpConfig,
         },
       };
@@ -219,7 +249,10 @@ export async function configureMcpHandler(
  * @returns Markdown-formatted server list
  */
 function formatServerList(
-  servers: Record<string, McpServerConfig & { source?: string; description?: string }>,
+  servers: Record<
+    string,
+    McpServerConfig & { source?: string; description?: string }
+  >,
 ): string {
   return Object.entries(servers)
     .map(([name, config]) => {

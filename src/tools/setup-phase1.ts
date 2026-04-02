@@ -4,7 +4,10 @@
 
 import type { ToolResult } from "../shared/types.js";
 import type { AmbiguityItem } from "./spec-parser.js";
-import { generateReversePrd, writeBrownfieldReversePrd } from "./setup-detector.js";
+import {
+  generateReversePrd,
+  writeBrownfieldReversePrd,
+} from "./setup-detector.js";
 import { readExperimentConfig } from "../shared/config.js";
 import type { ProjectContext } from "./setup-context.js";
 
@@ -12,6 +15,9 @@ import type { ProjectContext } from "./setup-context.js";
 
 /**
  * Build the phase 1 "what I found + three questions" response.
+ *
+ * Only reached when git pre-flight passes (repo exists), so no git status
+ * annotation is needed here.
  *
  * @param context - Assembled project context
  * @returns MCP tool response with analysis summary and calibration questions
@@ -101,9 +107,17 @@ function buildAmbiguitySection(ambiguities: AmbiguityItem[]): string {
  * Build the "what I found" summary block.
  */
 function buildFoundSummary(context: ProjectContext): string {
-  const { projectName, isExistingProject, specContent, specSourceLabel, specCandidates, inferredTags } = context;
+  const {
+    projectName,
+    isExistingProject,
+    specContent,
+    specSourceLabel,
+    specCandidates,
+    inferredTags,
+  } = context;
   const specTitle = specContent?.match(/^#\s+(.+)/m)?.[1]?.trim() ?? null;
-  const displayName = specTitle && specTitle !== "[Project Name]" ? specTitle : projectName;
+  const displayName =
+    specTitle && specTitle !== "[Project Name]" ? specTitle : projectName;
   let summary = `### What I found:\n`;
   summary += `- **Project**: ${displayName}\n`;
   summary += `- **Mode**: ${isExistingProject ? "Existing project (source code detected)" : "New project"}\n`;
@@ -114,7 +128,8 @@ function buildFoundSummary(context: ProjectContext): string {
   } else {
     summary += `- **Spec**: not found — will scaffold with stubs\n`;
   }
-  summary += `- **Inferred tags**: ${inferredTags.map((t) => `[${t}]`).join(" ")}\n\n`;
+  summary += `- **Inferred tags**: ${inferredTags.map((t) => `[${t}]`).join(" ")}\n`;
+  summary += `\n`;
   return summary;
 }
 
@@ -122,7 +137,7 @@ function buildFoundSummary(context: ProjectContext): string {
  * Build the three calibration questions block.
  */
 function buildPhase1Questions(): string {
-  return `### Before I proceed, I need three answers:
+  return `### Before I proceed, I need four answers:
 
 **Q1: What is the development stage?**
 - \`mvp\` — early validation, expect significant changes, minimal ceremony
@@ -136,7 +151,12 @@ function buildPhase1Questions(): string {
 - \`yes\` — behavioral contracts and breaking-change detection are required
 - \`no\` — contracts are recommended but not blocking
 
-Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, and \`has_consumers\` to proceed.`;
+**Q4: Would you like to add CodeSeeker for semantic code search?**
+CodeSeeker builds a live knowledge graph of your codebase so the AI assistant can find existing patterns before writing new code — this cut duplication by ~53% in measured sessions. It runs locally (no data leaves your machine).
+- \`yes\` *(recommended)* — wire it in automatically
+- \`no\` — skip it; choose this if you already use a similar semantic search tool
+
+Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, \`has_consumers\`, and \`use_codeseeker\` to proceed.`;
 }
 
 /**
@@ -155,7 +175,12 @@ I've generated a reverse-engineered spec stub at \`docs/PRD.md\`. Review and com
 
 Create a \`work/\` branch before making changes: \`git checkout -b work/forgecraft-setup\`
 
-Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, and \`has_consumers\` to proceed.`;
+**Also answer the CodeSeeker question:** Would you like semantic code search wired in?
+CodeSeeker builds a live knowledge graph so the AI can find existing patterns before writing new code — measured ~53% reduction in duplication. Runs locally, no data leaves your machine.
+- \`use_codeseeker: true\` *(recommended)*
+- \`use_codeseeker: false\` — skip if you already have a similar semantic search tool
+
+Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, \`has_consumers\`, and \`use_codeseeker\` to proceed.`;
 }
 
 // Export generateReversePrd for backward compatibility

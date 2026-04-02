@@ -4,6 +4,9 @@ dist/
 *.tgz
 .coverage/
 coverage/
+# Re-include test fixtures that intentionally contain coverage data
+!tests/fixtures/**/coverage/
+!tests/fixtures/**/coverage/**
 *.log
 .venv/
 .DS_Store

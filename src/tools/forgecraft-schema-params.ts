@@ -179,6 +179,25 @@ export const forgecraftExtendedParams = z.object({
     .describe(
       "Phase 2 answer: true = existing users or downstream consumers (behavioral contracts required), false = no consumers yet. Used by: setup_project (phase 2).",
     ),
+  use_codeseeker: z
+    .boolean()
+    .optional()
+    .describe(
+      "Phase 2 answer: whether to add CodeSeeker for semantic code search. " +
+        "Presented as Q4 in Phase 1. Defaults to true when omitted. " +
+        "Set false if you already have an equivalent semantic search tool. Used by: setup_project (phase 2).",
+    ),
+  tool_sample_split: z
+    .enum(["tool_and_sample", "tool_only", "content_only"])
+    .optional()
+    .describe(
+      "Phase 2 answer: how to handle a spec that conflates a generative tool with a specific " +
+        "named creative output (e.g. an AI ghostwriter spec that also describes a specific novel). " +
+        "tool_and_sample — build the core tool; write docs/sample-outcome.md with the creative work " +
+        "as the first acceptance test. tool_only — named content is illustrative, ignore it. " +
+        "content_only — the goal is the creative work itself; tool is an implementation detail. " +
+        "Only relevant when Phase 1 reports a tool_vs_sample_output ambiguity. Used by: setup_project (phase 2).",
+    ),
   project_type_override: z
     .string()
     .optional()
