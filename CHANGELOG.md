@@ -7,6 +7,29 @@ Breaking changes are marked **BREAKING**.
 
 ---
 
+## [1.3.0] — 2026-04-02
+
+### Added
+
+- **CodeSeeker opt-in during `setup_project`.**  Phase 1 now asks Q4: whether to add
+  CodeSeeker for semantic code search. Explains the benefit (~53% duplication reduction
+  measured across sessions), notes it runs fully locally, and explicitly says to skip it
+  if you already have an equivalent tool. Phase 2 respects `use_codeseeker: false` by
+  excluding CodeSeeker from `.claude/settings.json` while keeping all other servers intact.
+
+- **Git pre-flight check at the start of `setup_project`.**  Before any analysis runs,
+  ForgeCraft now verifies git is available and a repository exists.
+  - **No git binary detected** → hard-stop response with install URL and exact commands.
+  - **git installed but no `.git` repo** → informational warning in the Phase 1 summary;
+    ForgeCraft will auto-initialise the repo during Phase 2 as before.
+  - **Repo present** → silent pass.
+
+- **`excluded_servers` parameter for `configure_mcp`.**  Callers can now pass a list of
+  server names to skip during MCP configuration — useful for any server, not just
+  CodeSeeker.
+
+---
+
 ## [1.2.0] — 2026-04-01
 
 ### Added
