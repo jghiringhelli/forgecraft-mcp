@@ -10,23 +10,21 @@ import {
 } from "./setup-detector.js";
 import { readExperimentConfig } from "../shared/config.js";
 import type { ProjectContext } from "./setup-context.js";
-import type { GitStatus } from "./setup-artifact-writers.js";
 
 // ── Phase 1 Response ─────────────────────────────────────────────────
 
 /**
  * Build the phase 1 "what I found + three questions" response.
  *
+ * Only reached when git pre-flight passes (repo exists), so no git status
+ * annotation is needed here.
+ *
  * @param context - Assembled project context
- * @param gitStatus - Pre-flight git check result; shows a warning when no repo exists
  * @returns MCP tool response with analysis summary and calibration questions
  */
-export function buildPhase1Response(
-  context: ProjectContext,
-  gitStatus?: GitStatus,
-): ToolResult {
+export function buildPhase1Response(context: ProjectContext): ToolResult {
   let text = `## Project Setup — Step 0\n\n`;
-  text += buildFoundSummary(context, gitStatus);
+  text += buildFoundSummary(context);
 
   if (context.ambiguities.length > 0) {
     text += buildAmbiguitySection(context.ambiguities);
@@ -108,10 +106,7 @@ function buildAmbiguitySection(ambiguities: AmbiguityItem[]): string {
 /**
  * Build the "what I found" summary block.
  */
-function buildFoundSummary(
-  context: ProjectContext,
-  gitStatus?: GitStatus,
-): string {
+function buildFoundSummary(context: ProjectContext): string {
   const {
     projectName,
     isExistingProject,
@@ -134,9 +129,6 @@ function buildFoundSummary(
     summary += `- **Spec**: not found — will scaffold with stubs\n`;
   }
   summary += `- **Inferred tags**: ${inferredTags.map((t) => `[${t}]`).join(" ")}\n`;
-  if (gitStatus === "no-repo") {
-    summary += `- **Git**: ⚠️ No repository detected — ForgeCraft will initialise one automatically during setup\n`;
-  }
   summary += `\n`;
   return summary;
 }
