@@ -179,6 +179,14 @@ export const forgecraftExtendedParams = z.object({
     .describe(
       "Phase 2 answer: true = existing users or downstream consumers (behavioral contracts required), false = no consumers yet. Used by: setup_project (phase 2).",
     ),
+  use_codeseeker: z
+    .boolean()
+    .optional()
+    .describe(
+      "Phase 2 answer: whether to add CodeSeeker for semantic code search. " +
+        "Presented as Q4 in Phase 1. Defaults to true when omitted. " +
+        "Set false if you already have an equivalent semantic search tool. Used by: setup_project (phase 2).",
+    ),
   project_type_override: z
     .string()
     .optional()

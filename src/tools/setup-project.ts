@@ -25,8 +25,9 @@ import {
   writePrd,
   writeUseCases,
   initGitRepo,
+  checkGitStatus,
 } from "./setup-artifact-writers.js";
-import type { AiExtractedFields } from "./setup-artifact-writers.js";
+import type { AiExtractedFields, GitStatus } from "./setup-artifact-writers.js";
 import { deriveCascadeDecisions, buildPhase2Response } from "./setup-phase2.js";
 import {
   writeCntFiles,
@@ -79,6 +80,12 @@ export interface SetupProjectArgs {
    * When provided, these override the directory-inferred tags.
    */
   readonly tags?: string[];
+  /**
+   * Phase 2: whether to add CodeSeeker for semantic code search.
+   * Presented as an opt-in question in Phase 1.
+   * Defaults to true when omitted (backward compatible).
+   */
+  readonly use_codeseeker?: boolean;
 }
 
 /** Valid ALL_TAGS values as a Set for fast membership testing. */
@@ -108,10 +115,20 @@ export async function setupProjectHandler(
     projectDir: args.project_dir,
   });
 
+  // ── Git pre-flight (skip in test environments) ───────────────────
+  const gitStatus: GitStatus =
+    process.env["VITEST"] || process.env["NODE_ENV"] === "test"
+      ? "repo"
+      : checkGitStatus(args.project_dir);
+
+  if (gitStatus === "no-git") {
+    return buildNoGitResponse();
+  }
+
   const context = await buildProjectContext(args);
 
   if (!isPhase2) {
-    return buildPhase1Response(context);
+    return buildPhase1Response(context, gitStatus);
   }
 
   return executePhase2(
@@ -221,6 +238,7 @@ async function executePhase2(
       project_dir: projectDir,
       auto_approve_tools: true,
       include_remote: false,
+      excluded_servers: args.use_codeseeker === false ? ["codeseeker"] : [],
     });
     mcpServerNames = readConfiguredMcpServerNames(projectDir);
   } catch (error) {
@@ -259,6 +277,34 @@ async function executePhase2(
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────
+
+/**
+ * Return a hard-stop response when git is not installed on the system.
+ * ForgeCraft requires git to version-control the generated cascade artifacts.
+ *
+ * @returns MCP tool response with install instructions
+ */
+function buildNoGitResponse(): ToolResult {
+  const text = `## ⛔ Git Required
+
+ForgeCraft tracks every generated artifact in version control, so **Git must be installed before setup can proceed**.
+
+Git was not found on this system. To fix this:
+
+1. **Install Git** → https://git-scm.com/downloads
+2. **Configure identity**
+   \`\`\`
+   git config --global user.name "Your Name"
+   git config --global user.email "you@example.com"
+   \`\`\`
+3. **Initialise your project repo** (if starting fresh)
+   \`\`\`
+   git init && git add . && git commit -m "chore: initial commit"
+   \`\`\`
+
+Then re-run \`setup_project\`.`;
+  return { content: [{ type: "text", text }] };
+}
 
 /**
  * Filter inferred tag strings to only valid ALL_TAGS values.

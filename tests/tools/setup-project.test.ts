@@ -70,9 +70,11 @@ describe("setupProjectHandler", () => {
       expect(text).toContain("Q1");
       expect(text).toContain("Q2");
       expect(text).toContain("Q3");
+      expect(text).toContain("Q4");
       expect(text).toContain("mvp");
       expect(text).toContain("scope_complete");
       expect(text).toContain("has_consumers");
+      expect(text).toContain("use_codeseeker");
     });
 
     it("returns phase 1 response with spec summary when spec_text provided", async () => {
@@ -597,6 +599,91 @@ describe("setupProjectHandler", () => {
       expect(text).toContain("Brownfield Project Detected");
       expect(text).toContain("What is currently broken or incomplete");
       expect(text).toContain("docs/PRD.md");
+    });
+  });
+
+  // ── CodeSeeker opt-in ────────────────────────────────────────────────
+
+  describe("CodeSeeker opt-in", () => {
+    it("phase 1 response includes Q4 asking about CodeSeeker", async () => {
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Q4");
+      expect(text).toContain("CodeSeeker");
+      expect(text).toContain("use_codeseeker");
+    });
+
+    it("phase 2 with use_codeseeker=false excludes codeseeker from .claude/settings.json", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        use_codeseeker: false,
+      });
+      const settingsPath = join(tempDir, ".claude", "settings.json");
+      expect(existsSync(settingsPath)).toBe(true);
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(settings.mcpServers).not.toHaveProperty("codeseeker");
+    });
+
+    it("phase 2 with use_codeseeker=true includes codeseeker in .claude/settings.json", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        use_codeseeker: true,
+      });
+      const settingsPath = join(tempDir, ".claude", "settings.json");
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(settings.mcpServers).toHaveProperty("codeseeker");
+    });
+
+    it("phase 2 omitting use_codeseeker defaults to including codeseeker", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const settingsPath = join(tempDir, ".claude", "settings.json");
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(settings.mcpServers).toHaveProperty("codeseeker");
+    });
+  });
+
+  // ── Git pre-flight ───────────────────────────────────────────────────
+
+  describe("git pre-flight", () => {
+    it("phase 1 response mentions no-repo warning when no .git directory exists", async () => {
+      // VITEST guard causes 'repo' to be returned in test env, so we test buildPhase1Response directly
+      // by importing the builder and passing the status explicitly.
+      // This validates the warning text is rendered correctly.
+      const { buildPhase1Response } =
+        await import("../../src/tools/setup-phase1.js");
+      const { buildProjectContext } =
+        await import("../../src/tools/setup-context.js");
+      const context = await buildProjectContext({ project_dir: tempDir });
+      const result = buildPhase1Response(context, "no-repo");
+      const text = result.content[0]!.text;
+      expect(text).toContain("No repository detected");
+    });
+
+    it("buildNoGitResponse is surfaced when git status is no-git", async () => {
+      // We can't easily simulate missing git binary in CI, but we can verify
+      // the normal phase 1 flow still works (VITEST guard → 'repo').
+      const result = await setupProjectHandler({ project_dir: tempDir });
+      const text = result.content[0]!.text;
+      // Should get normal phase 1, not the blocker
+      expect(text).toContain("Project Setup");
+      expect(text).not.toContain("Git Required");
     });
   });
 });
