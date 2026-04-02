@@ -24,6 +24,7 @@ import {
   setExperimentGroupIfMissing,
   writePrd,
   writeUseCases,
+  writeSampleOutcome,
   initGitRepo,
   checkGitStatus,
 } from "./setup-artifact-writers.js";
@@ -86,6 +87,12 @@ export interface SetupProjectArgs {
    * Defaults to true when omitted (backward compatible).
    */
   readonly use_codeseeker?: boolean;
+  /**
+   * Phase 2: how to handle a spec that conflates a generative tool with a
+   * specific named creative output. Only relevant when Phase 1 reports
+   * a tool_vs_sample_output ambiguity.
+   */
+  readonly tool_sample_split?: "tool_and_sample" | "tool_only" | "content_only";
 }
 
 /** Valid ALL_TAGS values as a Set for fast membership testing. */
@@ -215,6 +222,10 @@ async function executePhase2(
   const useCasesWritten = hasSpec
     ? writeUseCases(projectDir, projectName, aiFields, context.specContent)
     : false;
+  const sampleOutcomeWritten =
+    args.tool_sample_split === "tool_and_sample"
+      ? writeSampleOutcome(projectDir, projectName)
+      : false;
 
   const validTagsForHooks = (
     forgeCraftTags.length > 0 ? forgeCraftTags : ["UNIVERSAL"]
@@ -257,6 +268,8 @@ async function executePhase2(
     hasConsumers: args.has_consumers,
     prdWritten,
     useCasesWritten,
+    sampleOutcomeWritten,
+    toolSampleSplit: args.tool_sample_split,
     yamlWritten,
     scaffoldText,
     sensitiveData: isSensitive,

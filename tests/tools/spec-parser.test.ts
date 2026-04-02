@@ -13,6 +13,7 @@ import {
   inferSensitiveData,
   scanSourceForSensitivePatterns,
 } from "../../src/tools/spec-parser.js";
+import { detectToolSampleConflation } from "../../src/tools/spec-parser-tags.js";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -911,5 +912,104 @@ describe("scanSourceForSensitivePatterns", () => {
     );
     const result = await inferTagsFromDirectory(tempDir);
     expect(result.tags).toContain("SOCIAL");
+  });
+});
+
+// ── detectToolSampleConflation ──────────────────────────────────────
+
+describe("detectToolSampleConflation", () => {
+  const AI_GHOSTWRITER_SPEC = `
+# AI Ghostwriter Platform
+
+## Problem
+Authors struggle to maintain their unique voice across long-form works.
+We are building an AI writing assistant that generates prose in the author's style.
+
+## Core Tool
+- Style-fingerprinting engine that learns from uploaded samples
+- AI prose generator using the author's learned patterns
+- Chapter outline renderer and scene expansion module
+
+## Sample Project — "The Last Signal"
+The first novel produced with the tool will be "The Last Signal", a sci-fi thriller
+about Dr. Elena Vasquez who discovers an alien transmission buried in background radiation.
+Chapter 1 will demonstrate the tool's voice-matching capability.
+`;
+
+  const PURE_TOOL_SPEC = `
+# AI Writing Assistant SDK
+
+## Problem
+Developers need an SDK to add AI writing capabilities to their applications.
+
+## Core
+- Text generation API
+- Style adaptation module
+- Grammar and tone analysis
+`;
+
+  const PURE_CONTENT_SPEC = `
+# "The Last Signal" — A Novel
+
+## Story
+Dr. Elena Vasquez discovers an alien transmission buried in background radiation.
+She must decode it before government agents silence her.
+
+## Chapters
+- Chapter 1: The Discovery
+- Chapter 2: The Cover-Up
+`;
+
+  it("fires when spec contains both generative-tool signals and named creative content", () => {
+    const result = detectToolSampleConflation(AI_GHOSTWRITER_SPEC);
+    expect(result).not.toBeNull();
+    expect(result!.field).toBe("tool_vs_sample_output");
+  });
+
+  it("does NOT fire on a pure tool spec with no named creative content", () => {
+    const result = detectToolSampleConflation(PURE_TOOL_SPEC);
+    expect(result).toBeNull();
+  });
+
+  it("does NOT fire on a pure content spec with no generative-tool language", () => {
+    const result = detectToolSampleConflation(PURE_CONTENT_SPEC);
+    expect(result).toBeNull();
+  });
+
+  it("returned ambiguity has tool_and_sample, tool_only, and content_only interpretations", () => {
+    const result = detectToolSampleConflation(AI_GHOSTWRITER_SPEC);
+    expect(result).not.toBeNull();
+    const labels = result!.interpretations.map((i) => i.label);
+    expect(labels).toContain("tool_and_sample");
+    expect(labels).toContain("tool_only");
+    expect(labels).toContain("content_only");
+  });
+
+  it("parseSpec includes tool_vs_sample_output ambiguity for AI ghostwriter spec", () => {
+    const result = parseSpec(AI_GHOSTWRITER_SPEC);
+    const ambiguity = result.ambiguities.find(
+      (a) => a.field === "tool_vs_sample_output",
+    );
+    expect(ambiguity).toBeDefined();
+  });
+
+  it("stable diffusion + specific artwork spec fires detection", () => {
+    const spec = `
+# AI Art Studio
+
+## Problem
+Artists need an AI image generation pipeline for their studio workflow.
+
+## Core
+- Stable diffusion model fine-tuning pipeline
+- Prompt engineering module
+- Style transfer for artist voice replication
+
+## First Artwork — "Solitude at Dawn"
+"Solitude at Dawn" is a landscape series the studio will generate using the platform.
+The series features rolling hills at sunrise and will be submitted to the annual art fair.
+`;
+    const result = detectToolSampleConflation(spec);
+    expect(result).not.toBeNull();
   });
 });

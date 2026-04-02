@@ -293,6 +293,69 @@ function buildUseCasesContent(
 // ── Re-export deriveDefaultCascadeDecisions for convenience ──────────
 export { deriveDefaultCascadeDecisions };
 
+// ── Sample-outcome writer ─────────────────────────────────────────────
+
+/**
+ * Write docs/sample-outcome.md — a stub for the first real deliverable of
+ * a generative tool. Created when Phase 2 receives tool_sample_split = "tool_and_sample".
+ *
+ * The AI assistant should fill in the sections from the creative content
+ * described in the spec (the book, song, game, artwork, etc.).
+ * Never overwrites an existing file.
+ *
+ * @param projectDir - Project root
+ * @param toolName - Name of the core generative tool
+ * @returns True if the file was written
+ */
+export function writeSampleOutcome(
+  projectDir: string,
+  toolName: string,
+): boolean {
+  const outcomePath = join(projectDir, "docs", "sample-outcome.md");
+  if (existsSync(outcomePath)) return false;
+  mkdirSync(join(projectDir, "docs"), { recursive: true });
+  const fill = (placeholder: string) => `<!-- FILL: ${placeholder} -->`;
+  const content = [
+    `# Sample Outcome — First Real Deliverable`,
+    ``,
+    `> **What this file is:** The core tool is **${toolName}**. This file captures the`,
+    `> first specific creative work the tool will produce — the proof that the tool works.`,
+    `> It is an acceptance test, not a deliverable in itself.`,
+    `> Read the original spec and extract the creative content details into the sections below.`,
+    ``,
+    `## The Work`,
+    ``,
+    `**Title / Name**: ${fill("name of the book, song, game, artwork, etc.")}`,
+    `**Type**: ${fill("novel | music track | game | artwork | script | other")}`,
+    ``,
+    `## Description`,
+    ``,
+    fill(
+      "brief description of what this creative work is — 2-3 sentences from the spec",
+    ),
+    ``,
+    `## Key Elements`,
+    ``,
+    fill(
+      "characters, themes, setting, style, structure — the specifics from the spec",
+    ),
+    ``,
+    `## Acceptance Criteria`,
+    ``,
+    `The tool has succeeded with this first outcome when:`,
+    ``,
+    `- [ ] ${fill("first measurable criterion — e.g. 'generates a coherent chapter 1'")}`,
+    `- [ ] ${fill("second criterion")}`,
+    `- [ ] ${fill("third criterion")}`,
+    ``,
+    `## Notes`,
+    ``,
+    fill("anything else from the spec about this specific creative work"),
+  ].join("\n");
+  writeFileSync(outcomePath, content, "utf-8");
+  return true;
+}
+
 /**
  * Load cascade decisions from forgecraft.yaml (convenience re-used in writers).
  */

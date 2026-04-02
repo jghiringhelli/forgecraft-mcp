@@ -7,6 +7,37 @@ Breaking changes are marked **BREAKING**.
 
 ---
 
+## [1.3.1] — 2026-04-03
+
+### Added
+
+- **Tool vs. sample-output conflation detector.**  `detectToolSampleConflation()` in the
+  spec parser identifies specs that describe both a generative AI tool (AI ghostwriter,
+  stable diffusion pipeline, game AI engine) **and** specific named creative output (a
+  quoted book title, a named character, a specific artwork series).  When both signals
+  are present, Phase 1 flags a `tool_vs_sample_output` ambiguity and asks whether to
+  build the tool only, the content only, or split them.
+
+- **`tool_sample_split` Phase 2 parameter.**  Accepts `"tool_and_sample"`, `"tool_only"`,
+  or `"content_only"`.  When set to `"tool_and_sample"`, Phase 2 writes
+  `docs/sample-outcome.md` — a stub for the specific creative deliverable described in
+  the spec — and the Phase 2 response includes a callout explaining that the PRD covers
+  the core tool and the sample file is the first acceptance test.
+
+### Fixed
+
+- **`no-repo` git pre-flight changed from warning to hard-stop.**  A missing `.git`
+  repository now blocks Phase 1 (like `no-git`) with exact `git init` commands including
+  `--allow-empty` for blank projects.  Previously it emitted a warning in the Phase 1
+  summary, which was insufficient — ForgeCraft cannot guarantee its own metrics without a
+  repository.
+
+- **CI fixture coverage directory was gitignored.**  Added `!tests/fixtures/**/coverage/**`
+  negation to `.gitignore` so the `metrics-project` fixture coverage files are committed
+  and the metrics test passes on CI.
+
+---
+
 ## [1.3.0] — 2026-04-02
 
 ### Added
@@ -20,8 +51,7 @@ Breaking changes are marked **BREAKING**.
 - **Git pre-flight check at the start of `setup_project`.**  Before any analysis runs,
   ForgeCraft now verifies git is available and a repository exists.
   - **No git binary detected** → hard-stop response with install URL and exact commands.
-  - **git installed but no `.git` repo** → informational warning in the Phase 1 summary;
-    ForgeCraft will auto-initialise the repo during Phase 2 as before.
+  - **git installed but no `.git` repo** → hard-stop with `git init` / `git init --allow-empty` commands.
   - **Repo present** → silent pass.
 
 - **`excluded_servers` parameter for `configure_mcp`.**  Callers can now pass a list of

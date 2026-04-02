@@ -672,4 +672,69 @@ describe("setupProjectHandler", () => {
       expect(text).not.toContain("Repository Required");
     });
   });
+
+  // ── Tool vs. sample output ───────────────────────────────────────────
+
+  describe("tool_sample_split", () => {
+    it("phase 2 with tool_sample_split=tool_and_sample writes docs/sample-outcome.md", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        tool_sample_split: "tool_and_sample",
+      });
+      expect(existsSync(join(tempDir, "docs", "sample-outcome.md"))).toBe(true);
+    });
+
+    it("phase 2 with tool_sample_split=tool_only does NOT write docs/sample-outcome.md", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        tool_sample_split: "tool_only",
+      });
+      expect(existsSync(join(tempDir, "docs", "sample-outcome.md"))).toBe(
+        false,
+      );
+    });
+
+    it("phase 2 omitting tool_sample_split does NOT write docs/sample-outcome.md", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      expect(existsSync(join(tempDir, "docs", "sample-outcome.md"))).toBe(
+        false,
+      );
+    });
+
+    it("phase 2 response with tool_and_sample includes split callout text", async () => {
+      const result = await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        tool_sample_split: "tool_and_sample",
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("Tool vs. Sample Output");
+      expect(text).toContain("sample-outcome.md");
+    });
+
+    it("phase 2 response with tool_only does NOT include split callout", async () => {
+      const result = await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+        tool_sample_split: "tool_only",
+      });
+      const text = result.content[0]!.text;
+      expect(text).not.toContain("Tool vs. Sample Output");
+    });
+  });
 });

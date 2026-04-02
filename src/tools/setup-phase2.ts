@@ -74,6 +74,8 @@ export interface Phase2ResponseParams {
   readonly hasConsumers: boolean;
   readonly prdWritten: boolean;
   readonly useCasesWritten: boolean;
+  readonly sampleOutcomeWritten: boolean;
+  readonly toolSampleSplit?: "tool_and_sample" | "tool_only" | "content_only";
   readonly yamlWritten: boolean;
   readonly scaffoldText: string;
   readonly sensitiveData?: boolean;
@@ -130,8 +132,11 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
 
   text += `\n### Artifacts created:\n`;
   if (yamlWritten) text += `  forgecraft.yaml (with cascade decisions)\n`;
-  if (prdWritten) text += `  docs/PRD.md (from spec)\n`;
+  if (prdWritten)
+    text += `  docs/PRD.md (from spec — focuses on the core tool)\n`;
   if (useCasesWritten) text += `  docs/use-cases.md (from spec)\n`;
+  if (params.sampleOutcomeWritten)
+    text += `  docs/sample-outcome.md (first real deliverable of the core tool)\n`;
   if (indexMdWritten) text += `  .claude/index.md (CNT routing root)\n`;
   if (coreMdWritten)
     text += `  .claude/core.md (CNT always-loaded invariants)\n`;
@@ -152,6 +157,14 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
   }
 
   if (params.gitInitStatus) text += `\n### Git\n  ${params.gitInitStatus}\n`;
+
+  if (params.toolSampleSplit === "tool_and_sample") {
+    text += `\n### 🔀 Tool vs. Sample Output — Split Applied\n`;
+    text += `  The PRD covers the **core generative tool**.\n`;
+    text += `  \`docs/sample-outcome.md\` holds the specific creative work from the spec.\n`;
+    text += `  Fill in that file, then use it as the first acceptance test:\n`;
+    text += `  the tool is done when it can produce that specific outcome.\n`;
+  }
 
   text += `\n### Next step — call this now:\n`;
   text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
