@@ -20,8 +20,12 @@ function makeTempDir(): string {
 describe("configureMcpHandler", () => {
   let tempDir: string;
 
-  beforeEach(() => { tempDir = makeTempDir(); });
-  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
 
   it("creates .claude/settings.json in project_dir", async () => {
     const result = await configureMcpHandler({
@@ -41,7 +45,10 @@ describe("configureMcpHandler", () => {
       auto_approve_tools: false,
       include_remote: false,
     });
-    const raw = readFileSync(join(tempDir, ".claude", "settings.json"), "utf-8");
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     expect(parsed).toHaveProperty("mcpServers");
   });
@@ -53,7 +60,10 @@ describe("configureMcpHandler", () => {
       auto_approve_tools: true,
       include_remote: false,
     });
-    const raw = readFileSync(join(tempDir, ".claude", "settings.json"), "utf-8");
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
     const parsed = JSON.parse(raw) as { permissions?: { allow?: string[] } };
     expect(parsed.permissions?.allow).toBeDefined();
     expect(Array.isArray(parsed.permissions?.allow)).toBe(true);
@@ -66,10 +76,14 @@ describe("configureMcpHandler", () => {
       auto_approve_tools: false,
       include_remote: false,
     });
-    const raw = readFileSync(join(tempDir, ".claude", "settings.json"), "utf-8");
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
     const parsed = JSON.parse(raw) as { permissions?: unknown };
     // permissions should either be absent or have empty allow
-    const allow = (parsed.permissions as { allow?: string[] } | undefined)?.allow;
+    const allow = (parsed.permissions as { allow?: string[] } | undefined)
+      ?.allow;
     expect(!allow || allow.length === 0).toBe(true);
   });
 
@@ -83,7 +97,10 @@ describe("configureMcpHandler", () => {
       auto_approve_tools: false,
       include_remote: false,
     });
-    const raw = readFileSync(join(tempDir, ".claude", "settings.json"), "utf-8");
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
     const parsed = JSON.parse(raw) as { mcpServers: Record<string, unknown> };
     expect(parsed.mcpServers).toHaveProperty("my-custom-server");
   });
@@ -113,5 +130,38 @@ describe("configureMcpHandler", () => {
     });
     expect(result.content[0]!.text.length).toBeGreaterThan(0);
     expect(existsSync(join(tempDir, ".claude", "settings.json"))).toBe(true);
+  });
+
+  it("excluded_servers omits the named server from settings.json", async () => {
+    await configureMcpHandler({
+      tags: ["UNIVERSAL"],
+      project_dir: tempDir,
+      auto_approve_tools: false,
+      include_remote: false,
+      excluded_servers: ["codeseeker"],
+    });
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { mcpServers: Record<string, unknown> };
+    expect(parsed.mcpServers).not.toHaveProperty("codeseeker");
+  });
+
+  it("excluded_servers does not remove other servers", async () => {
+    await configureMcpHandler({
+      tags: ["UNIVERSAL"],
+      project_dir: tempDir,
+      auto_approve_tools: false,
+      include_remote: false,
+      excluded_servers: ["codeseeker"],
+    });
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { mcpServers: Record<string, unknown> };
+    // forgecraft is a core UNIVERSAL server and must still be present
+    expect(parsed.mcpServers).toHaveProperty("forgecraft");
   });
 });
