@@ -7,6 +7,33 @@ Breaking changes are marked **BREAKING**.
 
 ---
 
+## [1.3.2] — 2026-04-02
+
+### Added
+
+- **Playwright MCP opt-in during `setup_project`.**  Phase 1 now asks Q5 — but only for
+  projects with `WEB-REACT`, `WEB-STATIC`, or `API` tags.  Explains that Playwright MCP
+  lets the AI drive a real browser for E2E loops, visual feedback, and (for API projects)
+  request interception and response validation — all locally.  Phase 2 respects
+  `use_playwright: false` by excluding the `playwright` and `playwright-mcp` servers from
+  `.claude/settings.json`.
+
+- **Playwright MCP added to the `API` template.**  `templates/api/mcp-servers.yaml` now
+  includes a `playwright` server entry (tier: recommended) for API request interception
+  and response validation.
+
+### Fixed
+
+- **CI `lint` step was broken** — `eslint` was missing from `devDependencies` and no
+  eslint config existed.  Added `eslint`, `@typescript-eslint/parser`, and
+  `@typescript-eslint/eslint-plugin` as dev dependencies, and added `eslint.config.js`
+  (flat config with `recommended` TypeScript rules).
+
+- **Publish workflow `EOTP` error** — added a comment to `publish.yml` explaining that
+  `NPM_TOKEN` must be an **Automation** token (not a classic token) to bypass 2FA in CI.
+
+---
+
 ## [1.3.1] — 2026-04-03
 
 ### Added

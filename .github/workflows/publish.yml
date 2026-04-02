@@ -1,5 +1,11 @@
 name: Publish
 
+# Requires NPM_TOKEN secret set to an "Automation" token from npmjs.com.
+# Automation tokens bypass 2FA — create one at:
+#   npmjs.com → Account → Access Tokens → Generate New Token → Automation
+# Then add it at:
+#   GitHub repo → Settings → Secrets and variables → Actions → NPM_TOKEN
+
 on:
   push:
     tags:

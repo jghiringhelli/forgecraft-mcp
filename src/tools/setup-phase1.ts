@@ -38,9 +38,9 @@ export function buildPhase1Response(context: ProjectContext): ToolResult {
 
   if (context.isBrownfield) {
     writeBrownfieldReversePrd(context.projectDir);
-    text += buildBrownfieldQuestions();
+    text += buildBrownfieldQuestions(context.inferredTags);
   } else {
-    text += buildPhase1Questions();
+    text += buildPhase1Questions(context.inferredTags);
   }
 
   const experiment = readExperimentConfig(context.projectDir);
@@ -136,8 +136,28 @@ function buildFoundSummary(context: ProjectContext): string {
 /**
  * Build the three calibration questions block.
  */
-function buildPhase1Questions(): string {
-  return `### Before I proceed, I need four answers:
+const PLAYWRIGHT_TAGS = new Set(["WEB-REACT", "WEB-STATIC", "API"]);
+
+/**
+ * Build the standard "four/five questions" block for greenfield projects.
+ * Q5 (Playwright) is only shown when the project has HTML or API tags.
+ *
+ * @param tags - Inferred project tags (to decide whether to show Q5)
+ */
+function buildPhase1Questions(tags: readonly string[]): string {
+  const needsPlaywright = tags.some((t) => PLAYWRIGHT_TAGS.has(t));
+  const questionCount = needsPlaywright ? "five" : "four";
+  const playwrightBlock = needsPlaywright
+    ? `\n**Q5: Would you like to add Playwright MCP for browser automation and testing?**
+Playwright MCP lets the AI assistant drive a real browser — navigate pages, fill forms, screenshot, and loop on visual feedback without leaving the chat. For API projects it adds request interception and response validation. It runs locally (no data leaves your machine).
+- \`yes\` *(recommended)* — wire it in automatically
+- \`no\` — skip it; choose this if you already use an equivalent browser testing tool\n`
+    : "";
+  const params = needsPlaywright
+    ? "`mvp`, `scope_complete`, `has_consumers`, `use_codeseeker`, and `use_playwright`"
+    : "`mvp`, `scope_complete`, `has_consumers`, and `use_codeseeker`";
+
+  return `### Before I proceed, I need ${questionCount} answers:
 
 **Q1: What is the development stage?**
 - \`mvp\` — early validation, expect significant changes, minimal ceremony
@@ -155,14 +175,27 @@ function buildPhase1Questions(): string {
 CodeSeeker builds a live knowledge graph of your codebase so the AI assistant can find existing patterns before writing new code — this cut duplication by ~53% in measured sessions. It runs locally (no data leaves your machine).
 - \`yes\` *(recommended)* — wire it in automatically
 - \`no\` — skip it; choose this if you already use a similar semantic search tool
-
-Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, \`has_consumers\`, and \`use_codeseeker\` to proceed.`;
+${playwrightBlock}
+Call \`setup_project\` again with ${params} to proceed.`;
 }
 
 /**
  * Build brownfield-specific calibration questions for phase 1.
+ *
+ * @param tags - Inferred project tags (to decide whether to show Playwright Q)
  */
-function buildBrownfieldQuestions(): string {
+function buildBrownfieldQuestions(tags: readonly string[]): string {
+  const needsPlaywright = tags.some((t) => PLAYWRIGHT_TAGS.has(t));
+  const playwrightBlock = needsPlaywright
+    ? `\n**Also answer the Playwright question:** Would you like browser automation wired in?
+Playwright MCP lets the AI drive a real browser for E2E loops, visual verification, and API request interception — all locally.
+- \`use_playwright: true\` *(recommended)*
+- \`use_playwright: false\` — skip if you already have an equivalent browser testing tool\n`
+    : "";
+  const params = needsPlaywright
+    ? "`mvp`, `scope_complete`, `has_consumers`, `use_codeseeker`, and `use_playwright`"
+    : "`mvp`, `scope_complete`, `has_consumers`, and `use_codeseeker`";
+
   return `## Brownfield Project Detected
 
 I found existing source code. Before we proceed:
@@ -179,8 +212,8 @@ Create a \`work/\` branch before making changes: \`git checkout -b work/forgecra
 CodeSeeker builds a live knowledge graph so the AI can find existing patterns before writing new code — measured ~53% reduction in duplication. Runs locally, no data leaves your machine.
 - \`use_codeseeker: true\` *(recommended)*
 - \`use_codeseeker: false\` — skip if you already have a similar semantic search tool
-
-Call \`setup_project\` again with \`mvp\`, \`scope_complete\`, \`has_consumers\`, and \`use_codeseeker\` to proceed.`;
+${playwrightBlock}
+Call \`setup_project\` again with ${params} to proceed.`;
 }
 
 // Export generateReversePrd for backward compatibility
