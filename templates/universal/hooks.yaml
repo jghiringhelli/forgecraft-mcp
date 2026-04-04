@@ -90,6 +90,10 @@ hooks:
       echo "$STAGED" | grep '\.py$' | xargs -r isort --quiet 2>/dev/null
       # TypeScript/JavaScript
       echo "$STAGED" | grep '\.\(ts\|tsx\|js\|jsx\)$' | xargs -r npx prettier --write 2>/dev/null
+      # Rust
+      if echo "$STAGED" | grep -q '\.rs$' && [ -f "Cargo.toml" ]; then
+        cargo fmt 2>/dev/null
+      fi
       # Re-stage formatted files
       echo "$STAGED" | xargs -r git add
 
@@ -144,7 +148,40 @@ hooks:
         fi
         echo "  ✅ TypeScript compilation OK"
       fi
+      if [ -f "Cargo.toml" ]; then
+        STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$')
+        if [ -n "$STAGED_RS" ]; then
+          cargo check --quiet 2>&1
+          if [ $? -ne 0 ]; then
+            echo "❌ Rust cargo check failed."
+            exit 1
+          fi
+          echo "  ✅ Rust cargo check OK"
+        fi
+      fi
       echo "🔨 Build check passed"
+
+  - name: cargo-clippy
+    trigger: pre-commit
+    description: "Run cargo clippy on Rust projects — catches bugs, style issues, and common mistakes beyond cargo check"
+    filename: pre-commit-clippy.sh
+    script: |
+      #!/bin/bash
+      if [ ! -f "Cargo.toml" ]; then
+        exit 0
+      fi
+      STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.rs$')
+      if [ -z "$STAGED_RS" ]; then
+        exit 0
+      fi
+      echo "🦀 Running cargo clippy..."
+      cargo clippy --all-targets --all-features 2>&1
+      if [ $? -ne 0 ]; then
+        echo "❌ cargo clippy failed — fix lint errors before committing."
+        echo "   Run: cargo clippy --all-targets --all-features"
+        exit 1
+      fi
+      echo "  ✅ cargo clippy passed"
 
   - name: tdd-phase-gate
     trigger: pre-commit
@@ -180,6 +217,8 @@ hooks:
           elif grep -q '"jest"' package.json 2>/dev/null; then
             RUN_CMD="npx jest --passWithNoTests"
           fi
+        elif [ -f "Cargo.toml" ]; then
+          RUN_CMD="cargo test"
         elif [ -f "pytest.ini" ] || [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
           RUN_CMD="python -m pytest"
         fi
@@ -270,6 +309,14 @@ hooks:
           echo "  ✅ Python tests passed"
         fi
       fi
+      if [ -f "Cargo.toml" ]; then
+        cargo test --quiet 2>&1
+        if [ $? -ne 0 ]; then
+          echo "❌ Rust tests failed."
+          exit 1
+        fi
+        echo "  ✅ Rust tests passed"
+      fi
       echo "🧪 All tests passed"
 
   - name: coverage-gate
@@ -317,8 +364,28 @@ hooks:
       # ── Run coverage ───────────────────────────────────────────────────────
       echo "📊 Running coverage gate (src/ files staged)..."
 
-      if [ ! -f "package.json" ]; then
-        echo "  ⚠️  No package.json found — skipping coverage check."
+      if [ ! -f "package.json" ] && [ ! -f "pyproject.toml" ] && [ ! -f "setup.py" ]; then
+        if [ -f "Cargo.toml" ]; then
+          # Rust: run tests; use cargo-tarpaulin for coverage if available
+          if command -v cargo-tarpaulin &> /dev/null; then
+            cargo tarpaulin --out Stdout --fail-under {{coverage_minimum | default: 80}} 2>&1
+            if [ $? -ne 0 ]; then
+              echo "❌ Coverage gate failed — below {{coverage_minimum | default: 80}}%."
+              echo "   Run: cargo tarpaulin --out Html"
+              exit 1
+            fi
+            echo "  ✅ Rust coverage gate passed"
+          else
+            cargo test --quiet 2>&1
+            if [ $? -ne 0 ]; then
+              echo "❌ Rust tests failed."
+              exit 1
+            fi
+            echo "  ✅ Rust tests passed (install cargo-tarpaulin for coverage enforcement)"
+          fi
+        else
+          echo "  ⚠️  No supported build system found — skipping coverage check."
+        fi
         exit 0
       fi
 
@@ -377,7 +444,7 @@ hooks:
     script: |
       #!/bin/bash
       STAGED=$(git diff --cached --name-only --diff-filter=ACM)
-      SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(py|ts|tsx|js|jsx)$' | grep -vE '(test_|\.test\.|\.spec\.|__tests__|tests/|fixtures/|mock|conftest)')
+      SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(py|ts|tsx|js|jsx|rs)$' | grep -vE '(test_|\.test\.|\.spec\.|__tests__|tests/|fixtures/|mock|conftest|_test\.rs)')
       if [ -z "$SOURCE_FILES" ]; then exit 0; fi
       VIOLATIONS=0
       WARNINGS=0
@@ -443,7 +510,35 @@ hooks:
           echo "  ⚠️  $file — $LINE_COUNT lines (max {{max_file_length | default: 300}})"
           WARNINGS=$((WARNINGS + 1))
         fi
-      done
+        # Rust-specific anti-patterns
+        if echo "$file" | grep -q '\.rs$'; then
+          if ! is_excepted "rust/unwrap" "$file"; then
+            if grep -nE '\.unwrap\(\)' "$file" > /tmp/violations 2>/dev/null; then
+              if [ -s /tmp/violations ]; then
+                echo "  ⚠️  $file — .unwrap() in production code — use ? or explicit error handling"
+                WARNINGS=$((WARNINGS + 1))
+              fi
+            fi
+          fi
+          if grep -nE '\btodo!\(|\bunimplemented!\(' "$file" > /tmp/violations 2>/dev/null; then
+            if [ -s /tmp/violations ]; then
+              echo "  ❌ $file — todo!/unimplemented! in production code"
+              VIOLATIONS=$((VIOLATIONS + 1))
+            fi
+          fi
+          if grep -nE '^[[:space:]]*#\[allow\(dead_code\)\]' "$file" > /tmp/violations 2>/dev/null; then
+            if [ -s /tmp/violations ]; then
+              echo "  ⚠️  $file — #[allow(dead_code)] suppression — delete orphaned code instead"
+              WARNINGS=$((WARNINGS + 1))
+            fi
+          fi
+          if grep -nE '^[[:space:]]*unsafe[[:space:]]*\{' "$file" > /tmp/violations 2>/dev/null; then
+            if [ -s /tmp/violations ]; then
+              echo "  ⚠️  $file — unsafe block present — requires explicit justification comment"
+              WARNINGS=$((WARNINGS + 1))
+            fi
+          fi
+        fi
       rm -f /tmp/violations
       if [ $VIOLATIONS -gt 0 ]; then
         echo "❌ $VIOLATIONS violation(s) found — commit blocked."
@@ -462,26 +557,42 @@ hooks:
       #!/bin/bash
       MAX_LENGTH={{max_function_length | default: 50}}
       STAGED=$(git diff --cached --name-only --diff-filter=ACM)
-      SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | grep -vE '(\.test\.|\.spec\.|__tests__|tests/)')
+      SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx|rs)$' | grep -vE '(\.test\.|\.spec\.|__tests__|tests/|_test\.rs)')
       if [ -z "$SOURCE_FILES" ]; then exit 0; fi
       WARNINGS=0
       for file in $SOURCE_FILES; do
-        # Heuristic: find function/method declarations and count lines to next declaration or closing brace
-        awk -v max="$MAX_LENGTH" -v fname="$file" '
-          /^[[:space:]]*(export )?(async )?(function |const [a-zA-Z]+ = (async )?\(|[a-zA-Z]+\(.*\) \{|[a-zA-Z]+\(.*\): )/ {
-            if (start > 0 && NR - start > max) {
-              printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
-              warnings++
+        # Heuristic: find function/method declarations and count lines to next declaration
+        if echo "$file" | grep -q '\.rs$'; then
+          awk -v max="$MAX_LENGTH" -v fname="$file" '
+            /^[[:space:]]*(pub )?(async )?fn [a-zA-Z_]/ {
+              if (start > 0 && NR - start > max) {
+                printf "  ⚠️  %s:%d — fn starting here is %d lines (max %d)\n", fname, start, NR - start, max
+              }
+              start = NR
             }
-            start = NR
-          }
-          END {
-            if (start > 0 && NR - start > max) {
-              printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
-              warnings++
+            END {
+              if (start > 0 && NR - start > max) {
+                printf "  ⚠️  %s:%d — fn starting here is %d lines (max %d)\n", fname, start, NR - start, max
+              }
             }
-          }
-        ' "$file"
+          ' "$file"
+        else
+          awk -v max="$MAX_LENGTH" -v fname="$file" '
+            /^[[:space:]]*(export )?(async )?(function |const [a-zA-Z]+ = (async )?\(|[a-zA-Z]+\(.*\) \{|[a-zA-Z]+\(.*\): )/ {
+              if (start > 0 && NR - start > max) {
+                printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
+                warnings++
+              }
+              start = NR
+            }
+            END {
+              if (start > 0 && NR - start > max) {
+                printf "  ⚠️  %s:%d — function starting here is %d lines (max %d)\n", fname, start, NR - start, max
+                warnings++
+              }
+            }
+          ' "$file"
+        fi
         WARNINGS=$((WARNINGS + $?))
       done
       # Warning only — does not block commit since bash heuristics aren't perfect
