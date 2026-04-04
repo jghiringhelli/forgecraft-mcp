@@ -368,7 +368,7 @@ describe("generateSessionPromptHandler", () => {
         session_type: "feature",
       });
       const text = result.content[0]!.text;
-      expect(text).toContain("Current State");
+      expect(text).toContain("Project Status Snapshot");
       expect(text).toContain("Next Steps");
     });
 
@@ -843,7 +843,9 @@ describe("generateSessionPromptHandler — roadmap integration", () => {
       session_type: "feature",
     });
     expect(result.content[0]!.text).toContain(EXPLICIT);
-    expect(result.content[0]!.text).not.toContain("RM-001");
+    // RM-001 appears in the roadmap snapshot section but the task uses the explicit description
+    expect(result.content[0]!.text).toContain("### Task");
+    expect(result.content[0]!.text).not.toContain(`### Task\n\nRM-001`);
   });
 });
 

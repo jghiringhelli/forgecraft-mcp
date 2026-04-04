@@ -23,6 +23,7 @@ import { verifyHandler } from "./verify.js";
 import { adviceHandler } from "./advice.js";
 import { metricsHandler } from "./metrics.js";
 import { checkCascadeHandler } from "./check-cascade.js";
+import { consolidateStatusHandler } from "./consolidate-status.js";
 import { generateSessionPromptHandler } from "./generate-session-prompt.js";
 import { getVerificationStrategyHandler } from "./get-verification-strategy.js";
 import {
@@ -197,6 +198,15 @@ export async function dispatchForgecraft(
           args.project_dir,
           "project_dir",
           "check_cascade",
+        ),
+      });
+
+    case "consolidate_status":
+      return consolidateStatusHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "consolidate_status",
         ),
       });
 

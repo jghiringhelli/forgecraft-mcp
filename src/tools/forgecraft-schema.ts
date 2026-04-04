@@ -40,6 +40,7 @@ export const ACTIONS = [
   "generate_diagram",
   "set_cascade_requirement",
   "close_cycle",
+  "consolidate_status",
   "generate_roadmap",
   "cnt_add_node",
   "start_hardening",

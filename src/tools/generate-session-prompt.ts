@@ -22,10 +22,13 @@ import { detectSpecRoadmapDrift } from "../shared/drift-detector.js";
 import {
   buildPrompt,
   discoverArtifacts,
-  readStatusSummary,
   buildDefaultCriteria,
   buildRoadmapItemAmbiguity,
 } from "./session-prompt-builders.js";
+import {
+  buildConsolidatedStatus,
+  formatConsolidatedStatus,
+} from "./consolidate-status.js";
 
 export type {
   ArtifactContext,
@@ -188,7 +191,9 @@ export async function generateSessionPromptHandler(
   }
 
   const artifacts = discoverArtifacts(projectDir);
-  const statusSummary = readStatusSummary(projectDir);
+  const statusSummary = formatConsolidatedStatus(
+    buildConsolidatedStatus(projectDir),
+  );
   const criteria =
     args.acceptance_criteria ?? buildDefaultCriteria(resolvedDescription);
 
