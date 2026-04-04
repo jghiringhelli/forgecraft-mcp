@@ -40,6 +40,18 @@ export interface CloseCycleResult {
   readonly experimentId?: string;
 }
 
+// ── Roadmap Types ────────────────────────────────────────────────────
+
+/** A single item parsed from docs/roadmap.md. */
+export interface RoadmapItem {
+  readonly id: string;
+  readonly title: string;
+  /** IDs that must be status:done before this item can be started. Empty array = no deps. */
+  readonly dependsOn: ReadonlyArray<string>;
+  readonly status: "pending" | "in-progress" | "done";
+  readonly promptPath: string;
+}
+
 // ── Test Command Derivation ───────────────────────────────────────────
 
 /**
@@ -76,6 +88,10 @@ export function deriveTestCommand(projectRoot: string): string | undefined {
     } catch {
       // Fall through
     }
+  }
+
+  if (existsSync(join(projectRoot, "Cargo.toml"))) {
+    return "cargo test";
   }
 
   if (existsSync(join(projectRoot, "go.mod"))) {
@@ -150,27 +166,86 @@ export function findCodeseekerGates(projectRoot: string): string[] {
 // ── Roadmap Helpers ──────────────────────────────────────────────────
 
 /**
- * Find the first pending roadmap item from docs/roadmap.md.
+ * Parse all roadmap items from docs/roadmap.md content.
+ * Handles both the legacy 4-column format (ID | Title | Status | Prompt)
+ * and the current 5-column format (ID | Title | Depends On | Status | Prompt).
+ *
+ * @param content - Raw roadmap.md file content
+ * @returns Parsed items in document order
+ */
+export function parseRoadmapItems(content: string): ReadonlyArray<RoadmapItem> {
+  const items: RoadmapItem[] = [];
+  for (const line of content.split("\n")) {
+    const cells = line
+      .split("|")
+      .map((c) => c.trim())
+      .filter((c) => c !== "");
+    if (cells.length < 4) continue;
+    const id = cells[0]!;
+    if (!/^RM-\d+$/.test(id)) continue;
+
+    let dependsOnRaw: string;
+    let statusRaw: string;
+    let promptPath: string;
+
+    if (cells.length >= 5) {
+      // 5-column: ID | Title | Depends On | Status | Prompt
+      dependsOnRaw = cells[2]!;
+      statusRaw = cells[3]!;
+      promptPath = cells[4]!;
+    } else {
+      // 4-column legacy: ID | Title | Status | Prompt
+      dependsOnRaw = "—";
+      statusRaw = cells[2]!;
+      promptPath = cells[3]!;
+    }
+
+    const status = (["pending", "in-progress", "done"] as const).includes(
+      statusRaw as "pending" | "in-progress" | "done",
+    )
+      ? (statusRaw as "pending" | "in-progress" | "done")
+      : "pending";
+
+    const dependsOn =
+      dependsOnRaw === "—" || dependsOnRaw === ""
+        ? []
+        : dependsOnRaw
+            .split(",")
+            .map((d) => d.trim())
+            .filter((d) => d.length > 0);
+
+    items.push({ id, title: cells[1]!, dependsOn, status, promptPath });
+  }
+  return items;
+}
+
+/**
+ * Find the first pending roadmap item whose DAG dependencies are all done.
  *
  * @param projectDir - Absolute path to project root
- * @returns The first pending item ID and title, or null if none found
+ * @returns The first unblocked pending item, or null if none exists
  */
 export function findNextRoadmapItem(
   projectDir: string,
 ): { readonly id: string; readonly title: string } | null {
   const roadmapPath = join(projectDir, "docs", "roadmap.md");
   if (!existsSync(roadmapPath)) return null;
-
   const content = readFileSync(roadmapPath, "utf-8");
-  const match = content.match(
-    /\|\s*(RM-\d+)\s*\|\s*([^|]+)\s*\|\s*pending\s*\|/,
+  const items = parseRoadmapItems(content);
+  const doneIds = new Set(
+    items.filter((i) => i.status === "done").map((i) => i.id),
   );
-  if (!match) return null;
-  return { id: match[1]!.trim(), title: match[2]!.trim() };
+  for (const item of items) {
+    if (item.status !== "pending") continue;
+    const blocked = item.dependsOn.some((dep) => !doneIds.has(dep));
+    if (!blocked) return { id: item.id, title: item.title };
+  }
+  return null;
 }
 
 /**
  * Mark a roadmap item as done in docs/roadmap.md.
+ * Works for both 4-column (legacy) and 5-column (current) formats.
  *
  * @param projectDir - Absolute path to project root
  * @param itemId - Roadmap item ID, e.g. "RM-001"
@@ -178,17 +253,13 @@ export function findNextRoadmapItem(
 export function markRoadmapItemDone(projectDir: string, itemId: string): void {
   const roadmapPath = join(projectDir, "docs", "roadmap.md");
   if (!existsSync(roadmapPath)) return;
-
   const content = readFileSync(roadmapPath, "utf-8");
   const escapedId = itemId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const rowRegex = new RegExp(
-    `(\\|\\s*${escapedId}\\s*\\|[^|]+\\|\\s*)pending(\\s*\\|)`,
-    "g",
+  const updated = content.replace(
+    new RegExp(`(\\|\\s*${escapedId}\\s*\\|[^\\n]*)\\bpending\\b`, "g"),
+    "$1done",
   );
-  const updated = content.replace(rowRegex, "$1done$2");
-  if (updated !== content) {
-    writeFileSync(roadmapPath, updated, "utf-8");
-  }
+  if (updated !== content) writeFileSync(roadmapPath, updated, "utf-8");
 }
 
 // ── Result Formatting ────────────────────────────────────────────────

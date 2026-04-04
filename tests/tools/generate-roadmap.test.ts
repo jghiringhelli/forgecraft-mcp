@@ -259,3 +259,139 @@ describe("readProjectName", () => {
     expect(name.length).toBeGreaterThan(0);
   });
 });
+
+describe("buildRoadmapContent — DAG structure", () => {
+  it("Phase 1 items have — in Depends On column", () => {
+    const content = buildRoadmapContent(
+      "App",
+      [
+        { id: "UC-001", title: "Login" },
+        { id: "UC-002", title: "Register" },
+      ],
+      "docs/PRD.md",
+    );
+    expect(content).toContain(
+      "| RM-001 | Implement UC-001: Login | — | pending |",
+    );
+    expect(content).toContain(
+      "| RM-002 | Implement UC-002: Register | — | pending |",
+    );
+  });
+
+  it("first Phase 2 item depends on last Phase 1 item", () => {
+    const content = buildRoadmapContent(
+      "App",
+      [
+        { id: "UC-001", title: "Login" },
+        { id: "UC-002", title: "Register" },
+      ],
+      "docs/PRD.md",
+    );
+    // With 2 UCs, last Phase 1 item is RM-002
+    expect(content).toContain("| RM-010 |");
+    expect(content).toContain("RM-002");
+    // RM-010 row should have RM-002 as dependency
+    const lines = content.split("\n");
+    const rm010Line = lines.find((l) => l.includes("| RM-010 |"));
+    expect(rm010Line).toBeDefined();
+    expect(rm010Line).toContain("RM-002");
+  });
+
+  it("Phase 2 items are chained (RM-011 depends on RM-010)", () => {
+    const content = buildRoadmapContent(
+      "App",
+      [{ id: "UC-001", title: "Login" }],
+      "docs/PRD.md",
+    );
+    const lines = content.split("\n");
+    const rm011Line = lines.find((l) => l.includes("| RM-011 |"));
+    expect(rm011Line).toBeDefined();
+    expect(rm011Line).toContain("RM-010");
+  });
+
+  it("first Phase 3 item depends on last Phase 2 item (RM-012)", () => {
+    const content = buildRoadmapContent(
+      "App",
+      [{ id: "UC-001", title: "Login" }],
+      "docs/PRD.md",
+    );
+    const lines = content.split("\n");
+    const rm020Line = lines.find((l) => l.includes("| RM-020 |"));
+    expect(rm020Line).toBeDefined();
+    expect(rm020Line).toContain("RM-012");
+  });
+
+  it("roadmap header includes Depends On column", () => {
+    const content = buildRoadmapContent(
+      "App",
+      [{ id: "UC-001", title: "Login" }],
+      "docs/PRD.md",
+    );
+    expect(content).toContain("| ID | Title | Depends On | Status | Prompt |");
+  });
+});
+
+import { parseRoadmapItems } from "../../src/tools/close-cycle-helpers.js";
+
+describe("parseRoadmapItems", () => {
+  it("parses 5-column format with depends_on", () => {
+    const content = [
+      "| ID | Title | Depends On | Status | Prompt |",
+      "|---|---|---|---|---|",
+      "| RM-001 | Login | — | pending | docs/session-prompts/RM-001.md |",
+      "| RM-002 | Register | — | done | docs/session-prompts/RM-002.md |",
+      "| RM-010 | Integration | RM-002 | pending | docs/session-prompts/RM-010.md |",
+    ].join("\n");
+
+    const items = parseRoadmapItems(content);
+    expect(items).toHaveLength(3);
+    expect(items[0]).toMatchObject({
+      id: "RM-001",
+      status: "pending",
+      dependsOn: [],
+    });
+    expect(items[1]).toMatchObject({
+      id: "RM-002",
+      status: "done",
+      dependsOn: [],
+    });
+    expect(items[2]).toMatchObject({
+      id: "RM-010",
+      status: "pending",
+      dependsOn: ["RM-002"],
+    });
+  });
+
+  it("parses 4-column legacy format treating depends_on as empty", () => {
+    const content = [
+      "| ID | Title | Status | Prompt |",
+      "|---|---|",
+      "| RM-001 | Login | pending | docs/session-prompts/RM-001.md |",
+    ].join("\n");
+
+    const items = parseRoadmapItems(content);
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      id: "RM-001",
+      dependsOn: [],
+      status: "pending",
+    });
+  });
+
+  it("parses multiple depends_on IDs (comma-separated)", () => {
+    const content =
+      "| RM-010 | Integration | RM-001, RM-002 | pending | docs/session-prompts/RM-010.md |";
+    const items = parseRoadmapItems(content);
+    expect(items[0]!.dependsOn).toEqual(["RM-001", "RM-002"]);
+  });
+
+  it("skips header rows and separator rows", () => {
+    const content = [
+      "| ID | Title | Depends On | Status | Prompt |",
+      "|---|---|---|---|---|",
+      "| RM-001 | Login | — | pending | docs/session-prompts/RM-001.md |",
+    ].join("\n");
+    const items = parseRoadmapItems(content);
+    expect(items).toHaveLength(1);
+  });
+});

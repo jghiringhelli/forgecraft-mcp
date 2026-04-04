@@ -41,10 +41,14 @@ import {
   appendChangelogEntry,
 } from "./close-cycle-versioning.js";
 
-export type { CloseCycleOptions, CloseCycleResult } from "./close-cycle-helpers.js";
+export type {
+  CloseCycleOptions,
+  CloseCycleResult,
+} from "./close-cycle-helpers.js";
 export {
   deriveTestCommand,
   findNextRoadmapItem,
+  parseRoadmapItems,
   markRoadmapItemDone,
   formatCloseCycleResult,
   findCodeseekerGates,
@@ -262,4 +266,3 @@ export async function closeCycleHandler(
     content: [{ type: "text", text: formatCloseCycleResult(result) }],
   };
 }
-
