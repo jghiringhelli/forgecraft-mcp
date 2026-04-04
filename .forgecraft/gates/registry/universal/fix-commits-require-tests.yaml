@@ -1,0 +1,43 @@
+id: fix-commits-require-tests
+title: Fix Commits Must Include Test File Change
+description: >
+  Enforce that every fix: commit (bugfix) includes at least one test file change.
+  Prevents regressions by ensuring every defect — whether found during roadmap
+  execution, Synthetic QA, or user report — is validated by a test before the
+  fix ships. The test must fail before the fix and pass after.
+category: test-quality
+gsProperty: defended
+phase: development
+hook: commit-msg
+check: >
+  At commit-msg time, read the commit message. If the first line matches
+  'fix(...)?(!)?:' (conventional commit fix type), inspect git diff --cached
+  --name-only for at least one test file (*.test.ts, *.spec.py, test_*.go,
+  etc.). Block if no test file is staged. Exempt commits that touch only
+  config/, docs/, .github/, or scripts/ with no source file changes.
+passCriterion: >
+  Every fix: commit staged alongside at least one test file change.
+  Config/docs/infra-only fix commits are exempt (no source change = no
+  regression surface).
+failureMessage: >
+  fix: commit is missing a test file change. Add a test that reproduces
+  the defect — it must fail before the fix and pass after.
+fixHint: >
+  Write a test that fails against the current code, then fix the bug so
+  the test passes. Both changes go in the same commit.
+tags:
+  - UNIVERSAL
+priority: P1
+likelihood: high
+impact: high
+confidence: high
+status: approved
+approvedAt: '2026-04-04'
+contributor: jghiringhelli
+generalizable: true
+evidence: >
+  The GS Bug Fix Protocol (PractitionerProtocol §commit-sequence) requires
+  the failing test to be included in the same commit as the fix. This gate
+  enforces that rule at the commit boundary across all defect entry points:
+  roadmap execution, Synthetic QA, and user-reported bugs.
+_path: gates/universal/fix-commits-require-tests.yaml

@@ -106,8 +106,15 @@ hooks:
         'sk-[a-zA-Z0-9]{48}'
         'ghp_[a-zA-Z0-9]{36}'
       )
+      # Directories that legitimately contain pattern definitions as examples
+      EXEMPT_PREFIXES=("templates/" ".forgecraft/gates/" "tests/" ".claude/hooks/")
       STAGED=$(git diff --cached --name-only)
       for file in $STAGED; do
+        skip=0
+        for prefix in "${EXEMPT_PREFIXES[@]}"; do
+          if [[ "$file" == ${prefix}* ]]; then skip=1; break; fi
+        done
+        [[ $skip -eq 1 ]] && continue
         for pattern in "${PATTERNS[@]}"; do
           if grep -qE "$pattern" "$file" 2>/dev/null; then
             echo "❌ Potential secret found in $file matching pattern"
@@ -516,6 +523,59 @@ hooks:
         fi
       fi
       echo "🔄 Import cycle check passed"
+
+  - name: fix-regression-gate
+    trigger: commit-msg
+    description: "fix: commits must include a test file change — enforces regression test requirement across all defect sources (roadmap, Synthetic QA, user-reported)"
+    filename: commit-msg-fix-test-gate.sh
+    script: |
+      #!/bin/bash
+      COMMIT_MSG_FILE="$1"
+      COMMIT_MSG=$(cat "$COMMIT_MSG_FILE" | sed '/^#/d' | sed '/^[[:space:]]*$/d' | head -1)
+      if [ -z "$COMMIT_MSG" ]; then exit 0; fi
+
+      # Only enforce on fix: commits
+      if ! echo "$COMMIT_MSG" | grep -qE '^fix(\([a-z0-9/_-]+\))?(!)?: '; then
+        exit 0
+      fi
+
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      if [ -z "$STAGED" ]; then exit 0; fi
+
+      TEST_PATTERNS='\.(test|spec)\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|java|kt|rs)$|^(tests?|spec|__tests__|test_)[^/]'
+
+      TEST_FILES=$(echo "$STAGED" | grep -E "$TEST_PATTERNS")
+
+      if [ -z "$TEST_FILES" ]; then
+        echo ""
+        echo "  ❌ FIX REGRESSION GATE: fix commit is missing a test file change."
+        echo ""
+        echo "  Commit: $COMMIT_MSG"
+        echo ""
+        echo "  A fix: commit must include the failing test that reproduces the defect."
+        echo "  This applies regardless of how the bug was found:"
+        echo "    • During roadmap execution"
+        echo "    • During Synthetic QA"
+        echo "    • User-reported"
+        echo ""
+        echo "  Add a test that fails before your fix and passes after."
+        echo "  Exempt: fix commits that touch only config/, docs/, .github/, or scripts/"
+        echo ""
+
+        # Check if ALL staged source files are exempt (config/docs/infra only)
+        EXEMPT_PATTERNS='^(config|\.config|docs|\.github|scripts|infra|terraform|k8s|\.forgecraft|\.claude)/|^\.(env|gitignore|editorconfig)|^(README|CHANGELOG|LICENSE)'
+        NON_EXEMPT=$(echo "$STAGED" | grep -vE "$EXEMPT_PATTERNS")
+        if [ -z "$NON_EXEMPT" ]; then
+          echo "  ✅ All staged files are config/docs/infra — test requirement waived."
+          exit 0
+        fi
+
+        exit 1
+      fi
+
+      echo "  ✅ Fix regression gate satisfied:"
+      echo "$TEST_FILES" | while IFS= read -r f; do echo "     $f"; done
+      exit 0
 
   - name: code-review
     trigger: pre-commit

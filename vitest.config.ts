@@ -6,6 +6,8 @@ export default defineConfig({
     globals: false,
     pool: "forks",
     testTimeout: 10_000,
+    restoreMocks: true,
+    clearMocks: true,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

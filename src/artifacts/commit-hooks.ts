@@ -35,6 +35,7 @@ const REQUIRED_HOOKS = [
   "pre-commit-compile.sh",
   "pre-commit-test.sh",
   "commit-msg.sh",
+  "commit-msg-fix-test-gate.sh",
 ] as const;
 
 /**
@@ -57,6 +58,7 @@ export class CommitHooksArtifact implements GenerativeSpec {
     "Test + coverage gate",
     "Dangerous command prevention",
     "Conventional commit message format enforcement",
+    "Fix regression gate: fix commits must include a test file change",
   ] as const;
   readonly excludes = [
     "Hook implementation details (those live in .claude/hooks/)",

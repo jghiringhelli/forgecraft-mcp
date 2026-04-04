@@ -6,7 +6,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { CommitHooksArtifact, COMMIT_HOOKS_ARTIFACT_ID } from "../../src/artifacts/commit-hooks.js";
+import {
+  CommitHooksArtifact,
+  COMMIT_HOOKS_ARTIFACT_ID,
+} from "../../src/artifacts/commit-hooks.js";
 import { validateConventionalCommit } from "../../src/artifacts/commit-history.js";
 
 const TMP_DIR = join(tmpdir(), `forgecraft-test-hooks-${Date.now()}`);
@@ -26,14 +29,24 @@ beforeAll(() => {
     "pre-commit-compile.sh",
     "pre-commit-test.sh",
     "commit-msg.sh",
+    "commit-msg-fix-test-gate.sh",
   ];
   for (const h of required) {
     writeFileSync(join(FULL_HOOKS_DIR, h), "#!/usr/bin/env sh\nexit 0");
   }
 
-  writeFileSync(join(GIT_HOOKS_DIR, "pre-commit"), "#!/usr/bin/env sh\n.claude/hooks/pre-commit-test.sh");
-  writeFileSync(join(GIT_HOOKS_DIR, "commit-msg"), "#!/usr/bin/env sh\n.claude/hooks/commit-msg.sh \"$1\"");
-  writeFileSync(join(SCRIPTS_DIR, "setup-hooks.sh"), "#!/usr/bin/env sh\necho installed");
+  writeFileSync(
+    join(GIT_HOOKS_DIR, "pre-commit"),
+    "#!/usr/bin/env sh\n.claude/hooks/pre-commit-test.sh",
+  );
+  writeFileSync(
+    join(GIT_HOOKS_DIR, "commit-msg"),
+    '#!/usr/bin/env sh\n.claude/hooks/commit-msg.sh "$1"',
+  );
+  writeFileSync(
+    join(SCRIPTS_DIR, "setup-hooks.sh"),
+    "#!/usr/bin/env sh\necho installed",
+  );
 });
 
 afterAll(() => rmSync(TMP_DIR, { recursive: true, force: true }));
@@ -64,6 +77,12 @@ describe("CommitHooksArtifact", () => {
       expect(coversText).toContain("Conventional commit");
     });
 
+    it("covers fix regression gate requirement", () => {
+      const artifact = new CommitHooksArtifact(TMP_DIR);
+      const coversText = artifact.covers.join(" ");
+      expect(coversText).toContain("regression");
+    });
+
     it("excludes hook implementation details from its own spec", () => {
       const artifact = new CommitHooksArtifact(TMP_DIR);
       const excludesText = artifact.excludes.join(" ");
@@ -72,50 +91,74 @@ describe("CommitHooksArtifact", () => {
   });
 
   describe("isInScope", () => {
-    const artifact = new CommitHooksArtifact(TMP_DIR);
-
     it("returns true for .claude/hooks/ paths", () => {
-      expect(artifact.isInScope(".claude/hooks/pre-commit-test.sh")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(
+          ".claude/hooks/pre-commit-test.sh",
+        ),
+      ).toBe(true);
     });
 
     it("returns true for .claude/hooks/commit-msg.sh", () => {
-      expect(artifact.isInScope(".claude/hooks/commit-msg.sh")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(
+          ".claude/hooks/commit-msg.sh",
+        ),
+      ).toBe(true);
     });
 
     it("returns true for .git/hooks/ paths", () => {
-      expect(artifact.isInScope(".git/hooks/pre-commit")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(".git/hooks/pre-commit"),
+      ).toBe(true);
     });
 
     it("returns true for .git/hooks/commit-msg", () => {
-      expect(artifact.isInScope(".git/hooks/commit-msg")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(".git/hooks/commit-msg"),
+      ).toBe(true);
     });
 
     it("returns true for scripts/setup-hooks.sh", () => {
-      expect(artifact.isInScope("scripts/setup-hooks.sh")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope("scripts/setup-hooks.sh"),
+      ).toBe(true);
     });
 
     it("returns false for unrelated paths", () => {
+      const artifact = new CommitHooksArtifact(TMP_DIR);
       expect(artifact.isInScope("src/index.ts")).toBe(false);
       expect(artifact.isInScope("CLAUDE.md")).toBe(false);
     });
   });
 
   describe("verify()", () => {
-    const artifact = new CommitHooksArtifact(TMP_DIR);
-
     it("passes for an existing file", async () => {
-      const results = await artifact.verify(".claude/hooks/pre-commit-test.sh");
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/pre-commit-test.sh",
+      );
       expect(results[0]?.passed).toBe(true);
       expect(results[0]?.criterion).toBe("file-exists");
     });
 
     it("passes for commit-msg.sh", async () => {
-      const results = await artifact.verify(".claude/hooks/commit-msg.sh");
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/commit-msg.sh",
+      );
+      expect(results[0]?.passed).toBe(true);
+    });
+
+    it("passes for commit-msg-fix-test-gate.sh", async () => {
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/commit-msg-fix-test-gate.sh",
+      );
       expect(results[0]?.passed).toBe(true);
     });
 
     it("fails for a non-existent file", async () => {
-      const results = await artifact.verify(".claude/hooks/nonexistent.sh");
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/nonexistent.sh",
+      );
       expect(results[0]?.passed).toBe(false);
     });
   });
@@ -133,7 +176,9 @@ describe("CommitHooksArtifact", () => {
     it("passes git-commit-msg-hook-installed gate", async () => {
       const artifact = new CommitHooksArtifact(TMP_DIR);
       const { results } = await artifact.defend();
-      const gate = results.find((r) => r.gate.id === "git-commit-msg-hook-installed");
+      const gate = results.find(
+        (r) => r.gate.id === "git-commit-msg-hook-installed",
+      );
       expect(gate?.exitCode).toBe(0);
     });
   });
@@ -143,68 +188,102 @@ describe("CommitHooksArtifact", () => {
       const artifact = new CommitHooksArtifact("/nonexistent/path/project");
       const { allPassed, results } = await artifact.defend();
       expect(allPassed).toBe(false);
-      const hooksGate = results.find((r) => r.gate.id === "hooks-directory-exists");
+      const hooksGate = results.find(
+        (r) => r.gate.id === "hooks-directory-exists",
+      );
       expect(hooksGate?.exitCode).toBe(1);
     });
   });
 
   describe("commit-msg hook script content", () => {
     it("commit-msg hook script is included in hook templates", async () => {
-      const { loadAllTemplatesWithExtras } = await import("../../src/registry/loader.js");
-      const { composeTemplates } = await import("../../src/registry/composer.js");
+      const { loadAllTemplatesWithExtras } =
+        await import("../../src/registry/loader.js");
+      const { composeTemplates } =
+        await import("../../src/registry/composer.js");
       const templateSets = await loadAllTemplatesWithExtras();
       const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
-      const commitMsgHook = composed.hooks.find((h) => h.filename === "commit-msg.sh");
+      const commitMsgHook = composed.hooks.find(
+        (h) => h.filename === "commit-msg.sh",
+      );
       expect(commitMsgHook).toBeDefined();
     });
 
     it("commit-msg hook script contains the conventional commit pattern", async () => {
-      const { loadAllTemplatesWithExtras } = await import("../../src/registry/loader.js");
-      const { composeTemplates } = await import("../../src/registry/composer.js");
+      const { loadAllTemplatesWithExtras } =
+        await import("../../src/registry/loader.js");
+      const { composeTemplates } =
+        await import("../../src/registry/composer.js");
       const templateSets = await loadAllTemplatesWithExtras();
       const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
-      const commitMsgHook = composed.hooks.find((h) => h.filename === "commit-msg.sh");
-      expect(commitMsgHook?.script).toContain("feat|fix|refactor|docs|test|chore|perf|ci|build|revert");
+      const commitMsgHook = composed.hooks.find(
+        (h) => h.filename === "commit-msg.sh",
+      );
+      expect(commitMsgHook?.script).toContain(
+        "feat|fix|refactor|docs|test|chore|perf|ci|build|revert",
+      );
     });
 
     it("commit-msg hook has commit-msg trigger type", async () => {
-      const { loadAllTemplatesWithExtras } = await import("../../src/registry/loader.js");
-      const { composeTemplates } = await import("../../src/registry/composer.js");
+      const { loadAllTemplatesWithExtras } =
+        await import("../../src/registry/loader.js");
+      const { composeTemplates } =
+        await import("../../src/registry/composer.js");
       const templateSets = await loadAllTemplatesWithExtras();
       const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
-      const commitMsgHook = composed.hooks.find((h) => h.filename === "commit-msg.sh");
+      const commitMsgHook = composed.hooks.find(
+        (h) => h.filename === "commit-msg.sh",
+      );
       expect(commitMsgHook?.trigger).toBe("commit-msg");
     });
 
     it("commit-msg hook script passes commit message file path as argument", async () => {
-      const { loadAllTemplatesWithExtras } = await import("../../src/registry/loader.js");
-      const { composeTemplates } = await import("../../src/registry/composer.js");
+      const { loadAllTemplatesWithExtras } =
+        await import("../../src/registry/loader.js");
+      const { composeTemplates } =
+        await import("../../src/registry/composer.js");
       const templateSets = await loadAllTemplatesWithExtras();
       const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
-      const commitMsgHook = composed.hooks.find((h) => h.filename === "commit-msg.sh");
+      const commitMsgHook = composed.hooks.find(
+        (h) => h.filename === "commit-msg.sh",
+      );
       expect(commitMsgHook?.script).toContain('COMMIT_MSG_FILE="$1"');
     });
   });
 
   describe("validateConventionalCommit()", () => {
     it("exits 0 (returns true) for valid feat commit", () => {
-      expect(validateConventionalCommit("feat(auth): add JWT refresh token support")).toBe(true);
+      expect(
+        validateConventionalCommit("feat(auth): add JWT refresh token support"),
+      ).toBe(true);
     });
 
     it("exits 0 (returns true) for fix commit without scope", () => {
-      expect(validateConventionalCommit("fix: handle null response from payment gateway")).toBe(true);
+      expect(
+        validateConventionalCommit(
+          "fix: handle null response from payment gateway",
+        ),
+      ).toBe(true);
     });
 
     it("exits 0 (returns true) for breaking change with bang", () => {
-      expect(validateConventionalCommit("feat(api)!: remove deprecated endpoint")).toBe(true);
+      expect(
+        validateConventionalCommit("feat(api)!: remove deprecated endpoint"),
+      ).toBe(true);
     });
 
     it("exits 0 (returns true) for docs commit", () => {
-      expect(validateConventionalCommit("docs: update README with setup instructions")).toBe(true);
+      expect(
+        validateConventionalCommit(
+          "docs: update README with setup instructions",
+        ),
+      ).toBe(true);
     });
 
     it("exits 1 (returns false) for message missing type prefix", () => {
-      expect(validateConventionalCommit("add JWT refresh token support")).toBe(false);
+      expect(validateConventionalCommit("add JWT refresh token support")).toBe(
+        false,
+      );
     });
 
     it("exits 1 (returns false) for uppercase type", () => {
@@ -223,7 +302,8 @@ describe("CommitHooksArtifact", () => {
     });
 
     it("exits 0 (returns true) for multi-line commit with valid first line", () => {
-      const multiLine = "feat(core): add spec interface\n\nLonger body text here.";
+      const multiLine =
+        "feat(core): add spec interface\n\nLonger body text here.";
       expect(validateConventionalCommit(multiLine)).toBe(true);
     });
   });
