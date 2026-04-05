@@ -24,6 +24,16 @@ import { addModuleHandler } from "../tools/add-module.js";
 import { verifyHandler } from "../tools/verify.js";
 import { adviceHandler } from "../tools/advice.js";
 import { metricsHandler } from "../tools/metrics.js";
+import {
+  runCascadeChecks,
+  loadCascadeDecisions,
+  isCascadeComplete,
+} from "../tools/check-cascade.js";
+import {
+  buildGateViolationReport,
+  formatGateViolationReport,
+} from "../tools/gate-violations.js";
+import { consolidateStatusHandler } from "../tools/consolidate-status.js";
 import type { Flags } from "./args.js";
 import { str, arr, bool } from "./args.js";
 import {
@@ -53,13 +63,21 @@ export function resolveTagsFromConfig(
 
 /**
  * Extract text from MCP-style handler result and print to stdout.
+ * With `json: true`, wraps output in `{ "ok": true, "output": "..." }`.
  *
  * @param result - MCP content result with text blocks
+ * @param json - When true, output as JSON (for CI/scripting)
  */
-export function printResult(result: {
-  content: Array<{ type: string; text: string }>;
-}): void {
-  console.log(result.content[0]?.text ?? "");
+export function printResult(
+  result: { content: Array<{ type: string; text: string }> },
+  json = false,
+): void {
+  const text = result.content[0]?.text ?? "";
+  if (json) {
+    console.log(JSON.stringify({ ok: true, output: text }));
+  } else {
+    console.log(text);
+  }
 }
 
 // ── Commands ─────────────────────────────────────────────────────────
@@ -319,4 +337,119 @@ export async function cmdAddModule(pos: string[], flags: Flags): Promise<void> {
       (str(flags, "language") as "typescript" | "python") ?? "typescript",
   });
   printResult(result);
+}
+
+// ── CI / Bare Gate Commands ──────────────────────────────────────────
+
+/**
+ * `check-cascade [dir]` — run cascade checks and exit 1 on required failures.
+ *
+ * With `--json`: outputs structured JSON suitable for CI parsing.
+ * Exit codes: 0 = all required steps pass, 1 = one or more required steps fail.
+ *
+ * @param pos - Positional args (pos[0] = project dir)
+ * @param flags - Parsed flags
+ */
+export async function cmdCheckCascade(
+  pos: string[],
+  flags: Flags,
+): Promise<void> {
+  const projectDir = resolve(pos[0] ?? ".");
+  const json = bool(flags, "json", false);
+  const decisions = loadCascadeDecisions(projectDir);
+  const steps = runCascadeChecks(projectDir, decisions);
+  const passed = isCascadeComplete(steps);
+
+  if (json) {
+    const failedSteps = steps
+      .filter((s) => s.status === "FAIL" || s.status === "STUB")
+      .map((s) => ({ name: s.name, status: s.status, detail: s.detail }));
+    const passingCount = steps.filter(
+      (s) => s.status === "PASS" || s.status === "WARN",
+    ).length;
+    console.log(
+      JSON.stringify({
+        ok: passed,
+        passing: passingCount,
+        total: steps.length,
+        failedSteps,
+      }),
+    );
+  } else {
+    for (const s of steps) {
+      const icon =
+        s.status === "PASS"
+          ? "✅"
+          : s.status === "SKIP"
+            ? "⏭ "
+            : s.status === "WARN"
+              ? "⚠️ "
+              : "❌";
+      console.log(`${icon} ${s.name}: ${s.status}`);
+      if (s.status === "FAIL" || s.status === "STUB") {
+        console.log(`   ${s.detail}`);
+      }
+    }
+    if (!passed) {
+      console.error("\n❌ Cascade gate failed — required steps are incomplete.");
+    }
+  }
+
+  if (!passed) process.exit(1);
+}
+
+/**
+ * `violations [dir]` — report active gate violations, exit 1 if any present.
+ *
+ * Active violations are those recorded after the last git commit. Stale
+ * violations (cleared by a commit) are shown but don't trigger exit 1.
+ *
+ * With `--json`: outputs structured JSON suitable for CI parsing.
+ * Exit codes: 0 = no active violations, 1 = active violations present.
+ *
+ * @param pos - Positional args (pos[0] = project dir)
+ * @param flags - Parsed flags
+ */
+export async function cmdViolations(
+  pos: string[],
+  flags: Flags,
+): Promise<void> {
+  const projectDir = resolve(pos[0] ?? ".");
+  const json = bool(flags, "json", false);
+  const report = buildGateViolationReport(projectDir);
+
+  if (json) {
+    console.log(
+      JSON.stringify({
+        ok: report.active.length === 0,
+        active: report.active,
+        stale: report.stale,
+        lastCommitAt: report.lastCommitAt,
+      }),
+    );
+  } else {
+    console.log(formatGateViolationReport(report));
+    if (report.active.length > 0) {
+      console.error(
+        `\n❌ ${report.active.length} active gate violation(s) — fix before committing.`,
+      );
+    }
+  }
+
+  if (report.active.length > 0) process.exit(1);
+}
+
+/**
+ * `status [dir]` — print a live project state snapshot (always exits 0).
+ *
+ * With `--json`: wraps the snapshot text in `{ "ok": true, "output": "..." }`.
+ *
+ * @param pos - Positional args (pos[0] = project dir)
+ * @param flags - Parsed flags
+ */
+export async function cmdStatus(pos: string[], flags: Flags): Promise<void> {
+  const projectDir = resolve(pos[0] ?? ".");
+  const json = bool(flags, "json", false);
+  const result = await consolidateStatusHandler({ project_dir: projectDir });
+  printResult(result, json);
 }

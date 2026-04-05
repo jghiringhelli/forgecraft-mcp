@@ -23,6 +23,9 @@ import {
   cmdAddHook,
   cmdVerify,
   cmdAddModule,
+  cmdCheckCascade,
+  cmdViolations,
+  cmdStatus,
 } from "./cli/commands.js";
 
 // ── Entry Point ──────────────────────────────────────────────────────
@@ -80,6 +83,15 @@ export async function runCli(argv: string[]): Promise<boolean> {
         break;
       case "add-module":
         await cmdAddModule(positional, flags);
+        break;
+      case "check-cascade":
+        await cmdCheckCascade(positional, flags);
+        break;
+      case "violations":
+        await cmdViolations(positional, flags);
+        break;
+      case "status":
+        await cmdStatus(positional, flags);
         break;
       case "verify":
         await cmdVerify(positional, flags);
