@@ -7,6 +7,31 @@ Breaking changes are marked **BREAKING**.
 
 ---
 
+## [1.4.0] — 2026-04-05
+
+### Added
+
+- **consolidate_status MCP action.** Produces a live project state snapshot — cascade score, roadmap progress (with next unblocked item), last 5 git commits, uncommitted files, detected test command, and Status.md tail — embedded into every `generate_session_prompt` response. Closes the session drift gap: sessions now start with current state rather than stale spec state.
+
+- **Agentic gate violations.** Pre-commit hooks (`anti-patterns`, `compile`, `coverage`, `secrets`, `clippy`) now write structured JSONL to `.forgecraft/gate-violations.jsonl` on failure. New `read_gate_violations` MCP action partitions violations into **active** (newer than last commit) vs **stale** (cleared by commit). `consolidate_status` surfaces active violation count in every session prompt.
+
+- **MCP result size annotation.** All tool responses now pass through `annotateResult()` at the router layer. Results >1,000 chars get a compact `↩ X chars · Y lines` footer. Results >50,000 chars are truncated with an explicit `[TRUNCATED: X/Y chars]` marker so callers know the response is incomplete.
+
+- **`--bare` CI mode** — three new CLI gate commands with predictable exit codes:
+  - `check-cascade [dir]` — exits 1 if any required cascade step fails
+  - `violations [dir]` — exits 1 if active gate violations are present
+  - `status [dir]` — prints live project snapshot (always exits 0)
+  - All three support `--json` for machine-readable CI output
+
+- **Roadmap DAG dependency tracking.** `generate_roadmap` now produces a 5-column table with a `Depends On` column. `generate_session_prompt` blocks items whose dependencies are not yet done. `parseRoadmapItems` handles legacy (4-col) and new (5-col) formats.
+
+- **Full Rust/Cargo support in universal quality hooks.** Seven existing hooks now handle `.rs` files. New `pre-commit-clippy.sh` hook added and registered in `REQUIRED_HOOKS`.
+
+### Fixed
+
+- **`pre-push` hook blocked deletion of all feature branches** when on `main`. Now only blocks deletion of `refs/.../main` or `refs/.../master` remote refs.
+
+---
 ## [1.3.2] — 2026-04-02
 
 ### Added
