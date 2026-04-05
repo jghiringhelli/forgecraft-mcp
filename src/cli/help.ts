@@ -28,7 +28,14 @@ COMMANDS
   verify  [dir]          Run tests + score §4.3 GS properties + report layer violations
   advice  [dir]          Quality cycle checklist + tool stack + example configs for your tags
   metrics [dir]          External quality report: LOC, coverage, layer violations, dead code, complexity
+
+CI / BARE GATE COMMANDS (exit codes: 0 = pass, 1 = fail)
+  check-cascade [dir]    Run cascade gate checks — exit 1 if required steps are incomplete
+  violations    [dir]    Report active gate violations — exit 1 if any violations present
+  status        [dir]    Print live project state snapshot (cascade + roadmap + git + Status.md)
+
 FLAGS (vary by command)
+  --json                 Machine-readable JSON output (for CI/scripting)
   --tags <tags...>       Project classification tags (or read from forgecraft.yaml)
   --tier <tier>          Content depth: core | recommended | optional
   --targets <targets...> AI assistant targets: claude cursor copilot windsurf cline aider

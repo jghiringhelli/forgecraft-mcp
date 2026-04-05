@@ -12,6 +12,7 @@
 import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
 import type { ForgecraftArgs } from "./forgecraft-schema.js";
 import { dispatchForgecraft } from "./forgecraft-dispatch.js";
+import { annotateResult } from "../shared/result-utils.js";
 
 export { forgecraftSchema } from "./forgecraft-schema.js";
 export type { ForgecraftArgs } from "./forgecraft-schema.js";
@@ -29,7 +30,7 @@ export async function forgecraftHandler(
   args: ForgecraftArgs,
 ): Promise<ToolResult> {
   const result = await dispatchForgecraft(args);
-  return applyAmbiguityFormatting(result);
+  return applyResultAnnotation(applyAmbiguityFormatting(result));
 }
 
 // ── Ambiguity formatting ─────────────────────────────────────────────
@@ -51,6 +52,26 @@ export function formatAmbiguity(ambiguity: ToolAmbiguity): string {
   }
   lines.push(`   To resolve: ${ambiguity.resolution_hint}`);
   return lines.join("\n");
+}
+
+/**
+ * Apply size annotation and truncation to the first text content item.
+ * Leaves short results and non-text content unchanged.
+ *
+ * @param result - Tool result after ambiguity formatting
+ * @returns Result with size annotation applied to text content
+ */
+export function applyResultAnnotation(result: ToolResult): ToolResult {
+  const first = result.content[0];
+  if (!first || first.type !== "text") return result;
+
+  const annotated = annotateResult(first.text);
+  if (annotated === first.text) return result;
+
+  return {
+    ...result,
+    content: [{ type: "text", text: annotated }, ...result.content.slice(1)],
+  };
 }
 
 /**

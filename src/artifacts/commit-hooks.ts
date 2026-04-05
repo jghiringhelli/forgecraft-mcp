@@ -33,6 +33,7 @@ const REQUIRED_HOOKS = [
   "pre-commit-secrets.sh",
   "pre-commit-prod-quality.sh",
   "pre-commit-compile.sh",
+  "pre-commit-clippy.sh",
   "pre-commit-test.sh",
   "commit-msg.sh",
 ] as const;
@@ -54,6 +55,7 @@ export class CommitHooksArtifact implements GenerativeSpec {
     "Secret scanning",
     "Production anti-pattern detection",
     "TypeScript compilation gate",
+    "Rust cargo check + cargo clippy gate",
     "Test + coverage gate",
     "Dangerous command prevention",
     "Conventional commit message format enforcement",

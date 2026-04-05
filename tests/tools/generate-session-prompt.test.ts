@@ -368,7 +368,7 @@ describe("generateSessionPromptHandler", () => {
         session_type: "feature",
       });
       const text = result.content[0]!.text;
-      expect(text).toContain("Current State");
+      expect(text).toContain("Project Status Snapshot");
       expect(text).toContain("Next Steps");
     });
 
@@ -843,6 +843,113 @@ describe("generateSessionPromptHandler — roadmap integration", () => {
       session_type: "feature",
     });
     expect(result.content[0]!.text).toContain(EXPLICIT);
-    expect(result.content[0]!.text).not.toContain("RM-001");
+    // RM-001 appears in the roadmap snapshot section but the task uses the explicit description
+    expect(result.content[0]!.text).toContain("### Task");
+    expect(result.content[0]!.text).not.toContain(`### Task\n\nRM-001`);
+  });
+});
+
+describe("generateSessionPromptHandler — DAG dependency gate", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+    buildCompleteCascade(tempDir);
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function writeRoadmap(dir: string, content: string): void {
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    writeFileSync(join(dir, "docs", "roadmap.md"), content, "utf-8");
+  }
+
+  it("blocks session prompt when dependency is pending", async () => {
+    writeRoadmap(
+      tempDir,
+      [
+        "| ID | Title | Depends On | Status | Prompt |",
+        "|---|---|---|---|---|",
+        "| RM-001 | Login | — | pending | docs/session-prompts/RM-001.md |",
+        "| RM-002 | Dashboard | RM-001 | pending | docs/session-prompts/RM-002.md |",
+      ].join("\n"),
+    );
+
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      roadmap_item_id: "RM-002",
+    });
+    const text = result.content[0]!.text;
+
+    expect(text).toContain("Unmet Dependencies");
+    expect(text).toContain("RM-001");
+  });
+
+  it("allows session prompt when dependency is done", async () => {
+    writeRoadmap(
+      tempDir,
+      [
+        "| ID | Title | Depends On | Status | Prompt |",
+        "|---|---|---|---|---|",
+        "| RM-001 | Login | — | done | docs/session-prompts/RM-001.md |",
+        "| RM-002 | Dashboard | RM-001 | pending | docs/session-prompts/RM-002.md |",
+      ].join("\n"),
+    );
+
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      roadmap_item_id: "RM-002",
+    });
+    const text = result.content[0]!.text;
+
+    expect(text).not.toContain("Unmet Dependencies");
+    expect(text).toContain("Dashboard");
+  });
+
+  it("auto-select skips blocked items and picks first unblocked pending item", async () => {
+    writeRoadmap(
+      tempDir,
+      [
+        "| ID | Title | Depends On | Status | Prompt |",
+        "|---|---|---|---|---|",
+        "| RM-001 | Login | — | done | docs/session-prompts/RM-001.md |",
+        "| RM-002 | Profile | RM-001 | pending | docs/session-prompts/RM-002.md |",
+        "| RM-003 | Dashboard | RM-002 | pending | docs/session-prompts/RM-003.md |",
+      ].join("\n"),
+    );
+
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+    });
+    const text = result.content[0]!.text;
+
+    // RM-002 is the first unblocked pending item (RM-001 is done)
+    expect(text).toContain("RM-002");
+    expect(text).not.toContain("Unmet Dependencies");
+  });
+
+  it("blocks with list of ALL pending dependencies", async () => {
+    writeRoadmap(
+      tempDir,
+      [
+        "| ID | Title | Depends On | Status | Prompt |",
+        "|---|---|---|---|---|",
+        "| RM-001 | Login | — | pending | docs/session-prompts/RM-001.md |",
+        "| RM-002 | Register | — | pending | docs/session-prompts/RM-002.md |",
+        "| RM-010 | Integration | RM-001, RM-002 | pending | docs/session-prompts/RM-010.md |",
+      ].join("\n"),
+    );
+
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      roadmap_item_id: "RM-010",
+    });
+    const text = result.content[0]!.text;
+
+    expect(text).toContain("Unmet Dependencies");
+    expect(text).toContain("RM-001");
+    expect(text).toContain("RM-002");
   });
 });

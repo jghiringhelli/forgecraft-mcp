@@ -40,6 +40,8 @@ export const ACTIONS = [
   "generate_diagram",
   "set_cascade_requirement",
   "close_cycle",
+  "consolidate_status",
+  "read_gate_violations",
   "generate_roadmap",
   "cnt_add_node",
   "start_hardening",
@@ -98,6 +100,7 @@ export const forgecraftSchema = z
           "  generate_roadmap    — generate a phased docs/roadmap.md from PRD.md + use-cases.md (gated on cascade)\n\n" +
           "  cnt_add_node        — add a new CNT leaf node (.claude/standards/<domain>-<concern>.md)\n\n" +
           "  start_hardening     — generate hardening session prompts (pre-release → rc → load test)\n\n" +
+          "  read_gate_violations — read structured gate violation records from .forgecraft/gate-violations.jsonl\n\n" +
           "Quick usage examples:\n" +
           '  To run a cascade check:              action="check_cascade"\n' +
           '  To generate a session prompt:        action="generate_session_prompt"\n' +

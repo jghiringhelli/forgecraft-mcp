@@ -54,11 +54,16 @@ export interface PromptBuildInput {
 // ── Constants ────────────────────────────────────────────────────────
 
 /** Primary-use text shown for the forgecraft server entry. */
-export const FORGECRAFT_PRIMARY_USE = "check_cascade, generate_session_prompt, audit";
+export const FORGECRAFT_PRIMARY_USE =
+  "check_cascade, generate_session_prompt, audit";
 
 const CONSTITUTION_PATHS = [
-  "CLAUDE.md", "AGENTS.md", ".github/copilot-instructions.md",
-  ".cursor/rules", ".windsurfrules", ".clinerules",
+  "CLAUDE.md",
+  "AGENTS.md",
+  ".github/copilot-instructions.md",
+  ".cursor/rules",
+  ".windsurfrules",
+  ".clinerules",
 ] as const;
 
 const ADR_DIRS = ["docs/adrs", "docs/adr"] as const;
@@ -78,7 +83,9 @@ export function loadMcpServerDescriptions(): Map<string, McpServerYamlEntry> {
     if (!existsSync(yamlPath)) return map;
     const parsed = yaml.load(readFileSync(yamlPath, "utf-8")) as McpServersYaml;
     for (const server of parsed.servers ?? []) map.set(server.name, server);
-  } catch { /* Return empty map */ }
+  } catch {
+    /* Return empty map */
+  }
   return map;
 }
 
@@ -96,8 +103,13 @@ export function buildMcpToolsSection(projectDir: string): string {
 
   let configuredNames: string[] = [];
   try {
-    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<string, unknown>;
-    const mcpServers = settings["mcpServers"] as Record<string, unknown> | undefined;
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    const mcpServers = settings["mcpServers"] as
+      | Record<string, unknown>
+      | undefined;
     configuredNames = mcpServers ? Object.keys(mcpServers) : [];
   } catch {
     return `## Active MCP Tools\n\nRun \`configure_mcp\` to enable MCP tool recommendations.\n\n`;
@@ -108,13 +120,18 @@ export function buildMcpToolsSection(projectDir: string): string {
   const lines: string[] = [];
 
   for (const name of allNames) {
-    const primaryUse = name === "forgecraft"
-      ? FORGECRAFT_PRIMARY_USE
-      : (descriptions.get(name)?.description ?? "MCP server");
+    const primaryUse =
+      name === "forgecraft"
+        ? FORGECRAFT_PRIMARY_USE
+        : (descriptions.get(name)?.description ?? "MCP server");
     lines.push(`- **${name}** — ${primaryUse}`);
   }
 
-  return `## Active MCP Tools\n\nThese tools are available in this session. Use them:\n` + lines.join("\n") + "\n\n";
+  return (
+    `## Active MCP Tools\n\nThese tools are available in this session. Use them:\n` +
+    lines.join("\n") +
+    "\n\n"
+  );
 }
 
 // ── Artifact Discovery ───────────────────────────────────────────────
@@ -126,7 +143,8 @@ export function buildMcpToolsSection(projectDir: string): string {
  * @returns Artifact context for prompt generation
  */
 export function discoverArtifacts(projectDir: string): ArtifactContext {
-  const constitutionPath = CONSTITUTION_PATHS.find((p) => existsSync(join(projectDir, p))) ?? null;
+  const constitutionPath =
+    CONSTITUTION_PATHS.find((p) => existsSync(join(projectDir, p))) ?? null;
   const statusExists = existsSync(join(projectDir, "Status.md"));
 
   let adrCount = 0;
@@ -135,12 +153,16 @@ export function discoverArtifacts(projectDir: string): ArtifactContext {
     const fullDir = join(projectDir, dir);
     if (existsSync(fullDir)) {
       const adrs = readdirSync(fullDir).filter((f) => f.endsWith(".md"));
-      if (adrs.length > adrCount) { adrCount = adrs.length; adrDir = dir; }
+      if (adrs.length > adrCount) {
+        adrCount = adrs.length;
+        adrDir = dir;
+      }
     }
   }
 
   const diagramsDir = join(projectDir, "docs/diagrams");
-  const diagramsExist = existsSync(diagramsDir) &&
+  const diagramsExist =
+    existsSync(diagramsDir) &&
     readdirSync(diagramsDir).some((f) => /\.(md|mermaid|puml)$/i.test(f));
 
   const useCasesExist =
@@ -149,9 +171,18 @@ export function discoverArtifacts(projectDir: string): ArtifactContext {
 
   const activeGateDir = join(projectDir, ".forgecraft/gates/project/active");
   const activeGateCount = existsSync(activeGateDir)
-    ? readdirSync(activeGateDir).filter((f) => f.endsWith(".yaml")).length : 0;
+    ? readdirSync(activeGateDir).filter((f) => f.endsWith(".yaml")).length
+    : 0;
 
-  return { constitutionPath, statusExists, adrCount, adrDir, diagramsExist, useCasesExist, activeGateCount };
+  return {
+    constitutionPath,
+    statusExists,
+    adrCount,
+    adrDir,
+    diagramsExist,
+    useCasesExist,
+    activeGateCount,
+  };
 }
 
 /**
@@ -189,13 +220,20 @@ export function buildDefaultCriteria(itemDescription: string): string[] {
  * @param itemDescription - The roadmap item description from the caller
  * @returns A ToolAmbiguity if the description is short, otherwise null
  */
-export function buildRoadmapItemAmbiguity(itemDescription: string): ToolAmbiguity | null {
+export function buildRoadmapItemAmbiguity(
+  itemDescription: string,
+): ToolAmbiguity | null {
   if (itemDescription.length >= 30) return null;
   return {
     field: "roadmap_item",
     understood_as: `Interpreting '${itemDescription}' as its most common literal meaning`,
     understood_example: `I scoped the session prompt to: ${itemDescription} (minimal implementation)`,
-    alternatives: [{ label: "If broader scope intended", action: `Include related concerns: error handling, integration tests, ADR for architectural decisions` }],
+    alternatives: [
+      {
+        label: "If broader scope intended",
+        action: `Include related concerns: error handling, integration tests, ADR for architectural decisions`,
+      },
+    ],
     resolution_hint: `Pass a more specific item_description, e.g. 'Add JWT authentication with email/password login, bcrypt hashing, and a /auth/refresh endpoint'`,
   };
 }
@@ -209,10 +247,20 @@ export function buildRoadmapItemAmbiguity(itemDescription: string): ToolAmbiguit
  * @returns Complete, ready-to-paste session prompt
  */
 export function buildPrompt(input: PromptBuildInput): string {
-  const { projectDir, itemDescription, sessionType, scopeNote, acceptanceCriteria, artifacts, statusSummary } = input;
+  const {
+    projectDir,
+    itemDescription,
+    sessionType,
+    scopeNote,
+    acceptanceCriteria,
+    artifacts,
+    statusSummary,
+  } = input;
 
   const contextLoadBlock = buildContextLoadBlock(artifacts);
-  const scopeBlock = scopeNote ? `\n## Out of Scope\nDo NOT touch: ${scopeNote}\n` : "";
+  const scopeBlock = scopeNote
+    ? `\n## Out of Scope\nDo NOT touch: ${scopeNote}\n`
+    : "";
   const criteriaLines = acceptanceCriteria.map((c) => `- [ ] ${c}`).join("\n");
   const conventionalType = sessionType === "fix" ? "fix" : sessionType;
 
@@ -220,7 +268,7 @@ export function buildPrompt(input: PromptBuildInput): string {
   prompt += `## Context Load Order\n\nLoad these artifacts **before** issuing the implementation prompt:\n\n${contextLoadBlock}\n`;
 
   if (statusSummary) {
-    prompt += `## Current State (from Status.md)\n\n\`\`\`\n${statusSummary}\n\`\`\`\n\n`;
+    prompt += statusSummary + "\n\n";
   }
 
   prompt += `---\n\n## Implementation Prompt\n\n*(Paste everything below this line to the AI assistant)*\n\n---\n\n`;

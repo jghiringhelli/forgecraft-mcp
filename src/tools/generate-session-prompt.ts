@@ -16,18 +16,26 @@ import {
   buildGuidedRemediation,
   loadCascadeDecisions,
 } from "./check-cascade.js";
-import { findNextRoadmapItem } from "./close-cycle.js";
+import { findNextRoadmapItem, parseRoadmapItems } from "./close-cycle.js";
 import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
 import { detectSpecRoadmapDrift } from "../shared/drift-detector.js";
 import {
   buildPrompt,
   discoverArtifacts,
-  readStatusSummary,
   buildDefaultCriteria,
   buildRoadmapItemAmbiguity,
 } from "./session-prompt-builders.js";
+import {
+  buildConsolidatedStatus,
+  formatConsolidatedStatus,
+} from "./consolidate-status.js";
 
-export type { ArtifactContext, PromptBuildInput, McpServerYamlEntry, McpServersYaml } from "./session-prompt-builders.js";
+export type {
+  ArtifactContext,
+  PromptBuildInput,
+  McpServerYamlEntry,
+  McpServersYaml,
+} from "./session-prompt-builders.js";
 export {
   buildPrompt,
   loadMcpServerDescriptions,
@@ -84,10 +92,14 @@ export const generateSessionPromptSchema = z.object({
   session_type: z
     .enum(["feature", "fix", "refactor", "test", "docs", "chore"])
     .default("feature")
-    .describe("Conventional commit type for the session output. Default: feature."),
+    .describe(
+      "Conventional commit type for the session output. Default: feature.",
+    ),
 });
 
-export type GenerateSessionPromptInput = z.infer<typeof generateSessionPromptSchema>;
+export type GenerateSessionPromptInput = z.infer<
+  typeof generateSessionPromptSchema
+>;
 
 // ── Handler ──────────────────────────────────────────────────────────
 
@@ -113,13 +125,17 @@ export async function generateSessionPromptHandler(
   if (!isCascadeComplete(cascadeSteps)) {
     const guidance = buildGuidedRemediation(cascadeSteps);
     return {
-      content: [{
-        type: "text",
-        text: `## Session Prompt Blocked — Cascade Incomplete\n\n` +
-          `A session prompt cannot be generated until the derivation cascade is complete.\n` +
-          `The cascade ensures each implementation session is fully derivable from the spec,\n` +
-          `eliminating context guessing and specification drift.\n\n` + guidance,
-      }],
+      content: [
+        {
+          type: "text",
+          text:
+            `## Session Prompt Blocked — Cascade Incomplete\n\n` +
+            `A session prompt cannot be generated until the derivation cascade is complete.\n` +
+            `The cascade ensures each implementation session is fully derivable from the spec,\n` +
+            `eliminating context guessing and specification drift.\n\n` +
+            guidance,
+        },
+      ],
     };
   }
 
@@ -140,11 +156,14 @@ export async function generateSessionPromptHandler(
           ? "docs/roadmap.md has no pending items — all roadmap items are complete."
           : "No docs/roadmap.md found. Run generate_roadmap first, or provide item_description.";
       return {
-        content: [{
-          type: "text",
-          text: `## Session Prompt Blocked — No Item to Generate\n\n${hint}\n\n` +
-            `Provide \`item_description\` explicitly or run \`generate_roadmap\` to create a roadmap.`,
-        }],
+        content: [
+          {
+            type: "text",
+            text:
+              `## Session Prompt Blocked — No Item to Generate\n\n${hint}\n\n` +
+              `Provide \`item_description\` explicitly or run \`generate_roadmap\` to create a roadmap.`,
+          },
+        ],
       };
     }
 
@@ -153,9 +172,30 @@ export async function generateSessionPromptHandler(
     markRoadmapItemInProgress(projectDir, roadmapItem.id);
   }
 
+  if (resolvedItemId) {
+    const blockers = checkDagDependencies(projectDir, resolvedItemId);
+    if (blockers && blockers.length > 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              `## Session Prompt Blocked — Unmet Dependencies\n\n` +
+              `**${resolvedItemId}** cannot be started until the following items are done:\n\n` +
+              blockers.map((id) => `- ${id}`).join("\n") +
+              `\n\nComplete those items first, then run \`generate_session_prompt\` with \`roadmap_item_id="${resolvedItemId}"\`.`,
+          },
+        ],
+      };
+    }
+  }
+
   const artifacts = discoverArtifacts(projectDir);
-  const statusSummary = readStatusSummary(projectDir);
-  const criteria = args.acceptance_criteria ?? buildDefaultCriteria(resolvedDescription);
+  const statusSummary = formatConsolidatedStatus(
+    buildConsolidatedStatus(projectDir),
+  );
+  const criteria =
+    args.acceptance_criteria ?? buildDefaultCriteria(resolvedDescription);
 
   const prompt = buildPrompt({
     projectDir,
@@ -167,13 +207,16 @@ export async function generateSessionPromptHandler(
     statusSummary,
   });
 
-  if (resolvedItemId) writeSessionPromptFile(projectDir, resolvedItemId, prompt);
+  if (resolvedItemId)
+    writeSessionPromptFile(projectDir, resolvedItemId, prompt);
 
   const ambiguities = buildRoadmapItemAmbiguity(resolvedDescription);
   const header = resolvedItemId
     ? `## Session Prompt — ${resolvedItemId}: ${resolvedDescription}\n> Persisted to docs/session-prompts/${resolvedItemId}.md\n\n`
     : "";
-  const driftBanner = driftResult.driftDetected ? `> ${driftResult.message}\n\n` : "";
+  const driftBanner = driftResult.driftDetected
+    ? `> ${driftResult.message}\n\n`
+    : "";
 
   return {
     content: [{ type: "text", text: driftBanner + header + prompt }],
@@ -197,14 +240,13 @@ function findRoadmapItemById(
   const roadmapPath = join(projectDir, "docs", "roadmap.md");
   if (!existsSync(roadmapPath)) return null;
   const content = readFileSync(roadmapPath, "utf-8");
-  const escapedId = itemId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = content.match(new RegExp(`\\|\\s*(${escapedId})\\s*\\|\\s*([^|]+)\\s*\\|`));
-  if (!match) return null;
-  return { id: match[1]!.trim(), title: match[2]!.trim() };
+  const item = parseRoadmapItems(content).find((i) => i.id === itemId);
+  return item ? { id: item.id, title: item.title } : null;
 }
 
 /**
  * Mark a roadmap item as in-progress in docs/roadmap.md.
+ * Works for both 4-column (legacy) and 5-column (current) formats.
  *
  * @param projectDir - Absolute path to project root
  * @param itemId - Roadmap item ID to mark
@@ -215,10 +257,34 @@ function markRoadmapItemInProgress(projectDir: string, itemId: string): void {
   const content = readFileSync(roadmapPath, "utf-8");
   const escapedId = itemId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const updated = content.replace(
-    new RegExp(`(\\|\\s*${escapedId}\\s*\\|[^|]+\\|)\\s*pending\\s*(\\|)`),
-    "$1 in-progress $2",
+    new RegExp(`(\\|\\s*${escapedId}\\s*\\|[^\\n]*)\\bpending\\b`, "g"),
+    "$1in-progress",
   );
   if (updated !== content) writeFileSync(roadmapPath, updated, "utf-8");
+}
+
+/**
+ * Check whether a roadmap item's DAG dependencies are all done.
+ * Returns the list of blocking dependency IDs, or null if no roadmap/item found.
+ *
+ * @param projectDir - Absolute path to project root
+ * @param itemId - Roadmap item ID to check
+ * @returns Array of pending dependency IDs (empty = unblocked), or null if item not found
+ */
+function checkDagDependencies(
+  projectDir: string,
+  itemId: string,
+): ReadonlyArray<string> | null {
+  const roadmapPath = join(projectDir, "docs", "roadmap.md");
+  if (!existsSync(roadmapPath)) return null;
+  const content = readFileSync(roadmapPath, "utf-8");
+  const items = parseRoadmapItems(content);
+  const item = items.find((i) => i.id === itemId);
+  if (!item) return null;
+  const doneIds = new Set(
+    items.filter((i) => i.status === "done").map((i) => i.id),
+  );
+  return item.dependsOn.filter((dep) => !doneIds.has(dep));
 }
 
 /**
@@ -228,7 +294,11 @@ function markRoadmapItemInProgress(projectDir: string, itemId: string): void {
  * @param itemId - Roadmap item ID, used as filename
  * @param promptContent - Full prompt text to persist
  */
-function writeSessionPromptFile(projectDir: string, itemId: string, promptContent: string): void {
+function writeSessionPromptFile(
+  projectDir: string,
+  itemId: string,
+  promptContent: string,
+): void {
   const dir = join(projectDir, "docs", "session-prompts");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${itemId}.md`), promptContent, "utf-8");
