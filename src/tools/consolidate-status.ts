@@ -17,6 +17,7 @@ import {
   findNextRoadmapItem,
   deriveTestCommand,
 } from "./close-cycle.js";
+import { buildGateViolationReport } from "./gate-violations.js";
 import type { ToolResult } from "../shared/types.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
@@ -52,6 +53,10 @@ export interface ConsolidatedStatus {
   readonly uncommittedFiles: ReadonlyArray<string>;
   /** Detected test command */
   readonly testCommand: string | null;
+  /** Count of active gate violations (newer than last commit) */
+  readonly activeViolationCount: number;
+  /** Summary of active violations for prompt embedding */
+  readonly activeViolationSummary: ReadonlyArray<string>;
   /** Last section of Status.md, truncated */
   readonly statusSummary: string;
 }
@@ -86,6 +91,7 @@ export async function consolidateStatusHandler(
 export function buildConsolidatedStatus(
   projectDir: string,
 ): ConsolidatedStatus {
+  const violationReport = buildGateViolationReport(projectDir);
   return {
     generatedAt: new Date().toISOString(),
     ...readCascadeStatus(projectDir),
@@ -93,6 +99,10 @@ export function buildConsolidatedStatus(
     recentCommits: readRecentCommits(projectDir, 5),
     uncommittedFiles: readUncommittedFiles(projectDir, 10),
     testCommand: deriveTestCommand(projectDir) ?? null,
+    activeViolationCount: violationReport.active.length,
+    activeViolationSummary: violationReport.active.map(
+      (v) => `${v.hook}: ${v.message}`,
+    ),
     statusSummary: readStatusTail(projectDir),
   };
 }
@@ -285,6 +295,17 @@ export function formatConsolidatedStatus(snapshot: ConsolidatedStatus): string {
   // Test command
   if (snapshot.testCommand) {
     lines.push(`### Test command: \`${snapshot.testCommand}\``);
+    lines.push("");
+  }
+
+  // Gate violations
+  if (snapshot.activeViolationCount > 0) {
+    lines.push(
+      `### ⚠️ Gate Violations: ${snapshot.activeViolationCount} active`,
+    );
+    for (const summary of snapshot.activeViolationSummary) {
+      lines.push(`- ${summary}`);
+    }
     lines.push("");
   }
 

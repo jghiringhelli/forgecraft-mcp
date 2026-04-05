@@ -24,6 +24,7 @@ import { adviceHandler } from "./advice.js";
 import { metricsHandler } from "./metrics.js";
 import { checkCascadeHandler } from "./check-cascade.js";
 import { consolidateStatusHandler } from "./consolidate-status.js";
+import { readGateViolationsHandler } from "./gate-violations.js";
 import { generateSessionPromptHandler } from "./generate-session-prompt.js";
 import { getVerificationStrategyHandler } from "./get-verification-strategy.js";
 import {
@@ -207,6 +208,15 @@ export async function dispatchForgecraft(
           args.project_dir,
           "project_dir",
           "consolidate_status",
+        ),
+      });
+
+    case "read_gate_violations":
+      return readGateViolationsHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "read_gate_violations",
         ),
       });
 

@@ -35,3 +35,4 @@ experiments/failed-runs/*/
 experiments/*/session.log.json
 
 tmpclaude-*
+.forgecraft/gate-violations.jsonl

@@ -118,6 +118,12 @@ describe("buildConsolidatedStatus", () => {
     const snapshot = buildConsolidatedStatus(tempDir);
     expect(snapshot.uncommittedFiles).toEqual([]);
   });
+
+  it("returns zero activeViolationCount when no violations file exists", () => {
+    const snapshot = buildConsolidatedStatus(tempDir);
+    expect(snapshot.activeViolationCount).toBe(0);
+    expect(snapshot.activeViolationSummary).toEqual([]);
+  });
 });
 
 describe("formatConsolidatedStatus", () => {

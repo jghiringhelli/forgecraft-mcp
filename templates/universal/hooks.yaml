@@ -103,6 +103,20 @@ hooks:
     filename: pre-commit-secrets.sh
     script: |
       #!/bin/bash
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"
+        mkdir -p "$dir" 2>/dev/null || return 0
+        local ts
+        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg
+        esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" \
+          >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
       PATTERNS=(
         'AKIA[0-9A-Z]{16}'
         'password\s*=\s*["\x27][^"\x27]+'
@@ -115,6 +129,7 @@ hooks:
         for pattern in "${PATTERNS[@]}"; do
           if grep -qE "$pattern" "$file" 2>/dev/null; then
             echo "❌ Potential secret found in $file matching pattern"
+            _fc_write_violation "pre-commit-secrets" "error" "Potential secrets detected in staged files — review output above"
             exit 1
           fi
         done
@@ -126,6 +141,20 @@ hooks:
     filename: pre-commit-compile.sh
     script: |
       #!/bin/bash
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"
+        mkdir -p "$dir" 2>/dev/null || return 0
+        local ts
+        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg
+        esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" \
+          >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
       echo "🔨 Running build check..."
       if [ -f "pyproject.toml" ] || [ -f "setup.py" ] || [ -f "requirements.txt" ]; then
         STAGED_PY=$(git diff --cached --name-only --diff-filter=ACM | grep '\.py$')
@@ -134,6 +163,7 @@ hooks:
             python -m py_compile "$file" 2>&1
             if [ $? -ne 0 ]; then
               echo "❌ Syntax error in $file"
+              _fc_write_violation "pre-commit-compile" "error" "TypeScript compilation failed — run tsc --noEmit to see errors"
               exit 1
             fi
           done
@@ -144,6 +174,7 @@ hooks:
         npx tsc --noEmit 2>&1
         if [ $? -ne 0 ]; then
           echo "❌ TypeScript compilation failed."
+          _fc_write_violation "pre-commit-compile" "error" "TypeScript compilation failed — run tsc --noEmit to see errors"
           exit 1
         fi
         echo "  ✅ TypeScript compilation OK"
@@ -154,6 +185,7 @@ hooks:
           cargo check --quiet 2>&1
           if [ $? -ne 0 ]; then
             echo "❌ Rust cargo check failed."
+            _fc_write_violation "pre-commit-compile" "error" "Rust cargo check failed — run cargo check to see errors"
             exit 1
           fi
           echo "  ✅ Rust cargo check OK"
@@ -167,6 +199,20 @@ hooks:
     filename: pre-commit-clippy.sh
     script: |
       #!/bin/bash
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"
+        mkdir -p "$dir" 2>/dev/null || return 0
+        local ts
+        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg
+        esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" \
+          >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
       if [ ! -f "Cargo.toml" ]; then
         exit 0
       fi
@@ -179,6 +225,7 @@ hooks:
       if [ $? -ne 0 ]; then
         echo "❌ cargo clippy failed — fix lint errors before committing."
         echo "   Run: cargo clippy --all-targets --all-features"
+        _fc_write_violation "pre-commit-clippy" "error" "Cargo clippy violations found — run cargo clippy to see details"
         exit 1
       fi
       echo "  ✅ cargo clippy passed"
@@ -325,6 +372,20 @@ hooks:
     filename: pre-commit-coverage.sh
     script: |
       #!/bin/bash
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"
+        mkdir -p "$dir" 2>/dev/null || return 0
+        local ts
+        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg
+        esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" \
+          >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
       # ──────────────────────────────────────────────────────────────────────
       # Pre-Commit Hook: Coverage Gate
       #
@@ -372,6 +433,7 @@ hooks:
             if [ $? -ne 0 ]; then
               echo "❌ Coverage gate failed — below {{coverage_minimum | default: 80}}%."
               echo "   Run: cargo tarpaulin --out Html"
+              _fc_write_violation "pre-commit-coverage" "error" "Coverage gate failed — run npm test --coverage to see report"
               exit 1
             fi
             echo "  ✅ Rust coverage gate passed"
@@ -379,6 +441,7 @@ hooks:
             cargo test --quiet 2>&1
             if [ $? -ne 0 ]; then
               echo "❌ Rust tests failed."
+              _fc_write_violation "pre-commit-coverage" "error" "Coverage gate failed — run npm test --coverage to see report"
               exit 1
             fi
             echo "  ✅ Rust tests passed (install cargo-tarpaulin for coverage enforcement)"
@@ -399,6 +462,7 @@ hooks:
           echo "❌ Coverage gate failed — thresholds not met."
           echo "   Run 'npx vitest run --coverage' locally to see the full report."
           echo "   Add tests until coverage meets the configured minimums."
+          _fc_write_violation "pre-commit-coverage" "error" "Coverage gate failed — run npm test --coverage to see report"
           exit 1
         fi
         echo "  ✅ Coverage gate passed"
@@ -412,17 +476,19 @@ hooks:
           --silent 2>&1
         if [ $? -ne 0 ]; then
           echo "❌ Coverage gate failed — thresholds not met."
+          _fc_write_violation "pre-commit-coverage" "error" "Coverage gate failed — run npm test --coverage to see report"
           exit 1
         fi
         echo "  ✅ Coverage gate passed"
         exit 0
       fi
 
-      if [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
+      if [ -f "pyproject.toml" ]|| [ -f "setup.py" ]; then
         if command -v pytest &> /dev/null; then
           pytest --tb=no --quiet --cov=src --cov-fail-under={{coverage_minimum | default: 80}} 2>&1
           if [ $? -ne 0 ]; then
             echo "❌ Coverage gate failed — below {{coverage_minimum | default: 80}}%."
+            _fc_write_violation "pre-commit-coverage" "error" "Coverage gate failed — run npm test --coverage to see report"
             exit 1
           fi
           echo "  ✅ Coverage gate passed"
@@ -443,6 +509,20 @@ hooks:
       - .env vs .env.example drift (warns on missing variables)
     script: |
       #!/bin/bash
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root
+        repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"
+        mkdir -p "$dir" 2>/dev/null || return 0
+        local ts
+        ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg
+        esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" \
+          >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
       STAGED=$(git diff --cached --name-only --diff-filter=ACM)
       SOURCE_FILES=$(echo "$STAGED" | grep -E '\.(py|ts|tsx|js|jsx|rs)$' | grep -vE '(test_|\.test\.|\.spec\.|__tests__|tests/|fixtures/|mock|conftest|_test\.rs)')
       if [ -z "$SOURCE_FILES" ]; then exit 0; fi
@@ -542,6 +622,7 @@ hooks:
       rm -f /tmp/violations
       if [ $VIOLATIONS -gt 0 ]; then
         echo "❌ $VIOLATIONS violation(s) found — commit blocked."
+        _fc_write_violation "pre-commit-anti-patterns" "error" "Anti-patterns detected in staged files — see output above"
         exit 1
       fi
       if [ $WARNINGS -gt 0 ]; then
