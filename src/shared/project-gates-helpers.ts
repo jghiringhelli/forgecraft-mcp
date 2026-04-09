@@ -11,6 +11,7 @@ import type {
   ProjectGatesFile,
   ToolRequirement,
 } from "./types.js";
+import type { DeploymentEnvironmentConfig } from "./types/project.js";
 
 // ── Path constants ────────────────────────────────────────────────────────
 
@@ -160,4 +161,44 @@ export function resolveToolsForLanguage(
   }
 
   return gate.tools ?? [];
+}
+
+/**
+ * Returns gate IDs that should be activated based on environment class properties.
+ * Called by audit and generate_session_prompt to inject environment-driven gates.
+ *
+ * @param environments - Record of environment name → config from forgecraft.yaml
+ * @returns Array of gate IDs that apply given the declared environment properties
+ */
+export function getEnvironmentActivatedGateIds(
+  environments: Record<string, DeploymentEnvironmentConfig>,
+): readonly string[] {
+  const activated = new Set<string>();
+  for (const env of Object.values(environments)) {
+    if (env.class === "lte" || env.ephemeral === true) {
+      activated.add("lte-ephemeral-infra");
+      activated.add("lte-anonymized-data");
+    }
+    if (env.class === "cae" || env.class === "prd") {
+      activated.add("no-cross-tier-urls");
+    }
+    if (env.class === "cae") {
+      activated.add("cae-version-parity");
+    }
+    if (env.underChangeControl === true || env.class === "prd") {
+      activated.add("prd-change-control");
+    }
+    if (env.containsPii === true) {
+      activated.add("no-cross-tier-urls");
+    }
+    if (
+      env.smtpRelay === "prod" &&
+      env.class !== "cae" &&
+      env.class !== "prd"
+    ) {
+      // prod relay used in a non-prod environment — flag it
+      activated.add("no-prod-relay-in-nonprod");
+    }
+  }
+  return Array.from(activated);
 }

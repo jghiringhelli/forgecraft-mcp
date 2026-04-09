@@ -1,0 +1,47 @@
+id: lte-anonymized-data
+title: LTE Seed Data — No Real PII Patterns
+description: >
+  Load test environments must use anonymized, synthetic data — never real
+  production data. Seed files and fixtures for LTE environments must not
+  contain real email addresses from known corporate domains, phone number
+  patterns, or social security number / national ID patterns.
+domain: environment-hygiene
+gsProperty: defended
+phase: pre-release
+hook: pre-push
+implementation: tooled
+check: >
+  Scan seed files, fixture files, and data migration scripts for:
+  - Real-looking email addresses (pattern: [a-z]+@[company-domain]) where
+    company domain is not a known test domain (example.com, test.com, fake.com)
+  - Phone number patterns: \b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b
+  - SSN-like patterns: \b\d{3}-\d{2}-\d{4}\b
+  Scan paths: seed/, fixtures/, data/, prisma/seed*, scripts/seed*
+passCriterion: >
+  Zero matches for real PII patterns in seed and fixture files.
+  All email addresses use @example.com, @test.com, or clearly synthetic domains.
+failureMessage: >
+  Potential real PII found in seed/fixture files intended for the LTE environment.
+  Replace with synthetic data using a tool like faker.js or Mockaroo.
+fixHint: Replace real-looking data with faker-generated synthetic equivalents.
+tools:
+  - name: grep
+    purpose: Pattern scan for PII in seed files
+    category: cli
+    required: true
+tags:
+  - INFRA
+  - HIPAA
+  - SOC2
+priority: P0
+likelihood: medium
+impact: high
+confidence: medium
+generalizable: true
+evidence: >
+  A production database snapshot was used to seed a load test environment
+  without anonymization. The LTE environment was accessible to the performance
+  testing team who were contractors, resulting in a data breach notification.
+source: registry
+status: ready
+addedAt: '2026-04-08T00:00:00.000Z'

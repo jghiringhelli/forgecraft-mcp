@@ -1,0 +1,48 @@
+id: prd-change-control
+title: Production Change Control Document Required
+description: >
+  Changes deployed to production (class: prd) or any environment with
+  underChangeControl: true must be accompanied by a change control document.
+  Acceptable forms: an ADR in docs/adrs/, a CHANGELOG entry for the current
+  version, a ticket reference in the commit message (e.g. JIRA-1234, #123),
+  or an RFC document. This gate prevents undocumented production changes.
+domain: environment-hygiene
+gsProperty: auditable
+phase: deployment
+hook: release
+implementation: logic
+check: >
+  Before deploying to a prd or underChangeControl: true environment, verify
+  that at least ONE of the following is present:
+  1. A new ADR file in docs/adrs/ committed in this release branch/tag
+  2. A CHANGELOG.md entry matching the current version (from package.json/pyproject.toml)
+  3. A commit message in this release containing a ticket reference pattern:
+     [A-Z]+-\d+ (Jira-style) or #\d+ (GitHub issue reference)
+  4. An RFC or design doc committed in docs/ referencing this change
+passCriterion: >
+  At least one change control artifact exists: ADR, CHANGELOG entry, ticket
+  reference in commit history, or RFC document.
+failureMessage: >
+  No change control document found for this production deployment.
+  Add an ADR, update CHANGELOG.md, or include a ticket reference in your
+  release commit message before deploying to production.
+fixHint: >
+  Add CHANGELOG.md entry for this version, or create docs/adrs/ADR-NNN-title.md
+  describing the change. Alternatively, ensure your release commit references
+  a ticket: "feat: add X (PROJ-1234)".
+tags:
+  - INFRA
+  - UNIVERSAL
+priority: P0
+likelihood: high
+impact: high
+confidence: high
+generalizable: true
+evidence: >
+  A critical authentication bypass was introduced in a late-night hotfix
+  deployed directly to production without any change control record.
+  Post-incident review could not determine who approved the change or
+  what testing was done. Change control gates prevent this class of incident.
+source: registry
+status: ready
+addedAt: '2026-04-08T00:00:00.000Z'

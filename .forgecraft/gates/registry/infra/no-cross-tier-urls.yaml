@@ -1,0 +1,44 @@
+id: no-cross-tier-urls
+title: No Cross-Tier URL Hardcoding
+description: >
+  Source code must not contain hardcoded hostnames or URLs from higher-tier
+  environments (CAE, PRD) in lower-tier code (DEV, QAE, LTE). Cross-tier
+  URL references bypass environment isolation and risk sending test traffic
+  to production systems or leaking production URLs into non-prod logs.
+domain: environment-hygiene
+gsProperty: defended
+phase: development
+hook: pre-commit
+implementation: cli
+check: >
+  Grep source files for any hardcoded occurrences of URLs declared in
+  forgecraft.yaml deployment.environments for class: cae or class: prd.
+  Exclude config files (*.env, *.yaml, *.json in root) and test fixtures.
+  Command: grep -r "PROD_URL_PATTERN\|CAE_URL_PATTERN" src/ --include="*.ts"
+  --include="*.js" --include="*.py" where patterns are the url values from
+  forgecraft.yaml for cae and prd environments.
+passCriterion: >
+  Zero matches for hardcoded CAE or PRD hostnames in source files under src/.
+  Environment URLs referenced only via environment variables.
+failureMessage: >
+  Hardcoded CAE or PRD URL found in source code. Replace with an environment
+  variable (e.g. process.env.API_URL) and configure per-environment in your
+  deployment platform.
+fixHint: Replace hardcoded URL with process.env.API_URL or equivalent env var.
+tags:
+  - INFRA
+  - API
+  - UNIVERSAL
+priority: P0
+likelihood: medium
+impact: high
+confidence: high
+generalizable: true
+evidence: >
+  A common incident pattern: developer hardcodes staging URL during debugging,
+  commits it, and the code ships to production pointing at the wrong environment.
+  Seen in payment gateway integrations where the test processor URL was hardcoded
+  and deployed to production, causing all transactions to route to the sandbox.
+source: registry
+status: ready
+addedAt: '2026-04-08T00:00:00.000Z'
