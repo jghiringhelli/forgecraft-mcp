@@ -1,0 +1,46 @@
+id: cae-version-parity
+title: CAE Version Parity with PRD
+description: >
+  The Customer Acceptance Environment (class: cae) must run the same version
+  as production (class: prd) with minimal delay between deployments.
+  CAE exists for customers to test their integrations against our API surface —
+  if CAE lags behind PRD, customers may test against a version that no longer
+  reflects production behavior, invalidating their acceptance testing.
+domain: environment-hygiene
+gsProperty: executable
+phase: deployment
+hook: release
+implementation: cli
+check: >
+  When both a cae and a prd environment are declared in forgecraft.yaml with
+  health check URLs, compare the version field from each health endpoint:
+  - GET {prd.url}{prd.health ?? '/health'} → extract .version or X-App-Version header
+  - GET {cae.url}{cae.health ?? '/health'} → extract .version or X-App-Version header
+  Assert both versions match exactly (semver equality).
+  This check runs as a post-deploy gate, not pre-commit.
+passCriterion: >
+  CAE health endpoint reports the same version as PRD health endpoint.
+  Both endpoints respond within 5 seconds.
+failureMessage: >
+  CAE is running a different version than PRD. Customers testing integrations
+  against CAE may encounter API behavior that differs from production.
+  Deploy the same version to CAE before declaring the release complete.
+fixHint: >
+  Run your CAE deployment pipeline with the same artifact/tag as the PRD
+  deployment. CAE should be the last step of the PRD deploy pipeline.
+tags:
+  - INFRA
+  - API
+priority: P1
+likelihood: medium
+impact: high
+confidence: high
+generalizable: true
+evidence: >
+  A payment platform deployed a breaking change in the webhook signature
+  algorithm to PRD but not CAE. A partner spent two days debugging their
+  integration against CAE before discovering the environment mismatch.
+  Version parity verification would have surfaced this immediately.
+source: registry
+status: ready
+addedAt: '2026-04-08T00:00:00.000Z'

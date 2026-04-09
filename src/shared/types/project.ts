@@ -79,6 +79,16 @@ export interface ProjectToolsConfig {
 }
 
 /**
+ * Environment tier classification.
+ * - dev: local development
+ * - qae: quality assurance / basic performance testing
+ * - lte: load test environment — ephemeral, anonymized prod-like data
+ * - cae: customer acceptance environment — production hypervisor, may hold PII, tracks PRD version
+ * - prd: production
+ */
+export type EnvironmentClass = "dev" | "qae" | "lte" | "cae" | "prd";
+
+/**
  * Deployment environment configuration for a single environment.
  */
 export interface DeploymentEnvironmentConfig {
@@ -88,6 +98,37 @@ export interface DeploymentEnvironmentConfig {
   readonly url?: string;
   /** Health check endpoint path. Defaults to "/health". */
   readonly health?: string;
+  /**
+   * Environment tier classification. Drives which quality gates are activated.
+   * dev | qae | lte | cae | prd
+   */
+  readonly class?: EnvironmentClass;
+  /**
+   * Whether this environment can hold real personally identifiable information.
+   * When true: PII logging gate, data masking gate, and audit logging gate are activated.
+   */
+  readonly containsPii?: boolean;
+  /**
+   * Whether this environment is reachable from the public internet.
+   * When true: security headers gate, WAF gate, and CSP gate are activated.
+   */
+  readonly externallyAccessible?: boolean;
+  /**
+   * Whether changes to this environment require a change control document before deploy.
+   * When true: prd-change-control gate is activated.
+   */
+  readonly underChangeControl?: boolean;
+  /**
+   * Whether this environment is ephemeral (must be created and torn down by IaC).
+   * When true: lte-ephemeral-infra gate is activated.
+   * Always true for class: lte.
+   */
+  readonly ephemeral?: boolean;
+  /**
+   * Email relay tier. "test" environments must not use production relay.
+   * "prod" relay is only permitted in cae and prd environments.
+   */
+  readonly smtpRelay?: "test" | "prod";
 }
 
 /**
