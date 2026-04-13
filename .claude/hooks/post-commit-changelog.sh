@@ -19,6 +19,11 @@ if ! echo "$COMMIT_MSG" | grep -qE "^(feat|fix|refactor|docs|test|chore|perf|ci|
   exit 0
 fi
 
+# Skip changelog-update commits to prevent infinite loop
+if echo "$COMMIT_MSG" | grep -qE "^chore(\(changelog\))?: "; then
+  exit 0
+fi
+
 # Parse type, scope, description
 TYPE=$(echo "$COMMIT_MSG" | sed -E 's/^([a-z]+)(\([^)]+\))?: .+/\1/')
 SCOPE=$(echo "$COMMIT_MSG" | sed -E 's/^[a-z]+\(([^)]+)\): .+/\1/')
