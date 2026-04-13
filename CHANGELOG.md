@@ -362,3 +362,6 @@ the published white paper and practitioner protocol.
 
 ### Other
 - **changelog**: post-hook update (`e38604a`)
+
+### Fixed
+- **hooks**: prevent changelog hook infinite loop on chore(changelog) commits (`1282ffd`)
