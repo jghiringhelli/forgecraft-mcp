@@ -359,3 +359,6 @@ the published white paper and practitioner protocol.
 
 ### Other
 - **changelog**: update unreleased entries (`0c9571c`)
+
+### Other
+- **changelog**: post-hook update (`e38604a`)
