@@ -5,13 +5,24 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// ── Constants ────────────────────────────────────────────────────────
+import {
+  resolveExecutableGates,
+  gateFilePath,
+  gateToolSummary,
+} from "./executable-gates.js";
 
 const GENERIC_UC_TITLES = [
   "Implement primary use case",
   "Implement secondary use case",
   "Implement observer use case",
 ] as const;
+
+export const EXECUTABLE_SPRINT_HEADER: Readonly<{ id: string; title: string }> =
+  {
+    id: "EX-000",
+    title:
+      "Executable: bring up — start server, confirm health endpoint responds",
+  } as const;
 
 export const PHASE2_ITEMS = [
   { id: "RM-010", title: "Integration tests: full API contract coverage" },
@@ -135,15 +146,20 @@ function inferNameFromDir(projectDir: string): string {
  * @param projectName - Human-readable project name
  * @param ucItems - Parsed use-case items for Phase 1
  * @param specFilePath - Relative spec file path (for footer)
+ * @param tags - Project classification tags (drives Executable Sprint gate selection)
  * @returns Complete roadmap.md string
  */
 export function buildRoadmapContent(
   projectName: string,
   ucItems: ReadonlyArray<{ readonly id: string; readonly title: string }>,
   specFilePath: string,
+  tags: ReadonlyArray<string> = [],
 ): string {
   const date = new Date().toISOString().split("T")[0]!;
   const lastPhase1Id = formatRmId(ucItems.length);
+  const lastExId = formatExId(ucItems.length);
+  const gates = resolveExecutableGates(tags);
+  const toolSummary = gateToolSummary(gates);
 
   const phase1Rows = ucItems
     .map((uc, i) => {
@@ -153,8 +169,18 @@ export function buildRoadmapContent(
     })
     .join("\n");
 
+  const exHeaderRow = `| ${EXECUTABLE_SPRINT_HEADER.id} | ${EXECUTABLE_SPRINT_HEADER.title} | ${lastPhase1Id} | pending | docs/session-prompts/${EXECUTABLE_SPRINT_HEADER.id}.md |`;
+  const exUcRows = ucItems
+    .map((uc, i) => {
+      const exId = formatExId(i + 1);
+      const dependsOn = i === 0 ? EXECUTABLE_SPRINT_HEADER.id : formatExId(i);
+      const title = `Verify live: ${uc.id} — ${uc.title} (HTTP call + persistence check)`;
+      return `| ${exId} | ${title} | ${dependsOn} | pending | docs/session-prompts/${exId}.md |`;
+    })
+    .join("\n");
+
   const phase2Rows = PHASE2_ITEMS.map((item, i) => {
-    const dependsOn = i === 0 ? lastPhase1Id : PHASE2_ITEMS[i - 1]!.id;
+    const dependsOn = i === 0 ? lastExId : PHASE2_ITEMS[i - 1]!.id;
     return `| ${item.id} | ${item.title} | ${dependsOn} | pending | docs/session-prompts/${item.id}.md |`;
   }).join("\n");
 
@@ -181,6 +207,17 @@ export function buildRoadmapContent(
     "| ID | Title | Depends On | Status | Prompt |",
     "|---|---|---|---|---|",
     phase1Rows,
+    "",
+    "## Executable Sprint: Live Verification",
+    "",
+    `> Gates: **${toolSummary}**. Complete every item in this phase before moving to Phase 2.`,
+    "> Each session starts the server, exercises the use case end-to-end, and confirms persistence.",
+    "> A use case is not done until its EX item passes.",
+    "",
+    "| ID | Title | Depends On | Status | Prompt |",
+    "|---|---|---|---|---|",
+    exHeaderRow,
+    exUcRows,
     "",
     "## Phase 2: Integration & Quality Hardening",
     "",
@@ -228,6 +265,127 @@ export function buildSessionPromptStub(
     "- [ ] close_cycle reports no blocking gates",
     "",
   ].join("\n");
+}
+
+/**
+ * Build a session prompt stub for an Executable Sprint bring-up item (EX-000).
+ * For GAME projects, the bring-up check verifies the engine runs headlessly —
+ * which is itself proof that logic and rendering are properly separated.
+ *
+ * @param projectName - Human-readable project name
+ * @param tags - Project classification tags
+ * @returns Stub markdown string
+ */
+export function buildExecutableBringUpStub(
+  projectName: string,
+  tags: ReadonlyArray<string> = [],
+): string {
+  const isGame = tags.includes("GAME");
+
+  if (isGame) {
+    return [
+      `# Session Prompt — EX-000: Bring Up (Headless Engine Check)`,
+      `> Executable Sprint — for game projects, bring-up proves the engine runs without a renderer.`,
+      `> If this step fails, the architecture is not yet correct: logic and rendering are coupled.`,
+      `> Fix the coupling before proceeding. The simulation gates cannot run until this passes.`,
+      "",
+      "## Task",
+      `Confirm that the ${projectName} game engine can be imported and run headlessly.`,
+      "",
+      "## Steps",
+      "1. Import the GameEngine class in a plain Node script (no renderer, no browser)",
+      "2. Create a game instance and advance one step: `GameEngine.create().applyAction(...)`",
+      "3. If this throws or requires a DOM/canvas/WebGL context, the architecture needs fixing",
+      "4. Confirm a RandomPlayer strategy can drive the engine to completion in a loop",
+      "5. Commit: `chore: EX-000 headless engine confirmed — logic/render separation verified`",
+      "",
+      "## Acceptance Criteria",
+      "- [ ] GameEngine imports and runs with zero renderer dependencies",
+      "- [ ] One full game loop completes headlessly without errors",
+      "- [ ] RandomPlayer (or equivalent) can drive the engine to an end state",
+      "",
+    ].join("\n");
+  }
+
+  return [
+    `# Session Prompt — EX-000: Bring Up`,
+    `> Executable Sprint — this session proves the server starts and responds before use-case verification begins.`,
+    "",
+    "## Task",
+    `Start the ${projectName} server and confirm it is reachable.`,
+    "",
+    "## Steps",
+    "1. Install dependencies and run the build (`npm install && npm run build`)",
+    "2. Start the server (`npm start` or `npm run dev`)",
+    "3. Confirm the health endpoint responds: `curl http://localhost:3000/health`",
+    "4. If no health endpoint exists, confirm any root route returns HTTP 200",
+    "5. Commit: `chore: EX-000 server starts and health check passes`",
+    "",
+    "## Acceptance Criteria",
+    "- [ ] Server starts without errors",
+    "- [ ] Health endpoint returns HTTP 200",
+    "- [ ] No unhandled startup exceptions in logs",
+    "",
+  ].join("\n");
+}
+
+/**
+ * Build a session prompt stub for an Executable Sprint use-case verification item.
+ * Lists all applicable gate files so the AI knows what to fill in and run.
+ *
+ * @param exId - The EX-00N identifier
+ * @param ucId - The UC identifier (e.g. UC-001)
+ * @param ucTitle - The use-case title
+ * @param tags - Project tags used to resolve gate tools
+ * @returns Stub markdown string
+ */
+export function buildExecutableVerifyStub(
+  exId: string,
+  ucId: string,
+  ucTitle: string,
+  tags: ReadonlyArray<string> = [],
+): string {
+  const gates = resolveExecutableGates(tags);
+  const gateFileList = gates
+    .map(
+      (g) =>
+        `- \`${gateFilePath(g, ucId)}\` — ${g.label} (\`${g.runCommand}\`)`,
+    )
+    .join("\n");
+
+  return [
+    `# Session Prompt — ${exId}: Verify Live — ${ucId}`,
+    `> Executable Sprint — exercises ${ucId} end-to-end: request → service → persistence.`,
+    `> Run \`generate_session_prompt\` with item_description="${ucTitle}" to generate a fully bound prompt.`,
+    "",
+    "## Task",
+    `Verify that ${ucId}: ${ucTitle} works end-to-end against the running server.`,
+    "",
+    "## Gate Files (fill in and run each)",
+    gateFileList,
+    "",
+    "## Steps",
+    "1. Ensure the server is running (EX-000 must be done)",
+    `2. Fill in the gate file(s) above with ${ucId}-specific values`,
+    "3. Run each gate command and confirm it passes",
+    "4. Fix any failures before marking this item done",
+    `5. Commit: \`test: ${exId} ${ucId} live verification passes\``,
+    "",
+    "## Acceptance Criteria",
+    ...gates.map((g) => `- [ ] ${g.label} passes for ${ucId}`),
+    "- [ ] No server errors in logs during verification",
+    "",
+  ].join("\n");
+}
+
+/**
+ * Format an EX ID with zero-padded 3-digit suffix.
+ *
+ * @param index - 0-based for header (EX-000) or 1-based for UC items
+ * @returns Formatted EX-00N string
+ */
+export function formatExId(index: number): string {
+  return `EX-${String(index).padStart(3, "0")}`;
 }
 
 /**

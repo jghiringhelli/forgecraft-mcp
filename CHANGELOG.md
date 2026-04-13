@@ -7,6 +7,9 @@ Breaking changes are marked **BREAKING**.
 
 ---
 
+## [Unreleased]
+
+
 ## [1.4.0] — 2026-04-05
 
 ### Added
@@ -350,3 +353,12 @@ the published white paper and practitioner protocol.
   commit protocol, error handling.
 - ADR-0001: Generative Specification methodology adopted as the governing framework
   for ForgeCraft's own development.
+
+### Added
+- **hooks**: add generator, enricher, and session-awareness hooks (`952cf8e`)
+
+### Other
+- **changelog**: update unreleased entries (`0c9571c`)
+
+### Other
+- **changelog**: post-hook update (`e38604a`)

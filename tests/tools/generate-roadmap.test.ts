@@ -278,7 +278,7 @@ describe("buildRoadmapContent — DAG structure", () => {
     );
   });
 
-  it("first Phase 2 item depends on last Phase 1 item", () => {
+  it("first Phase 2 item depends on last Executable Sprint item (not last Phase 1)", () => {
     const content = buildRoadmapContent(
       "App",
       [
@@ -287,14 +287,14 @@ describe("buildRoadmapContent — DAG structure", () => {
       ],
       "docs/PRD.md",
     );
-    // With 2 UCs, last Phase 1 item is RM-002
+    // With 2 UCs, last EX item is EX-002 (EX-000=bring-up, EX-001=UC-001, EX-002=UC-002)
     expect(content).toContain("| RM-010 |");
-    expect(content).toContain("RM-002");
-    // RM-010 row should have RM-002 as dependency
+    // RM-010 row should depend on EX-002, not RM-002
     const lines = content.split("\n");
     const rm010Line = lines.find((l) => l.includes("| RM-010 |"));
     expect(rm010Line).toBeDefined();
-    expect(rm010Line).toContain("RM-002");
+    expect(rm010Line).toContain("EX-002");
+    expect(rm010Line).not.toContain("RM-002");
   });
 
   it("Phase 2 items are chained (RM-011 depends on RM-010)", () => {

@@ -21,15 +21,25 @@ import {
   readProjectName,
   buildRoadmapContent,
   buildSessionPromptStub,
+  buildExecutableBringUpStub,
+  buildExecutableVerifyStub,
   formatRmId,
+  formatExId,
+  EXECUTABLE_SPRINT_HEADER,
 } from "./roadmap-builder.js";
+import { readProjectTags } from "./hardening-config.js";
+import { resolveExecutableGates, gateFilePath } from "./executable-gates.js";
 
 export {
   parseUseCaseTitles,
   readProjectName,
   buildRoadmapContent,
   buildSessionPromptStub,
+  buildExecutableBringUpStub,
+  buildExecutableVerifyStub,
   formatRmId,
+  formatExId,
+  EXECUTABLE_SPRINT_HEADER,
 } from "./roadmap-builder.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
@@ -95,11 +105,13 @@ export async function generateRoadmapHandler(
 
   const projectName = readProjectName(projectDir);
   const ucItems = parseUseCaseTitles(projectDir);
+  const tags = readProjectTags(projectDir);
+  const gates = resolveExecutableGates(tags);
 
   mkdirSync(join(projectDir, "docs"), { recursive: true });
   writeFileSync(
     roadmapPath,
-    buildRoadmapContent(projectName, ucItems, specFilePath),
+    buildRoadmapContent(projectName, ucItems, specFilePath, tags),
     "utf-8",
   );
 
@@ -119,10 +131,50 @@ export async function generateRoadmapHandler(
     writtenStubs.push(`docs/session-prompts/${rmId}.md`);
   }
 
+  // Executable Sprint stubs + gate files
+  writeFileSync(
+    join(stubsDir, `${EXECUTABLE_SPRINT_HEADER.id}.md`),
+    buildExecutableBringUpStub(projectName, tags),
+    "utf-8",
+  );
+  writtenStubs.push(`docs/session-prompts/${EXECUTABLE_SPRINT_HEADER.id}.md`);
+
+  for (let i = 0; i < ucItems.length; i++) {
+    const uc = ucItems[i]!;
+    const exId = formatExId(i + 1);
+    writeFileSync(
+      join(stubsDir, `${exId}.md`),
+      buildExecutableVerifyStub(exId, uc.id, uc.title, tags),
+      "utf-8",
+    );
+    writtenStubs.push(`docs/session-prompts/${exId}.md`);
+
+    // Write runnable gate file stubs for each applicable tool
+    for (const gate of gates) {
+      const relPath = gateFilePath(gate, uc.id);
+      const absPath = join(projectDir, relPath);
+      mkdirSync(join(absPath, ".."), { recursive: true });
+      if (!existsSync(absPath)) {
+        writeFileSync(absPath, gate.buildStub(uc.id, uc.title), "utf-8");
+        writtenStubs.push(relPath);
+      }
+    }
+  }
+
   const phase1List = ucItems
     .map(
       (uc, i) => `- **${formatRmId(i + 1)}**: Implement ${uc.id}: ${uc.title}`,
     )
+    .join("\n");
+
+  const exList = [
+    EXECUTABLE_SPRINT_HEADER,
+    ...ucItems.map((uc, i) => ({
+      id: formatExId(i + 1),
+      title: `Verify live: ${uc.id} — ${uc.title}`,
+    })),
+  ]
+    .map((item) => `- **${item.id}**: ${item.title}`)
     .join("\n");
 
   return {
@@ -131,8 +183,10 @@ export async function generateRoadmapHandler(
         type: "text",
         text:
           `## Roadmap Generated\n\n` +
-          `Written to \`docs/roadmap.md\` with ${ucItems.length} Phase 1 items.\n\n` +
+          `Written to \`docs/roadmap.md\` with ${ucItems.length} Phase 1 items + ${ucItems.length + 1} Executable Sprint items.\n\n` +
           `### Phase 1 Items\n${phase1List}\n\n` +
+          `### Executable Sprint Items\n${exList}\n\n` +
+          `> Complete the Executable Sprint before Phase 2. Each EX item proves a use case works end-to-end.\n\n` +
           `### Session Prompt Stubs Written\n` +
           writtenStubs.map((p) => `- \`${p}\``).join("\n") +
           `\n\nRun \`generate_session_prompt\` with an item's description to get the full bound prompt.`,
