@@ -356,3 +356,6 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **hooks**: add generator, enricher, and session-awareness hooks (`952cf8e`)
+
+### Other
+- **changelog**: update unreleased entries (`0c9571c`)
