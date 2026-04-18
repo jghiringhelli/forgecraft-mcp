@@ -515,3 +515,156 @@ describe("closeCycleHandler roadmap_item writeback", () => {
     expect(content).toContain("| RM-001 | Bootstrap | pending |");
   });
 });
+
+// ── closeCycleHandler harness section tests ────────────────────────────
+
+describe("closeCycleHandler harness section", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-harness-${Date.now()}`);
+    mkdirSync(dir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("includes L2 Harness section when cascade passes and harness-run.json exists", async () => {
+    buildCompleteCascade(dir);
+    mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+    writeFileSync(
+      join(dir, ".forgecraft", "harness-run.json"),
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        passed: 2,
+        failed: 1,
+        errors: 0,
+        notFound: 0,
+      }),
+      "utf-8",
+    );
+
+    const result = await closeCycleHandler({ project_dir: dir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("### L2 Harness:");
+    expect(text).toContain("probes passing");
+  });
+
+  it("includes failing probe warning when harness has failures", async () => {
+    buildCompleteCascade(dir);
+    mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+    writeFileSync(
+      join(dir, ".forgecraft", "harness-run.json"),
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        passed: 1,
+        failed: 2,
+        errors: 0,
+        notFound: 0,
+      }),
+      "utf-8",
+    );
+
+    const result = await closeCycleHandler({ project_dir: dir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("failing probe");
+    expect(text).toContain("specification violations");
+  });
+
+  it("shows no execution evidence when harness-run.json is missing", async () => {
+    buildCompleteCascade(dir);
+
+    const result = await closeCycleHandler({ project_dir: dir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("no execution evidence");
+    expect(text).toContain("run_harness");
+  });
+
+  it("warns about low L2 coverage when below 50%", async () => {
+    buildCompleteCascade(dir);
+    mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+    writeFileSync(
+      join(dir, ".forgecraft", "harness-run.json"),
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        passed: 1,
+        failed: 0,
+        errors: 0,
+        notFound: 9,
+      }),
+      "utf-8",
+    );
+
+    const result = await closeCycleHandler({ project_dir: dir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("L2 coverage below 50%");
+  });
+});
+
+// ── closeCycleHandler state leaf tests ────────────────────────────────
+
+describe("closeCycleHandler state leaf (.claude/state.md)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-state-leaf-${Date.now()}`);
+    mkdirSync(dir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  it("writes .claude/state.md after a successful cycle", async () => {
+    buildCompleteCascade(dir);
+
+    await closeCycleHandler({ project_dir: dir });
+
+    const stateLeafPath = join(dir, ".claude", "state.md");
+    expect(existsSync(stateLeafPath)).toBe(true);
+  });
+
+  it(".claude/state.md contains Layer Completion table", async () => {
+    buildCompleteCascade(dir);
+
+    await closeCycleHandler({ project_dir: dir });
+
+    const content = readFileSync(join(dir, ".claude", "state.md"), "utf-8");
+    expect(content).toContain("## Layer Completion");
+    expect(content).toContain("| Layer | Status | Evidence |");
+    expect(content).toContain("L1 Blueprint");
+    expect(content).toContain("L2 Harness");
+  });
+
+  it(".claude/state.md contains Next Action line", async () => {
+    buildCompleteCascade(dir);
+
+    await closeCycleHandler({ project_dir: dir });
+
+    const content = readFileSync(join(dir, ".claude", "state.md"), "utf-8");
+    expect(content).toContain("## Next Action");
+  });
+
+  it(".claude/state.md contains Last Cycle line", async () => {
+    buildCompleteCascade(dir);
+
+    await closeCycleHandler({ project_dir: dir });
+
+    const content = readFileSync(join(dir, ".claude", "state.md"), "utf-8");
+    expect(content).toContain("## Last Cycle");
+    expect(content).toContain("cascade: PASS");
+  });
+
+  it("does not write .claude/state.md when cascade fails", async () => {
+    // No cascade setup — cascade will fail
+    await closeCycleHandler({ project_dir: dir });
+
+    const stateLeafPath = join(dir, ".claude", "state.md");
+    expect(existsSync(stateLeafPath)).toBe(false);
+  });
+});

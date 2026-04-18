@@ -1,0 +1,26 @@
+uc: UC-007
+title: Contribute Quality Gate
+action: contribute_gate
+probes:
+  - id: probe-contribute-gate-dry-run
+    type: mcp_call
+    scenario: happy
+    description: contribute_gate with dry_run=true returns contribution summary without writing
+    inputs:
+      action: contribute_gate
+      project_dir: "{{project_with_generalizable_gates}}"
+      dry_run: true
+    assertions:
+      - type: output_contains_any
+        texts: ["dry-run", "dry_run", "would contribute"]
+
+  - id: probe-contribute-gate-no-generalizable
+    type: mcp_call
+    scenario: error
+    description: contribute_gate when no generalizable gates returns guidance
+    inputs:
+      action: contribute_gate
+      project_dir: "{{project_with_no_generalizable_gates}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["no generalizable gates", "generalizable: true", "nothing to contribute"]

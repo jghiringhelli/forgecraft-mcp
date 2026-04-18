@@ -1,0 +1,29 @@
+uc: UC-009
+title: Verify GS Properties
+action: verify
+probes:
+  - id: probe-verify-happy
+    type: mcp_call
+    scenario: happy
+    description: verify on a well-scaffolded project returns scores for all GS properties
+    inputs:
+      action: verify
+      project_dir: "{{scaffolded_project_dir}}"
+    assertions:
+      - type: output_contains
+        text: "self-describing"
+      - type: output_contains
+        text: "executable"
+      - type: output_contains_any
+        texts: ["score", "Score", "0/", "1/", "2/"]
+
+  - id: probe-verify-empty-project
+    type: mcp_call
+    scenario: error
+    description: verify on empty project returns low scores with guidance
+    inputs:
+      action: verify
+      project_dir: "{{empty_project_dir}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["score", "0", "missing"]

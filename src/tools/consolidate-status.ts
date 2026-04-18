@@ -18,6 +18,7 @@ import {
   deriveTestCommand,
 } from "./close-cycle.js";
 import { buildGateViolationReport } from "./gate-violations.js";
+import { buildLayerReport } from "./layer-status.js";
 import type { ToolResult } from "../shared/types.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
@@ -59,6 +60,31 @@ export interface ConsolidatedStatus {
   readonly activeViolationSummary: ReadonlyArray<string>;
   /** Last section of Status.md, truncated */
   readonly statusSummary: string;
+  /** L1–L4 layer completion summary */
+  readonly layerSummary: {
+    readonly l1: { readonly passing: number; readonly total: number };
+    readonly l2: { readonly passing: number; readonly total: number };
+    readonly l3: "not-started" | "partial" | "complete";
+    readonly l4: "not-started" | "partial" | "complete";
+  } | null;
+  /** ISO timestamp of last harness run, or null if never run */
+  readonly harnessLastRun: string | null;
+  /** Number of probes that passed in the last harness run */
+  readonly harnessPassed: number;
+  /** Total number of results in the last harness run */
+  readonly harnessTotal: number;
+  /** L3 env probe: last run timestamp, or null */
+  readonly envProbeLastRun?: string | null;
+  /** L3 env probe: number of passing probes */
+  readonly envProbePassed?: number;
+  /** L3 env probe: total probes run */
+  readonly envProbeTotal?: number;
+  /** L4 slo probe: last run timestamp, or null */
+  readonly sloProbeLastRun?: string | null;
+  /** L4 slo probe: number of passing probes */
+  readonly sloProbePassed?: number;
+  /** L4 slo probe: total probes run */
+  readonly sloProbeTotal?: number;
 }
 
 // ── Handler ───────────────────────────────────────────────────────────
@@ -92,6 +118,9 @@ export function buildConsolidatedStatus(
   projectDir: string,
 ): ConsolidatedStatus {
   const violationReport = buildGateViolationReport(projectDir);
+  const harnessData = readHarnessData(projectDir);
+  const envProbeData = readProbeRunData(projectDir, "env-probe-run.json");
+  const sloProbeData = readProbeRunData(projectDir, "slo-probe-run.json");
   return {
     generatedAt: new Date().toISOString(),
     ...readCascadeStatus(projectDir),
@@ -104,6 +133,16 @@ export function buildConsolidatedStatus(
       (v) => `${v.hook}: ${v.message}`,
     ),
     statusSummary: readStatusTail(projectDir),
+    layerSummary: readLayerSummary(projectDir),
+    harnessLastRun: harnessData.lastRun,
+    harnessPassed: harnessData.passed,
+    harnessTotal: harnessData.total,
+    envProbeLastRun: envProbeData.lastRun,
+    envProbePassed: envProbeData.passed,
+    envProbeTotal: envProbeData.total,
+    sloProbeLastRun: sloProbeData.lastRun,
+    sloProbePassed: sloProbeData.passed,
+    sloProbeTotal: sloProbeData.total,
   };
 }
 
@@ -235,6 +274,85 @@ function readStatusTail(projectDir: string): string {
   }
 }
 
+/**
+ * Read harness-run.json for the last run timestamp, passed count, and total results.
+ * Non-throwing — returns zeroed values when file is absent or unparseable.
+ */
+function readHarnessData(projectDir: string): {
+  lastRun: string | null;
+  passed: number;
+  total: number;
+} {
+  const runJsonPath = join(projectDir, ".forgecraft", "harness-run.json");
+  if (!existsSync(runJsonPath)) return { lastRun: null, passed: 0, total: 0 };
+  try {
+    const raw = readFileSync(runJsonPath, "utf-8");
+    const parsed = JSON.parse(raw) as {
+      timestamp?: string;
+      passed?: number;
+      failed?: number;
+      errors?: number;
+      notFound?: number;
+    };
+    const passed = parsed.passed ?? 0;
+    const total =
+      (parsed.passed ?? 0) +
+      (parsed.failed ?? 0) +
+      (parsed.errors ?? 0) +
+      (parsed.notFound ?? 0);
+    return { lastRun: parsed.timestamp ?? null, passed, total };
+  } catch {
+    return { lastRun: null, passed: 0, total: 0 };
+  }
+}
+
+/**
+ * Read a probe run JSON file (env-probe-run.json or slo-probe-run.json) from .forgecraft/.
+ * Non-throwing — returns zeroed values when file is absent or unparseable.
+ */
+function readProbeRunData(
+  projectDir: string,
+  fileName: string,
+): { lastRun: string | null; passed: number; total: number } {
+  const runJsonPath = join(projectDir, ".forgecraft", fileName);
+  if (!existsSync(runJsonPath)) return { lastRun: null, passed: 0, total: 0 };
+  try {
+    const raw = readFileSync(runJsonPath, "utf-8");
+    const parsed = JSON.parse(raw) as {
+      timestamp?: string;
+      passed?: number;
+      failed?: number;
+    };
+    const passed = parsed.passed ?? 0;
+    const total = (parsed.passed ?? 0) + (parsed.failed ?? 0);
+    return { lastRun: parsed.timestamp ?? null, passed, total };
+  } catch {
+    return { lastRun: null, passed: 0, total: 0 };
+  }
+}
+
+/**
+ * Read layer completion summary from the project.
+ * Returns null when docs/use-cases.md is absent.
+ */
+function readLayerSummary(
+  projectDir: string,
+): ConsolidatedStatus["layerSummary"] {
+  try {
+    const report = buildLayerReport(projectDir);
+    if (report.ucs.length === 0) return null;
+    const l2Passing = report.l2.filter((u) => u.hasProbe).length;
+    return {
+      l1: { passing: report.ucs.length, total: report.ucs.length },
+      l2: { passing: l2Passing, total: report.ucs.length },
+      l3: report.l3,
+      l4: report.l4,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Formatter ─────────────────────────────────────────────────────────
 
 /**
@@ -306,6 +424,39 @@ export function formatConsolidatedStatus(snapshot: ConsolidatedStatus): string {
     for (const summary of snapshot.activeViolationSummary) {
       lines.push(`- ${summary}`);
     }
+    lines.push("");
+  }
+
+  // Layer coverage
+  if (snapshot.layerSummary) {
+    const { l1, l2, l3, l4 } = snapshot.layerSummary;
+    const l2Pct = l2.total > 0 ? Math.round((l2.passing / l2.total) * 100) : 0;
+    lines.push("### Layer Coverage");
+    lines.push(`- L1 Blueprint: ${l1.passing}/${l1.total} documented`);
+
+    // Build L2 line with harness execution data if available
+    let l2Line = `- L2 Harness: ${l2.passing}/${l2.total} (${l2Pct}%) have probes`;
+    if (snapshot.harnessLastRun) {
+      const lastRunDate = snapshot.harnessLastRun.slice(0, 10);
+      l2Line += ` | harness: ${snapshot.harnessPassed}/${snapshot.harnessTotal} passing, last run: ${lastRunDate}`;
+    }
+    lines.push(l2Line);
+
+    // Build L3 line with env probe evidence if available
+    let l3Line = `- L3 Environment: ${l3}`;
+    if (snapshot.envProbeLastRun) {
+      const lastRunDate = snapshot.envProbeLastRun.slice(0, 10);
+      l3Line += ` | env probe: ${snapshot.envProbePassed ?? 0}/${snapshot.envProbeTotal ?? 0} passing, last run: ${lastRunDate}`;
+    }
+    lines.push(l3Line);
+
+    // Build L4 line with slo probe evidence if available
+    let l4Line = `- L4 Monitoring: ${l4}`;
+    if (snapshot.sloProbeLastRun) {
+      const lastRunDate = snapshot.sloProbeLastRun.slice(0, 10);
+      l4Line += ` | slo probe: ${snapshot.sloProbePassed ?? 0}/${snapshot.sloProbeTotal ?? 0} passing, last run: ${lastRunDate}`;
+    }
+    lines.push(l4Line);
     lines.push("");
   }
 

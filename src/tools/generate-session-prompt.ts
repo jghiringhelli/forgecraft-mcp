@@ -44,6 +44,8 @@ export {
   discoverArtifacts,
   readStatusSummary,
   buildDefaultCriteria,
+  detectClarificationMarkers,
+  buildClarificationWarning,
 } from "./session-prompt-builders.js";
 export {
   isPlaceholderTestScript,
@@ -197,6 +199,11 @@ export async function generateSessionPromptHandler(
   const criteria =
     args.acceptance_criteria ?? buildDefaultCriteria(resolvedDescription);
 
+  const stateLeafPath = join(projectDir, ".claude", "state.md");
+  const stateLeaf = existsSync(stateLeafPath)
+    ? readFileSync(stateLeafPath, "utf-8")
+    : undefined;
+
   const prompt = buildPrompt({
     projectDir,
     itemDescription: resolvedDescription,
@@ -205,6 +212,7 @@ export async function generateSessionPromptHandler(
     acceptanceCriteria: criteria,
     artifacts,
     statusSummary,
+    stateLeaf,
   });
 
   if (resolvedItemId)

@@ -1,0 +1,61 @@
+uc: UC-003
+title: Generate Bound Session Prompt
+action: generate_session_prompt
+probes:
+  - id: probe-003-happy-contains-task
+    type: mcp_call
+    scenario: happy
+    description: Generated prompt must contain the item_description and scope boundary
+    inputs:
+      action: generate_session_prompt
+      project_dir: "{{cascade_ready_project_dir}}"
+      item_description: "Implement login endpoint with JWT token response"
+      session_type: feature
+    assertions:
+      - type: output_contains
+        text: "login endpoint"
+      - type: output_contains
+        text: "scope"
+
+  - id: probe-003-happy-test-command
+    type: mcp_call
+    scenario: happy
+    description: Prompt includes the detected test command for the project
+    inputs:
+      action: generate_session_prompt
+      project_dir: "{{npm_project_dir}}"
+      item_description: "Add pagination to list endpoint"
+    assertions:
+      - type: output_contains
+        text: "npm test"
+
+  - id: probe-003-error-cascade-not-ready
+    type: mcp_call
+    scenario: error
+    description: Prompt generation is blocked when cascade required steps fail
+    inputs:
+      action: generate_session_prompt
+      project_dir: "{{unconfigured_project_dir}}"
+      item_description: "Build something"
+    assertions:
+      - type: output_contains
+        text: "cascade"
+
+  - id: probe-003-error-missing-item-description
+    type: mcp_call
+    scenario: error
+    description: Missing item_description returns error requesting the parameter
+    inputs:
+      action: generate_session_prompt
+      project_dir: "{{cascade_ready_project_dir}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["item_description", "required", "missing"]
+
+  - id: probe-003-error-missing-roadmap
+    type: file_system
+    scenario: error
+    description: Missing docs/roadmap.md proceeds without roadmap context and warns
+    assertions:
+      - type: output_contains_any
+        texts: ["warn", "roadmap", "missing"]

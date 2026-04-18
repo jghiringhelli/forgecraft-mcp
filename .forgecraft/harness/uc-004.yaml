@@ -1,0 +1,62 @@
+uc: UC-004
+title: Audit Compliance
+action: audit
+probes:
+  - id: probe-004-happy-score-present
+    type: mcp_call
+    scenario: happy
+    description: Audit result must contain a numeric compliance score
+    inputs:
+      action: audit
+      project_dir: "{{onboarded_project_dir}}"
+      tags: ["UNIVERSAL"]
+      include_anti_patterns: true
+    assertions:
+      - type: output_contains
+        text: "Score:"
+      - type: output_matches_regex
+        pattern: "Score: \\d+/100"
+
+  - id: probe-004-happy-passing-failing-sections
+    type: mcp_call
+    scenario: happy
+    description: Audit output includes Passing and Failing sections
+    inputs:
+      action: audit
+      project_dir: "{{onboarded_project_dir}}"
+      tags: ["UNIVERSAL"]
+    assertions:
+      - type: output_contains_any
+        texts: ["Passing", "Failing", "Recommendations"]
+
+  - id: probe-004-happy-anti-patterns
+    type: mcp_call
+    scenario: happy
+    description: Hardcoded URL in source is detected as an anti-pattern violation
+    inputs:
+      action: audit
+      project_dir: "{{project_with_hardcoded_url_dir}}"
+      tags: ["UNIVERSAL", "API"]
+      include_anti_patterns: true
+    assertions:
+      - type: output_contains
+        text: "hardcoded_url"
+
+  - id: probe-004-error-no-tags
+    type: mcp_call
+    scenario: error
+    description: Tags not supplied and not in forgecraft.yaml returns error requesting tags
+    inputs:
+      action: audit
+      project_dir: "{{project_without_forgecraft_yaml}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["tags", "required", "error"]
+
+  - id: probe-004-error-unreadable-source
+    type: file_system
+    scenario: error
+    description: Unreadable source directory skips anti-pattern scan; completeness checks proceed
+    assertions:
+      - type: output_contains
+        text: "Score:"

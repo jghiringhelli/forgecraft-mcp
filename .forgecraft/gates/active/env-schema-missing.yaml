@@ -1,0 +1,44 @@
+id: env-schema-missing
+title: Environment Schema Not Declared
+description: >
+  Projects with environment-dependent services must declare an env schema
+  (.env.example or .env.schema) so that the environment contract is
+  machine-readable and the env probe can validate it.
+domain: environment-hygiene
+implementation: logic
+gsProperty: self-describing
+phase: development
+hook: post-run
+os: cross-platform
+check: >
+  Verify .env.example or .env.schema exists in the project root.
+passCriterion: .env.example or .env.schema file exists.
+failureMessage: >
+  No environment schema found. Create .env.example listing all required
+  env vars so the environment contract is declared and machine-checkable.
+fixHint: Create .env.example with all required env var names (values can be placeholders).
+layers:
+  - layer: L1
+    description: Env schema is a Blueprint artifact — the declared list of environment contracts.
+    when: Any project that connects to external services (DB, cache, queue, external API).
+  - layer: L3
+    description: Env probe uses .env.example as the schema to validate against.
+    when: When generate_env_probe reads the schema to generate env_var probe files.
+priority: P1
+likelihood: high
+impact: medium
+confidence: high
+status: ready
+source: project
+discoveredBy: ai
+generalizable: true
+addedAt: "2026-04-17T00:00:00.000Z"
+evidence: >
+  Missing env schema is a root cause of "works on my machine" failures.
+  The env schema is the contract between the application and its runtime.
+convergenceAttributes:
+  prescriptive: true
+  agnostic: true
+  promptHealthy: true
+  deterministic: true
+  convergent: true

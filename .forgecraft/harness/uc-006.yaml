@@ -1,0 +1,44 @@
+uc: UC-006
+title: Check Layer Status
+action: layer_status
+probes:
+  - id: probe-layer-status-happy
+    type: mcp_call
+    scenario: happy
+    description: Call layer_status on a project with use-cases.md and assert L1-L4 sections present
+    inputs:
+      action: layer_status
+      project_dir: "{{project_with_use_cases}}"
+    assertions:
+      - type: output_contains
+        text: "L1: Blueprint"
+      - type: output_contains
+        text: "L2: Behavioral Harness"
+      - type: output_contains
+        text: "L2 coverage:"
+      - type: output_contains
+        text: "Next action"
+
+  - id: probe-layer-status-no-use-cases
+    type: mcp_call
+    scenario: error
+    description: layer_status when docs/use-cases.md missing returns guidance
+    inputs:
+      action: layer_status
+      project_dir: "{{empty_project_dir}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["No use cases found", "no use cases"]
+
+  - id: probe-layer-status-partial-l2
+    type: mcp_call
+    scenario: happy
+    description: layer_status on project with some L2 probes shows coverage percentage
+    inputs:
+      action: layer_status
+      project_dir: "{{partial_l2_project}}"
+    assertions:
+      - type: output_contains
+        text: "%"
+      - type: output_contains
+        text: "have harness specs"

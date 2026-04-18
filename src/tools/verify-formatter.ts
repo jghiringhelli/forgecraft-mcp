@@ -15,7 +15,12 @@ export function formatReport(result: VerifyResult, threshold: number): string {
   const lines: string[] = [];
 
   const badge = result.overallPass ? "✅ PASS" : "❌ FAIL";
+  const tierBadge = `Tier ${result.maturityTier.tier} — ${result.maturityTier.name}`;
   lines.push(`# ForgeCraft Verify — ${badge}`);
+  lines.push("");
+  lines.push(
+    `**GS Maturity: ${tierBadge}** · ${result.maturityTier.description}`,
+  );
   lines.push("");
 
   // Test suite section
@@ -87,11 +92,25 @@ export function formatReport(result: VerifyResult, threshold: number): string {
   }
   lines.push("");
 
+  // Tier progression
+  const nextTierThreshold = [4, 7, 11, 14, 14];
+  const currentTier = result.maturityTier.tier;
+  if (currentTier < 5) {
+    const next = nextTierThreshold[currentTier - 1]!;
+    const gap = next - result.totalScore;
+    const nextNames = ["Grounded", "Specified", "Verified", "Orchestrated"];
+    lines.push(`## GS Maturity Progression`);
+    lines.push(
+      `Current: **Tier ${currentTier} — ${result.maturityTier.name}** · ${gap} point(s) to Tier ${currentTier + 1} — ${nextNames[currentTier - 1]}`,
+    );
+    lines.push("");
+  }
+
   // Summary
   lines.push("---");
   const maxScoreSummary = result.propertyScores.length * 2;
   lines.push(
-    `**Overall: ${result.overallPass ? "✅ PASS" : "❌ FAIL"}** · Score ${result.totalScore}/${maxScoreSummary} · Threshold ${threshold}/${maxScoreSummary}`,
+    `**Overall: ${result.overallPass ? "✅ PASS" : "❌ FAIL"}** · Score ${result.totalScore}/${maxScoreSummary} · Threshold ${threshold}/${maxScoreSummary} · **Tier ${currentTier} — ${result.maturityTier.name}**`,
   );
 
   return lines.join("\n");

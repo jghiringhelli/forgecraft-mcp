@@ -152,6 +152,15 @@ export function writeScaffoldFiles(
     statusMdContent,
   );
 
+  // Write .claude/state.md placeholder — index.md is written by writeCntFiles (setup-cnt.ts)
+  const claudeDir = join(input.project_dir, ".claude");
+  mkdirSync(claudeDir, { recursive: true });
+  trackWrite(
+    ".claude/state.md",
+    join(claudeDir, "state.md"),
+    "# Project State\n_Not yet run. Call close_cycle to generate._\n",
+  );
+
   mkdirSync(join(input.project_dir, "docs"), { recursive: true });
   trackWrite(
     "docs/PRD.md",

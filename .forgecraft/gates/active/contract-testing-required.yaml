@@ -1,0 +1,52 @@
+id: contract-testing-required
+title: Consumer-Driven Contract Tests Missing for API Project
+domain: api-contract
+phase: pre-release
+priority: P1
+description: >
+  An API project has no consumer-driven contract tests (Pact, Spring Cloud Contract,
+  or equivalent). Without contract tests, producer/consumer agreements at distributed
+  boundaries are implicit and unverifiable without running both services simultaneously.
+  This is a class of failure invisible to unit and integration tests.
+check:
+  type: file_system
+  condition: none_of_these_exist
+  paths:
+    - pact/
+    - pacts/
+    - contracts/
+    - src/contracts/
+    - tests/contracts/
+    - consumer-contracts/
+failureMessage: >
+  No consumer-driven contract test artifacts found. API boundaries are
+  unspecified — a breaking API change will not be caught until runtime.
+fixHint: >
+  Add Pact or equivalent: npm install --save-dev @pact-foundation/pact.
+  Write a consumer test that defines the contract; run pact:publish in CI.
+  See docs/adrs/ for the API boundary decision rationale.
+evidence: >
+  Distributed systems routinely break at service boundaries when one side changes
+  its API shape. Contract tests catch this class of failure without requiring
+  integration environments. Discovered as a systematic gap across GS-governed API projects.
+generalizable: true
+tags:
+  - API
+layers:
+  - layer: L1
+    description: >
+      Blueprint boundary contracts: consumer-driven contract tests are the formal
+      specification for distributed system seams. They are independently verifiable
+      without running both services — the contract artifact IS the boundary spec.
+    when: >
+      Fire when project has API tag and no Pact/contract artifact exists.
+      Gate fires at pre-release — contract tests must exist before staging promotion.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: medium
+impact: high
+confidence: high

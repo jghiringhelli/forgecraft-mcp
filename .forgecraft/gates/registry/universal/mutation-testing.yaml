@@ -20,6 +20,24 @@ passCriterion: >
   permissions, financial calculations).
 tags:
   - UNIVERSAL
+layers:
+  - layer: L1
+    description: >
+      Blueprint completeness signal: measures whether the test suite constitutes
+      a genuine behavioral specification or merely documentation. A test that does
+      not kill mutations is not a contract — it passes on incorrect implementations.
+      Required before claiming L1 completeness on any use case.
+    when: >
+      Fire when mutation score drops below threshold on changed or new code.
+      Pre-commit on test files; PR gate on all modified paths.
+  - layer: L2
+    description: >
+      Harness probe validity: a probe that passes on incorrectly-mutated code is
+      not a valid behavioral assertion. Mutation score on harness files validates
+      that probes detect actual violations rather than testing their own structure.
+    when: >
+      Fire when harness probe files exist but mutation score on probe code is
+      below threshold. Surfaces probes that assert on the wrong invariants.
 generalizable: true
 evidence: >
   GS experiments found 40-50% MSI on naive agent-generated test suites. Between

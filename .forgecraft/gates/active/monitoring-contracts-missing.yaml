@@ -1,0 +1,45 @@
+id: monitoring-contracts-missing
+title: Monitoring Contracts Not Declared
+description: >
+  Production-bound services must declare SLO contracts in docs/nfr-contracts.md.
+  Without declared SLOs, the run_slo_probe tool has no targets to verify and
+  L4 monitoring remains unexercised.
+domain: observability
+implementation: logic
+gsProperty: self-describing
+phase: pre-release
+hook: close-cycle
+os: cross-platform
+check: >
+  Verify docs/nfr-contracts.md exists and contains at least one SLO definition
+  (lines containing "availability", "latency", "error_rate", or "throughput").
+passCriterion: docs/nfr-contracts.md exists with at least one SLO definition.
+failureMessage: >
+  No monitoring contracts found. Create docs/nfr-contracts.md with latency,
+  availability, and error rate targets so monitoring can be verified.
+fixHint: Add docs/nfr-contracts.md with SLO targets. Use templates/universal/claude-md-blocks/nfr-contracts.md as a starting point.
+layers:
+  - layer: L1
+    description: NFR contracts are a Blueprint artifact defining measurable quality targets.
+    when: Any service that will run in production.
+  - layer: L4
+    description: generate_slo_probe reads nfr-contracts.md to scaffold alert and SLO probes.
+    when: When run_slo_probe is called and .forgecraft/slo/ has no specs.
+priority: P1
+likelihood: medium
+impact: high
+confidence: high
+status: ready
+source: project
+discoveredBy: ai
+generalizable: true
+addedAt: "2026-04-17T00:00:00.000Z"
+evidence: >
+  Teams without declared SLOs cannot tell if their monitoring is correct.
+  Requiring nfr-contracts.md forces the SLO conversation before deployment.
+convergenceAttributes:
+  prescriptive: true
+  agnostic: true
+  promptHealthy: true
+  deterministic: true
+  convergent: true

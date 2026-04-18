@@ -17,6 +17,7 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { generateSessionPromptHandler } from "../../src/tools/generate-session-prompt.js";
+import { buildClarificationWarning } from "../../src/tools/session-prompt-builders.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -951,5 +952,76 @@ describe("generateSessionPromptHandler — DAG dependency gate", () => {
     expect(text).toContain("Unmet Dependencies");
     expect(text).toContain("RM-001");
     expect(text).toContain("RM-002");
+  });
+});
+
+// ── State leaf (.claude/state.md) tests ───────────────────────────────
+
+describe("generateSessionPromptHandler — state leaf", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+    buildCompleteCascade(tempDir);
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("includes state leaf content when .claude/state.md exists", async () => {
+    mkdirSync(join(tempDir, ".claude"), { recursive: true });
+    writeFileSync(
+      join(tempDir, ".claude", "state.md"),
+      "# Project State\n_Last updated by close_cycle: 2026-04-16T00:00:00.000Z_\n\n## Next Action\nAll layers verified.\n",
+      "utf-8",
+    );
+
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+
+    expect(text).toContain("Current Project State");
+    expect(text).toContain("Last updated by close_cycle");
+    expect(text).toContain("All layers verified.");
+  });
+
+  it("falls back gracefully when .claude/state.md is absent", async () => {
+    // No .claude/state.md written — should still generate a valid prompt
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+
+    expect(text).not.toContain("Session Prompt Blocked");
+    expect(text).toContain("TDD Gate");
+    // State leaf block should not appear
+    expect(text).not.toContain("Current Project State");
+  });
+});
+
+describe("buildClarificationWarning", () => {
+  it("returns empty string when markers array is empty", () => {
+    expect(buildClarificationWarning([])).toBe("");
+  });
+
+  it("builds warning table for non-empty markers", () => {
+    const result = buildClarificationWarning([
+      {
+        file: "docs/adrs/ADR-001.md",
+        marker: "[NEEDS CLARIFICATION: auth strategy]",
+      },
+      { file: "docs/use-cases.md", marker: "[NEEDS CLARIFICATION: edge case]" },
+    ]);
+    expect(result).toContain("Unresolved Clarifications");
+    expect(result).toContain("docs/adrs/ADR-001.md");
+    expect(result).toContain("[NEEDS CLARIFICATION: auth strategy]");
+    expect(result).toContain("docs/use-cases.md");
+    expect(result).toContain("| File | Marker |");
   });
 });

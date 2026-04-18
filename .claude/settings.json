@@ -9,26 +9,27 @@
     "PreToolUse": [
       {
         "matcher": "run_in_terminal",
-        "hook": "bash .claude/hooks/pre-exec-safety.sh"
+        "hooks": [{"type": "command", "command": "bash .claude/hooks/pre-exec-safety.sh"}]
       },
       {
         "matcher": ".*",
-        "hook": "bash .claude/hooks/pre-exec-health-injector.sh"
+        "hooks": [{"type": "command", "command": "bash .claude/hooks/pre-exec-health-injector.sh"}]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "create_file|write_file|edit_file|replace_string|multi_replace|create_directory",
-        "hook": "bash .claude/hooks/post-edit-commit-reminder.sh"
+        "hooks": [{"type": "command", "command": "bash .claude/hooks/post-edit-commit-reminder.sh"}]
       },
       {
         "matcher": ".*",
-        "hook": "bash .claude/hooks/post-tool-session-log.sh"
+        "hooks": [{"type": "command", "command": "bash .claude/hooks/post-tool-session-log.sh"}]
       }
     ],
     "Stop": [
       {
-        "hook": "bash .claude/hooks/stop-session-summary.sh"
+        "matcher": "",
+        "hooks": [{"type": "command", "command": "bash .claude/hooks/stop-session-summary.sh"}]
       }
     ]
   },

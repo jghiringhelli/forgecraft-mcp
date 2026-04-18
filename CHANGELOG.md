@@ -9,6 +9,26 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+### Added
+
+- **`check_spec_consistency` MCP action.** Scans all spec artifacts for structural gaps, derivation chain breaks, and false confidence signals. Checks: UCs without postconditions or error cases, duplicate UC IDs, hollow probes (pass with 0 assertions), stub probes (TODO sections unfilled), orphan probes (no matching UC), stale ADRs in Proposed status (>30 days), unresolved `[NEEDS CLARIFICATION]` markers across all artifacts, and gates referencing nonexistent paths. Returns a structured findings table with severity (error/warning/info) and fix hints. Supports `strict` mode where warnings also block.
+
+- **`propose_session` MCP action.** Pre-implementation impact assessment adapted from OpenSpec's Propose phase, extended with forgecraft's layer-awareness. Produces a `proposal.md` artifact with: spec delta (ADDED/MODIFIED artifacts), layer readiness per affected UC (L1-L4), active gates that must pass before `close_cycle`, unresolved `[NEEDS CLARIFICATION]` markers, and a pre-implementation checklist. Run before `generate_session_prompt` to commit to an implementation.
+
+- **Postcondition coverage scoring in `layer_status`.** The L2 section now includes a per-UC coverage table: counts `**Acceptance Criteria**` bullets and `**Postcondition**` lines from each UC block, counts assertion signals in corresponding probe files (grep/expect/assert in `.sh`; expect/toBe/toEqual in `.spec.ts`; `[Asserts]` sections in `.hurl`; `check()` in `.k6.js`), and computes a coverage ratio. Flags hollow probes (0 assertions), stubs (TODO markers), partial (<40%), and covered (≥80%).
+
+- **`not_implemented` blocking in `close_cycle`.** When `harness-run.json` contains any result with `status === not_implemented`, `close_cycle` now surfaces an explicit ⛔ block identifying the affected UC IDs. `deriveNextAction()` prioritizes implementing stub probes above fixing failures — stubs are the higher-confidence threat because they silently pass.
+
+- **Assertion density in `run_harness`.** Every probe result now includes an `assertionCount` field. The report table shows assertion count per probe, flags `⚠️ 0` for hollow probes passing with zero assertions, and adds a `### ⚠️ Hollow Probes` section listing probes that need assertion work. Hollow probe count surfaced in the result summary header.
+
+- **Two new L2 gates:** `l2-hollow-probe.yaml` (P1 — probe passes with 0 assertions) and `l2-not-implemented-blocking.yaml` (P1 — not_implemented probes must be filled before close_cycle).
+
+- **`[NEEDS CLARIFICATION]` markers.** When `generate_adr` emits a document with missing sections, placeholders now use `[NEEDS CLARIFICATION: what decision is needed]` format instead of `[TODO: ...]`. Adopted from Spec Kit's template constraint model — the AI cannot act on ambiguity it cannot see. `generate_session_prompt` scans spec artifacts (use-cases.md, PRD.md, TechSpec.md, ADRs) for these markers and surfaces an `⚠️ Unresolved Clarifications` warning block at the top of every generated prompt.
+
+- **ADR-0010: SDD Prior Art and Parallel Convergence.** Permanent acknowledgment of GitHub Spec Kit and Fission AI's OpenSpec as contemporaneous parallel work from the same SDD base. Records the divergence: discipline-based enforcement (Spec Kit/OpenSpec) vs structural enforcement (forgecraft). Documents two ideas adopted as direct inspiration. See `docs/adrs/ADR-0010-sdd-prior-art-divergence.md`.
+
+- **`docs/design-philosophy.md`.** Explains the shared SDD premise, the four-layer ratchet vs flat artifact stacks, the bounded context/sentinel tree approach, and the threat model difference between "code review comment" and "production incident". Readable design rationale for new contributors.
+
 
 ## [1.4.0] — 2026-04-05
 

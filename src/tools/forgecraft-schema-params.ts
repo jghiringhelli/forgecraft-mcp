@@ -245,4 +245,40 @@ export const forgecraftExtendedParams = z.object({
     .describe(
       "Skip load test phase (HARDEN-003). Used by: start_hardening. Default: true (skip when no load gates defined).",
     ),
+  harness_uc_ids: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "UC ids to target (e.g. ['UC-001', 'UC-003']). Used by: generate_harness, run_harness.",
+    ),
+  harness_timeout_ms: z
+    .number()
+    .optional()
+    .describe(
+      "Timeout per probe in milliseconds. Used by: run_harness. Default: 30000.",
+    ),
+  env_probe_force: z
+    .boolean()
+    .optional()
+    .describe(
+      "Overwrite existing env probe files. Used by: generate_env_probe. Default: false.",
+    ),
+  env_probe_timeout_ms: z
+    .number()
+    .optional()
+    .describe(
+      "Timeout per env probe in milliseconds. Used by: run_env_probe. Default: 30000.",
+    ),
+  slo_probe_force: z
+    .boolean()
+    .optional()
+    .describe(
+      "Overwrite existing slo probe files. Used by: generate_slo_probe. Default: false.",
+    ),
+  slo_probe_timeout_ms: z
+    .number()
+    .optional()
+    .describe(
+      "Timeout per slo probe in milliseconds. Used by: run_slo_probe. Default: 30000.",
+    ),
 });

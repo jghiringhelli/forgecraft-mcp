@@ -1,0 +1,25 @@
+uc: UC-008
+title: Read Gate Violations
+action: read_gates
+probes:
+  - id: probe-read-gates-with-violations
+    type: mcp_call
+    scenario: happy
+    description: read_gates on a project with active gates returns violation list
+    inputs:
+      action: read_gates
+      project_dir: "{{project_with_active_gates}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["gate", "Gate", "active"]
+
+  - id: probe-read-gates-no-gates
+    type: mcp_call
+    scenario: error
+    description: read_gates on project with no gates returns empty or guidance
+    inputs:
+      action: read_gates
+      project_dir: "{{project_with_no_gates}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["no gates", "No gates", "0 gate", "empty"]

@@ -19,6 +19,19 @@ passCriterion: >
   with documented disposition (accepted, remediated, or suppressed with reason).
 tags:
   - UNIVERSAL
+layers:
+  - layer: L1
+    description: >
+      Blueprint integrity: dependency vulnerabilities invalidate behavioral
+      contracts. A system with a HIGH/CRITICAL CVE in its dependency tree cannot
+      claim a complete blueprint — the vulnerability is an unspecified failure mode.
+    when: Fire on every commit that modifies package.json, requirements.txt, or Cargo.toml.
+  - layer: L3
+    description: >
+      Environment security baseline: known CVEs in deployed dependencies are
+      environment contract violations. The deployment specification is incomplete
+      until the dependency surface is clean.
+    when: Fire at pre-release gate and deployment gate.
 generalizable: true
 evidence: >
   The bcrypt -> @mapbox/node-pre-gyp -> tar CVE chain is a well-known example
