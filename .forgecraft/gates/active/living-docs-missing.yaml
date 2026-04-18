@@ -1,0 +1,63 @@
+id: living-docs-missing
+title: Living Documentation Generator Not Configured
+domain: api-contract
+phase: development
+priority: P1
+description: >
+  The project exposes an API but has no living documentation configuration
+  (OpenAPI/Swagger, TypeDoc, Sphinx, etc.). Without auto-generated docs,
+  the API contract exists only in code — it drifts silently as endpoints change.
+  Living documentation is the GS §4.3 requirement: docs that are derived from
+  the spec, not written by hand and forgotten.
+check:
+  type: file_system
+  condition: none_of_these_exist
+  paths:
+    - openapi.yaml
+    - openapi.yml
+    - openapi.json
+    - api-spec.yaml
+    - api-spec.json
+    - typedoc.json
+    - typedoc.config.js
+    - typedoc.config.cjs
+    - docs/api
+    - .typedoc
+    - mkdocs.yml
+    - sphinx/conf.py
+    - docs/conf.py
+failureMessage: >
+  No living documentation generator found. API contract exists only in code.
+  Changes to endpoints, schemas, or parameters are invisible to consumers.
+fixHint: >
+  For TypeScript APIs: add typedoc.json and a "docs:generate" npm script.
+  For REST APIs: add openapi.yaml (or generate it from Zod schemas via zod-to-openapi).
+  For Python projects: add mkdocs.yml or sphinx/conf.py.
+  The goal: one command regenerates the contract documentation from the source of truth.
+evidence: >
+  Living documentation closes the loop between spec and implementation. When docs
+  are generated from code/schema, drift becomes a build failure — not a manual audit.
+  GS §4.3 requires that spec artifacts produce documentation as a derivation, not
+  a separate authoring step.
+generalizable: true
+tags:
+  - API
+layers:
+  - layer: L1
+    description: >
+      Blueprint completeness: a project with an API surface must have a mechanism
+      to derive human-readable documentation from the machine-readable schema.
+      This makes the contract observable without reading implementation code.
+    when: >
+      Fire when project has API tag and no living documentation config exists.
+      Advisory gate — WARN, not block — since some API projects generate docs
+      from runtime introspection (FastAPI, NestJS Swagger module).
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: medium
+impact: medium
+confidence: high
