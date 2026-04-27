@@ -58,6 +58,12 @@ export interface ForgeCraftConfig {
   /** Additional tags beyond auto-detected ones. */
   readonly additionalTags?: Tag[];
   /**
+   * Practitioner experience level. Controls verbosity of generated session prompts.
+   * - `novice` (default): full methodology explanations, step-by-step instructions
+   * - `experienced`: compact output — just commit sequence and test command; no methodology teaching
+   */
+  readonly practitioner_level?: "novice" | "experienced";
+  /**
    * When true, apply compact post-processing to all generated instruction files:
    * strips explanatory tail clauses from bullet points and deduplicates identical lines.
    * Reduces token count by ~20-40%. Recommended for projects with 3+ tags.

@@ -51,6 +51,8 @@ export interface PromptBuildInput {
   readonly statusSummary: string;
   /** Optional content of .claude/state.md — prepended as opening block when present. */
   readonly stateLeaf?: string;
+  /** Practitioner level — controls verbosity of methodology sections. Default: "novice". */
+  readonly practitionerLevel?: "novice" | "experienced";
 }
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -330,6 +332,7 @@ export function buildPrompt(input: PromptBuildInput): string {
     artifacts,
     statusSummary,
     stateLeaf,
+    practitionerLevel = "novice",
   } = input;
 
   const contextLoadBlock = buildContextLoadBlock(artifacts);
@@ -356,13 +359,19 @@ export function buildPrompt(input: PromptBuildInput): string {
   prompt += `### Task\n\n${itemDescription}\n\n`;
   if (scopeBlock) prompt += scopeBlock + "\n";
 
-  prompt += buildTddGateSection(conventionalType);
+  prompt += buildTddGateSection(conventionalType, practitionerLevel);
   prompt += buildMcpToolsSection(projectDir);
   prompt += buildContextRetrievalSection(projectDir);
-  prompt += buildExecutionLoopSection(deriveTestCommand(projectDir));
+  prompt += buildExecutionLoopSection(deriveTestCommand(projectDir), practitionerLevel);
   prompt += `> Before \`git commit\`: run \`close_cycle\` to assess gates and check cascade.\n\n`;
   prompt += `### Acceptance Criteria\n\nAll must be satisfied before the session is considered complete:\n\n${criteriaLines}\n\n`;
-  prompt += `### Session Close\n\nBefore ending this session:\n1. Run the full test suite — paste the summary output\n2. Update Status.md: what was completed, current state, next steps\n3. If a non-obvious architectural decision was made: write an ADR in ${artifacts.adrDir ?? "docs/adrs/"}\n\n`;
+
+  if (practitionerLevel === "experienced") {
+    prompt += `### Session Close\n\nRun tests, update Status.md, write ADR if architectural decisions were made.\n\n`;
+  } else {
+    prompt += `### Session Close\n\nBefore ending this session:\n1. Run the full test suite — paste the summary output\n2. Update Status.md: what was completed, current state, next steps\n3. If a non-obvious architectural decision was made: write an ADR in ${artifacts.adrDir ?? "docs/adrs/"}\n\n`;
+  }
+
   prompt += `---\n\`files_created\`: []\n\`next_steps\`: ["Run check_cascade to verify cascade is still complete after this session"]\n`;
 
   return prompt;

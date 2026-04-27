@@ -259,6 +259,7 @@ gates_registry_url: https://raw.githubusercontent.com/jghiringhelli/quality-gate
 server_url: https://forgecraft-server-production.up.railway.app
 contribute_gates: false   # false | anonymous | attributed
 github_user: ""           # required for attributed mode
+practitioner_level: novice  # novice (default) | experienced
 tools:
   test: npm test
   mutation: npx stryker run stryker.sentinel.json
@@ -268,6 +269,11 @@ cascade:
     - id: check-tests
       ...
 ```
+
+`practitioner_level: experienced` removes methodology explanations from session prompts —
+no "Follow strict RED → GREEN → REFACTOR" walkthrough, no "Do not exit until all tests are green"
+warnings. The task, context load, commit sequence, test command, and acceptance criteria remain.
+Experienced practitioners set this once and get reference-style prompts instead of teaching prompts.
 
 ## Exceptions Mechanism
 

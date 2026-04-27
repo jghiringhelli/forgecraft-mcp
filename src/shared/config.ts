@@ -49,6 +49,31 @@ export function readExperimentConfig(
   };
 }
 
+/**
+ * Reads `practitioner_level` from forgecraft.yaml.
+ * Returns "experienced" only when explicitly set. Defaults to "novice".
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns "novice" | "experienced"
+ */
+export function readPractitionerLevel(
+  projectDir: string,
+): "novice" | "experienced" {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+  if (!existsSync(yamlPath)) return "novice";
+
+  let raw: unknown;
+  try {
+    raw = yaml.load(readFileSync(yamlPath, "utf-8"));
+  } catch {
+    return "novice";
+  }
+
+  if (!raw || typeof raw !== "object") return "novice";
+  const config = raw as Record<string, unknown>;
+  return config["practitioner_level"] === "experienced" ? "experienced" : "novice";
+}
+
 function isValidExperimentType(
   value: unknown,
 ): value is ExperimentConfig["type"] {

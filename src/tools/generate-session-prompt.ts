@@ -19,6 +19,7 @@ import {
 import { findNextRoadmapItem, parseRoadmapItems } from "./close-cycle.js";
 import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
 import { detectSpecRoadmapDrift } from "../shared/drift-detector.js";
+import { readPractitionerLevel } from "../shared/config.js";
 import {
   buildPrompt,
   discoverArtifacts,
@@ -204,6 +205,8 @@ export async function generateSessionPromptHandler(
     ? readFileSync(stateLeafPath, "utf-8")
     : undefined;
 
+  const practitionerLevel = readPractitionerLevel(projectDir);
+
   const prompt = buildPrompt({
     projectDir,
     itemDescription: resolvedDescription,
@@ -213,6 +216,7 @@ export async function generateSessionPromptHandler(
     artifacts,
     statusSummary,
     stateLeaf,
+    practitionerLevel,
   });
 
   if (resolvedItemId)
