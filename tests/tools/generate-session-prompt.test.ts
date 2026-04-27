@@ -1005,6 +1005,125 @@ describe("generateSessionPromptHandler — state leaf", () => {
   });
 });
 
+// ── Practitioner mode ─────────────────────────────────────────────────
+
+describe("generateSessionPromptHandler — practitioner mode", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+    buildCompleteCascade(tempDir);
+  });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function writePractitionerLevel(dir: string, level: string): void {
+    writeFileSync(join(dir, "forgecraft.yaml"), `practitioner_level: ${level}\n`, "utf-8");
+  }
+
+  it("novice mode (default) includes verbose TDD methodology explanation", async () => {
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Write the failing test first");
+    expect(text).toContain("loop until green");
+  });
+
+  it("novice level explicit produces same verbose output as default", async () => {
+    writePractitionerLevel(tempDir, "novice");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Write the failing test first");
+    expect(text).toContain("loop until green");
+  });
+
+  it("experienced mode omits verbose TDD methodology steps", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).not.toContain("Write the failing test first");
+    expect(text).not.toContain("loop until green");
+  });
+
+  it("experienced mode still includes TDD Gate heading and commit sequence", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("TDD Gate");
+    expect(text).toContain("RED");
+    expect(text).toContain("GREEN");
+    expect(text).toContain("REFACTOR");
+    expect(text).toContain("test(scope)");
+  });
+
+  it("experienced mode omits verbose execution loop instructions", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    writeFileSync(join(tempDir, "package.json"), JSON.stringify({ scripts: { test: "vitest run" } }), "utf-8");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).not.toContain("Every implementation unit follows this loop");
+    expect(text).not.toContain("Do not exit until all tests are green");
+  });
+
+  it("experienced mode execution loop still shows test command", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    writeFileSync(join(tempDir, "package.json"), JSON.stringify({ scripts: { test: "vitest run" } }), "utf-8");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Execution Loop");
+    expect(text).toContain("npm test");
+  });
+
+  it("experienced mode still includes task, acceptance criteria, and context load", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain(ITEM);
+    expect(text).toContain("Acceptance Criteria");
+    expect(text).toContain("Context Load Order");
+  });
+
+  it("experienced mode session close is compact — no multi-step instructions", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Session Close");
+    expect(text).not.toContain("paste the summary output");
+  });
+});
+
 describe("buildClarificationWarning", () => {
   it("returns empty string when markers array is empty", () => {
     expect(buildClarificationWarning([])).toBe("");
