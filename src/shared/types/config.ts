@@ -79,7 +79,7 @@ export interface ForgeCraftConfig {
   readonly deployment?: ProjectDeploymentConfig;
   /** If true, gates marked generalizable: true are queued for community contribution. */
   readonly contribute_gates?: boolean;
-  /** URL for the remote quality-gates registry. Defaults to the public genspec-dev registry. */
+  /** URL for the remote quality-gates registry. Defaults to the public quality-gates registry. */
   readonly gates_registry_url?: string;
   /** URL for the forgecraft-server API. Used by contribute-gate tool. */
   readonly server_url?: string;
