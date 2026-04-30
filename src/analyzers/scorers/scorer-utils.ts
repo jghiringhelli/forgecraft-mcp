@@ -28,17 +28,34 @@ export const COMMENT_OR_IMPORT = /^\s*(\/\/|\/\*|\*|#|import\s|require\s*\()/;
 /** Minimum instruction-file length to be considered substantive. */
 export const MIN_INSTRUCTION_FILE_LINES = 40;
 
-/** Keywords that indicate an instruction file covers architecture/conventions/decisions. */
+/**
+ * Keywords that indicate an instruction file covers architecture/conventions/decisions.
+ * Intentionally broad to be tech-agnostic: web services, libraries, CLIs,
+ * GitHub Actions, and ML projects each use different vocabulary.
+ */
 export const INSTRUCTION_COVERAGE_KEYWORDS = [
+  // Web service / layered architecture terms
   "architecture",
-  "convention",
-  "decision",
-  "adr",
-  "domain",
-  "pattern",
   "layer",
   "repository",
   "service",
+  // Universal design terms
+  "convention",
+  "decision",
+  "pattern",
+  "module",
+  "interface",
+  "constraint",
+  "behavior",
+  // Documentation/traceability
+  "adr",
+  "domain",
+  // Action/CLI/tool-specific
+  "workflow",
+  "input",
+  "output",
+  "command",
+  "tool",
 ];
 
 /** Minimum distinct keyword hits to award score 2 for Self-describing. */
