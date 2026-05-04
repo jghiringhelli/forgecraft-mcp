@@ -3,12 +3,22 @@
  */
 
 import { extname, basename, dirname } from "node:path";
-import type { GsProperty, GsPropertyScore, LayerViolation } from "../../shared/types.js";
+import type {
+  GsProperty,
+  GsPropertyScore,
+  LayerViolation,
+} from "../../shared/types.js";
 
 // ── Constants ─────────────────────────────────────────────────────────
 
 /** Directories that are considered "route/controller" layers. */
-export const ROUTE_DIRS = ["routes", "controllers", "handlers", "api", "endpoints"];
+export const ROUTE_DIRS = [
+  "routes",
+  "controllers",
+  "handlers",
+  "api",
+  "endpoints",
+];
 
 /** ORM/DB client call patterns to flag in route files. */
 export const DB_CALL_PATTERNS: RegExp[] = [
@@ -24,9 +34,6 @@ export const DB_CALL_PATTERNS: RegExp[] = [
 
 /** Lines that are comments or imports — excluded from DB call detection. */
 export const COMMENT_OR_IMPORT = /^\s*(\/\/|\/\*|\*|#|import\s|require\s*\()/;
-
-/** Minimum instruction-file length to be considered substantive. */
-export const MIN_INSTRUCTION_FILE_LINES = 40;
 
 /**
  * Keywords that indicate an instruction file covers architecture/conventions/decisions.
@@ -76,24 +83,32 @@ export function gs(
 
 /** True for TypeScript/JavaScript/Python/Kotlin/Rust source files. */
 export function isSourceCodeFile(filePath: string): boolean {
-  return [".ts", ".tsx", ".js", ".jsx", ".py", ".kt", ".rs"].includes(extname(filePath));
+  return [".ts", ".tsx", ".js", ".jsx", ".py", ".kt", ".rs"].includes(
+    extname(filePath),
+  );
 }
 
 /** True for test or fixture files (should not require their own test). */
 export function isTestOrFixtureFile(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, "/");
-  return /(\btest[_.]|\.test\.|\.spec\.|__tests__|\/tests\/|\/test\/|\/fixtures\/|\/mocks?\/|conftest|\.d\.ts)/.test(normalized);
+  return /(\btest[_.]|\.test\.|\.spec\.|__tests__|\/tests\/|\/test\/|\/fixtures\/|\/mocks?\/|conftest|\.d\.ts)/.test(
+    normalized,
+  );
 }
 
 /** True for declaration, config, or infrastructure files. */
 export function isConfigOrDeclaration(filePath: string): boolean {
-  return /(\.d\.ts|config\.|\.config\.|migration|seed|schema\.prisma|index\.ts)/.test(filePath);
+  return /(\.d\.ts|config\.|\.config\.|migration|seed|schema\.prisma|index\.ts)/.test(
+    filePath,
+  );
 }
 
 /** True if a file path is inside a route or controller directory. */
 export function isRouteFile(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, "/");
-  return ROUTE_DIRS.some((dir) => new RegExp(`(^|/)${dir}/`, "i").test(normalized));
+  return ROUTE_DIRS.some((dir) =>
+    new RegExp(`(^|/)${dir}/`, "i").test(normalized),
+  );
 }
 
 // ── Utility functions ──────────────────────────────────────────────────
@@ -109,7 +124,11 @@ export function collectDbViolations(
     if (COMMENT_OR_IMPORT.test(line)) continue;
     const matchedPattern = DB_CALL_PATTERNS.find((p) => p.test(line));
     if (matchedPattern) {
-      violations.push({ file: relPath, line: i + 1, snippet: line.slice(0, 120) });
+      violations.push({
+        file: relPath,
+        line: i + 1,
+        snippet: line.slice(0, 120),
+      });
     }
   }
 }
@@ -120,7 +139,10 @@ export function stripExtension(name: string): string {
 }
 
 /** Build the canonical expected test file path for a source file. */
-export function buildExpectedTestPath(sourceFile: string, base: string): string {
+export function buildExpectedTestPath(
+  sourceFile: string,
+  base: string,
+): string {
   const dir = dirname(sourceFile);
   return `${dir}/${base}.test.ts`;
 }
