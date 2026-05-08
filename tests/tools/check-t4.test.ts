@@ -139,3 +139,107 @@ describe("checkT4Handler — with queue", () => {
     expect(text).toContain("No pending signals");
   });
 });
+
+describe("checkT4Handler — GitHub issue signals", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const ISSUE_SIGNAL = {
+    id: "sig-20260508-093000-001",
+    timestamp: "2026-05-08T09:30:00Z",
+    exception_class: "i18n",
+    severity: "warning",
+    gs_property: "Verifiable",
+    spec_ref: "docs/behavioral-contracts.md",
+    diagnosis:
+      "Industry option labels rendered in English in es-locale session",
+    suggested_update: "Add localized industry name resolution",
+    status: "pending",
+    correlation_id: "gh-issue-#2",
+    service: "jghiringhelli/invellum-frontend",
+    environment: "github",
+  };
+
+  it("renders issue heading with correlation_id", async () => {
+    writeQueue(tempDir, [ISSUE_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Issue 1:");
+    expect(text).toContain("gh-issue-#2");
+  });
+
+  it("constructs the GitHub issue URL from service + correlation_id", async () => {
+    writeQueue(tempDir, [ISSUE_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain(
+      "https://github.com/jghiringhelli/invellum-frontend/issues/2",
+    );
+  });
+
+  it("includes the BIOISO branch protocol guidance", async () => {
+    writeQueue(tempDir, [ISSUE_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("BIOISO");
+    expect(text).toContain("bioiso/gen{N}");
+    expect(text).toContain("CLAUDE.md");
+  });
+
+  it("issue resolve action says PR merged + deployed, not spec update", async () => {
+    writeQueue(tempDir, [ISSUE_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("PR merged + deployed");
+  });
+
+  it("renders BIOISO Issue Workflow section when issue signals are pending", async () => {
+    writeQueue(tempDir, [ISSUE_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("BIOISO Issue Workflow");
+    expect(text).toContain("Closes #N");
+  });
+
+  it("does NOT render T4 Cycle section when ONLY issue signals are pending", async () => {
+    writeQueue(tempDir, [ISSUE_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).not.toContain("T4 → T1 Cycle");
+  });
+
+  it("renders BOTH cycle sections when runtime AND issue signals are pending", async () => {
+    writeQueue(tempDir, [ISSUE_SIGNAL, PENDING_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("T4 → T1 Cycle");
+    expect(text).toContain("BIOISO Issue Workflow");
+  });
+
+  it("non-github signals still render with the original Signal heading", async () => {
+    writeQueue(tempDir, [PENDING_SIGNAL]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Signal 1:");
+    expect(text).not.toContain("Issue 1:");
+  });
+
+  it("github environment without gh-issue-# correlation_id is treated as runtime", async () => {
+    // Defensive: if some other tool writes a github-environment signal with a
+    // different correlation format, do not falsely route it through the issue path.
+    writeQueue(tempDir, [
+      { ...ISSUE_SIGNAL, correlation_id: "trace-xyz", environment: "github" },
+    ]);
+    const result = await checkT4Handler({ project_dir: tempDir });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Signal 1:");
+    expect(text).not.toContain("Issue 1:");
+  });
+});

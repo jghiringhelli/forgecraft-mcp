@@ -45,16 +45,17 @@ function listDirsRecursive(repoPath: string, maxDepth = 3): string[] {
   const out: string[] = [];
   function walk(dir: string, depth: number): void {
     if (depth > maxDepth) return;
-    let entries: ReturnType<typeof readdirSync>;
+    let entries: import("node:fs").Dirent[];
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      entries = readdirSync(dir, { withFileTypes: true, encoding: "utf8" });
     } catch {
       return;
     }
     for (const e of entries) {
       if (!e.isDirectory()) continue;
-      if (e.name === "node_modules" || e.name.startsWith(".")) continue;
-      const full = join(dir, e.name);
+      const name: string = e.name as string;
+      if (name === "node_modules" || name.startsWith(".")) continue;
+      const full = join(dir, name);
       out.push(full);
       walk(full, depth + 1);
     }
@@ -96,10 +97,17 @@ const SOLID: Discipline = {
   description: "Class-oriented design principles (SRP, OCP, LSP, ISP, DIP).",
   detect(repoPath) {
     const interfaceDirs = hasDirNamed(repoPath, ["interfaces", "abstractions"]);
-    const classy = hasAnyFile(repoPath, ["tsconfig.json", "pom.xml", "build.gradle", "*.csproj"]);
+    const classy = hasAnyFile(repoPath, [
+      "tsconfig.json",
+      "pom.xml",
+      "build.gradle",
+      "*.csproj",
+    ]);
     const evidence: string[] = [];
-    if (interfaceDirs.length > 0) evidence.push(`interface dirs: ${interfaceDirs.length}`);
-    if (classy.length > 0) evidence.push(`class-oriented project: ${classy.join(", ")}`);
+    if (interfaceDirs.length > 0)
+      evidence.push(`interface dirs: ${interfaceDirs.length}`);
+    if (classy.length > 0)
+      evidence.push(`class-oriented project: ${classy.join(", ")}`);
     return { applies: evidence.length > 0, evidence };
   },
   score: () => TODO_PLACEHOLDER,
@@ -109,7 +117,12 @@ const TDD: Discipline = {
   name: "TDD",
   description: "Test-driven development practice (tests present and central).",
   detect(repoPath) {
-    const testDirs = hasDirNamed(repoPath, ["tests", "test", "__tests__", "spec"]);
+    const testDirs = hasDirNamed(repoPath, [
+      "tests",
+      "test",
+      "__tests__",
+      "spec",
+    ]);
     const configs = hasAnyFile(repoPath, [
       "vitest.config.ts",
       "vitest.config.js",
@@ -120,7 +133,8 @@ const TDD: Discipline = {
     ]);
     const evidence: string[] = [];
     if (testDirs.length > 0) evidence.push(`test dirs: ${testDirs.length}`);
-    if (configs.length > 0) evidence.push(`test configs: ${configs.join(", ")}`);
+    if (configs.length > 0)
+      evidence.push(`test configs: ${configs.join(", ")}`);
     return { applies: testDirs.length > 0 || configs.length > 0, evidence };
   },
   score: () => TODO_PLACEHOLDER,
@@ -139,7 +153,8 @@ const HEXAGONAL: Discipline = {
 
 const LAYERED: Discipline = {
   name: "Layered",
-  description: "Classic n-tier separation (controllers / services / repositories).",
+  description:
+    "Classic n-tier separation (controllers / services / repositories).",
   detect(repoPath) {
     const dirs = hasDirNamed(repoPath, [
       "controllers",
@@ -158,7 +173,8 @@ const LAYERED: Discipline = {
 
 const CLEAN_ARCHITECTURE: Discipline = {
   name: "CleanArchitecture",
-  description: "Concentric rings — entities, use cases, interface adapters, frameworks.",
+  description:
+    "Concentric rings — entities, use cases, interface adapters, frameworks.",
   detect(repoPath) {
     const dirs = hasDirNamed(repoPath, [
       "entities",
@@ -175,7 +191,8 @@ const CLEAN_ARCHITECTURE: Discipline = {
 
 const DDD: Discipline = {
   name: "DDD",
-  description: "Domain-driven design vocabulary (aggregate, value object, repository).",
+  description:
+    "Domain-driven design vocabulary (aggregate, value object, repository).",
   detect(repoPath) {
     const dirs = hasDirNamed(repoPath, [
       "aggregates",

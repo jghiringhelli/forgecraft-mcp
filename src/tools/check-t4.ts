@@ -116,25 +116,67 @@ function statusIcon(status: SignalStatus): string {
   }
 }
 
+function isGitHubIssueSignal(signal: T4Signal): boolean {
+  return (
+    signal.environment === "github" &&
+    typeof signal.correlation_id === "string" &&
+    signal.correlation_id.startsWith("gh-issue-#")
+  );
+}
+
+function githubIssueUrl(signal: T4Signal): string | undefined {
+  if (
+    !isGitHubIssueSignal(signal) ||
+    !signal.service ||
+    !signal.correlation_id
+  ) {
+    return undefined;
+  }
+  const num = signal.correlation_id.replace(/^gh-issue-#/, "");
+  return `https://github.com/${signal.service}/issues/${num}`;
+}
+
 function formatSignal(signal: T4Signal, index: number): string[] {
+  const isIssue = isGitHubIssueSignal(signal);
+  const heading = isIssue
+    ? `### Issue ${index + 1}: ${severityIcon(signal.severity)} ${signal.exception_class} (${signal.correlation_id})`
+    : `### Signal ${index + 1}: ${severityIcon(signal.severity)} ${signal.exception_class}`;
+
   const lines: string[] = [
-    `### Signal ${index + 1}: ${severityIcon(signal.severity)} ${signal.exception_class}`,
+    heading,
     "",
     `**ID:** \`${signal.id}\`  **Status:** ${statusIcon(signal.status)}`,
     `**Timestamp:** ${signal.timestamp}${signal.service ? `  **Service:** ${signal.service}` : ""}`,
     "",
-    `**GS Property Violated:** ${signal.gs_property}`,
-    `**Spec Location:** \`${signal.spec_ref}\``,
-    "",
+  ];
+
+  if (isIssue) {
+    const url = githubIssueUrl(signal);
+    if (url) lines.push(`**Issue URL:** ${url}`, "");
+    lines.push(
+      "**Source:** Human-filed GitHub issue (treat as authoritative).",
+      "**Protocol:** Follow the BIOISO branch convention in `CLAUDE.md` —",
+      "create `bioiso/gen{N}/{domain}-{description}`, fix, PR, link to issue.",
+      "",
+    );
+  } else {
+    lines.push(
+      `**GS Property Violated:** ${signal.gs_property}`,
+      `**Spec Location:** \`${signal.spec_ref}\``,
+      "",
+    );
+  }
+
+  lines.push(
     "**Diagnosis:**",
     `> ${signal.diagnosis}`,
     "",
     "**Suggested Spec Update:**",
     `> ${signal.suggested_update}`,
     "",
-  ];
+  );
 
-  if (signal.correlation_id) {
+  if (!isIssue && signal.correlation_id) {
     lines.push(`**Correlation ID:** \`${signal.correlation_id}\``, "");
   }
 
@@ -142,7 +184,7 @@ function formatSignal(signal: T4Signal, index: number): string[] {
     lines.push(
       "**Actions:**",
       `- To acknowledge: \`forgecraft check_t4 acknowledge="${signal.id}"\``,
-      `- To resolve after spec update: \`forgecraft check_t4 resolve="${signal.id}"\``,
+      `- To resolve after ${isIssue ? "PR merged + deployed" : "spec update"}: \`forgecraft check_t4 resolve="${signal.id}"\``,
       "",
     );
   }
@@ -354,17 +396,40 @@ export async function checkT4Handler(args: CheckT4Input): Promise<ToolResult> {
 
   // Cycle guidance if signals present
   if (pending.length > 0) {
-    lines.push(
-      "## The T4 → T1 Cycle",
-      "",
-      "For each pending signal:",
-      "1. Read the diagnosis and suggested spec update above",
-      "2. Open the referenced spec file (`spec_ref`) and apply the update",
-      "3. Run `forgecraft generate_session_prompt` to derive the fix from the updated spec",
-      "4. Let the AI derive the code change — do not patch directly",
-      "5. Run the harness: `forgecraft run_harness`",
-      '6. Deploy and verify the T4 loop closed: `forgecraft check_t4 resolve="<id>"`',
-    );
+    const pendingIssues = pending.filter(isGitHubIssueSignal);
+    const pendingRuntime = pending.filter((s) => !isGitHubIssueSignal(s));
+
+    if (pendingRuntime.length > 0) {
+      lines.push(
+        "## The T4 → T1 Cycle (runtime signals)",
+        "",
+        "For each pending runtime signal:",
+        "1. Read the diagnosis and suggested spec update above",
+        "2. Open the referenced spec file (`spec_ref`) and apply the update",
+        "3. Run `forgecraft generate_session_prompt` to derive the fix from the updated spec",
+        "4. Let the AI derive the code change — do not patch directly",
+        "5. Run the harness: `forgecraft run_harness`",
+        '6. Deploy and verify the T4 loop closed: `forgecraft check_t4 resolve="<id>"`',
+        "",
+      );
+    }
+
+    if (pendingIssues.length > 0) {
+      lines.push(
+        "## BIOISO Issue Workflow (GitHub issue signals)",
+        "",
+        "Issue signals come from human-filed GitHub issues — treat as authoritative.",
+        "For each pending issue signal:",
+        "1. Read the issue (URL above) for full reproduction context",
+        "2. Open the referenced files in the issue body — verify against current code",
+        "3. Create a branch following the BIOISO convention: `bioiso/gen{N}/{domain}-{description}`",
+        "4. Apply the fix; run the project's test suite + type check",
+        "5. Open a PR linking the issue (`Closes #N`); wait for human review",
+        '6. After merge + deploy: `forgecraft check_t4 resolve="<id>"`',
+        "",
+        "Cross-reference: `CLAUDE.md` *Invellum BIOISO Protocol* section (or your project's equivalent).",
+      );
+    }
   }
 
   return {
