@@ -415,3 +415,6 @@ the published white paper and practitioner protocol.
 
 ### Fixed
 - **scorer**: sentinel-aware Self-describing — keyword coverage, not line count (`5552913`)
+
+### Fixed
+- **sentinel**: TypeScript error on readdirSync Dirent typing (`0cd52c2`)
