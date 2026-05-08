@@ -1,0 +1,75 @@
+id: doc-cascade-required
+title: Documentation Cascade Required for Code Changes
+domain: documentation
+phase: development
+priority: P1
+description: >
+  Code changes must propagate to documentation in a structured cascade:
+  feat → spec touched (and ideally use-case + schema); fix → regression test
+  added (decision optional). This is the GS anti-drift requirement: the spec
+  is the source of truth, and code/tests are derivations from it. Running
+  this gate enforces the docs/manifest.yaml cascade rules.
+check:
+  type: cascade_compliance
+  manifest: docs/manifest.yaml
+  fallback: templates/docs-manifest.yaml
+  rules:
+    feat:
+      requires_one_of:
+        - documents.specs.path
+        - documents.specs.legacy_files
+      encourages:
+        - documents.use_cases.path
+        - documents.schemas.path
+    fix:
+      requires_one_of:
+        - tests
+      encourages:
+        - documents.decisions.path
+    refactor:
+      encourages:
+        - documents.adrs.active_path
+        - documents.decisions.path
+    perf:
+      encourages:
+        - documents.decisions.path
+        - documents.schemas.path
+failureMessage: >
+  Conventional-commit type does not match the docs/code cascade. A `feat:` change
+  must touch a spec; a `fix:` change must include a regression test. Without this,
+  documentation drifts away from implementation and the GS spec → code derivation
+  is broken.
+fixHint: >
+  Read docs/manifest.yaml. For feat: add or update a doc in docs/specs/.
+  For fix: stage a regression test in tests/. For refactor making an architectural
+  choice: add docs/adrs/active/ADR-NNNN-slug.md. Severity is configurable per
+  commit type via cascade_overrides.<type>.severity (info | warning | error) in
+  docs/manifest.yaml — start at warning during legacy migration, bump to error
+  once the project's baseline is clean.
+evidence: >
+  Documentation drift is the dominant failure mode for AI-assisted teams. When
+  the AI changes code without updating docs, the spec stops being the source of
+  truth and becomes lagging documentation. The cascade rule, enforced at
+  commit-msg + CI, makes drift a build failure rather than a silent erosion.
+generalizable: true
+tags:
+  - documentation
+  - anti-drift
+  - cascade
+layers:
+  - layer: L1
+    description: >
+      Blueprint completeness: every code change carries a contract about
+      whether docs need updating, declared by the conventional-commit type.
+    when: >
+      Fire when src/ files are staged or in a PR diff and the manifest
+      cascade for that commit type is not satisfied.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: high
+impact: high
+confidence: high

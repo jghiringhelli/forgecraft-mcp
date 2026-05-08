@@ -1,0 +1,56 @@
+id: human-judgment-required
+title: Human Judgment Required Before Merge to Protected Branches
+domain: governance
+phase: integration
+priority: P0
+description: >
+  No untested or unreviewed code reaches protected branches. Even when AI agents
+  produce a clean diff, a human must explicitly review and approve before merge.
+  This is the GS judgment-layer requirement: AI accelerates production, humans
+  ratify direction. Without this gate, AI-generated code can flow to prod with
+  no judgment checkpoint — the dominant new failure mode in 2025-2026 teams.
+check:
+  type: pr_governance
+  manifest: docs/manifest.yaml
+  rules:
+    protected_branches: [main, develop]
+    require_review: true
+    min_reviewers: 1                  # 0 in solo mode
+    require_tests_pass: true          # status check `ci` must succeed
+    require_human_ack: true           # at least one comment/review from non-author
+    block_ai_only_merge: true         # disallow merge with zero non-author interaction
+failureMessage: >
+  PR cannot merge: human judgment requirements not satisfied. Either tests are
+  failing, no human reviewer has approved, or the only interactions on the PR
+  are from the author. Protected branches enforce a human checkpoint regardless
+  of how clean the AI-produced diff looks.
+fixHint: >
+  Wait for a human reviewer to approve the PR. If you are the sole maintainer,
+  set human_judgment_overrides.min_reviewers to 0 in docs/manifest.yaml (solo
+  mode); branch protection still requires PR + checks. For team mode, ensure
+  CODEOWNERS or branch protection routes the PR to at least one human reviewer.
+evidence: >
+  Branch protection enforces this at the GitHub layer; this gate documents and
+  validates the contract at the manifest layer. Together they form a redundant
+  "human-in-the-loop" requirement that the AI cannot route around — the AI cannot
+  create approvals on its own PRs, and the protected branch refuses merge
+  without them.
+generalizable: true
+tags:
+  - governance
+  - human-in-the-loop
+  - branch-protection
+layers:
+  - layer: L1
+    description: >
+      Governance layer: even a perfect implementation must pass through
+      human ratification before reaching shared/production state.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: high
+impact: critical
+confidence: high

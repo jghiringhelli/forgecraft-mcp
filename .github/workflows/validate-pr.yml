@@ -86,3 +86,100 @@ jobs:
           else
             echo "✅ No scope drift detected"
           fi
+
+      - name: Doc cascade check
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          TYPE=$(echo "$TITLE" | grep -oP '^(feat|fix|refactor|docs|test|chore|ci|perf|revert)')
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD" 2>/dev/null || true)
+
+          SRC=$(echo "$CHANGED" | grep -E '^src/' || true)
+          SPECS=$(echo "$CHANGED" | grep -E '^docs/(specs/|PRD\.md|spec\.md|forgecraft-spec\.md|forgekit-spec\.md)' || true)
+          USECASES=$(echo "$CHANGED" | grep -E '^docs/(use-cases/|use-cases\.md)' || true)
+          ADRS=$(echo "$CHANGED" | grep -E '^docs/(adrs?/)' || true)
+          SCHEMAS=$(echo "$CHANGED" | grep -E '^docs/(schemas/|schema\.md|diagrams/)' || true)
+          DECISIONS=$(echo "$CHANGED" | grep -E '^docs/decisions/' || true)
+          TESTS=$(echo "$CHANGED" | grep -E '(test|spec|__tests__|\.test\.|\.spec\.)' | grep -v '^docs/' || true)
+
+          # Severity defaults to warning for legacy projects.
+          # Read docs/manifest.yaml cascade_overrides.<type>.severity if present.
+          SEVERITY="warning"
+          if [ -f "docs/manifest.yaml" ]; then
+            S=$(grep -E "^\s*${TYPE}\.severity:" docs/manifest.yaml | head -1 | sed -E 's/.*:\s*//' | tr -d ' "' || true)
+            [ -n "$S" ] && SEVERITY="$S"
+          fi
+
+          VIOLATIONS=0
+          if [ "$TYPE" = "feat" ] && [ -n "$SRC" ] && [ -z "$SPECS" ]; then
+            echo "❌ feat: PR changes src/ but no spec touched (docs/specs/ or legacy docs/PRD.md, etc.)"
+            VIOLATIONS=$((VIOLATIONS+1))
+          fi
+          if [ "$TYPE" = "fix" ] && [ -n "$SRC" ] && [ -z "$TESTS" ]; then
+            echo "❌ fix: PR changes src/ but no regression test added/modified"
+            VIOLATIONS=$((VIOLATIONS+1))
+          fi
+
+          if [ $VIOLATIONS -gt 0 ]; then
+            echo ""
+            if [ "$SEVERITY" = "error" ]; then
+              echo "   Severity is 'error' (per docs/manifest.yaml) — PR blocked."
+              exit 1
+            else
+              echo "   Severity is '$SEVERITY' — advisory only, not blocking."
+              echo "   Bump cascade_overrides.${TYPE}.severity to 'error' in docs/manifest.yaml when ready to enforce."
+            fi
+          else
+            echo "✅ Doc cascade satisfied for type=$TYPE"
+          fi
+
+      - name: Human judgment gate
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Reads human_judgment_overrides from docs/manifest.yaml.
+          # In solo mode (min_reviewers: 0), this step only logs.
+          MIN_REVIEWERS=1
+          BLOCK_AI_ONLY=true
+          REQUIRE_HUMAN_ACK=true
+
+          if [ -f "docs/manifest.yaml" ]; then
+            M=$(grep -E '^\s*min_reviewers:' docs/manifest.yaml | head -1 | sed -E 's/.*:\s*//' | tr -d ' ')
+            [ -n "$M" ] && MIN_REVIEWERS="$M"
+            B=$(grep -E '^\s*block_ai_only_merge:' docs/manifest.yaml | head -1 | sed -E 's/.*:\s*//' | tr -d ' ')
+            [ -n "$B" ] && BLOCK_AI_ONLY="$B"
+            R=$(grep -E '^\s*require_human_ack:' docs/manifest.yaml | head -1 | sed -E 's/.*:\s*//' | tr -d ' ')
+            [ -n "$R" ] && REQUIRE_HUMAN_ACK="$R"
+          fi
+
+          echo "Settings: min_reviewers=$MIN_REVIEWERS  block_ai_only=$BLOCK_AI_ONLY  require_human_ack=$REQUIRE_HUMAN_ACK"
+
+          if [ "$MIN_REVIEWERS" = "0" ]; then
+            echo "✅ Solo mode — human judgment gate logged but not enforced (PR + checks still required by branch protection)."
+            exit 0
+          fi
+
+          # Count APPROVED reviews
+          APPROVALS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviews --jq '[.reviews[] | select(.state=="APPROVED")] | length')
+          echo "Approvals: $APPROVALS / $MIN_REVIEWERS required"
+
+          if [ "$APPROVALS" -lt "$MIN_REVIEWERS" ]; then
+            echo "❌ PR has $APPROVALS approval(s); $MIN_REVIEWERS required."
+            echo "   Human-in-the-loop gate: code may not merge to protected branches without human approval."
+            exit 1
+          fi
+
+          if [ "$BLOCK_AI_ONLY" = "true" ]; then
+            # Detect "AI-only" merge: only the author has commented or interacted.
+            HUMAN_REVIEWERS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json reviews --jq "[.reviews[] | select(.author.login != \"$PR_AUTHOR\")] | length")
+            if [ "$HUMAN_REVIEWERS" = "0" ]; then
+              echo "❌ No reviewer other than the PR author. AI-only merge is blocked."
+              exit 1
+            fi
+          fi
+
+          echo "✅ Human judgment gate satisfied"
