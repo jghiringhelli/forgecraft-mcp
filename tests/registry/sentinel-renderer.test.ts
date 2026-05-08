@@ -27,7 +27,11 @@ const context: RenderContext = {
 };
 
 /** Minimal helper to build an InstructionBlock for tests. */
-function makeBlock(id: string, title: string, content: string): InstructionBlock {
+function makeBlock(
+  id: string,
+  title: string,
+  content: string,
+): InstructionBlock {
   return { id, title, content };
 }
 
@@ -87,7 +91,10 @@ describe("renderSentinelTree — structure", () => {
   });
 
   it("produces_separate_domain_file_per_domain", () => {
-    const files = renderSentinelTree([architectureBlock, testingBlock], context);
+    const files = renderSentinelTree(
+      [architectureBlock, testingBlock],
+      context,
+    );
     const paths = files.map((f) => f.relativePath);
     expect(paths).toContain(".claude/standards/architecture.md");
     expect(paths).toContain(".claude/standards/testing.md");
@@ -97,7 +104,10 @@ describe("renderSentinelTree — structure", () => {
   });
 
   it("domain_file_paths_match_pattern", () => {
-    const files = renderSentinelTree([architectureBlock, testingBlock], context);
+    const files = renderSentinelTree(
+      [architectureBlock, testingBlock],
+      context,
+    );
     const domainFiles = files.filter((f) => f.relativePath !== "CLAUDE.md");
     expect(domainFiles.length).toBeGreaterThan(0);
     for (const file of domainFiles) {
@@ -150,7 +160,10 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
   });
 
   it("claude_md_does_not_contain_wayfinding_table", () => {
-    const files = renderSentinelTree([architectureBlock, testingBlock], context);
+    const files = renderSentinelTree(
+      [architectureBlock, testingBlock],
+      context,
+    );
     const { content } = claudeMd(files);
     // Wayfinding is now in .claude/index.md, not CLAUDE.md
     expect(content).not.toContain(".claude/standards/architecture.md");
@@ -163,6 +176,24 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
     const { content } = claudeMd(files);
     // "API" tag (non-universal) should appear lowercased in description
     expect(content).toContain("api");
+  });
+
+  it("universal_tag_is_excluded_from_description", () => {
+    // Kills ConditionalExpression L170 and MethodExpression L170:
+    // filter always-true keeps "UNIVERSAL" → appears in description
+    // filter removed (MethodExpression) → same issue
+    const files = renderSentinelTree([architectureBlock], context);
+    const { content } = claudeMd(files);
+    expect(content.toLowerCase()).not.toContain("universal");
+  });
+
+  it("fallback_comment_when_no_tags_and_no_domain", () => {
+    // Kills EqualityOperator L174 (>0 → >=0) and ConditionalExpression L174 (always true)
+    // With either mutation, tag-based description fires even with empty tag list
+    const noTagCtx: RenderContext = { ...context, tags: [], domain: "none" };
+    const files = renderSentinelTree([architectureBlock], noTagCtx);
+    const { content } = claudeMd(files);
+    expect(content).toContain("FILL:");
   });
 
   it("uses_domain_in_description_when_domain_is_set", () => {
@@ -195,7 +226,10 @@ describe("renderSentinelTree — domain file content", () => {
   });
 
   it("domain_file_only_contains_its_own_domain_blocks", () => {
-    const files = renderSentinelTree([architectureBlock, testingBlock], context);
+    const files = renderSentinelTree(
+      [architectureBlock, testingBlock],
+      context,
+    );
     const archFile = getFile(files, ".claude/standards/architecture.md");
     const testFile = getFile(files, ".claude/standards/testing.md");
     // Architecture content in architecture file, not testing file
@@ -223,15 +257,18 @@ describe("renderSentinelTree — domain file content", () => {
   });
 
   it("empty_block_content_is_not_added_to_domain_file", () => {
-    const emptyBlock = makeBlock("solid-principles", "SOLID", "   \n  \n  ");
+    // Kills ConditionalExpression L127: if (rendered) → if (true)
+    // With mutation, two empty strings get pushed, adding 2 extra lines to the file.
+    // "production-code-standards" maps to "architecture" domain.
+    const emptyBlock = makeBlock(
+      "production-code-standards",
+      "SOLID",
+      "   \n  \n  ",
+    );
     const files = renderSentinelTree([emptyBlock], context);
-    const archFile = files.find((f) => f.relativePath === ".claude/standards/architecture.md");
-    if (archFile) {
-      // With `if (rendered) → if (true)` mutation, two empty strings get pushed,
-      // increasing line count beyond header (1 line) + trailing blank (1 line).
-      const lineCount = archFile.content.split("\n").length;
-      expect(lineCount).toBeLessThanOrEqual(3);
-    }
+    const archFile = getFile(files, ".claude/standards/architecture.md");
+    const lineCount = archFile.content.split("\n").length;
+    expect(lineCount).toBeLessThanOrEqual(3);
   });
 
   it("unknown_domain_description_falls_back_to_domain_name", () => {
@@ -256,5 +293,3 @@ describe("renderSentinelTree — domain file content", () => {
     expect(content).not.toContain("protocols.md");
   });
 });
-
-

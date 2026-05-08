@@ -22,6 +22,7 @@ import { analyzeProject } from "../analyzers/package-json.js";
 import { loadUserOverrides } from "../registry/loader.js";
 import { formatReport } from "./verify-formatter.js";
 import type { VerifyResult, Tag } from "../shared/types.js";
+import { computeMaturityTier } from "../shared/types.js";
 
 // ── Schema ─────────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ export async function verifyHandler(
 
   const totalScore = propertyScores.reduce((sum, p) => sum + p.score, 0);
   const overallPass = testSuite.passed && totalScore >= args.pass_threshold;
+  const maturityTier = computeMaturityTier(totalScore);
 
   const result: VerifyResult = {
     testSuite,
@@ -93,6 +95,7 @@ export async function verifyHandler(
     layerViolations,
     missingTestFiles,
     overallPass,
+    maturityTier,
   };
 
   const report = formatReport(result, args.pass_threshold);

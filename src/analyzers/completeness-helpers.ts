@@ -79,6 +79,30 @@ export function checkFileExists(
 }
 
 /**
+ * Pass if any of the candidate paths exists. Used for canonical+legacy fallbacks
+ * (e.g. docs/specs/PRD.md OR docs/PRD.md). The first existing path is reported.
+ */
+export function checkAnyFileExists(
+  projectDir: string,
+  candidates: readonly string[],
+  checkId: string,
+  description: string,
+  passing: AuditCheck[],
+  failing: AuditCheck[],
+): void {
+  const found = candidates.find((p) => existsSync(join(projectDir, p)));
+  if (found) {
+    passing.push({ check: checkId, message: `✅ ${found} exists` });
+  } else {
+    failing.push({
+      check: checkId,
+      message: `none of [${candidates.join(", ")}] found — ${description}`,
+      severity: "error",
+    });
+  }
+}
+
+/**
  * Check if Status.md was updated recently (within 7 days).
  *
  * @param projectDir - Absolute path to project root

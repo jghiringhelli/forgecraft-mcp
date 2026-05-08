@@ -1,0 +1,45 @@
+id: executable-harness-evidence
+title: No Harness Execution Evidence at Pre-Release
+domain: test-quality
+phase: pre-release
+priority: P1
+description: >
+  The project has L2 harness probes defined but no evidence of harness execution
+  (.forgecraft/harness-run.json). At pre-release, behavioral contracts must have
+  been executed against a running system, not just defined. A harness that has
+  never run is a spec without a test.
+check:
+  type: file_system
+  condition: file_missing
+  paths:
+    - .forgecraft/harness-run.json
+failureMessage: >
+  No harness execution evidence found. Run run_harness before promoting to
+  pre-release — behavioral contracts must be verified against the running system.
+fixHint: >
+  Run: forgecraft run_harness --project_dir .
+  Then review results — failed probes are specification violations, not test
+  failures. Regenerate from spec; do not patch code.
+evidence: >
+  A harness spec that has never been executed provides no runtime evidence.
+  The GS Executable property requires CI evidence of real execution against
+  behavioral contracts, not just the existence of test files.
+generalizable: true
+layers:
+  - layer: L2
+    description: >
+      Execution evidence gate: the harness must have run, not just been defined.
+      This gate is the bridge between "probes exist" (L2 spec) and "probes pass"
+      (L2 verified). Without harness-run.json, L2 completeness is unverifiable.
+    when: >
+      Fire at pre-release when .forgecraft/harness-run.json does not exist.
+      Does not fire during development — probes may be scaffolded but not yet run.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: high
+impact: high
+confidence: high

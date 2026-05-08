@@ -6,12 +6,13 @@
  * stateless agent given the artifact set should be able to derive any valid
  * implementation state without further human direction.
  *
- * Five-step cascade (§6.2):
+ * Six-step cascade (§6.2):
  *   1. Functional specification  — user-facing behavior and domain model
  *   2. Architecture + C4 diagrams — layered structure and component map
  *   3. Architectural constitution — operative grammar (CLAUDE.md / equivalent)
  *   4. ADRs                       — non-obvious decisions recorded before impl
  *   5. Use cases + behavioral contracts / Status.md next steps
+ *   6. Schema definitions         — vocabulary of the system (DB, API, event)
  */
 
 import { z } from "zod";
@@ -29,6 +30,7 @@ import {
 import {
   checkAdrs,
   checkBehavioralContracts,
+  checkSchemaDefinitions,
 } from "./check-cascade-contracts.js";
 import {
   writeInitialSessionPromptIfAbsent,
@@ -56,8 +58,13 @@ export {
   detectPlaceholderTestScript,
   checkAdrs,
   checkBehavioralContracts,
+  checkSchemaDefinitions,
+  SCHEMA_ARTIFACT_PATHS,
 } from "./check-cascade-contracts.js";
-export { writeInitialSessionPromptIfAbsent, formatReport } from "./check-cascade-report.js";
+export {
+  writeInitialSessionPromptIfAbsent,
+  formatReport,
+} from "./check-cascade-report.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -82,7 +89,9 @@ export function loadCascadeDecisions(projectDir: string): CascadeDecision[] {
   const yamlPath = join(projectDir, "forgecraft.yaml");
   if (!existsSync(yamlPath)) return [];
   try {
-    const config = yaml.load(readFileSync(yamlPath, "utf-8")) as ForgeCraftConfig;
+    const config = yaml.load(
+      readFileSync(yamlPath, "utf-8"),
+    ) as ForgeCraftConfig;
     return (config?.cascade?.steps as CascadeDecision[] | undefined) ?? [];
   } catch {
     return [];
@@ -108,6 +117,7 @@ export function runCascadeChecks(
     checkConstitution(projectDir),
     checkAdrs(projectDir),
     checkBehavioralContracts(projectDir),
+    checkSchemaDefinitions(projectDir),
   ];
 
   if (decisions.length === 0) return rawSteps;
@@ -121,6 +131,7 @@ export const STEP_TO_DECISION_NAME: Readonly<Record<number, string>> = {
   3: "constitution",
   4: "adrs",
   5: "behavioral_contracts",
+  6: "schema_definitions",
 };
 
 /**
@@ -139,7 +150,11 @@ function applyDecision(
 
   if (!decision) return step;
   if (decision.required) return step;
-  if (step.status === "FAIL" || step.status === "STUB" || step.status === "WARN") {
+  if (
+    step.status === "FAIL" ||
+    step.status === "STUB" ||
+    step.status === "WARN"
+  ) {
     return {
       step: step.step,
       name: step.name,
@@ -165,7 +180,9 @@ export async function checkCascadeHandler(
   const steps = runCascadeChecks(projectDir, decisions);
 
   const passingCount = steps.filter((s) => s.status === "PASS").length;
-  const failingCount = steps.filter((s) => s.status === "FAIL" || s.status === "STUB").length;
+  const failingCount = steps.filter(
+    (s) => s.status === "FAIL" || s.status === "STUB",
+  ).length;
   const noCascadeConfig = decisions.length === 0;
 
   if (failingCount === 0) {
@@ -173,7 +190,12 @@ export async function checkCascadeHandler(
   }
 
   return {
-    content: [{ type: "text", text: formatReport(steps, passingCount, failingCount, noCascadeConfig) }],
+    content: [
+      {
+        type: "text",
+        text: formatReport(steps, passingCount, failingCount, noCascadeConfig),
+      },
+    ],
   };
 }
 
@@ -186,7 +208,9 @@ export async function checkCascadeHandler(
  * @returns Whether the cascade is complete enough to proceed
  */
 export function isCascadeComplete(steps: readonly _CascadeStep[]): boolean {
-  return steps.every((s) => s.status === "PASS" || s.status === "WARN" || s.status === "SKIP");
+  return steps.every(
+    (s) => s.status === "PASS" || s.status === "WARN" || s.status === "SKIP",
+  );
 }
 
 /**
@@ -196,7 +220,9 @@ export function isCascadeComplete(steps: readonly _CascadeStep[]): boolean {
  * @returns Markdown-formatted remediation guidance
  */
 export function buildGuidedRemediation(steps: readonly _CascadeStep[]): string {
-  const failing = steps.filter((s) => s.status === "FAIL" || s.status === "STUB");
+  const failing = steps.filter(
+    (s) => s.status === "FAIL" || s.status === "STUB",
+  );
   if (failing.length === 0) return "All cascade steps are complete.";
 
   const firstFailing = failing[0]!;
@@ -232,11 +258,19 @@ export function buildGuidedRemediation(steps: readonly _CascadeStep[]): string {
  */
 export function getArtifactPath(step: number): string {
   switch (step) {
-    case 1: return "docs/PRD.md";
-    case 2: return "docs/diagrams/c4-context.md";
-    case 3: return "CLAUDE.md";
-    case 4: return "docs/adrs/ADR-0001.md";
-    case 5: return "docs/use-cases.md";
-    default: return "docs/";
+    case 1:
+      return "docs/PRD.md";
+    case 2:
+      return "docs/diagrams/c4-context.md";
+    case 3:
+      return "CLAUDE.md";
+    case 4:
+      return "docs/adrs/ADR-0001.md";
+    case 5:
+      return "docs/use-cases.md";
+    case 6:
+      return "openapi.yaml";
+    default:
+      return "docs/";
   }
 }

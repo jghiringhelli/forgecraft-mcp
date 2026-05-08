@@ -1,0 +1,13 @@
+service: forgecraft-mcp
+title: ForgeCraft MCP Latency + Correctness Contracts
+nfr_source: docs/nfr-contracts.md
+probes:
+  - id: probe-tool-latency
+    type: slo_assertion
+    description: MCP tool response p99 latency < 2000ms under normal load
+  - id: probe-test-pass-rate
+    type: metric_present
+    description: Test suite pass rate tracked in CI
+  - id: probe-correctness
+    type: slo_assertion
+    description: Gate evaluation correctness >= 95% (no false positives on known-good projects)

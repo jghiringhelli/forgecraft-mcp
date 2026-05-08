@@ -6,6 +6,14 @@
 
 import type { Tag, ToolResult } from "../shared/types.js";
 import type { ForgecraftArgs } from "./forgecraft-schema.js";
+import type { GenerateEnvProbeInput } from "./generate-env-probe.js";
+import type { RunEnvProbeInput } from "./run-env-probe.js";
+import type { GenerateSloProbeInput } from "./generate-slo-probe.js";
+import type { RunSloProbeInput } from "./run-slo-probe.js";
+import type { ProposeSessionInput } from "./propose-session.js";
+import type { CheckSpecConsistencyInput } from "./check-spec-consistency.js";
+import type { SetupMonitoringInput } from "./setup-monitoring.js";
+import type { CheckT4Input } from "./check-t4.js";
 import { generateAdrHandler } from "./generate-adr.js";
 import { contributeGates } from "./contribute-gate.js";
 import { generateDiagramHandler } from "./generate-diagram.js";
@@ -19,6 +27,8 @@ import {
   errorResult,
   unknownActionResult,
 } from "./forgecraft-dispatch-helpers.js";
+import { generateHarnessHandler } from "./generate-harness.js";
+import { runHarnessHandler } from "./run-harness.js";
 
 /**
  * Dispatch governance, generation, and hardening actions.
@@ -135,6 +145,124 @@ export async function dispatchExtendedAction(
       return startHardeningHandler(
         args as Parameters<typeof startHardeningHandler>[0],
       );
+
+    case "generate_harness":
+      return generateHarnessHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "generate_harness",
+        ),
+        uc_ids: args.harness_uc_ids,
+        force: args.force,
+      });
+
+    case "run_harness":
+      return runHarnessHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "run_harness",
+        ),
+        uc_ids: args.harness_uc_ids,
+        timeout_ms: args.harness_timeout_ms,
+      });
+
+    case "generate_env_probe": {
+      const { generateEnvProbeHandler } =
+        await import("./generate-env-probe.js");
+      return generateEnvProbeHandler(args as unknown as GenerateEnvProbeInput);
+    }
+
+    case "run_env_probe": {
+      const { runEnvProbeHandler } = await import("./run-env-probe.js");
+      return runEnvProbeHandler(args as unknown as RunEnvProbeInput);
+    }
+
+    case "generate_slo_probe": {
+      const { generateSloProbeHandler } =
+        await import("./generate-slo-probe.js");
+      return generateSloProbeHandler(args as unknown as GenerateSloProbeInput);
+    }
+
+    case "run_slo_probe": {
+      const { runSloProbeHandler } = await import("./run-slo-probe.js");
+      return runSloProbeHandler(args as unknown as RunSloProbeInput);
+    }
+
+    case "propose_session": {
+      const { proposeSessionHandler } = await import("./propose-session.js");
+      return proposeSessionHandler(args as unknown as ProposeSessionInput);
+    }
+
+    case "check_spec_consistency": {
+      const { checkSpecConsistencyHandler } =
+        await import("./check-spec-consistency.js");
+      return checkSpecConsistencyHandler(
+        args as unknown as CheckSpecConsistencyInput,
+      );
+    }
+
+    case "change_request": {
+      const { changeRequestHandler } = await import("./change-request.js");
+      return changeRequestHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "change_request",
+        ),
+        title: requireParam(
+          args.change_title,
+          "change_title",
+          "change_request",
+        ),
+        description: requireParam(
+          args.change_description,
+          "change_description",
+          "change_request",
+        ),
+        type: requireParam(args.change_type, "change_type", "change_request"),
+        breaking: args.change_breaking,
+        breaking_details: args.change_breaking_details,
+        supersedes_adr: args.change_supersedes_adr,
+        affected_artifacts: args.change_affected_artifacts,
+      });
+    }
+
+    case "list_changes": {
+      const { listChangesHandler } = await import("./change-request.js");
+      return listChangesHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "list_changes",
+        ),
+        status: args.changes_status_filter,
+      });
+    }
+
+    case "setup_monitoring": {
+      const { setupMonitoringHandler } = await import("./setup-monitoring.js");
+      return setupMonitoringHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "setup_monitoring",
+        ),
+        project_name: args.project_name,
+        force: args.monitoring_force,
+      } as SetupMonitoringInput);
+    }
+
+    case "check_t4": {
+      const { checkT4Handler } = await import("./check-t4.js");
+      return checkT4Handler({
+        project_dir: requireParam(args.project_dir, "project_dir", "check_t4"),
+        acknowledge: args.t4_acknowledge,
+        resolve: args.t4_resolve,
+        show_resolved: args.t4_show_resolved,
+      } as CheckT4Input);
+    }
 
     default:
       return unknownActionResult(action);

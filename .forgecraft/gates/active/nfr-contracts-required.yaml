@@ -1,0 +1,57 @@
+id: nfr-contracts-required
+title: Non-Functional Requirement Contracts Missing
+domain: api-contract
+phase: pre-release
+priority: P1
+description: >
+  An API or production project has no executable NFR contracts — no latency bounds,
+  throughput floors, or availability SLAs stated as formal assertions. NFRs documented
+  only as prose ("should be fast") are not contracts; they are aspirations.
+  At L1, SLA and throughput floors must be declared as gates in the spec, not
+  operational targets reviewed at launch.
+check:
+  type: file_system
+  condition: file_missing
+  paths:
+    - docs/nfr-contracts.md
+    - docs/nfr-contracts.yaml
+    - docs/performance-contracts.md
+failureMessage: >
+  No NFR contract artifact found. Latency, throughput, and availability are
+  unspecified — the system has no machine-checkable performance obligations.
+fixHint: >
+  Create docs/nfr-contracts.md with at least one measurable assertion
+  (e.g., p99 latency ≤ 200ms at 100 RPS). Run generate_harness to add
+  load test probe scaffolding.
+evidence: >
+  Production systems routinely ship without explicit SLA artifacts, discovering
+  performance requirements only after user complaints. An NFR contract written
+  before implementation changes what gets built, not just what gets measured.
+generalizable: true
+tags:
+  - API
+  - PRODUCTION
+layers:
+  - layer: L1
+    description: >
+      Blueprint obligation: SLA and throughput floors declared as formal artifacts
+      are part of the L1 blueprint. A system without NFR contracts is incomplete
+      at the specification level — the AI has no postcondition to verify performance against.
+    when: >
+      Fire when project has API or PRODUCTION tag and no NFR contract artifact
+      exists in docs/. Gate blocks pre-release promotion.
+  - layer: L2
+    description: >
+      Harness target: load test probes and latency assertions in .forgecraft/harness/
+      are the L2 verification of NFR contracts. Without the contract artifact,
+      there is no spec to probe against.
+    when: Fire when NFR contracts are missing AND harness probes reference performance assertions.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: high
+impact: high
+confidence: high

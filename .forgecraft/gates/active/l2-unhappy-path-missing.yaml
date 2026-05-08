@@ -1,0 +1,44 @@
+id: l2-unhappy-path-missing
+title: L2 Unhappy Path Coverage Missing
+description: >
+  A use case that documents Error Cases in docs/use-cases.md must have at least one
+  error probe file (tests/harness/uc-NNN-error-*.ext). Without error probes,
+  the behavioral harness only verifies the happy path, leaving error branches
+  unexercised and postconditions unverified for failure scenarios.
+domain: test-quality
+implementation: logic
+gsProperty: verifiable
+phase: development
+hook: close-cycle
+os: cross-platform
+check: >
+  For each UC that has Error Cases listed in docs/use-cases.md,
+  verify that at least one file matching tests/harness/uc-NNN-error-*.* exists.
+passCriterion: Every UC with Error Cases has at least one error probe file.
+failureMessage: >
+  Use cases with documented Error Cases have no error probe files.
+  Error paths are unverified — system behavior under failure conditions is unknown.
+fixHint: Run generate_harness to scaffold error probe stubs, then implement them.
+layers:
+  - layer: L2
+    description: Enforces unhappy-path coverage in the behavioral harness. Fires when error scenarios have no executable probe.
+    when: UC documents Error Cases in docs/use-cases.md but tests/harness/ has no uc-NNN-error-*.* files.
+priority: P1
+likelihood: high
+impact: medium
+confidence: high
+status: ready
+source: project
+discoveredBy: ai
+generalizable: true
+addedAt: "2026-04-17T00:00:00.000Z"
+evidence: >
+  Error paths are the most common source of production incidents.
+  A happy-path-only harness gives false confidence that the system
+  handles failure scenarios correctly when it does not.
+convergenceAttributes:
+  prescriptive: true
+  agnostic: true
+  promptHealthy: true
+  deterministic: true
+  convergent: true

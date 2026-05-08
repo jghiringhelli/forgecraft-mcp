@@ -1,17 +1,24 @@
 /**
- * Self-describing scorer: instruction file exists, is substantive, and covers
- * architecture / conventions / decisions.
+ * Self-describing scorer: instruction file exists and covers architecture/convention keywords.
+ *
+ * Sentinel-aware: a compact CLAUDE.md that navigates to the right docs is better
+ * than a verbose file that repeats them. Line count is irrelevant — keyword coverage
+ * is the signal.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { GsPropertyScore } from "../../shared/types.js";
-import { gs, MIN_INSTRUCTION_FILE_LINES, INSTRUCTION_COVERAGE_KEYWORDS, MIN_KEYWORD_HITS } from "./scorer-utils.js";
+import {
+  gs,
+  INSTRUCTION_COVERAGE_KEYWORDS,
+  MIN_KEYWORD_HITS,
+} from "./scorer-utils.js";
 
 /**
  * Score the Self-describing GS property.
- * 2 = instruction file found, substantive, covers architecture/convention keywords.
- * 1 = file found but short or missing keywords.
+ * 2 = instruction file exists and covers ≥ MIN_KEYWORD_HITS architecture/convention keywords.
+ * 1 = file exists but covers fewer keywords (present but not describing the architecture).
  * 0 = no instruction file found.
  */
 export function scoreSelfDescribing(projectDir: string): GsPropertyScore {
@@ -31,27 +38,26 @@ export function scoreSelfDescribing(projectDir: string): GsPropertyScore {
   }
 
   let content = "";
-  try { content = readFileSync(join(projectDir, found), "utf-8"); } catch { /* empty */ }
-  const lines = content.split("\n").filter((l) => l.trim().length > 0);
-
-  if (lines.length < MIN_INSTRUCTION_FILE_LINES) {
-    return gs("self-describing", 1, [
-      `${found} found but only ${lines.length} non-empty lines (< ${MIN_INSTRUCTION_FILE_LINES} — treat as stub)`,
-    ]);
+  try {
+    content = readFileSync(join(projectDir, found), "utf-8");
+  } catch {
+    /* empty */
   }
 
   const lower = content.toLowerCase();
   const hits = INSTRUCTION_COVERAGE_KEYWORDS.filter((kw) => lower.includes(kw));
 
-  if (hits.length < MIN_KEYWORD_HITS) {
-    return gs("self-describing", 1, [
-      `${found} found (${lines.length} lines) but covers fewer than ${MIN_KEYWORD_HITS} architecture/convention keywords`,
-      `Missing keywords: ${INSTRUCTION_COVERAGE_KEYWORDS.filter((kw) => !lower.includes(kw)).slice(0, 5).join(", ")}`,
+  if (hits.length >= MIN_KEYWORD_HITS) {
+    return gs("self-describing", 2, [
+      `${found} found — covers: ${hits.join(", ")}`,
     ]);
   }
 
-  return gs("self-describing", 2, [
-    `${found} found — ${lines.length} non-empty lines`,
-    `Covers: ${hits.join(", ")}`,
+  const missing = INSTRUCTION_COVERAGE_KEYWORDS.filter(
+    (kw) => !lower.includes(kw),
+  );
+  return gs("self-describing", 1, [
+    `${found} found but covers fewer than ${MIN_KEYWORD_HITS} architecture/convention keywords`,
+    `Add navigation or constraints referencing: ${missing.slice(0, 5).join(", ")}`,
   ]);
 }

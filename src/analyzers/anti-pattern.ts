@@ -9,6 +9,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, extname } from "node:path";
 import { createLogger } from "../shared/logger/index.js";
 import { listAllFiles } from "./folder-structure.js";
+import { readExceptions, findMatchingException } from "../shared/exceptions.js";
 import type { AuditCheck } from "../shared/types.js";
 
 const logger = createLogger("analyzers/anti-pattern");
@@ -34,6 +35,7 @@ export function scanAntiPatterns(
   const cfg: ScanConfig = { ...DEFAULT_CONFIG, ...config };
   const violations: AuditCheck[] = [];
   const warnings: AuditCheck[] = [];
+  const exceptions = readExceptions(projectDir);
 
   const allFiles = listAllFiles(projectDir);
   const sourceFiles = allFiles.filter((f) => isSourceFile(f) && !isTestFile(f));
@@ -51,8 +53,11 @@ export function scanAntiPatterns(
       const content = readFileSync(fullPath, "utf-8");
       const lines = content.split("\n");
 
-      // Check file length
-      if (lines.length > cfg.maxFileLength) {
+      // Check file length (skip when exempted)
+      if (
+        lines.length > cfg.maxFileLength &&
+        !findMatchingException(exceptions, "audit/file_length", relPath)
+      ) {
         warnings.push({
           check: "file_length",
           message: `${relPath}: ${lines.length} lines (max ${cfg.maxFileLength}). Consider splitting.`,
@@ -60,15 +65,21 @@ export function scanAntiPatterns(
         });
       }
 
-      // Check for hardcoded URLs (skip config files)
-      if (!isConfigFile(relPath)) {
+      // Check for hardcoded URLs (skip config files and exempted files)
+      if (
+        !isConfigFile(relPath) &&
+        !findMatchingException(exceptions, "audit/hardcoded_url", relPath)
+      ) {
         const urlMatches = findPattern(
           lines,
           /(localhost|127\.0\.0\.1|0\.0\.0\.0)/,
           // Exclude: comments, test/spec/mock paths, regex literals,
           // JS/TS env-var fallback defaults (process.env.X ?? 'localhost'),
-          // and Python env-var fallback defaults (os.environ.get("X", "localhost"))
-          /^\s*(\/\/|\/\*|\*|#)|test|spec|mock|\/\(.*localhost|\?\?.*['"`]|os\.environ|os\.getenv|environ\.get/i,
+          // Python env-var fallback defaults (os.environ.get("X", "localhost")),
+          // Shell env-var fallback defaults (${VAR:-http://localhost:...}),
+          // Backtick markdown code-block lines, and lines inside string-array
+          // template literals (e.g. emitting example HTTP fixtures).
+          /^\s*(\/\/|\/\*|\*|#|`)|test|spec|mock|\/\(.*localhost|\?\?.*['"`]|os\.environ|os\.getenv|environ\.get|\$\{[^}]*:-|^\s*`[^`]*`\s*,\s*$/i,
         );
         if (urlMatches.length > 0) {
           violations.push({
@@ -79,23 +90,28 @@ export function scanAntiPatterns(
         }
       }
 
-      // Check for mock/stub data in production code
-      const mockMatches = findPattern(
-        lines,
-        /\b(mock_data|fake_data|dummy_data|stub_response|FIXME.*return|TODO.*hardcod)/i,
-        // Exclude: lines that are regex literal patterns or new RegExp constructs
-        /\/\\b\(|\/\(|new RegExp/i,
-      );
-      if (mockMatches.length > 0) {
-        violations.push({
-          check: "mock_in_source",
-          message: `${relPath}: mock/stub/fake data at line(s) ${mockMatches.join(", ")}. Remove from production code.`,
-          severity: "error",
-        });
+      // Check for mock/stub data in production code (skip exempted)
+      if (!findMatchingException(exceptions, "audit/mock_in_source", relPath)) {
+        const mockMatches = findPattern(
+          lines,
+          /\b(mock_data|fake_data|dummy_data|stub_response|FIXME.*return|TODO.*hardcod)/i,
+          // Exclude: lines that are regex literal patterns or new RegExp constructs
+          /\/\\b\(|\/\(|new RegExp/i,
+        );
+        if (mockMatches.length > 0) {
+          violations.push({
+            check: "mock_in_source",
+            message: `${relPath}: mock/stub/fake data at line(s) ${mockMatches.join(", ")}. Remove from production code.`,
+            severity: "error",
+          });
+        }
       }
 
-      // Check for bare exception catches (TypeScript)
-      if (relPath.endsWith(".ts") || relPath.endsWith(".js")) {
+      // Check for bare exception catches (TypeScript) — skip exempted
+      if (
+        (relPath.endsWith(".ts") || relPath.endsWith(".js")) &&
+        !findMatchingException(exceptions, "audit/bare_exception", relPath)
+      ) {
         const bareCatches = findPattern(lines, /catch\s*\(\s*\)\s*\{/);
         if (bareCatches.length > 0) {
           warnings.push({
@@ -106,18 +122,26 @@ export function scanAntiPatterns(
         }
       }
 
-      // Check for hardcoded credentials
-      const credMatches = findPattern(
-        lines,
-        /(password|secret|api_key|token)\s*[:=]\s*['"][^'"]{3,}/i,
-        /env|config|example|template|schema|type|interface|\/\//i,
-      );
-      if (credMatches.length > 0) {
-        violations.push({
-          check: "hardcoded_credential",
-          message: `${relPath}: possible hardcoded credential at line(s) ${credMatches.join(", ")}.`,
-          severity: "error",
-        });
+      // Check for hardcoded credentials (skip exempted)
+      if (
+        !findMatchingException(
+          exceptions,
+          "audit/hardcoded_credential",
+          relPath,
+        )
+      ) {
+        const credMatches = findPattern(
+          lines,
+          /(password|secret|api_key|token)\s*[:=]\s*['"][^'"]{3,}/i,
+          /env|config|example|template|schema|type|interface|\/\//i,
+        );
+        if (credMatches.length > 0) {
+          violations.push({
+            check: "hardcoded_credential",
+            message: `${relPath}: possible hardcoded credential at line(s) ${credMatches.join(", ")}.`,
+            severity: "error",
+          });
+        }
       }
     } catch {
       // Skip unreadable files

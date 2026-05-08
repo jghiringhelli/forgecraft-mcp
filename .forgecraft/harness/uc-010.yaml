@@ -1,0 +1,31 @@
+uc: UC-010
+title: Generate ADR
+action: generate_adr
+probes:
+  - id: probe-generate-adr-happy
+    type: mcp_call
+    scenario: happy
+    description: generate_adr creates a numbered ADR file in docs/adrs/ with title and context
+    inputs:
+      action: generate_adr
+      project_dir: "{{project_with_adrs_dir}}"
+      title: "Test architectural decision"
+      context: "Need to decide on approach"
+      decision: "We will use approach A"
+      consequences: "Simpler to implement"
+    assertions:
+      - type: file_exists_pattern
+        path: "docs/adrs/ADR-*.md"
+      - type: output_contains
+        text: "ADR"
+
+  - id: probe-generate-adr-missing-title
+    type: mcp_call
+    scenario: error
+    description: generate_adr without title returns validation error
+    inputs:
+      action: generate_adr
+      project_dir: "{{project_dir}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["title", "required", "error"]

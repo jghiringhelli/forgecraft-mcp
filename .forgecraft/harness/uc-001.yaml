@@ -1,0 +1,68 @@
+uc: UC-001
+title: Setup/Onboard Project
+action: setup_project
+probes:
+  - id: probe-001-happy-scaffold
+    type: mcp_call
+    scenario: happy
+    description: Call setup_project phase 2, assert scaffold artifacts created
+    inputs:
+      action: setup_project
+      project_dir: "{{test_project_dir}}"
+      mvp: true
+      scope_complete: false
+      has_consumers: false
+    assertions:
+      - type: file_exists
+        path: forgecraft.yaml
+      - type: file_exists
+        path: CLAUDE.md
+      - type: dir_exists
+        path: docs
+
+  - id: probe-001-happy-cascade-ready
+    type: mcp_call
+    scenario: happy
+    description: After setup, check_cascade should pass functional_spec and constitution steps
+    inputs:
+      action: check_cascade
+      project_dir: "{{test_project_dir}}"
+    assertions:
+      - type: output_contains
+        text: "constitution"
+      - type: output_contains
+        text: "functional_spec"
+
+  - id: probe-001-happy-idempotent
+    type: file_system
+    scenario: happy
+    description: forgecraft.yaml must be stable after a second phase-2 call (no duplicate keys)
+    inputs:
+      path: "{{test_project_dir}}/forgecraft.yaml"
+    assertions:
+      - type: file_exists
+        path: "{{test_project_dir}}/forgecraft.yaml"
+      - type: file_not_contains
+        text: "project_name:\nproject_name:"
+
+  - id: probe-001-error-missing-dir
+    type: file_system
+    scenario: error
+    description: Assert tool returns error when project_dir does not exist
+    assertions:
+      - type: output_contains
+        text: "project_dir"
+
+  - id: probe-001-error-phase2-without-phase1
+    type: mcp_call
+    scenario: error
+    description: Phase 2 called without prior phase 1 proceeds with defaults and warns
+    inputs:
+      action: setup_project
+      project_dir: "{{empty_project_dir}}"
+      mvp: true
+      scope_complete: false
+      has_consumers: false
+    assertions:
+      - type: output_contains_any
+        texts: ["warn", "default", "calibration"]

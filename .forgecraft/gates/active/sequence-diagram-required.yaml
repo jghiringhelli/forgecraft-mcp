@@ -1,0 +1,52 @@
+id: sequence-diagram-required
+title: Sequence Diagram Missing for Async or API Flows
+domain: api-contract
+phase: development
+priority: P1
+description: >
+  An API or realtime project has no sequence diagrams documenting inter-component
+  protocols. Without sequence diagrams, call ordering, async flow, and error paths
+  at component seams are implicit. The AI cannot derive correct sequencing from
+  code alone — it fills the gap with statistical averages.
+check:
+  type: file_system
+  condition: none_of_these_exist
+  paths:
+    - docs/diagrams/sequence/
+    - docs/sequence/
+    - docs/diagrams/seq-*.md
+    - docs/diagrams/*sequence*.md
+failureMessage: >
+  No sequence diagrams found in docs/diagrams/. Inter-component ordering and
+  async flows are unspecified — the AI will infer sequencing from pattern,
+  not contract.
+fixHint: >
+  Create docs/diagrams/sequence/ and add at least one Mermaid sequence diagram
+  for the primary API flow. Use sequenceDiagram syntax. One diagram per major flow.
+evidence: >
+  Async flows (auth → fetch → transform → respond) are the most common source of
+  race conditions and incorrect error handling. A sequence diagram specifying that
+  auth precedes data fetch is an unambiguous ordering constraint the AI enforces.
+generalizable: true
+tags:
+  - API
+  - REALTIME
+layers:
+  - layer: L1
+    description: >
+      Blueprint protocol: sequence diagrams fix the inter-component call order
+      as a formal constraint. The AI has two valid sentences: the one matching the
+      diagram, and deviations. Without it, all orderings are equally valid — the
+      AI picks one.
+    when: >
+      Fire when project has API or REALTIME tag and no sequence diagram files
+      exist in docs/diagrams/. Gate fires from first development commit.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: high
+impact: medium
+confidence: high

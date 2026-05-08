@@ -8,6 +8,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { readExceptions, findMatchingException } from "./exceptions.js";
 
 export interface CntDriftResult {
   readonly hasCnt: boolean;
@@ -166,13 +167,27 @@ export function auditCntHealth(projectDir: string): CntAuditResult {
     };
   }
 
+  const exceptions = readExceptions(projectDir);
   const claudeMdLines = countFileLines(join(projectDir, "CLAUDE.md"));
   const coreMdLines = countFileLines(join(projectDir, ".claude", "core.md"));
-  const claudeMdPass = claudeMdLines !== null && claudeMdLines <= 3;
-  const coreMdPass = coreMdLines !== null && coreMdLines <= 50;
+  // Honor exceptions: if CLAUDE.md or core.md is exempted, treat as passing.
+  const claudeMdExempt = !!findMatchingException(
+    exceptions,
+    "audit/cnt_claude_md",
+    "CLAUDE.md",
+  );
+  const coreMdExempt = !!findMatchingException(
+    exceptions,
+    "audit/cnt_core_md",
+    ".claude/core.md",
+  );
+  const claudeMdPass =
+    claudeMdExempt || (claudeMdLines !== null && claudeMdLines <= 3);
+  const coreMdPass =
+    coreMdExempt || (coreMdLines !== null && coreMdLines <= 50);
   const indexMdPresent = true;
 
-  const leafViolations = findLeafViolations(projectDir);
+  const leafViolations = findLeafViolations(projectDir, exceptions);
   const issues = buildAuditIssues(
     claudeMdLines,
     claudeMdPass,
@@ -215,6 +230,7 @@ const SCAFFOLD_SENTINEL_PREFIX = "<!-- ForgeCraft sentinel:";
  */
 function findLeafViolations(
   projectDir: string,
+  exceptions: ReturnType<typeof readExceptions> = [],
 ): Array<{ file: string; lines: number }> {
   const standardsDir = join(projectDir, ".claude", "standards");
   if (!existsSync(standardsDir)) return [];
@@ -225,6 +241,9 @@ function findLeafViolations(
         const fullPath = join(standardsDir, f);
         const content = readFileSync(fullPath, "utf-8");
         if (content.startsWith(SCAFFOLD_SENTINEL_PREFIX)) return [];
+        const relPath = `.claude/standards/${f}`;
+        if (findMatchingException(exceptions, "audit/cnt_leaf_length", relPath))
+          return [];
         const lines = countFileLines(fullPath);
         return lines !== null && lines > 30 ? [{ file: f, lines }] : [];
       });

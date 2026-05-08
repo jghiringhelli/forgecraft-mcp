@@ -1,0 +1,48 @@
+uc: UC-002
+title: Verify GS Cascade
+action: check_cascade
+probes:
+  - id: probe-002-happy-all-pass
+    type: mcp_call
+    scenario: happy
+    description: A fully scaffolded project should pass at least 3/5 required cascade steps
+    inputs:
+      action: check_cascade
+      project_dir: "{{scaffolded_project_dir}}"
+    assertions:
+      - type: output_contains
+        text: "functional_spec"
+      - type: output_contains
+        text: "constitution"
+      - type: output_contains
+        text: "adrs"
+
+  - id: probe-002-happy-skip-label
+    type: mcp_call
+    scenario: happy
+    description: SKIP steps are labeled as optional in output
+    inputs:
+      action: check_cascade
+      project_dir: "{{project_with_skipped_step_dir}}"
+    assertions:
+      - type: output_contains
+        text: "optional"
+
+  - id: probe-002-error-missing-forgecraft-yaml
+    type: mcp_call
+    scenario: error
+    description: A project without forgecraft.yaml returns unconfigured cascade result gracefully
+    inputs:
+      action: check_cascade
+      project_dir: "{{empty_project_dir}}"
+    assertions:
+      - type: output_contains
+        text: "unconfigured"
+
+  - id: probe-002-error-missing-docs-dir
+    type: file_system
+    scenario: error
+    description: docs/ directory missing causes functional_spec and behavioral_contracts steps to fail
+    assertions:
+      - type: output_contains_any
+        texts: ["functional_spec", "behavioral_contracts", "FAIL"]

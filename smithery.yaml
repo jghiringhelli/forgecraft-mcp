@@ -30,10 +30,6 @@ tags:
   - architecture
   - scaffolding
 
-# Hosted HTTP endpoint for Smithery gallery listing
-# Local stdio mode: npx forgecraft-mcp (unchanged)
-mcpUrl: https://forgecraft-http-production.up.railway.app/mcp
-
 # Local stdio startup config for Smithery package installations
 startCommand:
   type: stdio

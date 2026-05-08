@@ -1,0 +1,12 @@
+service: forgecraft-mcp
+title: ForgeCraft MCP Server Environment
+probes:
+  - id: probe-node-version
+    type: env_var
+    description: Node.js runtime available at required version
+  - id: probe-npm-deps
+    type: schema_validate
+    description: node_modules present and package.json deps satisfied
+  - id: probe-dist-built
+    type: schema_validate
+    description: dist/ directory exists (project is built)

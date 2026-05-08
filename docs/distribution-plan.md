@@ -1,14 +1,16 @@
 # ForgeCraft Distribution Plan
 
-## Current Status (Feb 24, 2026)
+## Current Status
 
 | Channel | Status | Notes |
 |---------|--------|-------|
-| npm | ✅ Published | v0.2.0 at npmjs.com/package/forgecraft-mcp |
-| MCP Registry | ✅ Published | v0.1.0 (Feb 18) + v0.2.0 (Feb 19) at registry.modelcontextprotocol.io |
-| GitHub Actions CI | ✅ Created | .github/workflows/publish-mcp.yml (auto-publish on v* tags) |
-| server.json | ✅ Updated | Added `title`, improved description, added `runtimeHint` |
-| VS Code MCP Gallery | 🔄 Auto-synced | github.com/mcp pulls from registry — appears when users search `@mcp forgecraft` |
+| npm | ✅ Published | Auto-published via GH Actions on `v*.*.*` tags |
+| MCP Registry | ✅ Published | registry.modelcontextprotocol.io — auto-synced to VS Code `@mcp` gallery |
+| GitHub Actions | ✅ Active | `ci.yml` on push/PR + `publish.yml` on tag push (npm only) |
+| server.json | ✅ Current | `title`, description, `runtimeHint` set |
+| VS Code MCP Gallery | 🔄 Auto-synced | github.com/mcp pulls from registry — searchable as `@mcp forgecraft` |
+
+> **Note on other package managers:** We do not publish to Chocolatey, Winget, Scoop, or any other package manager. Distribution is npm + MCP Registry only. If you receive automated rejection emails from Chocolatey, those are from a past manual submission — remove or deprecate the package at community.chocolatey.org.
 
 ## How VS Code MCP Discovery Works
 
@@ -16,94 +18,56 @@ VS Code's Extensions view `@mcp` search queries the **GitHub MCP server registry
 
 **Key insight:** No separate submission is needed for VS Code — being on the registry IS being on the gallery. The problem is organic discovery/popularity.
 
-## Action Items
-
-### 1. Re-publish to registry with updated server.json (v0.2.1)
-
-The updated server.json now includes `title: "ForgeCraft"` and improved description. These fields are what github.com/mcp displays. Bump version and republish:
+## How to Publish a New Version
 
 ```bash
-# Update version in package.json and server.json to 0.2.1
-npm version patch
-# Update server.json version to match
-# Publish to npm
-npm publish
-# Publish to MCP Registry
-& "$env:USERPROFILE\.mcp-tools\mcp-publisher.exe" login github
-& "$env:USERPROFILE\.mcp-tools\mcp-publisher.exe" publish
+# 1. Bump version
+npm version patch   # or minor / major
+
+# 2. Push tag — GH Actions handles the rest
+git push origin main --follow-tags
 ```
 
-### 2. Submit PR to modelcontextprotocol/servers
+GH Actions `publish.yml` runs: typecheck → tests → mutation gate → build → `npm publish`.
+MCP Registry: republish manually after npm is live if server.json changed:
 
-Add ForgeCraft to the **Community Servers** section of the README.
-
-**Entry to add** (alphabetical, under "F"):
-
-```markdown
-• [ForgeCraft](https://github.com/jghiringhelli/forgecraft-mcp) - MCP server that generates production-grade engineering standards (SOLID, testing, architecture, CI/CD) for AI coding assistants — supports Claude, Cursor, Copilot, Windsurf, Cline, and Aider.
+```powershell
+.\mcp-publisher.exe publish
 ```
 
-**Steps:**
-1. Fork `github.com/modelcontextprotocol/servers`
-2. Edit `README.md` — add entry in Community Servers under "F" section
-3. Submit PR with title: `feat: add ForgeCraft MCP server to community list`
-4. PR body: Brief description + link to npm + registry entry
+## Action Items
 
-### 3. Add GitHub Repo Topics
+### Completed
+- ~~npm publish~~ ✅
+- ~~MCP Registry~~ ✅
+- ~~Re-publish with updated server.json~~ ✅
+- ~~GitHub repo topics~~ ✅ 14 topics added
+- ~~PR to modelcontextprotocol/servers~~ ⬛ Deprecated — MCP Registry is now canonical
+- ~~r/ClaudeAI~~ ✅ Posted
+- ~~Hacker News (Show HN)~~ ✅ CodeSeeker posted
+- ~~MCP Discord #showcase~~ ✅ CodeSeeker + ForgeCraft posted
+- ~~mcpservers.org~~ ✅ CodeSeeker + ForgeCraft submitted
+- ~~awesome-mcp-servers (punkpeye)~~ ✅ PR #2366 submitted
 
-Go to github.com/jghiringhelli/forgecraft-mcp → Settings → Topics:
-
-```
-mcp  mcp-server  model-context-protocol  github-copilot
-developer-tools  scaffolding  code-quality  engineering-standards
-typescript  ai-tools  cursor  windsurf  cline  aider
-```
-
-### 4. Submit to Smithery.ai
-
-1. Go to https://smithery.ai/
-2. Sign in with GitHub
-3. Submit server: `forgecraft-mcp` (npm package)
-4. Add description and tags
-
-### 5. Submit to Aggregator Directories
+### Remaining (medium priority)
 
 | Directory | URL | Action |
 |-----------|-----|--------|
 | mcp.so | https://mcp.so/ | Submit or PR to github.com/chatmcp/mcp-directory |
-| mcpservers.org | https://mcpservers.org/ | PR to github.com/wong2/awesome-mcp-servers |
-| glama.ai | https://glama.ai/mcp/servers | PR to github.com/punkpeye/awesome-mcp-servers |
 | opentools.com | https://opentools.com/ | Direct submission |
-| mcp-get.com | https://mcp-get.com/ | CLI: `mcp-get install forgecraft-mcp` (auto-discovered from npm) |
 | mcpservers.com | https://mcpservers.com/ | Direct submission |
-| deepnlp.org | http://www.deepnlp.org/store/ai-agent/mcp-server | Direct submission |
 | mkinf.io | https://mkinf.io/ | Direct submission |
+| Dev.to | https://dev.to/ | Write article |
+| Product Hunt | https://producthunt.com/ | Launch post |
+| LinkedIn | — | Personal post |
+| Twitter/X thread | — | Use content from LAUNCH.md |
 
-### 6. Social & Community (see LAUNCH.md for full content)
+### GitHub Releases (deferred)
 
-| Channel | Priority |
-|---------|----------|
-| r/ClaudeAI | High — primary user base |
-| Hacker News (Show HN) | High — developer audience |
-| MCP Discord | High — community showcase |
-| Twitter/X | Medium — reach + virality |
-| awesome-mcp-servers PRs | Medium — long-term SEO |
-| Dev.to article | Medium — content marketing |
-| Product Hunt | Lower — requires preparation |
-| LinkedIn | Lower — reaches engineering managers |
+GH Actions will eventually publish GitHub Releases alongside npm to improve discoverability and enable a direct download story. Not yet implemented — tracked for future iteration.
 
-## Priority Execution Order
+### Smithery
 
-1. ~~npm publish~~ ✅
-2. ~~MCP Registry~~ ✅
-3. **Re-publish** with updated server.json (title + description)
-4. **GitHub repo topics** (5 minutes, immediate SEO benefit)
-5. **PR to modelcontextprotocol/servers** (highest-value single action)
-6. **PRs to awesome-mcp-servers** (wong2 + punkpeye repos)
-7. **Smithery.ai** submission
-8. **r/ClaudeAI** post
-9. **MCP Discord** showcase
-10. **Hacker News** Show HN
-11. Remaining aggregator submissions
-12. Twitter/X thread
-13. Dev.to article
+Smithery requires a hosted HTTP MCP transport endpoint. Deferred until the MCP HTTP transport has a stable deployment. Do not add `mcpUrl` to smithery.yaml until that service is live.
+
+

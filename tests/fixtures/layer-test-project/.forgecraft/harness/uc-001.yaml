@@ -1,0 +1,21 @@
+uc: UC-001
+title: Setup Project
+action: setup_project
+probes:
+  - id: probe-setup-scaffold
+    type: mcp_call
+    description: Call setup_project and assert scaffold artifacts are created
+    inputs:
+      action: setup_project
+      project_dir: "{{test_project_dir}}"
+    assertions:
+      - type: file_exists
+        path: forgecraft.yaml
+  - id: probe-setup-cascade
+    type: file_system
+    description: Check cascade config exists
+    inputs:
+      path: "{{test_project_dir}}/forgecraft.yaml"
+    assertions:
+      - type: file_exists
+        path: "{{test_project_dir}}/forgecraft.yaml"

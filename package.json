@@ -1,6 +1,6 @@
 {
   "name": "forgecraft-mcp",
-  "version": "1.4.0",
+  "version": "1.6.0",
   "mcpName": "io.github.jghiringhelli/forgecraft",
   "description": "CLI + MCP sentinel for engineering standards — SOLID, testing, architecture, CI/CD — auto-tailored to your stack. Minimal MCP footprint (~200 tokens) via CLI-first design.",
   "type": "module",
@@ -19,11 +19,17 @@
     "test:mutation": "stryker run",
     "test:mutation:ci": "stryker run --reporters progress,clear-text",
     "test:mutation:sentinel": "stryker run stryker.sentinel.json",
+    "test:mutation:brownfield": "stryker run stryker.brownfield.json",
     "lint": "eslint src/",
+    "ship": "bash scripts/ship.sh",
+    "protect": "bash scripts/protect-branch.sh",
+    "audit:tests": "node scripts/audit-tests.cjs",
+    "post-results": "node scripts/post-results.cjs",
     "clean": "rimraf dist",
     "prepare": "node -e \"if(require('fs').existsSync('.git')&&require('fs').existsSync('scripts/setup-hooks.sh')){require('child_process').execSync('bash scripts/setup-hooks.sh',{stdio:'inherit'})}\"",
     "prepublishOnly": "npm run clean && npm run build",
-    "export:taxonomy": "npx ts-node --esm scripts/export-taxonomy.ts"
+    "export:taxonomy": "npx ts-node --esm scripts/export-taxonomy.ts",
+    "docs:generate": "typedoc"
   },
   "keywords": [
     "mcp",
@@ -70,6 +76,8 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
     "@stryker-mutator/core": "^9.6.0",
     "@stryker-mutator/vitest-runner": "^9.6.0",
     "@types/express": "^5.0.6",
@@ -83,6 +91,7 @@
     "express": "^5.2.1",
     "rimraf": "^6.0.1",
     "supertest": "^7.2.2",
+    "typedoc": "^0.28.19",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
   }

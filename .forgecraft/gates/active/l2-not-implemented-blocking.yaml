@@ -1,0 +1,16 @@
+id: l2-not-implemented-blocking
+description: "One or more L2 harness probes have not_implemented status. close_cycle must not advance while probes contain unfilled TODO sections — they exit 0 but verify nothing."
+priority: P1
+layer: L2
+convergenceAttributes:
+  generalizable: true
+  projectAgnostic: true
+  automationReady: true
+condition:
+  type: runtime
+  tool: run_harness
+  signal: "any result.status === not_implemented"
+fix: |
+  Open each not_implemented probe in tests/harness/ and implement the TODO sections.
+  Each probe must contain at least one assertion (grep/expect/assert/HTTP status check).
+  Run: run_harness again — all probes must be pass or fail (not not_implemented) before close_cycle.

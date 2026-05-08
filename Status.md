@@ -1,6 +1,32 @@
 # Status.md
 
-## Last Updated: 2026-03-24 (Session 36)
+## Last Updated: 2026-05-08 (Session 37)
+
+## Session 37 Summary — GS Lifecycle: Manifest, Cascade, Judgment Layer
+
+Closed the GS feedback loop with a single canonical doc taxonomy + cascade enforcement + human-judgment gate, applied across forgecraft, chronicle, and chronicle-team.
+
+### What shipped
+- **Canonical schema** at `templates/docs-manifest.yaml` — one source of truth for the doc taxonomy used by all Pragmaworks tools.
+- **Per-project manifests** (`docs/manifest.yaml`) for forgecraft, chronicle, chronicle-team — reference the canonical schema, override paths to legacy when migrating.
+- **Doc-cascade enforcement** — new `pre-commit-doc-cascade.sh` (advisory) + `commit-msg-cascade.sh` (type-aware: feat → spec touch required, fix → regression test required) + CI extension in `validate-pr.yml`.
+- **Human-judgment gate** — new `human-judgment-required.yaml` + CI step blocks merge to protected branches without reviewer approval and human ack.
+- **Two new gates** registered + activated: `doc-cascade-required`, `human-judgment-required`. `design-doc-required` activated.
+- **Audit exceptions mechanism** — extended `.forgecraft/exceptions.json` schema with `audit/<check>` patterns; anti-pattern + cnt-health scanners now honor them.
+- **Sister-project bootstrap** — chronicle-team seed PRD, ADR-0001 (eigenvalue workload split), UC-0001 (decompose), UC-0002 (verify).
+- **scripts/post-results.cjs** + `npm run post-results` — chronicle-team integration: maps forgecraft verify output to the team contract.
+
+### Migrations done
+- ADRs consolidated into `docs/adrs/active/` (forgecraft + chronicle).
+- `docs/session-prompt-initial.md` → `docs/session-prompts/initial.md` (both repos).
+
+### Documented as follow-up
+- Singleton spec migrations (`docs/PRD.md` → `docs/specs/PRD.md` etc.) deferred — forgecraft source has hardcoded path refs in 15+ files. Recommended path: introduce a `src/shared/doc-paths.ts` resolver that reads `docs/manifest.yaml` + falls back to canonical defaults, then replace hardcoded paths.
+
+### Cookbook report
+`docs/specs/pragmaworks-gs-cookbook.md` — input for the pragmaworks cookbook and the GS white paper update.
+
+---
 
 ## Session 36 Summary — Workspace-Wide Forgecraft Setup + Gate Harvest
 

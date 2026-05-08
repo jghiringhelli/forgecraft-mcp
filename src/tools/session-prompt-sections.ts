@@ -68,17 +68,35 @@ export function isServerConfigured(projectDir: string, serverName: string): bool
  * Build the TDD Gate section.
  *
  * @param conventionalType - Conventional commit type for this session
+ * @param level - Practitioner experience level; "experienced" emits compact form
  * @returns Formatted TDD Gate section
  */
-export function buildTddGateSection(conventionalType: string): string {
-  let section = `### TDD Gate\n\n`;
-  section += `Follow strict RED → GREEN → REFACTOR.\n`;
-  section += `1. **RED**: Write the failing test first. Run it. Paste the failure output before writing any implementation.\n`;
-  section += `2. **GREEN**: Write minimum implementation to pass. Do not proceed until tests pass.\n`;
-  section += `3. **REFACTOR**: Clean structure while keeping all tests green.\n\n`;
-  section += `Commit sequence required:\n`;
-  section += `\`\`\`\ntest(scope): [RED] <describe what the test asserts>\n${conventionalType}(scope): <implement to satisfy the test>\nrefactor(scope): <clean without behavior change>  ← only if needed\n\`\`\`\n\n`;
-  return section;
+export function buildTddGateSection(
+  conventionalType: string,
+  level: "novice" | "experienced" = "novice",
+): string {
+  const commitSequence =
+    `\`\`\`\ntest(scope): [RED] <describe what the test asserts>\n` +
+    `${conventionalType}(scope): <implement to satisfy the test>\n` +
+    `refactor(scope): <clean without behavior change>  ← only if needed\n\`\`\`\n\n`;
+
+  if (level === "experienced") {
+    return (
+      `### TDD Gate\n\n` +
+      `RED → GREEN → REFACTOR. Commit sequence:\n` +
+      commitSequence
+    );
+  }
+
+  return (
+    `### TDD Gate\n\n` +
+    `Follow strict RED → GREEN → REFACTOR.\n` +
+    `1. **RED**: Write the failing test first. Run it. Paste the failure output before writing any implementation.\n` +
+    `2. **GREEN**: Write minimum implementation to pass. Do not proceed until tests pass.\n` +
+    `3. **REFACTOR**: Clean structure while keeping all tests green.\n\n` +
+    `Commit sequence required:\n` +
+    commitSequence
+  );
 }
 
 /**
@@ -150,12 +168,21 @@ export function buildContextRetrievalSection(projectDir: string): string {
  * Build the Execution Loop section with the derived test command.
  *
  * @param testCommand - The test command to embed, or undefined when not yet configured
+ * @param level - Practitioner experience level; "experienced" emits compact form
  * @returns Formatted Execution Loop section
  */
-export function buildExecutionLoopSection(testCommand: string | undefined): string {
+export function buildExecutionLoopSection(
+  testCommand: string | undefined,
+  level: "novice" | "experienced" = "novice",
+): string {
   const commandLine = testCommand
     ? `**Test command for this project:** \`${testCommand}\``
     : `**Test command**: Not configured yet — add package.json/pyproject.toml first`;
+
+  if (level === "experienced") {
+    return `## Execution Loop\n\n${commandLine}\n\n`;
+  }
+
   return (
     `## Execution Loop\n\n` +
     `Every implementation unit follows this loop. Do not exit until all tests are green.\n\n` +

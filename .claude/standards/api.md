@@ -1,4 +1,4 @@
-<!-- ForgeCraft sentinel: api | 2026-03-24 | npx forgecraft-mcp refresh . --apply to update -->
+<!-- ForgeCraft sentinel: api | 2026-04-20 | npx forgecraft-mcp refresh . --apply to update -->
 
 ## Library / Package Standards
 

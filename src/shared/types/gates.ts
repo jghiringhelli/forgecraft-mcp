@@ -74,6 +74,27 @@ export interface ToolRequirement {
 }
 
 /**
+ * How a quality gate applies at a specific GS abstraction layer.
+ * Mirrors the MCP tool description model: tells the AI when to activate this
+ * gate and what it contributes to that layer's completeness.
+ */
+export interface GateLayerApplication {
+  /** GS abstraction layer. L1=Blueprint, L2=Harness, L3=Environment, L4=Monitoring */
+  readonly layer: "L1" | "L2" | "L3" | "L4";
+  /**
+   * How this gate applies at this layer — the enforcement mechanism.
+   * What it contributes to the layer's completeness when it passes.
+   * What it reveals as a gap when it fires.
+   */
+  readonly description: string;
+  /**
+   * Trigger condition at this layer — when the gate becomes relevant.
+   * What must be true for this gate to fire or be meaningful here.
+   */
+  readonly when: string;
+}
+
+/**
  * A quality gate -- a named, evidence-backed check that defends a GS property.
  * Gates live in .forgecraft/gates/project/active|promoted|retired/ or .forgecraft/gates/registry/{tag}/.
  * One gate per YAML file, filename = gate ID.
@@ -95,6 +116,14 @@ export interface ProjectGate {
    * "environment-hygiene", "state-machine", "concurrency"
    */
   readonly domain: string;
+  /**
+   * GS abstraction layers this gate applies to, with per-layer context.
+   * Absent means the gate is layer-agnostic.
+   * Like MCP tool descriptions: tells the AI when and how to use this gate
+   * at each layer of the automation ladder (L1 Blueprint → L2 Harness →
+   * L3 Environment → L4 Monitoring).
+   */
+  readonly layers?: readonly GateLayerApplication[];
   /**
    * How this gate is implemented:
    * - logic: pure invariant check, no external tools

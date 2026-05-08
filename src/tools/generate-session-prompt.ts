@@ -19,6 +19,7 @@ import {
 import { findNextRoadmapItem, parseRoadmapItems } from "./close-cycle.js";
 import type { ToolResult, ToolAmbiguity } from "../shared/types.js";
 import { detectSpecRoadmapDrift } from "../shared/drift-detector.js";
+import { readPractitionerLevel } from "../shared/config.js";
 import {
   buildPrompt,
   discoverArtifacts,
@@ -44,6 +45,8 @@ export {
   discoverArtifacts,
   readStatusSummary,
   buildDefaultCriteria,
+  detectClarificationMarkers,
+  buildClarificationWarning,
 } from "./session-prompt-builders.js";
 export {
   isPlaceholderTestScript,
@@ -197,6 +200,13 @@ export async function generateSessionPromptHandler(
   const criteria =
     args.acceptance_criteria ?? buildDefaultCriteria(resolvedDescription);
 
+  const stateLeafPath = join(projectDir, ".claude", "state.md");
+  const stateLeaf = existsSync(stateLeafPath)
+    ? readFileSync(stateLeafPath, "utf-8")
+    : undefined;
+
+  const practitionerLevel = readPractitionerLevel(projectDir);
+
   const prompt = buildPrompt({
     projectDir,
     itemDescription: resolvedDescription,
@@ -205,6 +215,8 @@ export async function generateSessionPromptHandler(
     acceptanceCriteria: criteria,
     artifacts,
     statusSummary,
+    stateLeaf,
+    practitionerLevel,
   });
 
   if (resolvedItemId)

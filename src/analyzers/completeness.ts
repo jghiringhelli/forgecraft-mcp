@@ -12,6 +12,7 @@ import type { AuditCheck, Tag } from "../shared/types.js";
 import {
   checkInstructionFileExists,
   checkFileExists,
+  checkAnyFileExists,
   checkStatusMdFreshness,
   checkHooksInstalled,
   checkSharedModules,
@@ -58,18 +59,18 @@ export function checkCompleteness(
   checkStatusMdFreshness(projectDir, passing, failing);
   checkHooksInstalled(projectDir, passing, failing);
 
-  // Check docs
-  checkFileExists(
+  // Check docs (canonical paths first; legacy as fallback for non-migrated projects)
+  checkAnyFileExists(
     projectDir,
-    "docs/PRD.md",
+    ["docs/specs/PRD.md", "docs/PRD.md"],
     "prd_exists",
     "PRD documents requirements",
     passing,
     failing,
   );
-  checkFileExists(
+  checkAnyFileExists(
     projectDir,
-    "docs/TechSpec.md",
+    ["docs/contracts/TechSpec.md", "docs/TechSpec.md"],
     "tech_spec_exists",
     "Tech Spec documents architecture",
     passing,

@@ -17,6 +17,7 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { generateSessionPromptHandler } from "../../src/tools/generate-session-prompt.js";
+import { buildClarificationWarning } from "../../src/tools/session-prompt-builders.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
@@ -951,5 +952,195 @@ describe("generateSessionPromptHandler — DAG dependency gate", () => {
     expect(text).toContain("Unmet Dependencies");
     expect(text).toContain("RM-001");
     expect(text).toContain("RM-002");
+  });
+});
+
+// ── State leaf (.claude/state.md) tests ───────────────────────────────
+
+describe("generateSessionPromptHandler — state leaf", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+    buildCompleteCascade(tempDir);
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("includes state leaf content when .claude/state.md exists", async () => {
+    mkdirSync(join(tempDir, ".claude"), { recursive: true });
+    writeFileSync(
+      join(tempDir, ".claude", "state.md"),
+      "# Project State\n_Last updated by close_cycle: 2026-04-16T00:00:00.000Z_\n\n## Next Action\nAll layers verified.\n",
+      "utf-8",
+    );
+
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+
+    expect(text).toContain("Current Project State");
+    expect(text).toContain("Last updated by close_cycle");
+    expect(text).toContain("All layers verified.");
+  });
+
+  it("falls back gracefully when .claude/state.md is absent", async () => {
+    // No .claude/state.md written — should still generate a valid prompt
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+
+    expect(text).not.toContain("Session Prompt Blocked");
+    expect(text).toContain("TDD Gate");
+    // State leaf block should not appear
+    expect(text).not.toContain("Current Project State");
+  });
+});
+
+// ── Practitioner mode ─────────────────────────────────────────────────
+
+describe("generateSessionPromptHandler — practitioner mode", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+    buildCompleteCascade(tempDir);
+  });
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function writePractitionerLevel(dir: string, level: string): void {
+    writeFileSync(join(dir, "forgecraft.yaml"), `practitioner_level: ${level}\n`, "utf-8");
+  }
+
+  it("novice mode (default) includes verbose TDD methodology explanation", async () => {
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Write the failing test first");
+    expect(text).toContain("loop until green");
+  });
+
+  it("novice level explicit produces same verbose output as default", async () => {
+    writePractitionerLevel(tempDir, "novice");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Write the failing test first");
+    expect(text).toContain("loop until green");
+  });
+
+  it("experienced mode omits verbose TDD methodology steps", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).not.toContain("Write the failing test first");
+    expect(text).not.toContain("loop until green");
+  });
+
+  it("experienced mode still includes TDD Gate heading and commit sequence", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("TDD Gate");
+    expect(text).toContain("RED");
+    expect(text).toContain("GREEN");
+    expect(text).toContain("REFACTOR");
+    expect(text).toContain("test(scope)");
+  });
+
+  it("experienced mode omits verbose execution loop instructions", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    writeFileSync(join(tempDir, "package.json"), JSON.stringify({ scripts: { test: "vitest run" } }), "utf-8");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).not.toContain("Every implementation unit follows this loop");
+    expect(text).not.toContain("Do not exit until all tests are green");
+  });
+
+  it("experienced mode execution loop still shows test command", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    writeFileSync(join(tempDir, "package.json"), JSON.stringify({ scripts: { test: "vitest run" } }), "utf-8");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Execution Loop");
+    expect(text).toContain("npm test");
+  });
+
+  it("experienced mode still includes task, acceptance criteria, and context load", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain(ITEM);
+    expect(text).toContain("Acceptance Criteria");
+    expect(text).toContain("Context Load Order");
+  });
+
+  it("experienced mode session close is compact — no multi-step instructions", async () => {
+    writePractitionerLevel(tempDir, "experienced");
+    const result = await generateSessionPromptHandler({
+      project_dir: tempDir,
+      item_description: ITEM,
+      session_type: "feature",
+    });
+    const text = result.content[0]!.text;
+    expect(text).toContain("Session Close");
+    expect(text).not.toContain("paste the summary output");
+  });
+});
+
+describe("buildClarificationWarning", () => {
+  it("returns empty string when markers array is empty", () => {
+    expect(buildClarificationWarning([])).toBe("");
+  });
+
+  it("builds warning table for non-empty markers", () => {
+    const result = buildClarificationWarning([
+      {
+        file: "docs/adrs/ADR-001.md",
+        marker: "[NEEDS CLARIFICATION: auth strategy]",
+      },
+      { file: "docs/use-cases.md", marker: "[NEEDS CLARIFICATION: edge case]" },
+    ]);
+    expect(result).toContain("Unresolved Clarifications");
+    expect(result).toContain("docs/adrs/ADR-001.md");
+    expect(result).toContain("[NEEDS CLARIFICATION: auth strategy]");
+    expect(result).toContain("docs/use-cases.md");
+    expect(result).toContain("| File | Marker |");
   });
 });

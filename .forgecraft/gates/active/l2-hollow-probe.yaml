@@ -1,0 +1,16 @@
+id: l2-hollow-probe
+description: "L2 probe file passes but contains zero assertion signals — exits 0 without verifying any postcondition. More dangerous than not_implemented because it produces false green confidence."
+priority: P1
+layer: L2
+convergenceAttributes:
+  generalizable: true
+  projectAgnostic: true
+  automationReady: true
+condition:
+  type: runtime
+  tool: run_harness
+  signal: "assertionCount === 0 AND status === pass"
+fix: |
+  Add grep/expect/assert checks to the probe that verify actual UC postconditions.
+  A probe that exits 0 without asserting anything is worse than no probe.
+  Run: check_spec_consistency to identify all hollow probes.

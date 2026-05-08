@@ -301,6 +301,36 @@ export const OUTPUT_TARGET_CONFIGS: Record<OutputTarget, OutputTargetConfig> = {
 /** Default output target when none specified. */
 export const DEFAULT_OUTPUT_TARGET: OutputTarget = "claude";
 
+// ── Sentinel Detection ───────────────────────────────────────────────
+
+/** A single AI-instruction file detected on disk. */
+export interface SentinelFoundFile {
+  /** Path relative to the repo root (POSIX-style separators). */
+  readonly path: string;
+  /** File size in bytes; for directories, the sum of immediate file sizes. */
+  readonly sizeBytes: number;
+}
+
+/**
+ * Result of scanning a repo for existing AI behavioral instruction files
+ * (CLAUDE.md, agents.md, .cursor/rules, etc.).
+ *
+ * Used to gate writes to instruction files so forgecraft never silently
+ * overwrites a sentinel a human or another tool already established.
+ *
+ * `recommendation` summarises the safe next action:
+ * - `none-found`     no sentinel exists; safe to write fresh
+ * - `map`            exactly one sentinel exists; map / augment it
+ * - `override-required` multiple sentinels exist; caller must opt in explicitly
+ */
+export interface SentinelDetectionResult {
+  /** All matching files, in canonical priority order. */
+  readonly foundFiles: readonly SentinelFoundFile[];
+  /** Highest-priority file present, or null if none. */
+  readonly primaryFile: string | null;
+  readonly recommendation: "map" | "override-required" | "none-found";
+}
+
 /**
  * Resolve the full output file path for a target relative to project root.
  *

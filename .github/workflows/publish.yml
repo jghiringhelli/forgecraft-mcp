@@ -34,6 +34,12 @@ jobs:
       - name: Test + coverage
         run: npm run test:coverage
 
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Mutation gate (full scope — break ≥80%)
+        run: npm run test:mutation:ci
+
       - name: Build
         run: npm run build
 

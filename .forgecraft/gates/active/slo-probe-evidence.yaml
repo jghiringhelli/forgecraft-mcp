@@ -1,0 +1,41 @@
+id: slo-probe-evidence
+title: SLO Probe Evidence Required Before Release
+description: >
+  The pre-release gate requires .forgecraft/slo-probe-run.json to exist with
+  at least one passing probe. Without SLO probe execution, L4 monitoring
+  contracts are unverified — alerts may not fire on SLO breaches.
+domain: observability
+implementation: logic
+gsProperty: executable
+phase: pre-release
+hook: pre-push
+os: cross-platform
+check: >
+  Verify .forgecraft/slo-probe-run.json exists and contains passed >= 1.
+passCriterion: slo-probe-run.json exists with at least 1 passing probe.
+failureMessage: >
+  No SLO probe evidence found. Run run_slo_probe to verify monitoring
+  contracts before releasing.
+fixHint: Run run_slo_probe then push again.
+layers:
+  - layer: L4
+    description: Enforces that monitoring contracts have been verified before release.
+    when: Pre-release — fires when slo-probe-run.json is missing or has 0 passing.
+priority: P2
+likelihood: low
+impact: high
+confidence: high
+status: ready
+source: project
+discoveredBy: ai
+generalizable: true
+addedAt: "2026-04-17T00:00:00.000Z"
+evidence: >
+  Silent monitoring failures (missing alerts, wrong thresholds) are only
+  discovered during incidents. SLO probes catch them before release.
+convergenceAttributes:
+  prescriptive: true
+  agnostic: true
+  promptHealthy: true
+  deterministic: true
+  convergent: true

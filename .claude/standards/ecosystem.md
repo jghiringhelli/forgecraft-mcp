@@ -18,7 +18,7 @@
 | forgecraft-server health | https://forgecraft-server-production.up.railway.app/health |
 | forgecraft-server gates | https://forgecraft-server-production.up.railway.app/gates |
 | forgecraft-server quarantine (admin) | https://forgecraft-server-production.up.railway.app/quarantine |
-| quality-gates index | https://raw.githubusercontent.com/jghiringhelli/quality-gates/main/index.json |
+| quality-gates index | https://raw.githubusercontent.com/jghiringhelli/quality-gates/master/index.json |
 | genspec-portal | https://jghiringhelli.github.io/genspec-portal/ |
 
 ## The Flywheel Cycle
@@ -117,7 +117,7 @@ Old `.forgecraft/project-gates.yaml` (flat file) is still supported — auto-mig
 
 ## Quality Gates Registry
 
-**Location**: `C:\workspace\genspec-dev-quality-gates\`
+**Location**: `C:\workspace\PragmaWorks\forge\quality-gates\`
 
 **Structure**:
 ```
@@ -255,10 +255,11 @@ Pending (pre-retry) gates tracked in `.forgecraft/pending-contributions.json`.
 ## forgecraft.yaml Key Fields
 
 ```yaml
-gates_registry_url: https://raw.githubusercontent.com/jghiringhelli/quality-gates/main/index.json
+gates_registry_url: https://raw.githubusercontent.com/jghiringhelli/quality-gates/master/index.json
 server_url: https://forgecraft-server-production.up.railway.app
 contribute_gates: false   # false | anonymous | attributed
 github_user: ""           # required for attributed mode
+practitioner_level: novice  # novice (default) | experienced
 tools:
   test: npm test
   mutation: npx stryker run stryker.sentinel.json
@@ -268,6 +269,11 @@ cascade:
     - id: check-tests
       ...
 ```
+
+`practitioner_level: experienced` removes methodology explanations from session prompts —
+no "Follow strict RED → GREEN → REFACTOR" walkthrough, no "Do not exit until all tests are green"
+warnings. The task, context load, commit sequence, test command, and acceptance criteria remain.
+Experienced practitioners set this once and get reference-style prompts instead of teaching prompts.
 
 ## Exceptions Mechanism
 

@@ -1,0 +1,46 @@
+id: l2-coverage-gap
+title: Use Case Without L2 Behavioral Harness Probe
+domain: l2-harness
+phase:
+  - development
+  - pre-release
+priority: P1
+description: >
+  A formal use case is documented in docs/use-cases.md but has no corresponding
+  harness probe file in .forgecraft/harness/. Without a probe, the use case's
+  postconditions cannot be verified automatically. This is a specification gap,
+  not a test gap — the harness IS the spec at this layer.
+check:
+  type: mcp
+  action: layer_status
+  condition: l2_coverage_pct < 100
+failureMessage: >
+  {{l2_uncovered_count}} use case(s) have no L2 harness probe.
+  Run layer_status to see which UCs need probe definitions.
+fixHint: >
+  Create .forgecraft/harness/uc-NNN.yaml for each uncovered UC.
+  A probe needs at least one entry in the probes array with type and assertions.
+evidence: >
+  Without harness probes, behavioral postconditions are implicit.
+  The L2 harness is the verification layer that makes use cases executable,
+  not merely documented. Discovered during forgecraft's own GS self-governance pass.
+generalizable: true
+layers:
+  - layer: L2
+    description: >
+      Harness coverage gate: the denominator for L2 completion. A documented use
+      case with no probe is a specification gap — the postcondition exists only
+      in prose, not as an executable assertion. The gate fires until every UC has
+      at least one probe in .forgecraft/harness/.
+    when: >
+      Fire continuously as long as any UC in docs/use-cases.md lacks a
+      corresponding .forgecraft/harness/uc-NNN.yaml probe definition.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: medium
+impact: high
+confidence: high

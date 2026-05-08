@@ -1,0 +1,80 @@
+# forgecraft-mcp's docs manifest
+# Schema: ../templates/docs-manifest.yaml (canonical)
+#
+# This project is in a legacy state — many docs are at docs/ root rather than
+# in the canonical subdirectories. The overrides below map the canonical slots
+# to where files currently live. New documents should use the canonical paths.
+
+schema_source: ./templates/docs-manifest.yaml
+
+project:
+  name: forgecraft-mcp
+  type: tool                 # MCP server + CLI for engineering standards
+  release_phase: maintenance
+
+# ── Path overrides (legacy mapping) ─────────────────────────────────────
+# Empty/absent override means the canonical default applies.
+overrides:
+  # Specs: legacy single-file, but new specs go into docs/specs/
+  documents.specs.legacy_files:
+    - docs/PRD.md
+    - docs/spec.md
+    - docs/forgecraft-spec.md
+    - docs/forgekit-spec.md
+    - docs/design-philosophy.md
+    - docs/distribution-plan.md
+    - docs/CLI-MODE-PROPOSAL.md
+
+  # ADRs: now consolidated into docs/adrs/active/ (canonical). README.md and
+  # template.md remain at docs/adrs/ as meta-files about the convention itself.
+
+  # Use cases: legacy single-file plus existing dir
+  documents.use_cases.legacy_files:
+    - docs/use-cases.md
+
+  # Roadmaps: legacy single file
+  documents.roadmaps.legacy_files:
+    - docs/roadmap.md
+
+  # Schemas: legacy locations (heavy refs in source code)
+  documents.schemas.legacy_paths:
+    - docs/diagrams/
+    - docs/schema.md
+
+  # Contracts: legacy
+  documents.contracts.legacy_files:
+    - docs/TechSpec.md
+    - docs/nfr-contracts.md
+
+  # Session prompts: matches canonical default; initial.md was moved here from docs/session-prompt-initial.md
+  documents.session_prompts.path: docs/session-prompts/
+
+# ── Cascade — softer enforcement during legacy migration ───────────────
+# Pinning severity to 'warning' until the legacy files are migrated.
+# Once docs/specs/ etc. are populated, bump feat/fix to 'error'.
+cascade_overrides:
+  feat.severity: warning
+  fix.severity: warning
+  fix.require_regression_test: true
+
+# ── Human-judgment — solo mode (sole maintainer) ───────────────────────
+human_judgment_overrides:
+  min_reviewers: 0           # solo project; PR + checks still required
+  block_ai_only_merge: false # would block all merges since author == only contributor
+
+# ── Migration status ───────────────────────────────────────────────────
+# This section documents what migrated this round vs what remains.
+# The cookbook report (docs/specs/pragmaworks-gs-cookbook.md) has details.
+migration:
+  done:
+    - consolidated docs/adr/ + docs/adrs/* into docs/adrs/active/ (kept README.md + template.md at docs/adrs/)
+    - moved docs/session-prompt-initial.md → docs/session-prompts/initial.md
+  todo:
+    # The following moves require coordinated source-code updates
+    # (~15 files reference these singleton paths). Tracked as a separate refactor.
+    - move docs/PRD.md → docs/specs/PRD.md (refs in: setup-monitoring, layer-status, generate-roadmap, propose-session, scaffold-writer, ...)
+    - split docs/use-cases.md into docs/use-cases/UC-*.md (refs in: layer-status, hardening-config, check-spec-consistency, ...)
+    - move docs/roadmap.md → docs/roadmaps/active/roadmap.md (refs in: close-cycle, generate-roadmap, generate-session-prompt)
+    - move docs/diagrams/* → docs/schemas/ (refs in: check-cascade-steps, scaffold-writer, generate-diagram)
+    - move docs/TechSpec.md, docs/nfr-contracts.md → docs/contracts/
+    - move docs/spec.md, docs/forgecraft-spec.md, docs/forgekit-spec.md, docs/design-philosophy.md, docs/distribution-plan.md, docs/CLI-MODE-PROPOSAL.md, docs/experiment-design.md, docs/gs-experiment-execution.md, docs/gs-tooling-crosscheck.md, docs/dx-workshop.md, docs/project-types.md → docs/specs/

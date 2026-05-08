@@ -98,7 +98,7 @@ describe("generateAdrHandler", () => {
       join(tempDir, "docs", "adrs", "0001-use-redis-for-caching.md"),
       "utf-8",
     );
-    expect(content).toContain("[TODO:");
+    expect(content).toContain("[NEEDS CLARIFICATION:");
   });
 
   it("writes decision when provided", async () => {

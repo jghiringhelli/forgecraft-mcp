@@ -1,0 +1,34 @@
+{
+  "$schema": "https://stryker-mutator.io/schemas/stryker-schema.json#",
+  "testRunner": "vitest",
+  "testRunnerNodeArgs": ["--experimental-vm-modules"],
+  "mutate": [
+    "src/tools/scaffold.ts",
+    "src/tools/refresh-project.ts"
+  ],
+  "testFiles": [
+    "tests/tools/scaffold.test.ts",
+    "tests/tools/refresh-project.test.ts"
+  ],
+  "reporters": ["progress", "json", "clear-text"],
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation-brownfield.json"
+  },
+  "thresholds": {
+    "high": 60,
+    "low": 40,
+    "break": null
+  },
+  "timeoutMS": 30000,
+  "concurrency": 2,
+  "tempDirName": ".stryker-tmp",
+  "cleanTempDir": true,
+  "coverageAnalysis": "perTest",
+  "ignoreStatic": true,
+  "mutator": {
+    "excludedMutations": ["StringLiteral", "ObjectLiteral"]
+  },
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  }
+}

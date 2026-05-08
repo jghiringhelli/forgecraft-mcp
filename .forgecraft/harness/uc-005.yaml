@@ -1,0 +1,55 @@
+uc: UC-005
+title: Close Development Cycle
+action: close_cycle
+probes:
+  - id: probe-005-happy-cascade-recheck
+    type: mcp_call
+    scenario: happy
+    description: close_cycle output includes a cascade re-check result
+    inputs:
+      action: close_cycle
+      project_dir: "{{cycle_complete_project_dir}}"
+    assertions:
+      - type: output_contains
+        text: "cascade"
+
+  - id: probe-005-happy-gate-evaluation
+    type: mcp_call
+    scenario: happy
+    description: close_cycle output includes gate evaluation summary
+    inputs:
+      action: close_cycle
+      project_dir: "{{project_with_gates_dir}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["gate", "Gate", "violation"]
+
+  - id: probe-005-happy-generalizable-gates
+    type: mcp_call
+    scenario: happy
+    description: Generalizable gates are listed with their contribution status
+    inputs:
+      action: close_cycle
+      project_dir: "{{project_with_generalizable_gates_dir}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["generalizable", "contribute"]
+
+  - id: probe-005-error-cascade-fails
+    type: mcp_call
+    scenario: error
+    description: Cycle is blocked when a required cascade step fails
+    inputs:
+      action: close_cycle
+      project_dir: "{{cascade_failing_project_dir}}"
+    assertions:
+      - type: output_contains_any
+        texts: ["blocked", "cascade", "required"]
+
+  - id: probe-005-error-no-gates
+    type: file_system
+    scenario: error
+    description: No quality gates found returns minimal report with cascade results only
+    assertions:
+      - type: output_contains
+        text: "cascade"

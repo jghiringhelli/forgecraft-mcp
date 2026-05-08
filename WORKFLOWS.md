@@ -10,6 +10,8 @@
 |---|---|
 | New project, blank slate | [Greenfield Setup](#greenfield-setup) |
 | Existing project, first time with ForgeCraft | [Brownfield Integration](#brownfield-integration) |
+| Want session-start advice automatically | [Session Advisor Setup](#session-advisor-setup) |
+| Lock main/develop — require PR + CI to merge | [GitHub Branch Protection](#github-branch-protection) |
 | Audit returned failures | [Remediation by Failure Type](#remediation-by-failure-type) |
 | Getting ready to ship | [Pre-Release Hardening](#pre-release-hardening) |
 | Just shipped, what now | [Post-Deployment](#post-deployment) |
@@ -17,6 +19,136 @@
 | Mobile app (React Native) setup | [Mobile / React Native Setup](#mobile--react-native-setup) |
 | Publishing an npm package | [npm Package Publishing](#npm-package-publishing) |
 | Monorepo with multiple packages | [Monorepo Setup](#monorepo-setup) |
+
+---
+
+## Session Advisor Setup
+
+Get proactive advice from your AI assistant at the start of every session — no prompting required.
+
+**Any MCP-capable agent (Cursor, Cline, Windsurf, Copilot, Aider):**
+
+Add one line to your rules file (CLAUDE.md / .clinerules / .windsurfrules / etc.):
+
+```
+At the start of every session, call forgecraft_actions { action: "advise_session", project_dir: "<absolute path>" } and surface the response to the user.
+```
+
+**Claude Code only — automatic hook (no rules file change needed):**
+
+1. Copy `.forgecraft/hooks/session-advisor.sh` to `.claude/hooks/session-advisor.sh`
+2. Add to `.claude/settings.json`:
+
+```json
+"hooks": {
+  "UserPromptSubmit": [{
+    "matcher": "",
+    "hooks": [{ "type": "command", "command": "bash .claude/hooks/session-advisor.sh" }]
+  }]
+}
+```
+
+The advisor works on any project — `forgecraft.yaml` not required. It reads what's present, flags what's missing, and surfaces active gate violations.
+
+---
+
+## GitHub Branch Protection
+
+Locks `main` and `develop` so that:
+- No one can push directly (PRs required)
+- CI (`ci` job) must pass before merge
+- PR title + description must be valid (`validate-pr` job)
+- No force pushes, no branch deletion
+
+### Option A — Automated (recommended)
+
+```bash
+# One-time auth (if not already logged in):
+! gh auth login
+
+# Apply protection to main + develop:
+npm run protect
+
+# Solo project (0 required reviewers — PR still required):
+npm run protect -- --solo
+
+# Custom branches:
+npm run protect -- --branches main,staging
+
+# Preview without making changes:
+npm run protect -- --dry-run
+```
+
+The script auto-detects your repo from `git remote origin` and calls the GitHub API. If `develop` doesn't exist yet it's silently skipped.
+
+### Option B — Manual (no gh required)
+
+1. Go to **GitHub → your repo → Settings → Branches**
+2. Click **Add branch ruleset** (or "Add rule" on older UI)
+3. Apply to each protected branch (`main`, `develop`):
+
+| Setting | Value |
+|---|---|
+| Branch name pattern | `main` (repeat for `develop`) |
+| Require a pull request before merging | ✓ ON |
+| Required approvals | 1 (or 0 for solo projects) |
+| Dismiss stale reviews on new commits | ✓ ON |
+| Require status checks to pass | ✓ ON |
+| Require branches to be up to date | ✓ ON |
+| Required status checks | `ci` and `validate-pr` |
+| Allow force pushes | ✗ OFF |
+| Allow deletions | ✗ OFF |
+
+> **Note on required checks**: `ci` and `validate-pr` must have run at least once on the repo before GitHub lets you add them as required checks. Push a PR first, let CI run, then come back and add the checks.
+
+---
+
+## Design-First (Before Any Feature Work)
+
+Run before writing code for any non-trivial feature. Based on the gstack "office hours → plan review" discipline: define the problem and explore alternatives before touching a file.
+
+```
+Read CLAUDE.md, docs/PRD.md (if it exists), and Status.md.
+
+We are about to start work on: [feature name / problem statement].
+
+Before writing any code, produce a design document in docs/PRD.md covering:
+
+1. PROBLEM STATEMENT
+   In one paragraph: what user pain are we solving, for whom, and why now?
+   If this already exists in docs/PRD.md, confirm it is still accurate.
+
+2. USE CASES (add to docs/use-cases.md)
+   For each new capability:
+   UC-NNN: [Actor] [action] so that [outcome]
+   Precondition: [state before]
+   Main flow: [numbered steps]
+   Exceptions: [error cases and how they're handled]
+
+3. ALTERNATIVES CONSIDERED
+   List 2-3 approaches you evaluated. For each:
+   - What it is
+   - Why it was rejected or deprioritized
+
+4. RECOMMENDED APPROACH
+   Which option and why. What are the main risks or unknowns?
+
+5. ARCHITECTURE IMPACT (update docs/TechSpec.md if needed)
+   ASCII diagram showing: where does this fit in the existing layers?
+   What new dependencies does it introduce?
+   What existing interfaces change?
+
+6. TEST PLAN
+   For each use case: what are the observable behaviors?
+   Map each to a test: unit / integration / mutation target.
+   Identify failure modes that need explicit test coverage.
+
+Do NOT write any implementation code in this step.
+Commit: docs(design): add design doc for [feature name]
+
+After I review and approve the design, we will begin TDD with:
+   test(scope): [RED] [behavior from use case]
+```
 
 ---
 
@@ -569,6 +701,22 @@ npx forgecraft-mcp refresh . --apply # Apply drift changes
 npx forgecraft-mcp audit .          # Score 0-100, see all failures
 npx forgecraft-mcp convert .        # Migration plan for legacy code (phased)
 npx forgecraft-mcp review .         # Structured code review checklist
+
+npm run ship [patch|minor|major]    # Automated release: test → bump → tag → push → PR
+npm run protect                     # Apply GitHub branch protection (requires gh auth login)
+npm run protect -- --solo           # Same but 0 required reviewers (solo project)
+npm run protect -- --dry-run        # Preview without applying
+```
+
+### Git workflow at a glance
+
+```
+git checkout -b feat/my-feature     # Never commit directly to main
+# ... do the work with TDD ...
+git push origin feat/my-feature     # Hooks fire on every commit
+gh pr create                        # Or: npm run ship patch
+# CI runs: lint, typecheck, tests, mutation gate, audit, PR validation
+# Merge → tag push → npm publish (automatic)
 ```
 
 For the full command reference: [README](README.md#cli-commands)

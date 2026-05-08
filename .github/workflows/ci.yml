@@ -28,5 +28,8 @@ jobs:
       - name: Test + coverage
         run: npm run test:coverage
 
-      - name: Mutation gate (sentinel)
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Mutation gate (sentinel — fast, break ≥80%)
         run: npm run test:mutation:sentinel

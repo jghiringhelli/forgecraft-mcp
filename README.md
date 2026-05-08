@@ -110,7 +110,7 @@ Gates are organized by release phase so you're not running pre-release chaos tes
 
 Gates tagged `requires_human_review: true` cannot be auto-passed — some checks require a human.
 
-The full gate library, contribution guide, and schema are in the [quality gates repository →](https://github.com/jghiringhelli/genspec-dev-quality-gates)
+The full gate library, contribution guide, and schema are in the [quality gates repository →](https://github.com/jghiringhelli/quality-gates)
 
 ---
 
@@ -250,7 +250,7 @@ Every block is sourced from established engineering literature (Martin, Evans, W
 
 Tags tell ForgeCraft what your project is. On first setup, the AI analyzes your spec and codebase and assigns them. You can review and override in `forgecraft.yaml`. Blocks merge without conflicts — add or remove tags as the project evolves.
 
-The full tag list and contribution guide live in the [quality gates repository →](https://github.com/jghiringhelli/genspec-dev-quality-gates)
+The full tag list and contribution guide live in the [quality gates repository →](https://github.com/jghiringhelli/quality-gates)
 
 | Tag | What it adds |
 |-----|-------------|

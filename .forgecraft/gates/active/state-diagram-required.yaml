@@ -1,0 +1,52 @@
+id: state-diagram-required
+title: State Machine Diagram Missing for Stateful System
+domain: state-machine
+phase: development
+priority: P0
+description: >
+  A state-machine project has no state diagram enumerating valid states and
+  transitions. Without a state diagram, invalid state transitions are not
+  architecturally unreachable — they are implementation choices the AI makes
+  without constraint.
+check:
+  type: file_system
+  condition: none_of_these_exist
+  paths:
+    - docs/diagrams/states/
+    - docs/diagrams/state-*.md
+    - docs/diagrams/*state*.md
+    - docs/state-machine.md
+failureMessage: >
+  No state machine diagram found. Valid states and transitions are unspecified.
+  The AI cannot distinguish a valid transition from an invalid one without
+  this artifact.
+fixHint: >
+  Create docs/diagrams/state-machine.md with a Mermaid stateDiagram-v2 block.
+  List every state and every valid transition. Invalid transitions left implicit
+  will be generated on demand.
+evidence: >
+  State machines without explicit diagrams routinely develop impossible states
+  under AI generation — the AI infers valid transitions from naming and produces
+  locally-correct code that violates the intended state graph. The diagram is
+  the constraint, not the code.
+generalizable: true
+tags:
+  - STATE-MACHINE
+layers:
+  - layer: L1
+    description: >
+      Blueprint state contract: the state diagram is the formal grammar for
+      all valid system states. It directly generates state transition test cases.
+      A system without it has an unconstrained state space — any state is valid.
+    when: >
+      Fire when project has STATE-MACHINE tag and no state diagram exists.
+      P0: blocks all generation until the diagram is present.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: high
+impact: high
+confidence: high

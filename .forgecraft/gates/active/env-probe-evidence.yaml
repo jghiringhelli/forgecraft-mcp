@@ -1,0 +1,43 @@
+id: env-probe-evidence
+title: Environment Probe Evidence Required Before Release
+description: >
+  The pre-release gate requires .forgecraft/env-probe-run.json to exist with
+  at least one passing probe. Without env probe execution, L3 environment
+  contracts are unverified — the system may behave differently from its
+  declared environment schema when deployed.
+domain: environment-hygiene
+implementation: logic
+gsProperty: executable
+phase: pre-release
+hook: pre-push
+os: cross-platform
+check: >
+  Verify .forgecraft/env-probe-run.json exists and contains passed >= 1.
+passCriterion: env-probe-run.json exists with at least 1 passing probe.
+failureMessage: >
+  No environment probe evidence found. Run run_env_probe against your
+  staging or local environment before releasing.
+fixHint: Run run_env_probe then push again.
+layers:
+  - layer: L3
+    description: Enforces that environment contracts have been probed and verified before release.
+    when: Pre-release gate — fires on pre-push when env-probe-run.json is missing or has 0 passing.
+priority: P1
+likelihood: medium
+impact: high
+confidence: high
+status: ready
+source: project
+discoveredBy: ai
+generalizable: true
+addedAt: "2026-04-17T00:00:00.000Z"
+evidence: >
+  Environment drift is the leading cause of staging-to-production divergence.
+  Requiring env probe evidence before release closes the gap between declared
+  and actual environment state.
+convergenceAttributes:
+  prescriptive: true
+  agnostic: true
+  promptHealthy: true
+  deterministic: true
+  convergent: true

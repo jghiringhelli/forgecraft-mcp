@@ -1,0 +1,50 @@
+id: schema-contract-at-boundary
+title: API Handler Missing Schema Validation at Boundary
+domain: api-contract
+phase: development
+priority: P0
+description: >
+  An API route handler accepts request data without machine-validating it at
+  the boundary (Zod, Pydantic, JSON Schema, Joi, etc.). Unvalidated input is
+  an implicit schema — the handler's first access to a field defines the contract
+  by accident. This is both a security failure and a specification failure.
+check:
+  type: logic
+  condition: >
+    Scan route/controller/handler files for functions that:
+    (a) receive req.body, request.json(), ctx.request.body, or equivalent
+    AND (b) do not call a schema parse/validate method on the incoming data
+    before accessing fields.
+failureMessage: >
+  Route handler accesses request body without schema validation.
+  The input contract is implicit — any shape is accepted.
+fixHint: >
+  Add Zod parse at the entry point: const body = MySchema.parse(req.body).
+  This throws on invalid input before business logic runs. One schema per
+  request shape; schemas are reused as the OpenAPI source of truth.
+evidence: >
+  Unvalidated API inputs are the root cause of injection attacks, unexpected
+  null propagation, and type errors in business logic. The schema at the
+  boundary IS the contract — validating after-the-fact misses the point.
+generalizable: true
+tags:
+  - API
+layers:
+  - layer: L1
+    description: >
+      Blueprint schema contract: Zod/Pydantic schemas at API boundaries are the
+      machine-readable formal spec for input shapes. They generate OpenAPI docs,
+      catch invalid input before business logic, and are the single source of
+      truth for what the boundary accepts.
+    when: >
+      Fire on every modified route/controller file that lacks schema validation
+      at the request entry point. Pre-commit gate.
+convergence:
+  prescriptive: true
+  agnostic: true
+  healthy: true
+  deterministic: true
+  convergent: true
+likelihood: high
+impact: high
+confidence: medium

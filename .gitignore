@@ -36,3 +36,8 @@ experiments/*/session.log.json
 
 tmpclaude-*
 .forgecraft/gate-violations.jsonl
+
+# Hook-generated runtime data
+.session-log/
+.complexity/
+.env-audit/
