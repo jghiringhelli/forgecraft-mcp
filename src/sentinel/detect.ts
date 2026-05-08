@@ -109,9 +109,11 @@ function sumImmediateFileSizes(dirPath: string): number | null {
   let total = 0;
   let foundAny = false;
 
-  let entries: ReturnType<typeof readdirSync>;
+  let entries: import("node:fs").Dirent[];
   try {
-    entries = readdirSync(dirPath, { withFileTypes: true });
+    entries = readdirSync(dirPath, {
+      withFileTypes: true,
+    }) as import("node:fs").Dirent[];
   } catch {
     return null;
   }
