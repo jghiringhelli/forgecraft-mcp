@@ -96,8 +96,21 @@ export function detectAffectedArtifacts(
     .filter((w) => w.length > 3);
 
   const specFiles: Array<[string, string[]]> = [
+    // Canonical paths first; legacy as fallback for non-migrated projects.
+    [
+      "docs/specs/PRD.md",
+      ["requirement", "product", "feature", "user", "problem"],
+    ],
     ["docs/PRD.md", ["requirement", "product", "feature", "user", "problem"]],
+    [
+      "docs/use-cases/use-cases.md",
+      ["use case", "actor", "workflow", "uc-", "flow"],
+    ],
     ["docs/use-cases.md", ["use case", "actor", "workflow", "uc-", "flow"]],
+    [
+      "docs/contracts/TechSpec.md",
+      ["architecture", "implementation", "component", "system"],
+    ],
     [
       "docs/TechSpec.md",
       ["architecture", "implementation", "component", "system"],

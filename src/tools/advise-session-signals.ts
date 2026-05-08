@@ -64,6 +64,8 @@ const CONSTITUTION_PATHS = [
   "CONVENTIONS.md", // Aider
 ] as const;
 const SPEC_PATHS = [
+  "docs/specs/PRD.md",
+  "docs/specs/spec.md",
   "docs/PRD.md",
   "docs/spec.md",
   "SPEC.md",
@@ -77,13 +79,20 @@ function hasAny(dir: string, paths: readonly string[]): boolean {
 }
 
 function hasAdrFiles(dir: string): boolean {
-  const adrsDir = join(dir, "docs", "adrs");
-  if (!existsSync(adrsDir)) return false;
-  try {
-    return readdirSync(adrsDir).some((f) => f.endsWith(".md"));
-  } catch {
-    return false;
+  const adrCandidates = [
+    join(dir, "docs", "adrs", "active"),
+    join(dir, "docs", "adrs"),
+  ];
+  for (const adrsDir of adrCandidates) {
+    if (!existsSync(adrsDir)) continue;
+    try {
+      const found = readdirSync(adrsDir).some((f) => f.endsWith(".md"));
+      if (found) return true;
+    } catch {
+      // ignore and try next candidate
+    }
   }
+  return false;
 }
 
 function readRecentActivity(dir: string): string | null {

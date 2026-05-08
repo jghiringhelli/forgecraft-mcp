@@ -63,7 +63,7 @@ function schemaItem(signals: ProjectSignals): AdviceItem | null {
     message:
       "No schema artifact found — the system vocabulary (API, DB, events) is implicit.",
     action:
-      "Add openapi.yaml, prisma/schema.prisma, or docs/schema.md to make contracts explicit.",
+      "Add openapi.yaml, prisma/schema.prisma, or docs/schemas/ to make contracts explicit.",
   };
 }
 
@@ -72,7 +72,7 @@ function specItem(signals: ProjectSignals): AdviceItem | null {
   return {
     priority: "medium",
     message: "No spec or PRD found — intent exists only in contributor heads.",
-    action: "Add docs/PRD.md describing what the project does and why.",
+    action: "Add docs/specs/PRD.md describing what the project does and why.",
   };
 }
 
