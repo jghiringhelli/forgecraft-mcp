@@ -6,16 +6,18 @@
 # Or automatically via:    npm install  (prepare script)
 #
 # What gets installed into .git/hooks/pre-commit:
-#   1. pre-commit-no-temp-files  — block temp/draft/unofficial files
-#   2. pre-commit-secrets        — block accidental credential exposure
-#   3. pre-commit-prod-quality   — anti-pattern scan (mocks, hardcoded URLs)
-#   4. pre-commit-branch-check   — no direct commits to main/master
-#   5. pre-commit-format         — auto-format staged TS/JS files
-#   6. pre-commit-compile        — TypeScript compilation check
-#   7. pre-commit-tdd-check      — TDD RED gate: test-only commits must fail;
-#                                  warn on implementation commits without tests
-#   8. pre-commit-test           — run bare tests (skips docs/config-only commits and when src/ staged; see #9)
-#   9. pre-commit-coverage       — run tests + enforce coverage thresholds (src/ only)
+#   1.  pre-commit-no-temp-files  — block temp/draft/unofficial files
+#   2.  pre-commit-secrets        — block accidental credential exposure
+#   3.  pre-commit-prod-quality   — anti-pattern scan (mocks, hardcoded URLs)
+#   4.  pre-commit-branch-check   — no direct commits to main/master
+#   5.  pre-commit-format         — auto-format staged TS/JS files
+#   6.  pre-commit-compile        — TypeScript compilation check
+#   7.  pre-commit-import-cycles  — circular dependency detection (madge/lint-imports)
+#   8.  pre-commit-tdd-check      — TDD RED gate: test-only commits must fail;
+#                                   warn on implementation commits without tests
+#   9.  pre-commit-test           — run bare tests (skips docs/config-only commits and when src/ staged; see #10)
+#   10. pre-commit-coverage       — run tests + enforce coverage thresholds (src/ only)
+#   11. pre-commit-audit          — block HIGH/CRITICAL CVEs (npm audit, pip-audit, cargo audit)
 # ──────────────────────────────────────────────────────────────────────
 
 set -e
@@ -63,9 +65,11 @@ run_hook "pre-commit-prod-quality.sh"
 run_hook "pre-commit-branch-check.sh"
 run_hook "pre-commit-format.sh"
 run_hook "pre-commit-compile.sh"
+run_hook "pre-commit-import-cycles.sh"
 run_hook "pre-commit-tdd-check.sh"
 run_hook "pre-commit-test.sh"
 run_hook "pre-commit-coverage.sh"
+run_hook "pre-commit-audit.sh"
 
 exit 0
 EOF
@@ -147,7 +151,7 @@ EOF
 chmod +x "$PRE_PUSH"
 
 echo "✅ Git hooks installed:"
-echo "   .git/hooks/pre-commit         — 9 checks (temp-files, secrets, quality, branch, format, compile, tdd, tests, coverage)"
+echo "   .git/hooks/pre-commit         — 11 checks (temp-files, secrets, quality, branch, format, compile, cycles, tdd, tests, coverage, audit)"
 echo "   .git/hooks/commit-msg         — enforces conventional commit format"
 echo "   .git/hooks/prepare-commit-msg — tags commit with touched use case IDs"
 echo "   .git/hooks/post-commit        — updates CHANGELOG.md + complexity baseline"

@@ -2,16 +2,20 @@
   "$schema": "https://stryker-mutator.io/schemas/stryker-schema.json#",
   "testRunner": "vitest",
   "mutate": [
-    "src/registry/sentinel-renderer.ts"
+    "src/registry/sentinel-renderer.ts",
+    "src/analyzers/scorers/scorer-utils.ts",
+    "src/tools/change-request.ts"
   ],
   "testFiles": [
-    "tests/registry/sentinel-renderer.test.ts"
+    "tests/registry/sentinel-renderer.test.ts",
+    "tests/analyzers/scorers/scorer-utils.test.ts",
+    "tests/tools/change-request.test.ts"
   ],
   "reporters": ["progress", "clear-text"],
   "thresholds": {
-    "high": 80,
-    "low": 60,
-    "break": 50
+    "high": 90,
+    "low": 80,
+    "break": 80
   },
   "timeoutMS": 30000,
   "concurrency": 4,

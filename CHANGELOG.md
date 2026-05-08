@@ -9,7 +9,14 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+
+## [1.5.0] — 2026-04-19
+
 ### Added
+- **`advise_session` MCP action.** Agent-agnostic session advisor. Reads project signals (artifacts present/absent, active gate violations, recent git activity) and returns a prioritised `## Session Advisor` block. Works on any project — no `forgecraft.yaml` required. Recognises all six agent constitution paths: CLAUDE.md (Claude Code), `.cursor/rules/` (Cursor), `.github/copilot-instructions.md` (Copilot), `.windsurfrules` (Windsurf), `.clinerules` (Cline), `CONVENTIONS.md` (Aider). For Claude Code: install the companion `session-advisor.sh` UserPromptSubmit hook to inject state automatically before every prompt.
+- **`session-advisor.sh` hook template.** Pure-shell Claude Code hook (no Node.js startup) that injects a `<!-- forgecraft:session-context -->` block before every prompt. Scoped to Claude Code; includes equivalent instructions for all other MCP-capable agents.
+- **cascade**: add Step 6 schema definitions + living-docs gate (`06e9706`)
+- Executable Sprint — L1-L4 harness probes, env probe runner, layer status, close-cycle gates (`7b19a74`)
 
 - **`check_spec_consistency` MCP action.** Scans all spec artifacts for structural gaps, derivation chain breaks, and false confidence signals. Checks: UCs without postconditions or error cases, duplicate UC IDs, hollow probes (pass with 0 assertions), stub probes (TODO sections unfilled), orphan probes (no matching UC), stale ADRs in Proposed status (>30 days), unresolved `[NEEDS CLARIFICATION]` markers across all artifacts, and gates referencing nonexistent paths. Returns a structured findings table with severity (error/warning/info) and fix hints. Supports `strict` mode where warnings also block.
 
@@ -29,6 +36,11 @@ Breaking changes are marked **BREAKING**.
 
 - **`docs/design-philosophy.md`.** Explains the shared SDD premise, the four-layer ratchet vs flat artifact stacks, the bounded context/sentinel tree approach, and the threat model difference between "code review comment" and "production incident". Readable design rationale for new contributors.
 
+- **`mutation-testing-required` gate (P1, pre-release).** Blocks release when no mutation testing config is present (Stryker, mutmut, cargo-mutants, PITest). Motivated by DX1 experiment finding: 93% reported coverage masked effective mutation scores of 58–93%, exposing hallucinated test suites. Fires on `api`, `cli`, `library` tags at pre-release phase.
+
+- **Spec files for loom, invellum, and scholaris-mcp.** All three projects now have complete `docs/PRD.md` and `docs/use-cases.md` derived from existing code, satisfying their L1 cascade Step 1 (functional spec).
+
+---
 
 ## [1.4.0] — 2026-04-05
 
@@ -385,3 +397,21 @@ the published white paper and practitioner protocol.
 
 ### Fixed
 - **hooks**: prevent changelog hook infinite loop on chore(changelog) commits (`1282ffd`)
+
+### Fixed
+- correct quality-gates registry URL to jghiringhelli/quality-gates master (`08475e3`)
+
+### Other
+- **practitioner-mode**: [RED] practitioner_level flag — experienced mode compact output (`8cb65a0`)
+
+### Added
+- **practitioner-mode**: add practitioner_level flag to session prompt generation (`e9adca0`)
+
+### Documentation
+- remove broken smithery mcpUrl and clean up distribution-plan (`b3fed9e`)
+
+### Added
+- **t4**: scaffold eye-config.yaml from setup_monitoring, improve install guidance (`5a26a2c`)
+
+### Fixed
+- **scorer**: sentinel-aware Self-describing — keyword coverage, not line count (`5552913`)

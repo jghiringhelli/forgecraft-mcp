@@ -281,4 +281,97 @@ export const forgecraftExtendedParams = z.object({
     .describe(
       "Timeout per slo probe in milliseconds. Used by: run_slo_probe. Default: 30000.",
     ),
+  max_items: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe(
+      "Maximum advice items to return. Used by: advise_session. Default: 5.",
+    ),
+  change_title: z
+    .string()
+    .optional()
+    .describe(
+      "Short imperative title for the change (e.g. 'Replace JWT middleware with Clerk SSO'). Used by: change_request.",
+    ),
+  change_description: z
+    .string()
+    .optional()
+    .describe("What is changing and what it affects. Used by: change_request."),
+  change_type: z
+    .enum([
+      "spec-change",
+      "breaking-api",
+      "adr-supersession",
+      "gate-change",
+      "dependency-update",
+    ] as const)
+    .optional()
+    .describe(
+      "Classification of the change. Used by: change_request. " +
+        "spec-change: PRD/use-cases update. breaking-api: public interface change. " +
+        "adr-supersession: architectural decision being replaced. gate-change: quality gate modification. " +
+        "dependency-update: external dependency version or replacement.",
+    ),
+  change_breaking: z
+    .boolean()
+    .optional()
+    .describe(
+      "True if this change breaks the public API or contract for consumers. Used by: change_request.",
+    ),
+  change_breaking_details: z
+    .string()
+    .optional()
+    .describe(
+      "Describe what breaks — which endpoint, field, or behavior is removed/changed. Used by: change_request.",
+    ),
+  change_supersedes_adr: z
+    .string()
+    .optional()
+    .describe(
+      "ADR ID being superseded by this change (e.g. 'ADR-0003'). Used by: change_request.",
+    ),
+  change_affected_artifacts: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Explicit list of spec artifact paths affected. Used by: change_request. If omitted, auto-detected.",
+    ),
+  changes_status_filter: z
+    .enum([
+      "all",
+      "open",
+      "implementing",
+      "blocked",
+      "verified",
+      "closed",
+    ] as const)
+    .optional()
+    .describe("Filter changes by status. Used by: list_changes. Default: all."),
+  monitoring_force: z
+    .boolean()
+    .optional()
+    .describe(
+      "Overwrite existing docs/monitoring-spec.md. Used by: setup_monitoring. Default: false.",
+    ),
+  t4_acknowledge: z
+    .string()
+    .optional()
+    .describe(
+      "Signal ID to mark as acknowledged. Used by: check_t4. Example: 'sig-20260424-143022-001'.",
+    ),
+  t4_resolve: z
+    .string()
+    .optional()
+    .describe(
+      "Signal ID to mark as resolved (spec update applied and deployed). Used by: check_t4.",
+    ),
+  t4_show_resolved: z
+    .boolean()
+    .optional()
+    .describe(
+      "Include resolved signals in output. Used by: check_t4. Default: false.",
+    ),
 });

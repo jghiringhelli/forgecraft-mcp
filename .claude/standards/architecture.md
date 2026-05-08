@@ -1,9 +1,9 @@
-<!-- ForgeCraft sentinel: architecture | 2026-03-24 | npx forgecraft-mcp refresh . --apply to update -->
+<!-- ForgeCraft sentinel: architecture | 2026-04-20 | npx forgecraft-mcp refresh . --apply to update -->
 
 ## Project Identity
 - **Repo**: https://github.com/jghiringhelli/forgecraft-mcp
 - **Primary Language**: typescript
-- **Framework**: {{framework}}
+- **Framework**: Express
 - **Domain**: {{domain}}
 - **Sensitive Data**: NO
 - **Project Tags**: `[UNIVERSAL]` `[LIBRARY]` `[CLI]` `[API]`

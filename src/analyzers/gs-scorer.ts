@@ -31,6 +31,7 @@ import { scoreDefended } from "./scorers/defended-scorer.js";
 import { scoreAuditable } from "./scorers/auditable-scorer.js";
 import { scoreComposable } from "./scorers/composable-scorer.js";
 import { scoreExecutable } from "./scorers/executable-scorer.js";
+import { applyAnchor, type AnchorOptions } from "./anchors/anchor-loader.js";
 
 const logger = createLogger("analyzers/gs-scorer");
 
@@ -41,6 +42,7 @@ const logger = createLogger("analyzers/gs-scorer");
  * @param testsPassed - Whether the test suite passed (feeds Verifiable)
  * @param layerViolations - Pre-computed layer violations (feeds Bounded)
  * @param missingTestFiles - Pre-computed missing test files (feeds Verifiable)
+ * @param options - Optional scoring options (e.g. calibration anchorPath)
  * @returns Array of scored GS properties in canonical §4.3 order (7 properties)
  */
 export function scoreGsProperties(
@@ -48,12 +50,13 @@ export function scoreGsProperties(
   testsPassed: boolean,
   layerViolations: LayerViolation[],
   missingTestFiles: MissingTestFile[],
+  options: AnchorOptions = {},
 ): GsPropertyScore[] {
   logger.info("Scoring GS properties", { projectDir });
 
   const allFiles = listAllFiles(projectDir);
 
-  return [
+  const scores: GsPropertyScore[] = [
     scoreSelfDescribing(projectDir),
     scoreBounded(layerViolations),
     scoreVerifiable(testsPassed, missingTestFiles, allFiles),
@@ -62,6 +65,8 @@ export function scoreGsProperties(
     scoreComposable(projectDir, allFiles),
     scoreExecutable(projectDir, testsPassed),
   ];
+
+  return scores.map((s) => applyAnchor(s, options));
 }
 
 /**
@@ -70,7 +75,9 @@ export function scoreGsProperties(
  * @param projectDir - Absolute path to the project root
  * @returns Array of layer violations with file path, line number, and snippet
  */
-export function findDirectDbCallsInRoutes(projectDir: string): LayerViolation[] {
+export function findDirectDbCallsInRoutes(
+  projectDir: string,
+): LayerViolation[] {
   const allFiles = listAllFiles(projectDir);
   const routeFiles = allFiles.filter(
     (f) => isRouteFile(f) && isSourceCodeFile(f) && !isTestOrFixtureFile(f),

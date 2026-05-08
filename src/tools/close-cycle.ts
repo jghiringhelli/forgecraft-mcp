@@ -37,6 +37,7 @@ import {
   markRoadmapItemDone,
   formatCloseCycleResult,
 } from "./close-cycle-helpers.js";
+import { getImplementingChanges } from "./change-request.js";
 import {
   suggestVersionBump,
   appendChangelogEntry,
@@ -92,6 +93,32 @@ export async function closeCycle(
       gatesPromoted: 0,
       codeseekerGates: [],
       nextSteps,
+      ready: false,
+    };
+  }
+
+  // Step 1.5 -- In-flight change check
+  const implementingChanges = getImplementingChanges(projectRoot);
+  if (implementingChanges.length > 0) {
+    const blockers = implementingChanges.map((c) =>
+      c.required_gates.length > 0
+        ? `${c.id} (gates: ${c.required_gates.join(", ")})`
+        : c.id,
+    );
+    return {
+      cascadeStatus: "fail",
+      cascadeBlockers: blockers,
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps: [
+        `${implementingChanges.length} change(s) still in 'implementing' status — verify or close them before close_cycle:`,
+        ...implementingChanges.map(
+          (c) =>
+            `  • ${c.id}: ${c.title}${c.required_gates.length > 0 ? ` (requires: ${c.required_gates.join(", ")})` : ""}`,
+        ),
+        "Run `list_changes` to review. Set status to 'verified' or 'closed' in .forgecraft/changes/<id>.yaml.",
+      ],
       ready: false,
     };
   }

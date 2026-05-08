@@ -4,30 +4,50 @@
   "testRunnerNodeArgs": ["--experimental-vm-modules"],
   "mutate": [
     "src/registry/sentinel-renderer.ts",
-    "src/tools/refresh-project.ts",
-    "src/tools/scaffold.ts"
+    "src/analyzers/scorers/scorer-utils.ts",
+    "src/analyzers/scorers/self-describing-scorer.ts",
+    "src/analyzers/scorers/bounded-scorer.ts",
+    "src/analyzers/scorers/auditable-scorer.ts",
+    "src/analyzers/scorers/composable-scorer.ts",
+    "src/analyzers/scorers/defended-scorer.ts",
+    "src/analyzers/scorers/verifiable-scorer.ts",
+    "src/tools/change-request.ts",
+    "src/cli/args.ts"
   ],
   "testFiles": [
     "tests/registry/sentinel-renderer.test.ts",
-    "tests/tools/refresh-project.test.ts",
-    "tests/tools/scaffold.test.ts"
+    "tests/analyzers/scorers/scorer-utils.test.ts",
+    "tests/analyzers/scorers/self-describing-scorer.test.ts",
+    "tests/analyzers/scorers/bounded-scorer.test.ts",
+    "tests/analyzers/scorers/auditable-scorer.test.ts",
+    "tests/analyzers/scorers/composable-scorer.test.ts",
+    "tests/analyzers/scorers/defended-scorer.test.ts",
+    "tests/analyzers/scorers/verifiable-scorer.test.ts",
+    "tests/tools/change-request.test.ts",
+    "tests/cli/args.test.ts"
   ],
-  "reporters": ["progress", "html", "clear-text"],
+  "reporters": ["progress", "html", "json", "clear-text"],
   "htmlReporter": {
     "fileName": "reports/mutation/index.html"
   },
+  "jsonReporter": {
+    "fileName": "reports/mutation/mutation.json"
+  },
   "thresholds": {
-    "high": 80,
-    "low": 60,
-    "break": 50
+    "high": 90,
+    "low": 80,
+    "break": 80
   },
   "timeoutMS": 30000,
   "concurrency": 2,
   "tempDirName": ".stryker-tmp",
   "cleanTempDir": true,
   "coverageAnalysis": "perTest",
+  "ignoreStatic": true,
+  "mutator": {
+    "excludedMutations": ["StringLiteral"]
+  },
   "vitest": {
     "configFile": "vitest.config.ts"
   }
 }
-

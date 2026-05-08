@@ -1,0 +1,46 @@
+id: mutation-testing-required
+name: Mutation Testing Required
+description: >
+  Projects with unit tests must have mutation testing configured AND passing
+  in CI at ≥65% mutation score (break threshold). Line coverage alone is
+  insufficient — DX1 experiment showed 93% reported coverage masked effective
+  mutation scores of 58–93%, exposing hallucinated test suites.
+
+  Config presence (any_of check below) is necessary but not sufficient.
+  The break threshold in stryker.config.json must be ≥65, and
+  test:mutation:ci must be a required step in the publish pipeline.
+  TDD-written tests are expected to score ≥70%; brownfield tests should
+  establish a baseline before raising the threshold.
+severity: P1
+phase: pre-release
+tags:
+  - testing
+  - quality
+  - api
+  - cli
+  - library
+check:
+  any_of:
+    - path: stryker.config.js
+    - path: stryker.config.json
+    - path: stryker.config.mjs
+    - path: .stryker.config.js
+    - path: .stryker.config.json
+    - path: stryker.conf.js
+    - path: mutmut.cfg
+    - path: .mutmut
+    - path: cargo-mutants.toml
+    - path: pitest.xml
+    - path: mutation.xml
+message: >
+  No mutation testing config found. Add Stryker (JS/TS), mutmut (Python),
+  cargo-mutants (Rust), or PITest (JVM) before releasing.
+  Config alone is not enough — enforce a break threshold ≥65 and add
+  test:mutation:ci as a blocking step in your publish pipeline.
+  Run: npx stryker init
+resolution:
+  - Run `npx stryker init` to scaffold Stryker configuration
+  - Set thresholds.break ≥ 65 in stryker.config.json
+  - Add `test:mutation:ci` as a required publish pipeline step (before npm publish)
+  - For TDD modules: expect ≥70%; for brownfield: establish baseline first
+  - Run `npm run test:mutation` locally to verify before pushing a release tag

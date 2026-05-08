@@ -82,11 +82,36 @@ export function computeMaturityTier(totalScore: number): GsMaturityTierInfo {
   };
 }
 
+/**
+ * Reference to a calibration anchor file used to justify a score level.
+ * When `provisional` is true the anchor was missing for this property/level pair.
+ */
+export interface AnchorReference {
+  readonly property: GsProperty;
+  readonly level: 0 | 1 | 2;
+  /** Absolute or relative path to the anchor markdown file (when found). */
+  readonly path?: string;
+  /** Title parsed from the anchor file (when found). */
+  readonly title?: string;
+  /** Repo + commit hash being anchored (when found). */
+  readonly anchoredRepo?: string;
+  /** Specific feature being anchored (when found). */
+  readonly feature?: string;
+  /** Why the anchored example sits at this score level (when found). */
+  readonly rationale?: string;
+  /** What would move it to the next level (when found). */
+  readonly nextLevelDelta?: string;
+}
+
 /** Score (0–2) for a single GS property with supporting evidence. */
 export interface GsPropertyScore {
   readonly property: GsProperty;
   readonly score: 0 | 1 | 2;
   readonly evidence: string[];
+  /** True when no anchor exists for this property/level pair. */
+  readonly provisional?: boolean;
+  /** Calibration anchor referenced for this score, when available. */
+  readonly anchor?: AnchorReference;
 }
 
 /** Outcome of executing the project's test suite. */

@@ -33,6 +33,7 @@ import {
 } from "./verification-state.js";
 import { setupProjectHandler } from "./setup-project.js";
 import { layerStatusHandler } from "./layer-status.js";
+import { adviseSessionHandler } from "./advise-session.js";
 import type { ForgecraftArgs, Action } from "./forgecraft-schema.js";
 import {
   requireParam,
@@ -299,6 +300,17 @@ export async function dispatchForgecraft(
           "project_dir",
           "layer_status",
         ),
+      });
+
+    case "advise_session":
+      return adviseSessionHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "advise_session",
+        ),
+        max_items:
+          typeof args.max_items === "number" ? args.max_items : undefined,
       });
 
     default:

@@ -54,6 +54,11 @@ export const ACTIONS = [
   "run_slo_probe",
   "propose_session",
   "check_spec_consistency",
+  "advise_session",
+  "change_request",
+  "list_changes",
+  "setup_monitoring",
+  "check_t4",
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -115,6 +120,8 @@ export const forgecraftSchema = z
           "  run_harness         — execute harness probes and report per-UC pass/fail\n\n" +
           "  propose_session     — pre-implementation impact assessment: spec delta, layer readiness, gates, checklist (run before generate_session_prompt)\n\n" +
           "  check_spec_consistency — scan all spec artifacts for structural gaps, hollow probes, ambiguity markers, orphan probes, and derivation chain breaks\n\n" +
+          "  setup_monitoring    — generate docs/monitoring-spec.md from NFR contracts: exception classes, alert thresholds, SLO definitions, PII policy, property violation map. Required before T4 is operational.\n\n" +
+          "  check_t4            — surface pending T4 production signals from .forgecraft/t4-signals.json. Run at session start. Each signal is a spec-level diagnosis from production exceptions — update the spec, then derive the fix.\n\n" +
           "Quick usage examples:\n" +
           '  To run a cascade check:              action="check_cascade"\n' +
           '  To generate a session prompt:        action="generate_session_prompt"\n' +

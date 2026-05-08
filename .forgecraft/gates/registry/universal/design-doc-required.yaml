@@ -1,0 +1,68 @@
+id: design-doc-required
+name: Design Doc Required Before Feature Work
+description: >
+  Verifies that a design document (PRD or feature spec) exists before feature
+  implementation begins. Encourages design-first discipline: define the problem,
+  explore alternatives, and document trade-offs before writing production code.
+  Inspired by the "office hours → plan review" gate from gstack.
+severity: warning
+tags: [universal]
+checks:
+  - id: prd-exists
+    description: docs/PRD.md must exist
+    fail_message: >
+      docs/PRD.md not found. Before writing feature code, document:
+        - Problem statement (what user pain are you solving?)
+        - Target users and their context
+        - Use cases (one sentence each: "[Actor] [action] so that [outcome]")
+        - Non-goals (what this feature explicitly does not do)
+        - 2-3 alternatives considered and why this approach was chosen
+      Create docs/PRD.md, then run: npx forgecraft-mcp audit .
+    pass_message: docs/PRD.md present
+    probe:
+      type: file_exists
+      path: docs/PRD.md
+
+  - id: techspec-exists
+    description: docs/TechSpec.md must exist
+    fail_message: >
+      docs/TechSpec.md not found. Before writing feature code, document:
+        - Architecture diagram (ASCII) showing layers and data flow
+        - Key design decisions and why (alternatives rejected)
+        - External dependencies and what they're used for
+        - Environment variables required
+      Create docs/TechSpec.md, then run: npx forgecraft-mcp audit .
+    pass_message: docs/TechSpec.md present
+    probe:
+      type: file_exists
+      path: docs/TechSpec.md
+
+remediation:
+  steps:
+    - title: Create docs/PRD.md
+      prompt: |
+        Read CLAUDE.md and any existing docs/.
+
+        Create docs/PRD.md with the following structure:
+        - ## Problem Statement — what user pain are you solving?
+        - ## Target Users — who uses this and in what context?
+        - ## Use Cases — one per feature: "[Actor] [action] so that [outcome]"
+        - ## Non-Goals — what this explicitly does not cover
+        - ## Alternatives Considered — 2-3 options you evaluated and why you chose this approach
+
+        Do NOT invent requirements. Document only what is known.
+        Commit: docs(spec): add PRD for [feature name]
+
+    - title: Create docs/TechSpec.md
+      prompt: |
+        Read CLAUDE.md, docs/PRD.md, and any existing architecture docs.
+
+        Create docs/TechSpec.md with the following structure:
+        - ## Stack — detected from package.json / pyproject.toml
+        - ## Architecture Diagram — ASCII showing layers and data flow
+        - ## Key Design Decisions — what you chose and why
+        - ## External Dependencies — what each dep does
+        - ## Environment Variables — from .env.example
+        - ## Testing Strategy — unit, integration, mutation targets
+
+        Commit: docs(spec): add TechSpec for [feature name]

@@ -1,12 +1,14 @@
 {
-  "fetchedAt": "2026-03-24T14:15:09.374Z",
+  "fetchedAt": "2026-04-20T03:21:34.517Z",
   "data": {
-    "generatedAt": "2026-03-19T20:42:21.571Z",
+    "generatedAt": "2026-03-27T22:57:34.396Z",
     "version": "1",
-    "gateCount": 22,
+    "gateCount": 29,
     "tags": [
       "API",
+      "CLI",
       "FINTECH",
+      "LIBRARY",
       "SIMULATION",
       "STATE-MACHINE",
       "UNIVERSAL",
@@ -15,6 +17,110 @@
       "WEB3"
     ],
     "gates": [
+      {
+        "id": "api-error-envelope-resource-scoped",
+        "title": "API Validation Errors — Resource-Scoped Keys Required",
+        "description": "API validation error responses must use a resource-scoped key: { \"errors\": { \"<resource>\": [\"msg\"] } }. Never errors.body[]. Enforce via a formatError(resource: string, messages: string[]) utility function so the pattern is impossible to violate accidentally. Returning errors.body[] is a spec deficiency that causes all contract tests against real-world test suites to fail, even when the implementation is otherwise correct.\n",
+        "category": "api-contracts",
+        "gsProperty": "verifiable",
+        "phase": "development",
+        "hook": "pre-commit",
+        "check": "1. Search codebase for any validation error response that uses a literal \"body\" key:\n   grep -rn '\"body\"' src/ | grep -i error\n2. Confirm a formatError(resource, messages) utility exists and is used at all validation points. 3. Run the project's contract test suite (e.g. Hurl, Postman) — all error-shape tests must pass.\n",
+        "passCriterion": "Zero validation error responses use errors.body[]. All use errors.<resource>[]. A formatError() utility enforces the pattern. Contract tests for error shapes pass.\n",
+        "tags": [
+          "API"
+        ],
+        "generalizable": true,
+        "evidence": "Hurl RC2 against gothinkster/realworld — 6 of 13 official community contract tests failed against GS Treatment v6. All six failures traced to a single root cause: the v6 spec (conduit-gs.md §3.4) explicitly specified errors.body[] but the Hurl tests expected resource-scoped keys (errors.username[], errors.article[]). Both v6 and the RX control implementation failed identically because the spec was wrong, not the implementations. The GS rubric had scored v6 highly despite this contract violation because the rubric was written by the same author as the spec — neither could see the gap. An independent external test suite found it immediately.\n",
+        "provenance": {
+          "experiment": "ax-v7",
+          "finding": "Hurl RC2 — 6/13 official Conduit contract tests failed due to errors.body[] vs errors.<resource>[]",
+          "external_tool": "Hurl (gothinkster/realworld official contract suite)",
+          "discovered_in": "GS Treatment v6 — spec gap, not implementation error"
+        },
+        "status": "approved",
+        "approvedAt": "2026-03-27",
+        "contributor": "jghiringhelli",
+        "_path": "gates/api/api-error-envelope-resource-scoped.yaml"
+      },
+      {
+        "id": "api-nullable-field-coercion",
+        "title": "Nullable Fields — Empty String Must Coerce to Null at Service Layer",
+        "description": "Optional profile fields declared nullable in the schema must coerce empty-string client input to null at the service layer: bio === '' ? null : bio. An empty string stored as \"\" violates the nullable contract and breaks contract tests. This coercion must happen in the service, not the route handler, so the domain model always reflects the declared type.\n",
+        "category": "api-contracts",
+        "gsProperty": "verifiable",
+        "phase": "development",
+        "hook": "pre-commit",
+        "check": "1. Identify all fields in the schema declared as nullable (string | null). 2. Locate the service-layer update function for each such field. 3. Confirm each has a coercion guard: fieldValue === '' ? null : fieldValue 4. Run contract tests covering PUT/PATCH with empty string for nullable fields.\n",
+        "passCriterion": "All nullable fields coerce '' to null at the service layer. PUT/PATCH with bio: \"\" (or equivalent) returns null, not \"\". Contract tests for nullable field behavior pass.\n",
+        "tags": [
+          "API"
+        ],
+        "generalizable": true,
+        "evidence": "Hurl RC1 against gothinkster/realworld — PUT /api/user with bio: \"\" returned \"\" instead of null. One test failure. The fix is a single coercion guard at the service layer. Without this gate, the pattern is easy to miss because tsc passes, unit tests pass (they don't send \"\"), and only a contract test that explicitly sends an empty string catches it. The Conduit spec says bio is nullable; storing \"\" violates that contract silently.\n",
+        "provenance": {
+          "experiment": "ax-v7",
+          "finding": "Hurl RC1 — PUT /api/user bio:'' returned '' not null; one contract test failure",
+          "external_tool": "Hurl (gothinkster/realworld official contract suite)",
+          "discovered_in": "GS Treatment v6"
+        },
+        "status": "approved",
+        "approvedAt": "2026-03-27",
+        "contributor": "jghiringhelli",
+        "_path": "gates/api/api-nullable-field-coercion.yaml"
+      },
+      {
+        "id": "hurl-contract-tests-pass",
+        "title": "Hurl Contract Tests — Official RealWorld Suite Passes",
+        "description": "Run the gothinkster/realworld official Hurl contract test suite against a running server. These tests were authored by the open-source community with no knowledge of GS or the implementation. They are the definitive external validator for RealWorld Conduit API implementations. All tests must pass before a cycle closes.\n",
+        "category": "api-contracts",
+        "gsProperty": "verifiable",
+        "phase": "pre-release",
+        "hook": "pre-release",
+        "check": "1. Start the server: npm run dev (or equivalent) 2. Clone or use local copy of gothinkster/realworld Hurl specs 3. Run: hurl --test specs/api/hurl/*.hurl --variable host=localhost --variable port=3000 4. All tests must exit 0\n",
+        "passCriterion": "hurl --test exits 0. All official RealWorld contract tests pass. Pass rate: 13/13 (or equivalent for non-Conduit APIs: 100% of contract tests pass).\n",
+        "tags": [
+          "API"
+        ],
+        "generalizable": false,
+        "evidence": "GS Treatment v6 passed 6/13 official Hurl contract tests. The two root causes were api-error-envelope-resource-scoped (6 failures) and api-nullable-field-coercion (1 failure). Both were spec gaps invisible to the GS rubric. v7 hypothesis: formalizing these as gates and including them in the spec moves the pass rate from 6/13 to 13/13.\n",
+        "provenance": {
+          "experiment": "ax-v7",
+          "finding": "v6: 6/13 Hurl tests pass; v7 hypothesis is 13/13 by closing RC1+RC2",
+          "external_tool": "Hurl (gothinkster/realworld official contract suite)"
+        },
+        "status": "approved",
+        "approvedAt": "2026-03-27",
+        "contributor": "jghiringhelli",
+        "_path": "gates/api/hurl-contract-tests-pass.yaml"
+      },
+      {
+        "id": "node-esm-cjs-safe-imports",
+        "title": "Node ESM — CJS Packages Require Default Import Pattern",
+        "description": "CommonJS packages (jsonwebtoken, bcrypt, multer, and others) do not expose named exports under ESM interop. Named imports compile cleanly under tsc but crash at runtime with \"does not provide an export named 'X'\". Required pattern: import pkg from 'jsonwebtoken'; const { sign } = pkg. This gate applies to any Node project with \"type\": \"module\" or moduleResolution: \"NodeNext\".\n",
+        "category": "environment-hygiene",
+        "gsProperty": "executable",
+        "phase": "development",
+        "hook": "pre-commit",
+        "check": "1. Identify all dependencies that are CommonJS-only (no ESM entry in package.json exports map).\n   Key candidates: jsonwebtoken, bcrypt, multer, express (v4), require-from-string.\n2. Search for named imports of these packages:\n   grep -rn \"^import {\" src/ | grep -E \"jsonwebtoken|bcrypt|multer\"\n3. Any named import of a CJS-only package must be replaced with default import + destructure. 4. Start the server and confirm no runtime \"does not provide an export named\" errors occur.\n",
+        "passCriterion": "Zero named imports of CJS-only packages in ESM projects. Server starts without named-export runtime errors. tsc --noEmit exits 0 AND server starts successfully on first request.\n",
+        "tags": [
+          "CLI",
+          "API",
+          "LIBRARY"
+        ],
+        "generalizable": true,
+        "evidence": "GS Treatment v6 — server started (tsc --noEmit passed, npm run build succeeded), then crashed on the first JWT operation with \"jsonwebtoken does not provide an export named 'sign'\". The build gate passed; the runtime gate did not exist. This is a category of failure that tsc cannot catch because TypeScript's ESM interop adds type stubs for CJS named exports — the types exist, the runtime exports do not. The only detection is a runtime smoke test or an explicit import pattern gate. The gate was added after v6; v7 uses default import + destructure throughout.\n",
+        "provenance": {
+          "experiment": "ax-v7",
+          "finding": "v6 server started then crashed on first JWT call — tsc passed, runtime did not",
+          "discovered_in": "GS Treatment v6 server startup"
+        },
+        "status": "approved",
+        "approvedAt": "2026-03-27",
+        "contributor": "jghiringhelli",
+        "_path": "gates/api/node-esm-cjs-safe-imports.yaml"
+      },
       {
         "id": "codeseeker-duplicate-detection",
         "title": "Semantic Duplicate Code Detection at End of Cycle",
@@ -90,6 +196,78 @@
         "source": "registry",
         "addedAt": "2026-03-19T20:00:00Z",
         "_path": "gates/code-quality/codeseeker-orphan-detection.yaml"
+      },
+      {
+        "id": "cyclomatic-complexity-max-10",
+        "title": "Cyclomatic Complexity — Maximum 10 Per Function",
+        "description": "No function may have a cyclomatic complexity greater than 10. Complexity above 10 indicates a function that is doing too much, is hard to test completely, and is difficult for an AI to reason about correctly. This is a direct enforcement of the Bounded property: each function has a limited, understandable decision space.\n",
+        "category": "code-quality",
+        "gsProperty": "bounded",
+        "phase": "development",
+        "hook": "pre-commit",
+        "check": "Run ESLint with complexity rule:\n  eslint --rule '{\"complexity\": [\"error\", 10]}' src/\nOr configure in .eslintrc:\n  \"complexity\": [\"error\", 10]\nFix violations by decomposing the function into smaller, single-purpose functions.\n",
+        "passCriterion": "Zero functions with cyclomatic complexity > 10. eslint with complexity rule exits 0.\n",
+        "tags": [
+          "UNIVERSAL"
+        ],
+        "generalizable": true,
+        "evidence": "High cyclomatic complexity is consistently correlated with defect density (McCabe 1976, replicated across multiple industrial studies). Functions with complexity > 10 require exponentially more test cases for full branch coverage. In AI-assisted development, high-complexity functions are particularly risky: the AI must track more conditional paths simultaneously and is more likely to miss edge cases. The threshold of 10 is the standard industry threshold (SonarQube default, ESLint default).\n",
+        "status": "approved",
+        "approvedAt": "2026-03-27",
+        "contributor": "jghiringhelli",
+        "_path": "gates/code-quality/cyclomatic-complexity-max-10.yaml"
+      },
+      {
+        "id": "no-duplicate-string-literals",
+        "title": "No Duplicate String Literals — Extract to Named Constants",
+        "description": "String values appearing more than 3 times in the codebase must be extracted to named constants. Duplicate string literals are a proxy for the Bounded property: the same concept being expressed in multiple places without a single authoritative definition. When a value changes, all occurrences must be found and updated manually, which produces drift. A named constant makes the concept explicit and the value single-source-of-truth.\n",
+        "category": "code-quality",
+        "gsProperty": "bounded",
+        "phase": "development",
+        "hook": "pre-commit",
+        "check": "Run SonarJS duplicate string literal detection:\n  npx eslint --plugin sonarjs --rule '{\"sonarjs/no-duplicate-string\": \"error\"}' src/\nOr configure in .eslintrc:\n  \"sonarjs/no-duplicate-string\": [\"error\", { \"threshold\": 3 }]\nAny string appearing more than 3 times that is not a technical constant (import path, log prefix) must be extracted to a named constant in a constants file.\n",
+        "passCriterion": "Zero sonarjs/no-duplicate-string violations at threshold 3. eslint exits 0.\n",
+        "tags": [
+          "UNIVERSAL"
+        ],
+        "generalizable": true,
+        "evidence": "SonarJS ran against GS experiment conditions with no knowledge of GS or the rubric. Naive condition (no GS guidance): 19 duplicate string literal violations. v3 treatment (GS-guided): 1 violation. The external tool ranked conditions consistently with the GS rubric ranking — without any GS knowledge. This confirmed the rubric is measuring something real: the same signal is detectable by an independent quality model. The gate formalizes what SonarJS was already detecting.\n",
+        "provenance": {
+          "experiment": "ax-v6",
+          "finding": "SonarJS: naive=19 violations, v3 treatment=1 — external tool consistent with GS rubric ranking",
+          "external_tool": "SonarJS (eslint-plugin-sonarjs)",
+          "discovered_in": "GS Experiment Ax v6 external validation run"
+        },
+        "status": "approved",
+        "approvedAt": "2026-03-27",
+        "contributor": "jghiringhelli",
+        "_path": "gates/code-quality/no-duplicate-string-literals.yaml"
+      },
+      {
+        "id": "sonarqube-quality-gate-ok",
+        "title": "SonarQube Quality Gate — Independent Static Analysis Passes",
+        "description": "Run SonarQube (or SonarCloud) static analysis and confirm the Quality Gate passes. SonarQube is an industry-standard quality tool with no knowledge of GS. A passing Quality Gate (A ratings across reliability, security, maintainability; 0 bugs, 0 vulnerabilities) from an independent tool closes Layer 3 of the GS circularity problem: GS-designed implementations scoring well on a non-GS quality model.\n",
+        "category": "code-quality",
+        "gsProperty": "verifiable",
+        "phase": "pre-release",
+        "hook": "pre-release",
+        "check": "Option A — SonarCloud (recommended for open source):\n  1. Connect repo to SonarCloud\n  2. Run: npx sonar-scanner (with sonar-project.properties configured)\n  3. Confirm Quality Gate status = OK in SonarCloud dashboard\nOption B — SonarQube local:\n  1. docker run -d -p 9000:9000 sonarqube:community\n  2. sonar-scanner -Dsonar.host.url=http://localhost:9000\n  3. Confirm Quality Gate = OK\nMinimum pass criteria: 0 bugs, 0 vulnerabilities, A maintainability rating.\n",
+        "passCriterion": "SonarQube/SonarCloud Quality Gate: OK. Ratings: Reliability A, Security A, Maintainability A. Zero bugs, zero vulnerabilities flagged.\n",
+        "tags": [
+          "UNIVERSAL"
+        ],
+        "generalizable": true,
+        "evidence": "GS Treatment v6 rated A/A/A, 0 bugs, 0 vulnerabilities, Quality Gate OK on SonarQube. This was run as part of the Norman Owens circularity challenge: if a system passes GS-designed tests on a GS-designed implementation scoring against a GS rubric, nothing independent has been tested. SonarQube — with no GS knowledge — agreed the output was high quality. Closes Layer 3 of the circularity problem partially.\n",
+        "provenance": {
+          "experiment": "ax-v6",
+          "finding": "SonarQube: Treatment v6 rated A/A/A, 0 bugs, 0 vulnerabilities, QG OK",
+          "external_tool": "SonarQube",
+          "discovered_in": "Norman Owens peer review response — external validation run"
+        },
+        "status": "approved",
+        "approvedAt": "2026-03-27",
+        "contributor": "jghiringhelli",
+        "_path": "gates/code-quality/sonarqube-quality-gate-ok.yaml"
       },
       {
         "id": "codeseeker-semantic-search-before-grep",
