@@ -485,3 +485,6 @@ the published white paper and practitioner protocol.
 
 ### Documentation
 - GS lifecycle cookbook + Status.md update (`001bb1f`)
+
+### Other
+- **release**: v1.6.0 (`9ef0db9`)
