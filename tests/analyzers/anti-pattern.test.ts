@@ -378,4 +378,143 @@ describe("scanAntiPatterns", () => {
       rmSync(ghDir, { recursive: true, force: true });
     });
   });
+
+  describe("audit-check exemptions", () => {
+    it("skips file_length warning when audit/file_length exception matches", () => {
+      const dir = join(tmpdir(), `forgecraft-test-exempt-fl-${Date.now()}`);
+      mkdirSync(join(dir, "src"), { recursive: true });
+      mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+      const longContent = Array.from(
+        { length: 350 },
+        (_, i) => `const x${i} = ${i};`,
+      ).join("\n");
+      writeFileSync(join(dir, "src", "huge.ts"), longContent);
+      writeFileSync(
+        join(dir, ".forgecraft", "exceptions.json"),
+        JSON.stringify({
+          version: "1",
+          exceptions: [
+            {
+              id: "exc-001",
+              hook: "audit/file_length",
+              pattern: "src/huge.ts",
+              reason: "Cohesive orchestrator",
+              addedAt: "2026-05-08",
+              addedBy: "test",
+            },
+          ],
+        }),
+      );
+
+      const result = scanAntiPatterns(dir);
+      const warning = result.warnings.find(
+        (w) => w.check === "file_length" && w.message.includes("huge.ts"),
+      );
+      expect(warning).toBeUndefined();
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("emits file_length warning when no matching exception", () => {
+      const dir = join(tmpdir(), `forgecraft-test-noexempt-fl-${Date.now()}`);
+      mkdirSync(join(dir, "src"), { recursive: true });
+      const longContent = Array.from(
+        { length: 350 },
+        (_, i) => `const x${i} = ${i};`,
+      ).join("\n");
+      writeFileSync(join(dir, "src", "huge.ts"), longContent);
+
+      const result = scanAntiPatterns(dir);
+      const warning = result.warnings.find(
+        (w) => w.check === "file_length" && w.message.includes("huge.ts"),
+      );
+      expect(warning).toBeDefined();
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("skips hardcoded_url violation when audit/hardcoded_url exception matches", () => {
+      const dir = join(tmpdir(), `forgecraft-test-exempt-url-${Date.now()}`);
+      mkdirSync(join(dir, "src"), { recursive: true });
+      mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+      writeFileSync(
+        join(dir, "src", "fixture.ts"),
+        "export const url = 'http://localhost:3000/api/v1/users';\n",
+      );
+      writeFileSync(
+        join(dir, ".forgecraft", "exceptions.json"),
+        JSON.stringify({
+          version: "1",
+          exceptions: [
+            {
+              id: "exc-001",
+              hook: "audit/hardcoded_url",
+              pattern: "src/fixture.ts",
+              reason: "Fixture file",
+              addedAt: "2026-05-08",
+              addedBy: "test",
+            },
+          ],
+        }),
+      );
+
+      const result = scanAntiPatterns(dir);
+      const violation = result.violations.find(
+        (v) => v.check === "hardcoded_url" && v.message.includes("fixture.ts"),
+      );
+      expect(violation).toBeUndefined();
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("regex skips shell env-var fallback patterns ${VAR:-...}", () => {
+      const dir = join(tmpdir(), `forgecraft-test-shellvar-${Date.now()}`);
+      mkdirSync(join(dir, "src"), { recursive: true });
+      writeFileSync(
+        join(dir, "src", "shell-template.ts"),
+        'export const tmpl = `ALERTMANAGER_URL="${ALERTMANAGER_URL:-http://localhost:9093}"`;\n',
+      );
+
+      const result = scanAntiPatterns(dir);
+      const violation = result.violations.find(
+        (v) =>
+          v.check === "hardcoded_url" &&
+          v.message.includes("shell-template.ts"),
+      );
+      expect(violation).toBeUndefined();
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("skips hardcoded_credential when audit/hardcoded_credential exception matches", () => {
+      const dir = join(tmpdir(), `forgecraft-test-exempt-cred-${Date.now()}`);
+      mkdirSync(join(dir, "src"), { recursive: true });
+      mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+      writeFileSync(
+        join(dir, "src", "creds-fixture.ts"),
+        "export const fixture = { password: 'demo-fixture-only-x' };\n",
+      );
+      writeFileSync(
+        join(dir, ".forgecraft", "exceptions.json"),
+        JSON.stringify({
+          version: "1",
+          exceptions: [
+            {
+              id: "exc-001",
+              hook: "audit/hardcoded_credential",
+              pattern: "src/creds-fixture.ts",
+              reason: "Test fixture credentials",
+              addedAt: "2026-05-08",
+              addedBy: "test",
+            },
+          ],
+        }),
+      );
+
+      const result = scanAntiPatterns(dir);
+      const violation = result.violations.find(
+        (v) =>
+          v.check === "hardcoded_credential" &&
+          v.message.includes("creds-fixture.ts"),
+      );
+      expect(violation).toBeUndefined();
+      rmSync(dir, { recursive: true, force: true });
+    });
+  });
 });

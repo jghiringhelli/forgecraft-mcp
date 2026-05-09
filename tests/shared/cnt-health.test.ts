@@ -178,4 +178,100 @@ describe("auditCntHealth", () => {
     expect(result.score).toBe(100);
     expect(result.issues).toHaveLength(0);
   });
+
+  describe("audit-check exemptions", () => {
+    it("treats CLAUDE.md as passing when audit/cnt_claude_md exception matches", () => {
+      const dir = join(tmpdir(), `cnt-exempt-claude-${Date.now()}`);
+      mkdirSync(join(dir, ".claude", "standards"), { recursive: true });
+      mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+      writeFileSync(join(dir, ".claude", "index.md"), "# Index\n");
+      writeFileSync(join(dir, ".claude", "core.md"), makeLines(40));
+      writeFileSync(
+        join(dir, "CLAUDE.md"),
+        "# Title\n<!-- sentinel -->\nDescription\n\nMore content\n",
+      );
+      writeFileSync(
+        join(dir, ".forgecraft", "exceptions.json"),
+        JSON.stringify({
+          version: "1",
+          exceptions: [
+            {
+              id: "exc-001",
+              hook: "audit/cnt_claude_md",
+              pattern: "CLAUDE.md",
+              reason: "Includes sentinel + description",
+              addedAt: "2026-05-08",
+              addedBy: "test",
+            },
+          ],
+        }),
+      );
+
+      const result = auditCntHealth(dir);
+      expect(result.claudeMdPass).toBe(true);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("treats core.md as passing when audit/cnt_core_md exception matches", () => {
+      const dir = join(tmpdir(), `cnt-exempt-core-${Date.now()}`);
+      mkdirSync(join(dir, ".claude", "standards"), { recursive: true });
+      mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+      writeFileSync(join(dir, ".claude", "index.md"), "# Index\n");
+      writeFileSync(join(dir, ".claude", "core.md"), makeLines(80));
+      writeFileSync(join(dir, "CLAUDE.md"), "L1\nL2\nL3\n");
+      writeFileSync(
+        join(dir, ".forgecraft", "exceptions.json"),
+        JSON.stringify({
+          version: "1",
+          exceptions: [
+            {
+              id: "exc-001",
+              hook: "audit/cnt_core_md",
+              pattern: ".claude/core.md",
+              reason: "Tier-memory model description",
+              addedAt: "2026-05-08",
+              addedBy: "test",
+            },
+          ],
+        }),
+      );
+
+      const result = auditCntHealth(dir);
+      expect(result.coreMdPass).toBe(true);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("excludes leaf file from violations when audit/cnt_leaf_length exception matches", () => {
+      const dir = join(tmpdir(), `cnt-exempt-leaf-${Date.now()}`);
+      mkdirSync(join(dir, ".claude", "standards"), { recursive: true });
+      mkdirSync(join(dir, ".forgecraft"), { recursive: true });
+      writeFileSync(join(dir, ".claude", "index.md"), "# Index\n");
+      writeFileSync(join(dir, ".claude", "core.md"), makeLines(40));
+      writeFileSync(join(dir, "CLAUDE.md"), "L1\nL2\nL3\n");
+      writeFileSync(
+        join(dir, ".claude", "standards", "ecosystem.md"),
+        makeLines(150),
+      );
+      writeFileSync(
+        join(dir, ".forgecraft", "exceptions.json"),
+        JSON.stringify({
+          version: "1",
+          exceptions: [
+            {
+              id: "exc-001",
+              hook: "audit/cnt_leaf_length",
+              pattern: ".claude/standards/ecosystem.md",
+              reason: "Forgecraft is the standards source-of-truth",
+              addedAt: "2026-05-08",
+              addedBy: "test",
+            },
+          ],
+        }),
+      );
+
+      const result = auditCntHealth(dir);
+      expect(result.leafViolations).toHaveLength(0);
+      rmSync(dir, { recursive: true, force: true });
+    });
+  });
 });
