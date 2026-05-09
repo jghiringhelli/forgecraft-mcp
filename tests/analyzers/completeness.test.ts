@@ -5,7 +5,10 @@ import { checkCompleteness } from "../../src/analyzers/completeness.js";
 
 const FIXTURES_DIR = join(import.meta.dirname, "..", "fixtures");
 
-function createProject(name: string, files: Record<string, string> = {}): string {
+function createProject(
+  name: string,
+  files: Record<string, string> = {},
+): string {
   const dir = join(FIXTURES_DIR, `completeness-${name}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -24,7 +27,9 @@ describe("completeness analyzer", () => {
     const dir = createProject("no-instruction-file");
     const result = checkCompleteness(dir, ["UNIVERSAL"]);
 
-    expect(result.failing.some((f) => f.check === "instruction_file_exists")).toBe(true);
+    expect(
+      result.failing.some((f) => f.check === "instruction_file_exists"),
+    ).toBe(true);
 
     rmSync(dir, { recursive: true });
   });
@@ -35,7 +40,9 @@ describe("completeness analyzer", () => {
     });
     const result = checkCompleteness(dir, ["UNIVERSAL"]);
 
-    expect(result.passing.some((p) => p.check === "instruction_file_exists")).toBe(true);
+    expect(
+      result.passing.some((p) => p.check === "instruction_file_exists"),
+    ).toBe(true);
 
     rmSync(dir, { recursive: true });
   });
@@ -44,7 +51,9 @@ describe("completeness analyzer", () => {
     const dir = createProject("no-status");
     const result = checkCompleteness(dir, ["UNIVERSAL"]);
 
-    expect(result.failing.some((f) => f.check === "status_md_exists")).toBe(true);
+    expect(result.failing.some((f) => f.check === "status_md_exists")).toBe(
+      true,
+    );
 
     rmSync(dir, { recursive: true });
   });
@@ -53,7 +62,9 @@ describe("completeness analyzer", () => {
     const dir = createProject("no-hooks");
     const result = checkCompleteness(dir, ["UNIVERSAL"]);
 
-    expect(result.failing.some((f) => f.check === "hooks_installed")).toBe(true);
+    expect(result.failing.some((f) => f.check === "hooks_installed")).toBe(
+      true,
+    );
 
     rmSync(dir, { recursive: true });
   });
@@ -99,8 +110,59 @@ describe("completeness analyzer", () => {
     const result = checkCompleteness(dir, ["UNIVERSAL"]);
 
     expect(result.failing.some((f) => f.check === "prd_exists")).toBe(true);
-    expect(result.failing.some((f) => f.check === "tech_spec_exists")).toBe(true);
+    expect(result.failing.some((f) => f.check === "tech_spec_exists")).toBe(
+      true,
+    );
 
     rmSync(dir, { recursive: true });
+  });
+
+  describe("canonical OR legacy doc paths (checkAnyFileExists)", () => {
+    it("passes prd_exists when canonical docs/specs/PRD.md is present", () => {
+      const dir = createProject("canonical-prd", {
+        "docs/specs/PRD.md": "# PRD",
+      });
+      const result = checkCompleteness(dir, ["UNIVERSAL"]);
+      expect(result.passing.some((p) => p.check === "prd_exists")).toBe(true);
+      rmSync(dir, { recursive: true });
+    });
+
+    it("passes prd_exists when legacy docs/PRD.md is present (no canonical)", () => {
+      const dir = createProject("legacy-prd", {
+        "docs/PRD.md": "# PRD",
+      });
+      const result = checkCompleteness(dir, ["UNIVERSAL"]);
+      expect(result.passing.some((p) => p.check === "prd_exists")).toBe(true);
+      rmSync(dir, { recursive: true });
+    });
+
+    it("passes tech_spec_exists when canonical docs/contracts/TechSpec.md is present", () => {
+      const dir = createProject("canonical-techspec", {
+        "docs/contracts/TechSpec.md": "# TechSpec",
+      });
+      const result = checkCompleteness(dir, ["UNIVERSAL"]);
+      expect(result.passing.some((p) => p.check === "tech_spec_exists")).toBe(
+        true,
+      );
+      rmSync(dir, { recursive: true });
+    });
+
+    it("passes tech_spec_exists when legacy docs/TechSpec.md is present", () => {
+      const dir = createProject("legacy-techspec", {
+        "docs/TechSpec.md": "# TechSpec",
+      });
+      const result = checkCompleteness(dir, ["UNIVERSAL"]);
+      expect(result.passing.some((p) => p.check === "tech_spec_exists")).toBe(
+        true,
+      );
+      rmSync(dir, { recursive: true });
+    });
+
+    it("fails prd_exists when neither canonical nor legacy is present", () => {
+      const dir = createProject("no-prd-anywhere");
+      const result = checkCompleteness(dir, ["UNIVERSAL"]);
+      expect(result.failing.some((f) => f.check === "prd_exists")).toBe(true);
+      rmSync(dir, { recursive: true });
+    });
   });
 });
