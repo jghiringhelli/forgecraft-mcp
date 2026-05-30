@@ -6,7 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdirSync, existsSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { configureMcpHandler } from "../../src/tools/configure-mcp.js";
@@ -163,5 +169,87 @@ describe("configureMcpHandler", () => {
     const parsed = JSON.parse(raw) as { mcpServers: Record<string, unknown> };
     // forgecraft is a core UNIVERSAL server and must still be present
     expect(parsed.mcpServers).toHaveProperty("forgecraft");
+  });
+
+  it("wires PreToolUse hook when pre-tool-use.sh exists", async () => {
+    const hooksDir = join(tempDir, ".claude", "hooks");
+    mkdirSync(hooksDir, { recursive: true });
+    writeFileSync(
+      join(hooksDir, "pre-tool-use.sh"),
+      "#!/usr/bin/env bash\nexit 0\n",
+    );
+
+    await configureMcpHandler({
+      tags: ["UNIVERSAL"],
+      project_dir: tempDir,
+      auto_approve_tools: false,
+      include_remote: false,
+    });
+
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { hooks?: Record<string, unknown> };
+    expect(parsed.hooks).toBeDefined();
+    expect(parsed.hooks!["PreToolUse"]).toBeDefined();
+  });
+
+  it("wires UserPromptSubmit hook when prompt-guard.sh exists", async () => {
+    const hooksDir = join(tempDir, ".claude", "hooks");
+    mkdirSync(hooksDir, { recursive: true });
+    writeFileSync(
+      join(hooksDir, "prompt-guard.sh"),
+      "#!/usr/bin/env bash\nexit 0\n",
+    );
+
+    await configureMcpHandler({
+      tags: ["UNIVERSAL"],
+      project_dir: tempDir,
+      auto_approve_tools: false,
+      include_remote: false,
+    });
+
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { hooks?: Record<string, unknown> };
+    expect(parsed.hooks).toBeDefined();
+    expect(parsed.hooks!["UserPromptSubmit"]).toBeDefined();
+  });
+
+  it("does not add hooks when no hook scripts exist", async () => {
+    await configureMcpHandler({
+      tags: ["UNIVERSAL"],
+      project_dir: tempDir,
+      auto_approve_tools: false,
+      include_remote: false,
+    });
+
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { hooks?: unknown };
+    expect(parsed.hooks).toBeUndefined();
+  });
+
+  it("always adds permissions.deny with destructive operation guards", async () => {
+    await configureMcpHandler({
+      tags: ["UNIVERSAL"],
+      project_dir: tempDir,
+      auto_approve_tools: false,
+      include_remote: false,
+    });
+
+    const raw = readFileSync(
+      join(tempDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    const parsed = JSON.parse(raw) as { permissions?: { deny?: string[] } };
+    const deny = parsed.permissions?.deny ?? [];
+    expect(deny.some((r) => r.includes("push --force"))).toBe(true);
+    expect(deny.some((r) => r.includes("DROP TABLE"))).toBe(true);
   });
 });

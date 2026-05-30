@@ -87,6 +87,12 @@ export interface Phase2ResponseParams {
   readonly gatesIndexWritten: boolean;
   readonly gitInitStatus?: string;
   readonly isBrownfield?: boolean;
+  readonly adrsExtracted?: number;
+  readonly ucCount?: number;
+  readonly specPath?: string;
+  readonly operationClassificationWritten?: boolean;
+  readonly subDocStubsWritten?: string[];
+  readonly agentsWritten?: string[];
 }
 
 /**
@@ -148,8 +154,23 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
   const scaffoldFiles = extractScaffoldFiles(params.scaffoldText);
   for (const f of scaffoldFiles) text += `  ${f}\n`;
 
+  if (params.operationClassificationWritten)
+    text += `  docs/operation-classification.md (Tier 0–3 gate reference)\n`;
+  if (params.subDocStubsWritten && params.subDocStubsWritten.length > 0) {
+    for (const f of params.subDocStubsWritten)
+      text += `  ${f} (stub — populate from spec)\n`;
+  }
+  if (params.agentsWritten && params.agentsWritten.length > 0) {
+    for (const f of params.agentsWritten)
+      text += `  .claude/agents/${f} (sub-agent)\n`;
+  }
+
   if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0)
     text += `  (all artifacts already existed — nothing overwritten)\n`;
+
+  if (params.adrsExtracted && params.adrsExtracted > 0) {
+    text += `  docs/adrs/active/ (${params.adrsExtracted} ADRs extracted from spec)\n`;
+  }
 
   if (params.mcpServerNames.length > 0) {
     text += `\n### MCP Tools Configured\n`;
@@ -166,12 +187,38 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
     text += `  the tool is done when it can produce that specific outcome.\n`;
   }
 
-  text += `\n### Next step — call this now:\n`;
-  text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
   if (params.isBrownfield) {
+    text += `\n### Next step — call this now:\n`;
+    text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
     text += `Do not ask the user — run check_cascade immediately. When it passes, run audit_project to surface any existing violations in this brownfield codebase before writing new code.`;
   } else {
-    text += `Do not ask the user — run check_cascade immediately. If it passes, run generate_session_prompt for the first roadmap item.`;
+    text += `\n### Greenfield artifact sequence — run in order:\n\n`;
+    if (params.ucCount && params.ucCount > 0) {
+      text += `**L1 artifacts (just created):**\n`;
+    } else {
+      text += `**L1 artifacts (created — populate docs/ files from spec):**\n`;
+    }
+    text += `  ✅ forgecraft.yaml + CLAUDE.md + .claude/ + hooks\n`;
+    text += `  ✅ docs/PRD.md\n`;
+    if (params.ucCount && params.ucCount > 0) {
+      text += `  ✅ docs/use-cases.md (${params.ucCount} spec-derived use cases)\n`;
+    } else {
+      text += `  ⚠ docs/use-cases.md (generic stubs — fill in real UCs from spec)\n`;
+    }
+    if (params.adrsExtracted && params.adrsExtracted > 0) {
+      text += `  ✅ docs/adrs/active/ (${params.adrsExtracted} ADRs from spec)\n`;
+    } else if (params.specPath) {
+      text += `  ○ docs/adrs/active/ — run extract_adrs_from_spec to populate\n`;
+    }
+    text += `\n**Run now:**\n`;
+    text += `1. \`check_cascade\` → verifies all 5 L1 steps\n`;
+    text += `2. \`generate_roadmap\` → docs/roadmaps/active/roadmap.md (gated on cascade)\n`;
+    text += `3. \`generate_harness\` → scaffolds tests/harness/ from use cases (L2 probes)\n`;
+    text += `\n**After cascade passes:**\n`;
+    text += `4. \`generate_session_prompt\` for the first roadmap item\n`;
+    text += `\n`;
+    text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
+    text += `Do not ask the user — run check_cascade immediately.`;
   }
   return text;
 }

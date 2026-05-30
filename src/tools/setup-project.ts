@@ -25,6 +25,9 @@ import {
   writePrd,
   writeUseCases,
   writeSampleOutcome,
+  writeOperationClassification,
+  writeSpecSubDocStubs,
+  writeAgentDefinitions,
   initGitRepo,
   checkGitStatus,
 } from "./setup-artifact-writers.js";
@@ -36,6 +39,7 @@ import {
   writeAdrIndex,
   writeGatesIndex,
 } from "./setup-cnt.js";
+import type { UseCaseInput } from "./setup-artifact-writers.js";
 
 const logger = createLogger("tools/setup-project");
 
@@ -99,7 +103,15 @@ export interface SetupProjectArgs {
    * a tool_vs_sample_output ambiguity.
    */
   readonly tool_sample_split?: "tool_and_sample" | "tool_only" | "content_only";
+  /**
+   * Phase 2: use cases extracted from the spec by the AI.
+   * When provided, replaces generic stubs in docs/use-cases.md with spec-derived UCs.
+   * Enables generate_harness to produce meaningful probes immediately after setup.
+   */
+  readonly use_cases?: ReadonlyArray<UseCaseInput>;
 }
+
+export type { UseCaseInput };
 
 /** Valid ALL_TAGS values as a Set for fast membership testing. */
 const VALID_TAGS_SET = new Set<string>(ALL_TAGS);
@@ -226,7 +238,13 @@ async function executePhase2(
     ? writePrd(projectDir, projectName, aiFields, context.specContent)
     : false;
   const useCasesWritten = hasSpec
-    ? writeUseCases(projectDir, projectName, aiFields, context.specContent)
+    ? writeUseCases(
+        projectDir,
+        projectName,
+        aiFields,
+        context.specContent,
+        args.use_cases,
+      )
     : false;
   const sampleOutcomeWritten =
     args.tool_sample_split === "tool_and_sample"
@@ -271,6 +289,40 @@ async function executePhase2(
 
   const gitInitStatus = initGitRepo(projectDir);
 
+  // Write operation classification doc and spec sub-doc stubs
+  const operationClassificationWritten =
+    writeOperationClassification(projectDir);
+  const subDocStubsWritten = writeSpecSubDocStubs(
+    projectDir,
+    projectName,
+    context.specContent,
+  );
+
+  // Write generic sub-agent definitions (.claude/agents/)
+  const agentsWritten = writeAgentDefinitions(projectDir);
+
+  // Auto-extract ADRs from spec when spec is available (non-fatal if it fails)
+  let adrsExtracted = 0;
+  const specFileForAdrs =
+    args.spec_path ??
+    (args.spec_file_confirmed ? args.spec_file_confirmed : undefined);
+  if (context.specContent || specFileForAdrs) {
+    try {
+      const { extractAdrsFromSpecHandler } =
+        await import("./extract-adrs-from-spec.js");
+      const adrResult = await extractAdrsFromSpecHandler({
+        project_dir: projectDir,
+        spec_path: specFileForAdrs,
+      });
+      const adrText = (adrResult.content[0] as { type: string; text: string })
+        .text;
+      const m = /Created (\d+)/.exec(adrText);
+      adrsExtracted = m ? parseInt(m[1]!, 10) : 0;
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   const text = buildPhase2Response({
     decisions,
     tags: effectiveTags,
@@ -297,6 +349,12 @@ async function executePhase2(
     gatesIndexWritten: writeGatesIndex(projectDir),
     gitInitStatus,
     isBrownfield: context.isBrownfield,
+    adrsExtracted,
+    ucCount: args.use_cases?.length ?? 0,
+    specPath: specFileForAdrs,
+    operationClassificationWritten,
+    subDocStubsWritten,
+    agentsWritten,
   });
 
   return { content: [{ type: "text", text }] };

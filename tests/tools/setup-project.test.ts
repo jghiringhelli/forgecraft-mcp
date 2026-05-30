@@ -537,7 +537,7 @@ describe("setupProjectHandler", () => {
       expect(content).toContain("close_cycle");
     });
 
-    it("CLAUDE.md is 3-5 lines (identity + pointer only)", async () => {
+    it("CLAUDE.md is a comprehensive sentinel (≥100 lines with GS properties)", async () => {
       await setupProjectHandler({
         project_dir: tempDir,
         mvp: false,
@@ -547,10 +547,9 @@ describe("setupProjectHandler", () => {
       const claudePath = join(tempDir, "CLAUDE.md");
       expect(existsSync(claudePath)).toBe(true);
       const content = readFileSync(claudePath, "utf-8");
-      const nonEmptyLines = content
-        .split("\n")
-        .filter((l) => l.trim().length > 0);
-      expect(nonEmptyLines.length).toBeLessThanOrEqual(5);
+      expect(content.split("\n").length).toBeGreaterThan(100);
+      expect(content).toContain("ForgeCraft sentinel");
+      expect(content).toContain("GS Properties");
       expect(content).toContain(".claude/index.md");
     });
 
@@ -567,6 +566,42 @@ describe("setupProjectHandler", () => {
       expect(content).toContain("ADR-000");
       expect(content).toContain("Context Navigation Tree");
       expect(content).toContain("Accepted");
+    });
+
+    it("phase 2 creates 4 sub-agent definitions in .claude/agents/", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const agentsDir = join(tempDir, ".claude", "agents");
+      expect(existsSync(agentsDir)).toBe(true);
+      const expected = [
+        "test-hunter.md",
+        "spec-guardian.md",
+        "security-reviewer.md",
+        "change-reviewer.md",
+      ];
+      for (const filename of expected) {
+        const agentPath = join(agentsDir, filename);
+        expect(existsSync(agentPath), `${filename} should exist`).toBe(true);
+        const content = readFileSync(agentPath, "utf-8");
+        expect(content).toMatch(/^---/); // has frontmatter
+        expect(content).toContain("name:");
+        expect(content).toContain("description:");
+      }
+    });
+
+    it("phase 2 response lists created agent files", async () => {
+      const result = await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: false,
+        scope_complete: true,
+        has_consumers: false,
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain(".claude/agents/");
     });
   });
 

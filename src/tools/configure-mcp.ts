@@ -169,9 +169,56 @@ export async function configureMcpHandler(
     }
   }
 
+  // Build permissions.deny for destructive operations
+  const denyRules: string[] = [
+    "Bash(git push --force*)",
+    "Bash(rm -rf /*)",
+    "Bash(*DROP TABLE*)",
+    "Bash(*TRUNCATE *)",
+  ];
+
   const settings: Record<string, unknown> = { mcpServers: mcpConfig };
-  if (permissionRules.length > 0) {
-    settings["permissions"] = { allow: permissionRules };
+  settings["permissions"] = {
+    allow: permissionRules,
+    deny: denyRules,
+  };
+
+  // ── Wire Claude Code hooks (PreToolUse / PostToolUse / UserPromptSubmit) ──
+
+  const claudeHooksDir = join(args.project_dir, ".claude", "hooks");
+  const preToolUseScript = join(claudeHooksDir, "pre-tool-use.sh");
+  const postEditScript = join(claudeHooksDir, "post-edit.sh");
+  const promptGuardScript = join(claudeHooksDir, "prompt-guard.sh");
+
+  const hooksConfig: Record<string, unknown> = {};
+  if (existsSync(preToolUseScript)) {
+    hooksConfig["PreToolUse"] = [
+      {
+        matcher: "Bash",
+        type: "command",
+        command: `bash "${preToolUseScript}"`,
+      },
+    ];
+  }
+  if (existsSync(postEditScript)) {
+    hooksConfig["PostToolUse"] = [
+      {
+        matcher: "Write|Edit",
+        type: "command",
+        command: `bash "${postEditScript}"`,
+      },
+    ];
+  }
+  if (existsSync(promptGuardScript)) {
+    hooksConfig["UserPromptSubmit"] = [
+      {
+        type: "command",
+        command: `bash "${promptGuardScript}"`,
+      },
+    ];
+  }
+  if (Object.keys(hooksConfig).length > 0) {
+    settings["hooks"] = hooksConfig;
   }
 
   // ── Handle existing settings ─────────────────────────────────────
@@ -188,20 +235,29 @@ export async function configureMcpHandler(
       const existingPerms =
         (existing["permissions"] as Record<string, unknown>) ?? {};
       const existingAllow = (existingPerms["allow"] as string[]) ?? [];
+      const existingDeny = (existingPerms["deny"] as string[]) ?? [];
 
       // Merge permissions: deduplicate existing + new rules
       const mergedAllow = [...new Set([...existingAllow, ...permissionRules])];
+      const mergedDeny = [...new Set([...existingDeny, ...denyRules])];
+
+      // Merge hooks: prefer new entries, keep existing ones not overwritten
+      const existingHooks =
+        (existing["hooks"] as Record<string, unknown>) ?? {};
+      const mergedHooks = { ...existingHooks, ...hooksConfig };
 
       merged = {
         ...existing,
         permissions: {
           ...existingPerms,
           allow: mergedAllow,
+          deny: mergedDeny,
         },
         mcpServers: {
           ...((existing["mcpServers"] as Record<string, unknown>) ?? {}),
           ...mcpConfig,
         },
+        ...(Object.keys(mergedHooks).length > 0 ? { hooks: mergedHooks } : {}),
       };
     } catch {
       // Existing file unparseable, overwrite

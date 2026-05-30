@@ -42,6 +42,43 @@ hooks:
         exit 1
       fi
 
+      # ── TDD [RED]/[GREEN] phase enforcement ────────────────────────────────
+      SUBJECT=$(echo "$COMMIT_MSG" | head -1)
+      BODY=$(echo "$COMMIT_MSG" | tail -n +3)
+      TYPE=$(echo "$SUBJECT" | sed -E 's/^([a-z]+).*/\1/')
+      SCOPE=$(echo "$SUBJECT" | sed -nE 's/^[a-z]+\(([^)]+)\).*/\1/p')
+
+      # If subject contains [GREEN] and type is feat|fix, verify preceding [RED] commit
+      if echo "$SUBJECT" | grep -q '\[GREEN\]'; then
+        if echo "$TYPE" | grep -qE '^(feat|fix)$'; then
+          # Allow explicit tdd-skip annotation in body
+          if echo "$BODY" | grep -q '\[tdd-skip:'; then
+            echo "  ⚠️  TDD skip recorded: $(echo "$BODY" | grep '\[tdd-skip:' | head -1)"
+          else
+            # Look for a test(scope): [RED] commit in recent history (7 days)
+            SEARCH_SCOPE="${SCOPE:-}"
+            if [ -n "$SEARCH_SCOPE" ]; then
+              RED_FOUND=$(git log --since="7 days ago" --pretty="%s" 2>/dev/null | grep -E "^test\(${SEARCH_SCOPE}\):.*\[RED\]" | head -1)
+            else
+              RED_FOUND=$(git log --since="7 days ago" --pretty="%s" 2>/dev/null | grep -E "^test[:(].*\[RED\]" | head -1)
+            fi
+            if [ -z "$RED_FOUND" ]; then
+              echo ""
+              echo "  ✗ TDD [GREEN] gate: no preceding test(${SCOPE:-*}): [RED] commit found in the last 7 days."
+              echo ""
+              echo "  A [GREEN] commit must follow a [RED] test commit for the same scope."
+              echo "  Expected: test(${SCOPE:-scope}): [RED] <description>"
+              echo ""
+              echo "  To bypass (document the reason): add [tdd-skip: reason] in the commit body."
+              echo "  Example body line: [tdd-skip: brownfield module without test harness]"
+              echo ""
+              exit 1
+            fi
+            echo "  ✅ TDD gate: found preceding RED commit — $RED_FOUND"
+          fi
+        fi
+      fi
+
       exit 0
 
   - name: branch-protection
@@ -292,33 +329,33 @@ hooks:
 
   - name: test-coverage
     trigger: pre-commit
-    description: "Run tests for test-only commits; skip for docs/config-only commits; defer to coverage-gate when src/ staged"
+    description: "Run affected tests only (--changed) for pre-commit; skip for docs/config-only commits"
     filename: pre-commit-test.sh
     script: |
       #!/bin/bash
-      COVERAGE_MIN={{coverage_minimum | default: 80}}
+      # pre-commit: run only affected tests using --changed flag.
+      # Full suite runs pre-push. TDD_RED=1 bypasses for [RED] commits.
+
+      # TDD RED bypass: skip test run when committing a failing test (RED phase)
+      if [ "${TDD_RED:-0}" = "1" ]; then
+        echo "🔴 TDD_RED=1: bypassing test run for RED commit."
+        exit 0
+      fi
 
       # Collect staged files once.
       STAGED=$(git diff --cached --name-only --diff-filter=ACM)
 
       # Determine what kinds of files are staged.
-      SRC_STAGED=0
       CODE_STAGED=0
       while IFS= read -r file; do
-        if echo "$file" | grep -qE '^src/'; then
-          SRC_STAGED=1
+        if echo "$file" | grep -qE '^(src|tests?|lib|app)/'; then
           CODE_STAGED=1
-        elif echo "$file" | grep -qE '^tests?/'; then
+          break
+        elif echo "$file" | grep -qE '\.(ts|tsx|js|jsx|py|rs)$'; then
           CODE_STAGED=1
+          break
         fi
       done <<< "$STAGED"
-
-      # If src/ is staged the coverage-gate hook runs the full test + coverage pass.
-      # Skip the bare run here to avoid running the full suite twice.
-      if [ "$SRC_STAGED" -eq 1 ]; then
-        echo "🧪 src/ files staged — tests will run via coverage gate, skipping bare run."
-        exit 0
-      fi
 
       # If no code files at all are staged (docs-only, config-only, etc.) skip the run.
       if [ "$CODE_STAGED" -eq 0 ]; then
@@ -326,34 +363,39 @@ hooks:
         exit 0
       fi
 
-      echo "🧪 Running tests..."
+      echo "🧪 Running affected tests (--changed)..."
       if [ -f "package.json" ]; then
         if grep -q '"vitest"' package.json 2>/dev/null; then
-          npx vitest run --reporter=verbose 2>&1
+          npx vitest run --changed --passWithNoTests 2>&1
           if [ $? -ne 0 ]; then
-            echo "❌ Tests failed."
+            echo "❌ Affected tests failed."
+            echo "   To bypass for a RED commit: TDD_RED=1 git commit ..."
             exit 1
           fi
-          echo "  ✅ Tests passed"
+          echo "  ✅ Affected tests passed"
         elif grep -q '"jest"' package.json 2>/dev/null; then
-          npx jest --passWithNoTests --coverage \
-            --coverageThreshold="{\"global\":{\"lines\":$COVERAGE_MIN}}" \
-            --silent 2>&1
+          npx jest --passWithNoTests --onlyChanged --silent 2>&1
           if [ $? -ne 0 ]; then
-            echo "❌ Jest tests failed or coverage below ${COVERAGE_MIN}%."
+            echo "❌ Jest affected tests failed."
             exit 1
           fi
-          echo "  ✅ Jest tests passed"
+          echo "  ✅ Jest affected tests passed"
         fi
       fi
       if [ -f "pyproject.toml" ] || [ -f "setup.py" ]; then
         if command -v pytest &> /dev/null; then
-          pytest --tb=short --quiet --cov=src --cov-fail-under=$COVERAGE_MIN 2>&1
-          if [ $? -ne 0 ]; then
-            echo "❌ Tests failed or coverage below ${COVERAGE_MIN}%."
-            exit 1
+          # pytest doesn't have --changed; run only staged test files as best-effort
+          STAGED_TESTS=$(echo "$STAGED" | grep -E '(test_.*\.py|.*_test\.py)$')
+          if [ -n "$STAGED_TESTS" ]; then
+            pytest --tb=short --quiet $STAGED_TESTS 2>&1
+            if [ $? -ne 0 ]; then
+              echo "❌ Python tests failed."
+              exit 1
+            fi
+            echo "  ✅ Python staged tests passed"
+          else
+            echo "🧪 No Python test files staged — skipping pytest."
           fi
-          echo "  ✅ Python tests passed"
         fi
       fi
       if [ -f "Cargo.toml" ]; then
@@ -364,7 +406,7 @@ hooks:
         fi
         echo "  ✅ Rust tests passed"
       fi
-      echo "🧪 All tests passed"
+      echo "🧪 Affected tests passed"
 
   - name: coverage-gate
     trigger: pre-commit
@@ -720,4 +762,117 @@ hooks:
       echo "📝 Staged changes ready for review"
       # Full auto-review requires claude CLI integration
       # This hook validates the diff is non-empty and staged
+      exit 0
+
+  - name: pre-tool-use
+    trigger: pre-tool-use
+    description: "Block Tier 3 (irreversible) operations during Claude Code sessions"
+    filename: pre-tool-use.sh
+    script: |
+      #!/usr/bin/env bash
+      # pre-tool-use: block Tier 3 destructive operations.
+      # Invoked by Claude Code PreToolUse hook before Bash tool executes.
+      set -u
+      input=$(cat)
+      if command -v jq >/dev/null 2>&1; then
+        tool_name=$(echo "$input" | jq -r '.tool_name // empty')
+        cmd=$(echo "$input" | jq -r '.tool_input.command // empty')
+      else
+        tool_name=$(echo "$input" | grep -o '"tool_name":"[^"]*"' | cut -d'"' -f4)
+        cmd=$(echo "$input" | grep -o '"command":"[^"]*"' | cut -d'"' -f4)
+      fi
+      [[ "$tool_name" != "Bash" ]] && exit 0
+      [[ "${FORGECRAFT_ALLOW_DESTRUCTIVE:-0}" == "1" ]] && exit 0
+      block() {
+        echo "🚫 BLOCKED by pre-tool-use hook: $1" >&2
+        echo "   Command: $cmd" >&2
+        echo "   See docs/operation-classification.md" >&2
+        echo "   To override (use with care): FORGECRAFT_ALLOW_DESTRUCTIVE=1 <command>" >&2
+        exit 2
+      }
+      [[ "$cmd" =~ DROP[[:space:]]+TABLE ]] && block "DROP TABLE — Tier 3 irreversible"
+      [[ "$cmd" =~ TRUNCATE[[:space:]] ]] && block "TRUNCATE — Tier 3 irreversible"
+      if [[ "$cmd" =~ git[[:space:]]+push ]] && [[ "$cmd" =~ (-f|--force) ]] && [[ "$cmd" =~ (main|master) ]]; then
+        block "force push to main — Tier 3 irreversible"
+      fi
+      if [[ "$cmd" =~ rm[[:space:]]+-rf ]] && [[ "$cmd" =~ (src|docs|migrations|\.git)[/[:space:]] ]]; then
+        block "rm -rf on protected path — Tier 3"
+      fi
+      if [[ "$cmd" =~ git[[:space:]]+push[[:space:]]+origin[[:space:]]+(main|master) ]]; then
+        echo "⚠️  Direct push to main detected. Use a PR instead." >&2
+      fi
+      exit 0
+
+  - name: post-edit
+    trigger: post-edit
+    description: "After Write/Edit: check Bounded property (file size, console.log, any)"
+    filename: post-edit.sh
+    script: |
+      #!/usr/bin/env bash
+      # post-edit: enforce Bounded property after every file write/edit.
+      set -u
+      input=$(cat)
+      if command -v jq >/dev/null 2>&1; then
+        file_path=$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty')
+      else
+        file_path=$(echo "$input" | grep -o '"file_path":"[^"]*"' | cut -d'"' -f4 | head -1)
+      fi
+      [[ -z "$file_path" ]] && exit 0
+      [[ ! -f "$file_path" ]] && exit 0
+      echo "$file_path" | grep -qE '(node_modules|pnpm-lock|package-lock|\.d\.ts$|\.min\.|/generated/)' && exit 0
+      line_count=$(wc -l < "$file_path")
+      if [[ "$line_count" -gt 300 ]]; then
+        echo "⚠️  BOUNDED: $file_path has $line_count lines (max 300). Extract to sub-modules before commit." >&2
+      fi
+      if [[ "$file_path" =~ \.(ts|tsx|js|jsx)$ ]] && [[ ! "$file_path" =~ \.(test|spec)\. ]] && [[ ! "$file_path" =~ /scripts/ ]]; then
+        grep -q 'console\.\(log\|debug\)' "$file_path" && echo "⚠️  console.log in $file_path — use structured logger" >&2
+        grep -nE '^[^/]*:\s*any\b|\bas\s+any\b' "$file_path" >/dev/null 2>&1 && echo "⚠️  'any' type in $file_path — prefer 'unknown' + narrowing" >&2
+      fi
+      exit 0
+
+  - name: prompt-guard
+    trigger: user-prompt-submit
+    description: "Intercept prompts with destructive or structural signals; inject sentinel reminder"
+    filename: prompt-guard.sh
+    script: |
+      #!/usr/bin/env bash
+      # prompt-guard: runs on every user prompt (UserPromptSubmit).
+      # Two jobs:
+      #   1. Detect Tier 2/3 operation signals -> remind about operation-classification.md.
+      #   2. Detect structural task signals -> remind to read the sentinel first.
+      set -u
+      input=$(cat)
+      if command -v jq >/dev/null 2>&1; then
+        user_prompt=$(echo "$input" | jq -r '.prompt // empty')
+      else
+        user_prompt=$(echo "$input" | grep -o '"prompt":"[^"]*"' | cut -d'"' -f4 | head -1)
+      fi
+      lower=$(echo "$user_prompt" | tr '[:upper:]' '[:lower:]')
+      sensitive_signals=("drop table" "truncate" "delete from" "force push" "full resync"
+        "backfill" "reset db" "disable rls" "service role" "bypass auth"
+        "rm -rf" "drop database" "wipe data")
+      for signal in "${sensitive_signals[@]}"; do
+        if [[ "$lower" == *"$signal"* ]]; then
+          printf "🧭 prompt-guard: destructive signal detected (\"%s\").\n" "$signal"
+          printf "   Before executing:\n"
+          printf "   1. Check docs/operation-classification.md -- classify the operation (Tier 0-3).\n"
+          printf "   2. If Tier 2+: confirm with the user before proceeding.\n"
+          printf "   3. If Tier 3: require FORGECRAFT_ALLOW_DESTRUCTIVE=1 override + ADR.\n"
+          break
+        fi
+      done
+      structural_signals=("create a new" "add a new" "refactor" "migrate" "new feature"
+        "new endpoint" "new module" "change architecture" "add table" "add column"
+        "new component" "new service" "new repository")
+      for signal in "${structural_signals[@]}"; do
+        if [[ "$lower" == *"$signal"* ]]; then
+          printf "🧭 prompt-guard: structural task detected (\"%s\").\n" "$signal"
+          printf "   Before coding:\n"
+          printf "   1. Read CLAUDE.md (sentinel) -- architecture rules and prohibited ops.\n"
+          printf "   2. Read the relevant section of docs/PRD.md or use-cases.md.\n"
+          printf "   3. If decision is non-trivial -> propose an ADR before implementing.\n"
+          printf "   4. If the change spans > 3 files -> propose a brief plan first.\n"
+          break
+        fi
+      done
       exit 0
