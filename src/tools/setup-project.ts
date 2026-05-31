@@ -287,6 +287,22 @@ async function executePhase2(
     logger.warn("configure_mcp failed during setup", { error });
   }
 
+  // Fetch FC QG remote gates for the active tag set (non-fatal — best effort)
+  type RemoteGateSlim = { id: string; title: string; gsProperty: string };
+  let remoteGates: RemoteGateSlim[] = [];
+  try {
+    const { fetchRemoteGates, filterGatesByTags } =
+      await import("../registry/remote-gates.js");
+    const index = await fetchRemoteGates(projectDir);
+    remoteGates = filterGatesByTags(index, effectiveTags).map((g) => ({
+      id: g.id,
+      title: g.title,
+      gsProperty: g.gsProperty,
+    }));
+  } catch {
+    // Network unavailable or parse failure — proceed without remote gates
+  }
+
   const gitInitStatus = initGitRepo(projectDir);
 
   // Write operation classification doc and spec sub-doc stubs
@@ -355,6 +371,7 @@ async function executePhase2(
     operationClassificationWritten,
     subDocStubsWritten,
     agentsWritten,
+    remoteGates,
   });
 
   return { content: [{ type: "text", text }] };

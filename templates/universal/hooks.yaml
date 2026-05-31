@@ -232,6 +232,7 @@ hooks:
 
   - name: cargo-clippy
     trigger: pre-commit
+    stack: [RUST]
     description: "Run cargo clippy on Rust projects — catches bugs, style issues, and common mistakes beyond cargo check"
     filename: pre-commit-clippy.sh
     script: |

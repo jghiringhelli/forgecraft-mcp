@@ -57,6 +57,40 @@ export async function dispatchExtendedAction(
         consequences: args.adr_consequences,
       });
 
+    case "cnt_add_routing": {
+      const { cntAddRoutingHandler } = await import("./cnt-add-routing.js");
+      return cntAddRoutingHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "cnt_add_routing",
+        ),
+      });
+    }
+
+    case "generate_decision": {
+      const { generateDecisionHandler } =
+        await import("./generate-decision.js");
+      return generateDecisionHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "generate_decision",
+        ),
+        title: requireParam(
+          args.decision_title,
+          "decision_title",
+          "generate_decision",
+        ),
+        trigger: args.decision_trigger,
+        root_cause: args.decision_root_cause,
+        fix: args.decision_fix,
+        regression_test: args.decision_regression_test,
+        chronicle_session_id: args.decision_chronicle_session_id,
+        related_adr: args.decision_related_adr,
+      });
+    }
+
     case "contribute_gate": {
       const result = await contributeGates({
         projectRoot: requireParam(
@@ -262,6 +296,82 @@ export async function dispatchExtendedAction(
         resolve: args.t4_resolve,
         show_resolved: args.t4_show_resolved,
       } as CheckT4Input);
+    }
+
+    case "extract_adrs_from_history": {
+      const { extractAdrsFromHistoryHandler } =
+        await import("./extract-adrs-history.js");
+      return extractAdrsFromHistoryHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "extract_adrs_from_history",
+        ),
+        max_candidates: args.adrs_max_candidates,
+        large_commit_threshold: args.adrs_large_commit_threshold,
+        ref: args.adrs_ref,
+      });
+    }
+
+    case "extract_adrs_from_spec": {
+      const { extractAdrsFromSpecHandler } =
+        await import("./extract-adrs-from-spec.js");
+      return extractAdrsFromSpecHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "extract_adrs_from_spec",
+        ),
+        spec_path: args.spec_path,
+        max_adrs: args.adrs_from_spec_max,
+      });
+    }
+
+    case "review_stubs": {
+      const { reviewStubsHandler } = await import("./review-stubs.js");
+      return reviewStubsHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "review_stubs",
+        ),
+      });
+    }
+
+    case "check_derivation_chain": {
+      const { checkDerivationChainHandler } =
+        await import("./check-derivation-chain.js");
+      return checkDerivationChainHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "check_derivation_chain",
+        ),
+      });
+    }
+
+    case "score_rubric": {
+      const { scoreRubricHandler } = await import("./score-rubric.js");
+      return scoreRubricHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "score_rubric",
+        ),
+      });
+    }
+
+    case "analyze_harness": {
+      const { analyzeHarnessHandler } = await import("./analyze-harness.js");
+      return analyzeHarnessHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "analyze_harness",
+        ),
+        submit_issues: args.analyze_submit_issues,
+        force_fetch: args.analyze_force_fetch,
+      });
     }
 
     default:

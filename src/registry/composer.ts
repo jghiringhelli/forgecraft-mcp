@@ -143,13 +143,19 @@ export function composeTemplates(
       }
     }
 
-    // Compose hooks (deduplicate by name — not tier-filtered)
+    // Compose hooks (deduplicate by name — stack-filtered, not tier-filtered)
     if (templateSet.hooks) {
       for (const hook of templateSet.hooks) {
-        if (!seenHookNames.has(hook.name)) {
-          seenHookNames.add(hook.name);
-          hooks.push(hook);
+        if (seenHookNames.has(hook.name)) continue;
+        // Skip hooks that declare a stack restriction when no active tag matches
+        if (
+          hook.stack?.length &&
+          !hook.stack.some((s) => orderedTags.includes(s as Tag))
+        ) {
+          continue;
         }
+        seenHookNames.add(hook.name);
+        hooks.push(hook);
       }
     }
 

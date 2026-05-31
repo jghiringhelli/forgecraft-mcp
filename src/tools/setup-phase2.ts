@@ -93,6 +93,12 @@ export interface Phase2ResponseParams {
   readonly operationClassificationWritten?: boolean;
   readonly subDocStubsWritten?: string[];
   readonly agentsWritten?: string[];
+  /** FC QG remote gates relevant to active tags — used to generate tailoring checklist. */
+  readonly remoteGates?: readonly {
+    id: string;
+    title: string;
+    gsProperty: string;
+  }[];
 }
 
 /**
@@ -187,6 +193,19 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
     text += `  the tool is done when it can produce that specific outcome.\n`;
   }
 
+  // FC QG remote gates available for this tag set
+  if (params.remoteGates && params.remoteGates.length > 0) {
+    text += `\n### Quality Gates Available (FC QG — ${params.remoteGates.length} gates for active tags)\n`;
+    const byProperty: Record<string, string[]> = {};
+    for (const g of params.remoteGates) {
+      (byProperty[g.gsProperty] ??= []).push(`${g.id}: ${g.title}`);
+    }
+    for (const [prop, ids] of Object.entries(byProperty)) {
+      text += `  [${prop}] ${ids.join(", ")}\n`;
+    }
+    text += `  Run \`analyze_harness\` after setup to compare installed vs available.\n`;
+  }
+
   if (params.isBrownfield) {
     text += `\n### Next step — call this now:\n`;
     text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
@@ -216,9 +235,11 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
     text += `3. \`generate_harness\` → scaffolds tests/harness/ from use cases (L2 probes)\n`;
     text += `\n**After cascade passes:**\n`;
     text += `4. \`generate_session_prompt\` for the first roadmap item\n`;
+    text += `5. \`analyze_harness\` → gap report vs FC QG + auto-post missing gates as issues\n`;
     text += `\n`;
     text += `\`\`\`\naction: "check_cascade"\nproject_dir: "${params.projectDir ?? ""}"\n\`\`\`\n`;
-    text += `Do not ask the user — run check_cascade immediately.`;
+    text += `Do not ask the user — run check_cascade immediately.\n\n`;
+    text += buildAiTailoringChecklist(params);
   }
   return text;
 }
@@ -265,6 +286,85 @@ export function renderCascadeDecisionsSection(
   text += `forgecraft.yaml under \`cascade.steps\`. These decisions determine which\n`;
   text += `artifacts are gated before implementation can begin.\n`;
   return text;
+}
+
+/**
+ * Build the AI Tailoring Checklist — the list of sentinel and harness elements
+ * that ForgeCraft cannot generate deterministically but the AI can produce
+ * immediately using its spec knowledge.
+ *
+ * These are the items that most frequently cause session degradation when absent.
+ * The AI should generate all of them NOW, before the first implementation session.
+ */
+function buildAiTailoringChecklist(params: Phase2ResponseParams): string {
+  const tags = params.tags ?? [];
+  const hasFrontend = tags.some((t) =>
+    ["WEB-REACT", "WEB-NEXT", "WEB-STATIC"].includes(t),
+  );
+  const hasApi = tags.some((t) => ["API"].includes(t));
+
+  let out = `### AI Tailoring Checklist — generate these NOW using spec knowledge\n\n`;
+  out += `ForgeCraft writes the structural scaffold. These items require reading your spec.\n`;
+  out += `Generate each one before the first implementation session — skipping them causes session drift.\n\n`;
+
+  out += `**1. Tool Sequencing Table (add to CLAUDE.md)**\n`;
+  out += `   Map every major task type to the exact tool sequence. Example:\n`;
+  out += `   | Task | Sequence |\n`;
+  out += `   |------|----------|\n`;
+  out += `   | New feature | read sentinel → check_cascade → generate_session_prompt → implement → run_harness |\n`;
+  out += `   | Bug fix | read sentinel → check_derivation_chain → fix → run_harness → change_request(bug-postmortem) |\n`;
+  out += `   Derive the actual sequences from your spec's workflow and domain.\n\n`;
+
+  out += `**2. Corrections Log (add to CLAUDE.md)**\n`;
+  out += `   Add a "## Corrections Log" section with format:\n`;
+  out += `   \`YYYY-MM-DD | [category] short description of AI behavioral deviation and fix\`\n`;
+  out += `   Leave it empty now — it fills up during sessions. Its presence is what matters.\n\n`;
+
+  out += `**3. Bound Prompts (enrich docs/use-cases.md)**\n`;
+  out += `   For each use case, add a \`### Bound Prompt\` sub-section with:\n`;
+  out += `   - **Spec refs**: which spec sections apply\n`;
+  out += `   - **Precondition**: system state required before this UC runs\n`;
+  out += `   - **Scope — what NOT to touch**: explicit exclusion list\n`;
+  out += `   - **Acceptance criteria**: measurable postconditions\n`;
+  out += `   - **Architecture constraints**: patterns/files that must be respected\n`;
+  out += `   - **Commit message format**: expected conventional commit for this UC\n\n`;
+
+  out += `**4. C4 Context Diagram (docs/architecture/c4-context.md)**\n`;
+  out += `   Draw the system boundary: actors, external systems, data flows.\n`;
+  out += `   Use PlantUML or Mermaid. ForgeCraft gates on architecture step — populate it.\n\n`;
+
+  if (hasFrontend) {
+    out += `**5. Framework Conventions (add to CLAUDE.md)**\n`;
+    const isNext = tags.includes("WEB-NEXT");
+    if (isNext) {
+      out += `   Next.js App Router specifics your sentinel must declare:\n`;
+      out += `   - RSC boundary: which components are Server vs Client (\`"use client"\` rule)\n`;
+      out += `   - Server Actions: allowed patterns, validation approach\n`;
+      out += `   - Data fetching: where async/await lives vs where it cannot\n`;
+      out += `   - Route groups, layouts, and loading.tsx ownership rules\n`;
+    } else {
+      out += `   Document your frontend framework's architectural invariants.\n`;
+      out += `   Include: component ownership rules, state management boundaries, routing conventions.\n`;
+    }
+    out += `\n`;
+  }
+
+  if (hasApi) {
+    out += `**${hasFrontend ? 6 : 5}. API Contract Stubs (docs/api/)**\n`;
+    out += `   Even as OpenAPI stubs, declare endpoints, auth scheme, error shape.\n`;
+    out += `   These become the behavioral contracts that prevent breaking changes.\n\n`;
+  }
+
+  const nextNum = hasFrontend ? (hasApi ? 7 : 6) : hasApi ? 6 : 5;
+  out += `**${nextNum}. docs/status.md (session narrative)**\n`;
+  out += `   Create with current date, project name, and the first roadmap item as "Next:".\n`;
+  out += `   Update it at the end of every session. It is the project's temporal memory.\n\n`;
+
+  out += `**${nextNum + 1}. analyze_harness (post-scaffold gap check)**\n`;
+  out += `   Run after completing steps 1–${nextNum} to compare what exists vs what FC QG requires.\n`;
+  out += `   Missing gates are submitted as improvement proposals to the FC QG project automatically.\n`;
+
+  return out;
 }
 
 /**

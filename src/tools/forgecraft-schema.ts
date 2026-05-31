@@ -57,8 +57,16 @@ export const ACTIONS = [
   "advise_session",
   "change_request",
   "list_changes",
+  "generate_decision",
+  "cnt_add_routing",
+  "extract_adrs_from_history",
+  "extract_adrs_from_spec",
+  "review_stubs",
+  "check_derivation_chain",
+  "score_rubric",
   "setup_monitoring",
   "check_t4",
+  "analyze_harness",
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -96,6 +104,13 @@ export const forgecraftSchema = z
           "  list_quality_gates  — list all quality gates\n" +
           "  export_taxonomy     — export tag taxonomy\n" +
           "  generate_adr        — emit a structured Architecture Decision Record into docs/adrs/\n" +
+          "  generate_decision   — emit a post-mortem / decision record into docs/decisions/ (bug-fix flow companion to generate_adr)\n" +
+          "  cnt_add_routing            — append routing directives to .claude/index.md for unrouted CNT leaf nodes (closes the Bounded property gap)\n" +
+          "  extract_adrs_from_history  — scan git log for architectural decision candidates and emit retroactive ADR stubs into docs/adrs/active/\n" +
+          "  extract_adrs_from_spec     — parse a spec/PRD file for technology decisions and emit pre-populated ADR stubs (greenfield complement to extract_adrs_from_history)\n" +
+          "  review_stubs               — triage all [NEEDS CLARIFICATION] stubs across ADRs, decisions, and CNT leaves; ranked by priority\n" +
+          "  check_derivation_chain     — verify the PRD → UCs → ADRs → probes → gates chain is intact; emits chain score and specific breaks\n" +
+          "  score_rubric               — gather evidence for all 7 GS properties and emit a structured evaluation prompt for LLM-judged scoring\n" +
           "  create_exception    — create hook false-positive exception\n" +
           "  review              — structured code review checklist\n" +
           "  list                — discover available tags/hooks/skills\n" +
@@ -122,6 +137,7 @@ export const forgecraftSchema = z
           "  check_spec_consistency — scan all spec artifacts for structural gaps, hollow probes, ambiguity markers, orphan probes, and derivation chain breaks\n\n" +
           "  setup_monitoring    — generate docs/monitoring-spec.md from NFR contracts: exception classes, alert thresholds, SLO definitions, PII policy, property violation map. Required before T4 is operational.\n\n" +
           "  check_t4            — surface pending T4 production signals from .forgecraft/t4-signals.json. Run at session start. Each signal is a spec-level diagnosis from production exceptions — update the spec, then derive the fix.\n\n" +
+          "  analyze_harness     — post-scaffold gap analysis: compare installed hooks, agents, docs, and sentinel sections against FC QG registry + GS WP requirements for active tags. Submits missing gates as improvement proposals to the FC QG GitHub repo.\n\n" +
           "Quick usage examples:\n" +
           '  To run a cascade check:              action="check_cascade"\n' +
           '  To generate a session prompt:        action="generate_session_prompt"\n' +

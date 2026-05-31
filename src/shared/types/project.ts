@@ -8,6 +8,7 @@ export const ALL_TAGS = [
   "UNIVERSAL",
   "WEB-REACT",
   "WEB-STATIC",
+  "WEB-NEXT",
   "API",
   "DATA-PIPELINE",
   "ML",
@@ -202,7 +203,14 @@ export interface AuditCheck {
 export interface HookInfo {
   readonly name: string;
   readonly tag: Tag;
-  readonly trigger: "pre-commit" | "pre-exec" | "pre-push" | "commit-msg";
+  readonly trigger:
+    | "pre-commit"
+    | "pre-exec"
+    | "pre-push"
+    | "commit-msg"
+    | "pre-tool-use"
+    | "post-edit"
+    | "user-prompt-submit";
   readonly description: string;
   readonly filename: string;
 }

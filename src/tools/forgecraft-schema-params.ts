@@ -119,6 +119,48 @@ export const forgecraftExtendedParams = z.object({
     .describe(
       "Positive and negative consequences of the decision — what becomes easier, harder, or constrained. Used by: generate_adr.",
     ),
+  decision_title: z
+    .string()
+    .optional()
+    .describe(
+      "Short imperative title of the post-mortem / decision (e.g. 'Drop duplicate task_id rows on import'). Used by: generate_decision.",
+    ),
+  decision_trigger: z
+    .string()
+    .optional()
+    .describe(
+      "What surfaced this decision — bug symptom, incident, support ticket, observed behavior. Used by: generate_decision.",
+    ),
+  decision_root_cause: z
+    .string()
+    .optional()
+    .describe(
+      "Why it happened — the underlying defect, missing guard, or design oversight. Used by: generate_decision.",
+    ),
+  decision_fix: z
+    .string()
+    .optional()
+    .describe(
+      "What was changed (code, config, behavior) and why this fix was chosen over alternatives. Used by: generate_decision.",
+    ),
+  decision_regression_test: z
+    .string()
+    .optional()
+    .describe(
+      "Test, gate id, or monitor that locks this fix in. REQUIRED by the fix: cascade. Used by: generate_decision.",
+    ),
+  decision_chronicle_session_id: z
+    .string()
+    .optional()
+    .describe(
+      "Chronicle session id where the investigation was recorded — links the post-mortem back to individual-memory provenance. Used by: generate_decision.",
+    ),
+  decision_related_adr: z
+    .string()
+    .optional()
+    .describe(
+      "Optional ADR id this decision touches or refines (e.g. 'ADR-0007'). Use when the bug exposed an architectural assumption. Used by: generate_decision.",
+    ),
   cascade_step: z
     .enum([
       "functional_spec",
@@ -215,6 +257,58 @@ export const forgecraftExtendedParams = z.object({
         "Provide this when the AI detected conflicting signals and you want to specify the correct interpretation. " +
         "Used by: setup_project (phase 2).",
     ),
+  problem_statement: z
+    .string()
+    .optional()
+    .describe(
+      "Phase 2: AI-extracted problem statement from the spec — 1–3 sentences summarising the core problem the app solves. " +
+        "Used by: setup_project (phase 2). Read from spec during phase 1.",
+    ),
+  primary_users: z
+    .string()
+    .optional()
+    .describe(
+      "Phase 2: AI-extracted primary users / actors, comma-separated (e.g. 'Admin (CTO), Viewer'). " +
+        "Used by: setup_project (phase 2). Read from spec during phase 1.",
+    ),
+  success_criteria: z
+    .string()
+    .optional()
+    .describe(
+      "Phase 2: AI-extracted success criteria, comma-separated measurable outcomes. " +
+        "Used by: setup_project (phase 2). Read from spec during phase 1.",
+    ),
+  spec_file_confirmed: z
+    .string()
+    .optional()
+    .describe(
+      "Phase 2: full path to the spec file the AI identified as the primary project spec after disambiguation. " +
+        "Provide when Phase 1 listed multiple spec candidates. Used by: setup_project (phase 2).",
+    ),
+  use_cases: z
+    .array(
+      z.object({
+        id: z.string().describe("Use case ID, e.g. UC-001"),
+        title: z.string().describe("Short imperative title"),
+        actor: z.string().describe("Who initiates the use case"),
+        precondition: z
+          .string()
+          .describe("What must be true before the UC starts"),
+        steps: z.array(z.string()).describe("Numbered action steps"),
+        postcondition: z.string().describe("Observable state after success"),
+        errorCases: z
+          .array(z.object({ name: z.string(), description: z.string() }))
+          .optional()
+          .describe("Named failure cases with descriptions"),
+      }),
+    )
+    .optional()
+    .describe(
+      "Phase 2: structured use cases extracted from the spec by the AI. " +
+        "When provided, replaces generic stubs in docs/use-cases.md with spec-derived UCs. " +
+        "Critical for generate_harness to produce meaningful L2 probes. " +
+        "Used by: setup_project (phase 2). Extract 5–12 UCs from spec during phase 1.",
+    ),
   cnt_domain: z
     .string()
     .optional()
@@ -307,13 +401,15 @@ export const forgecraftExtendedParams = z.object({
       "adr-supersession",
       "gate-change",
       "dependency-update",
+      "bug-postmortem",
     ] as const)
     .optional()
     .describe(
       "Classification of the change. Used by: change_request. " +
         "spec-change: PRD/use-cases update. breaking-api: public interface change. " +
         "adr-supersession: architectural decision being replaced. gate-change: quality gate modification. " +
-        "dependency-update: external dependency version or replacement.",
+        "dependency-update: external dependency version or replacement. " +
+        "bug-postmortem: a bug whose fix warrants a recorded decision — opens implementing→verified lifecycle that requires a regression test, and pairs with generate_decision to scaffold the artifact.",
     ),
   change_breaking: z
     .boolean()
@@ -373,5 +469,49 @@ export const forgecraftExtendedParams = z.object({
     .optional()
     .describe(
       "Include resolved signals in output. Used by: check_t4. Default: false.",
+    ),
+  adrs_max_candidates: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe(
+      "Maximum number of ADR candidates to extract from git history. Used by: extract_adrs_from_history. Default: 10.",
+    ),
+  adrs_from_spec_max: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .describe(
+      "Maximum number of ADR files to generate from the spec. Used by: extract_adrs_from_spec. Default: 10.",
+    ),
+  adrs_large_commit_threshold: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(
+      "Minimum files-changed count to flag a commit as a large architectural change. Used by: extract_adrs_from_history. Default: 5.",
+    ),
+  adrs_ref: z
+    .string()
+    .optional()
+    .describe(
+      "Git ref or branch to walk (e.g. 'main', 'HEAD~50..HEAD'). Used by: extract_adrs_from_history. Default: HEAD.",
+    ),
+  analyze_submit_issues: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true, submits each harness gap as a GitHub issue to the FC QG repo. Used by: analyze_harness. Default: true.",
+    ),
+  analyze_force_fetch: z
+    .boolean()
+    .optional()
+    .describe(
+      "Re-fetch FC QG remote gates even if the 24h cache is fresh. Used by: analyze_harness. Default: false.",
     ),
 });

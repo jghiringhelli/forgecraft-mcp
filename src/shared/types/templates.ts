@@ -84,10 +84,24 @@ export interface ReferenceTemplate {
 /** Hook template definition. */
 export interface HookTemplate {
   readonly name: string;
-  readonly trigger: "pre-commit" | "pre-exec" | "pre-push" | "commit-msg";
+  readonly trigger:
+    | "pre-commit"
+    | "pre-exec"
+    | "pre-push"
+    | "commit-msg"
+    | "pre-tool-use"
+    | "post-edit"
+    | "user-prompt-submit";
   readonly description: string;
   readonly filename: string;
   readonly script: string;
+  /**
+   * Optional tag-based install filter.
+   * When set, this hook is only written to projects that have at least one
+   * matching active tag. Enables language- or framework-specific hooks in
+   * the universal template set without polluting unrelated projects.
+   */
+  readonly stack?: readonly string[];
 }
 
 /** Skill template — a reusable Claude Code custom command (.claude/commands/*.md). */
