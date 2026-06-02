@@ -1,0 +1,39 @@
+id: react-accessibility-axe
+title: React Accessibility — axe-core Zero Violations
+description: >
+  Run axe-core automated accessibility scan on every rendered page in Playwright.
+  Zero violations at the A and AA level are required before merge. This catches
+  ARIA label gaps, color contrast failures, missing alt text, keyboard traps,
+  and focus order problems — all of which are invisible to unit tests and only
+  appear in a rendered page.
+category: accessibility
+gsProperty: verifiable
+phase: pre-release
+hook: pre-release
+check: >
+  Install @axe-core/playwright. In every Playwright test, after page.goto(), call:
+    import AxeBuilder from '@axe-core/playwright';
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  Configure axe with the project's color scheme — dark-mode backgrounds need explicit
+  contrast ratios. Run against all authenticated and unauthenticated routes.
+  Document any deliberate suppressions (e.g. third-party embeds) in axe.config.ts
+  with owner and justification.
+passCriterion: >
+  Zero axe-core violations at A and AA level across all tested routes.
+  Any suppressed violations are documented with owner and justification.
+  axe scan runs in every Playwright CI job — not as a separate manual step.
+tags:
+  - WEB-REACT
+  - WEB-NEXT
+generalizable: true
+evidence: >
+  React apps routinely ship with ARIA violations invisible during implementation:
+  missing button labels, insufficient contrast in custom theme colors, focusable
+  elements without visible focus indicator, missing landmark roles. axe-core catches
+  these systematically. Cost: 3 lines per test file. Cost of not catching: WCAG
+  compliance failures in production that require emergency remediations.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-react/react-accessibility-axe.yaml

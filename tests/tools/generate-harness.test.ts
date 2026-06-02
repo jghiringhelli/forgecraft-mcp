@@ -110,7 +110,8 @@ describe("generateHarnessHandler", () => {
     const result = await generateHarnessHandler({ project_dir: tempDir });
     const text = result.content[0]!.text;
 
-    expect(text).toContain("Generated: 1");
+    // UC-001 generated from explicit spec; UC-002 auto-generated (no yaml provided)
+    expect(text).toContain("Generated: 2");
     expect(text).toContain("uc-001-happy.sh");
     const probePath = join(tempDir, "tests", "harness", "uc-001-happy.sh");
     expect(existsSync(probePath)).toBe(true);
@@ -151,7 +152,7 @@ describe("generateHarnessHandler", () => {
     expect(content).toContain("L2 Harness: UC-003");
   });
 
-  it("skips UC with no harness spec and reports no_spec count", async () => {
+  it("auto-generates harness specs when no .forgecraft/harness/ YAML exists", async () => {
     tempDir = makeTempDir();
     write(tempDir, "docs/use-cases.md", MINIMAL_USE_CASES);
     // No .forgecraft/harness/uc-001.yaml or uc-002.yaml
@@ -159,8 +160,24 @@ describe("generateHarnessHandler", () => {
     const result = await generateHarnessHandler({ project_dir: tempDir });
     const text = result.content[0]!.text;
 
-    expect(text).toContain("Generated: 0");
-    expect(text).toContain("No spec:");
+    // Both UCs should be auto-generated
+    expect(text).toContain("Generated: 2");
+    expect(text).toContain("auto-generated spec");
+    expect(text).toContain("[auto-spec]");
+    // Auto-generated YAML specs should be written for future refinement
+    expect(
+      existsSync(join(tempDir, ".forgecraft", "harness", "uc-001.yaml")),
+    ).toBe(true);
+    expect(
+      existsSync(join(tempDir, ".forgecraft", "harness", "uc-002.yaml")),
+    ).toBe(true);
+    // Probe files should be created
+    expect(
+      existsSync(join(tempDir, "tests", "harness", "uc-001-happy.sh")),
+    ).toBe(true);
+    expect(
+      existsSync(join(tempDir, "tests", "harness", "uc-002-happy.sh")),
+    ).toBe(true);
   });
 
   it("skips existing probe files when force=false (default)", async () => {
@@ -200,7 +217,8 @@ describe("generateHarnessHandler", () => {
     });
 
     const text = result.content[0]!.text;
-    expect(text).toContain("Generated: 1");
+    // UC-001 regenerated (explicit spec, force=true); UC-002 auto-generated (no spec)
+    expect(text).toContain("Generated: 2");
     // When legacy file exists, it is overwritten in place
     const content = readFileSync(
       join(tempDir, "tests", "harness", "uc-001.sh"),

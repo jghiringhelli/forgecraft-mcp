@@ -1,0 +1,106 @@
+tag: WEB-NEXT
+section: instructions
+blocks:
+  - id: nextjs-app-router-conventions
+    tier: recommended
+    title: "Next.js App Router Conventions"
+    content: |
+      ## Next.js App Router Conventions
+
+      - Use the App Router (`app/`) as the default. Pages Router (`pages/`) is legacy — do not mix unless migrating.
+      - Every route segment is a directory with a `page.tsx` file. Layout nesting via `layout.tsx`.
+      - Mark components as `"use client"` only when they use browser APIs, event handlers, or React hooks that require the browser. Server Components are the default.
+      - Server Actions (`"use server"`) replace API routes for mutations. Use `next-safe-action` or Zod for validation.
+      - Data fetching: fetch in Server Components using async/await directly. Use `unstable_cache` or `revalidatePath` for ISR.
+      - Route handlers (`route.ts`) for REST endpoints that must be publicly accessible.
+      - `<Image>` from `next/image` for all images — never raw `<img>` tags.
+      - `<Link>` from `next/link` for all internal navigation.
+
+  - id: ui-design-token-enforcement
+    tier: core
+    title: "Design Token Enforcement"
+    content: |
+      ## Design Token Enforcement — Non-Negotiable
+
+      **Before writing any visual code**, read `src/styles/tokens.css` (or `src/tokens/` if split by domain).
+
+      - NEVER use raw hex (`#1a2b3c`), `rgb()`, `rgba()`, or `hsl()` values in component or style files.
+      - ALL colors: `var(--color-primary)`, `var(--color-text-muted)`, `var(--color-surface-elevated)`.
+      - ALL spacing: `var(--spacing-4)`, `var(--spacing-8)` (or Tailwind theme tokens — never arbitrary px values).
+      - ALL typography: `var(--font-size-lg)`, `var(--font-weight-semibold)`.
+      - If a token for the intended value doesn't exist, **add it to the token file** — don't hardcode the value.
+      - Token definition files (tokens.css, variables.css, theme.ts) are the ONLY exception to this rule.
+      - A pre-commit hook blocks commits containing raw color literals in component or style files.
+
+  - id: ui-atomic-component-structure
+    tier: core
+    title: "Atomic Component Structure"
+    content: |
+      ## Atomic Component Structure — Mandatory First-Check
+
+      **Before creating any new component**, search the component library:
+      1. `src/components/atoms/` — does the primitive already exist?
+      2. `src/components/molecules/` — does the composition already exist?
+      3. `src/components/organisms/` — does the full UI section already exist?
+
+      Create a new component only if nothing suitable exists.
+
+      ### Placement Rules
+      | Level | Scope | Examples |
+      |---|---|---|
+      | **atoms/** | Indivisible UI elements | Button, Input, Badge, Icon, Label, Spinner, Avatar |
+      | **molecules/** | Compositions of 2–5 atoms | SearchField, FormField, Card, MenuItem, Tooltip |
+      | **organisms/** | Complex UI sections | Header, DataTable, Sidebar, Modal, Wizard |
+      | **templates/** | Page-level layout shells | DashboardLayout, AuthLayout, SettingsLayout |
+      | **pages/** | Route-bound page components | one per route |
+
+      A pre-commit hook blocks component files placed directly in `components/` without an atomic subdirectory.
+
+  - id: ui-ux-pattern-wiring
+    tier: core
+    title: "UX Pattern Wiring"
+    content: |
+      ## UX Pattern Wiring — Read Before Implementing
+
+      **Before implementing any common interaction**, read the relevant pattern from `docs/patterns/`:
+
+      | Interaction | Pattern doc | What it defines |
+      |---|---|---|
+      | Error state | `docs/patterns/error.md` | Error boundaries, API failure UI, validation |
+      | Loading / skeleton | `docs/patterns/loading.md` | Spinners vs. skeletons, delay thresholds |
+      | Empty state | `docs/patterns/empty.md` | Zero-data UI, onboarding prompts |
+      | Modal / dialog | `docs/patterns/modals.md` | Focus trap, close behaviour, stacking |
+      | Data table | `docs/patterns/tables.md` | Sorting, pagination, row selection |
+
+      If a pattern doc does not exist, **create it before implementing the component**.
+      Never implement an error, loading, empty, modal, or table pattern without the `docs/patterns/` file as source of truth.
+
+  - id: ui-responsive-strategy-adr
+    tier: core
+    title: "Responsive Strategy ADR"
+    content: |
+      ## Responsive Strategy — ADR Required Before Any Responsive Code
+
+      Before writing any `@media` query, Tailwind responsive prefix (`sm:`, `md:`, `lg:`), or breakpoint variable, verify that `docs/adrs/active/responsive-strategy.md` exists.
+
+      If it doesn't exist, create it:
+      ```markdown
+      # ADR: Responsive Strategy
+
+      ## Status: Accepted
+
+      ## Context
+      [Device/viewport range this app must support]
+
+      ## Decision
+      - **Breakpoints**: mobile < 640px | tablet 640–1024px | desktop > 1024px
+      - **Approach**: mobile-first (min-width media queries)
+      - **Framework**: [Tailwind CSS / CSS custom properties / CSS Grid]
+      - **Target devices**: iOS Safari 16+, Chrome 110+, minimum viewport 320px
+
+      ## Consequences
+      All responsive layout code uses these breakpoints exclusively. No component-local
+      breakpoint values. Deviations require an amendment to this ADR.
+      ```
+
+      A pre-commit hook blocks responsive code when no responsive strategy ADR is present.

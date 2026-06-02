@@ -69,6 +69,11 @@ function buildSpecDisambiguationBlock(
   block += `- \`problem_statement\`: 1–3 sentence summary of the core problem the app solves\n`;
   block += `- \`primary_users\`: comma-separated list of the primary user roles or actors\n`;
   block += `- \`success_criteria\`: comma-separated list of measurable success outcomes\n\n`;
+  block += `After calling \`setup_project\`, also populate the stub docs created by setup:\n`;
+  block += `- \`docs/architecture.md\` — extract layers, components, data flow from spec\n`;
+  block += `- \`docs/data-model.md\` — extract entities and relationships from spec\n`;
+  block += `- \`docs/domain-glossary.md\` — extract domain terms from spec\n`;
+  block += `Populate these before running \`check_cascade\`.\n\n`;
   return block;
 }
 
@@ -80,7 +85,15 @@ function buildSpecExtractionRequest(specPath: string): string {
   block += `Read this spec now. In your next call to \`setup_project\` (Phase 2), also provide:\n`;
   block += `- \`problem_statement\`: 1–3 sentence summary of the core problem the app solves\n`;
   block += `- \`primary_users\`: comma-separated list of the primary user roles or actors\n`;
-  block += `- \`success_criteria\`: comma-separated list of measurable success outcomes\n\n`;
+  block += `- \`success_criteria\`: comma-separated list of measurable success outcomes\n`;
+  block += `- \`use_cases\`: JSON array of the 5–12 most important use cases from the spec. Each item:\n`;
+  block += `  \`{"id":"UC-001","title":"...","actor":"...","precondition":"...","steps":["step 1","step 2"],"postcondition":"...","errorCases":[{"name":"...","description":"..."}]}\`\n`;
+  block += `\n> **Critical:** Real use cases from the spec power \`generate_harness\` (L2 probes). Generic stubs produce meaningless test scaffolding.\n\n`;
+  block += `After calling \`setup_project\` with the above parameters, also:\n`;
+  block += `4. Fill in \`docs/architecture.md\` from the spec — document layers, components, and data flow.\n`;
+  block += `5. Fill in \`docs/data-model.md\` from the spec — document all entities and relationships.\n`;
+  block += `6. Fill in \`docs/domain-glossary.md\` from the spec — define key domain terms.\n`;
+  block += `These are created as stubs by \`setup_project\`. Populate them before running \`check_cascade\`.\n\n`;
   return block;
 }
 

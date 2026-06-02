@@ -76,8 +76,8 @@ describe("renderSentinelTree — structure", () => {
   it("claude_md_is_sentinel_not_monolithic", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    // CNT root is ≤10 lines — pointer only, no rules
-    expect(content.split("\n").length).toBeLessThan(10);
+    // Comprehensive sentinel: ≥100 lines with GS properties, architecture, code standards
+    expect(content.split("\n").length).toBeGreaterThan(100);
     expect(content).toContain("ForgeCraft sentinel");
   });
 
@@ -132,8 +132,8 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
   it("claude_md_is_sentinel_not_monolithic", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    // CNT root is ≤10 lines — pointer only, no rules
-    expect(content.split("\n").length).toBeLessThan(10);
+    // Comprehensive sentinel: ≥100 lines with GS properties, architecture, code standards
+    expect(content.split("\n").length).toBeGreaterThan(100);
     expect(content).toContain("ForgeCraft sentinel");
   });
 
@@ -156,7 +156,8 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
     expect(content).toContain(".claude/index.md");
-    expect(content).toContain("Navigate to the relevant branch");
+    // Navigation section lists standard navigation targets
+    expect(content).toContain("Navigation");
   });
 
   it("claude_md_does_not_contain_wayfinding_table", () => {
@@ -174,36 +175,78 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
     // context has domain: "none" and tags ["UNIVERSAL", "API"]
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    // "API" tag (non-universal) should appear lowercased in description
-    expect(content).toContain("api");
+    // API tag appears in Tags identity line and inferred stack
+    expect(content).toContain("API");
   });
 
   it("universal_tag_is_excluded_from_description", () => {
-    // Kills ConditionalExpression L170 and MethodExpression L170:
-    // filter always-true keeps "UNIVERSAL" → appears in description
-    // filter removed (MethodExpression) → same issue
+    // Tags line should list non-UNIVERSAL tags only
+    // context has tags ["UNIVERSAL", "API"] → tagList = "API"
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    expect(content.toLowerCase()).not.toContain("universal");
+    // The Tags identity line should show "API" not "UNIVERSAL"
+    expect(content).toContain("**Tags**: API");
+    expect(content).not.toContain("**Tags**: UNIVERSAL");
   });
 
-  it("fallback_comment_when_no_tags_and_no_domain", () => {
-    // Kills EqualityOperator L174 (>0 → >=0) and ConditionalExpression L174 (always true)
-    // With either mutation, tag-based description fires even with empty tag list
+  it("fallback_to_universal_when_no_tags", () => {
+    // When no non-UNIVERSAL tags, tagList falls back to "UNIVERSAL"
     const noTagCtx: RenderContext = { ...context, tags: [], domain: "none" };
     const files = renderSentinelTree([architectureBlock], noTagCtx);
     const { content } = claudeMd(files);
-    expect(content).toContain("FILL:");
+    // Still produces a valid comprehensive sentinel
+    expect(content).toContain("**Tags**: UNIVERSAL");
+    expect(content).toContain("GS Properties");
   });
 
-  it("uses_domain_in_description_when_domain_is_set", () => {
-    const domainContext: RenderContext = {
-      ...context,
-      domain: "financial technology",
-    };
-    const files = renderSentinelTree([architectureBlock], domainContext);
+  it("uses_tag_name_in_stack_when_tags_include_api", () => {
+    // context has tags ["UNIVERSAL", "API"] → stack = "TypeScript/Node.js REST/GraphQL API"
+    const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    expect(content).toContain("financial technology");
+    expect(content).toContain("API");
+  });
+});
+
+// ── New GS-compliance sections ───────────────────────────────────────────
+
+describe("renderSentinelTree — GS compliance sections", () => {
+  it("claude_md_contains_tool_sequencing_section", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const { content } = claudeMd(files);
+    expect(content).toContain("## Tool Sequencing");
+    expect(content).toContain("Recommended tool sequence");
+  });
+
+  it("claude_md_contains_corrections_log_section", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const { content } = claudeMd(files);
+    expect(content).toContain("## Corrections Log");
+    expect(content).toContain("YYYY-MM-DD");
+  });
+
+  it("claude_md_contains_navigation_mode_section_for_api_project", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const { content } = claudeMd(files);
+    expect(content).toContain("## Navigation Mode");
+    expect(content).toContain("Read interfaces, not implementations first");
+  });
+
+  it("navigation_mode_section_present_for_web_next_project", () => {
+    const webCtx: RenderContext = {
+      ...context,
+      tags: ["UNIVERSAL", "WEB-NEXT"],
+    };
+    const files = renderSentinelTree([architectureBlock], webCtx);
+    const { content } = claudeMd(files);
+    expect(content).toContain("## Navigation Mode");
+    expect(content).toContain("contracts are trustworthy");
+  });
+
+  it("tool_sequencing_row_contains_new_feature_sequence", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const { content } = claudeMd(files);
+    expect(content).toContain("New feature");
+    expect(content).toContain("Read PRD");
   });
 });
 

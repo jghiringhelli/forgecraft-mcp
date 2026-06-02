@@ -2,7 +2,7 @@
  * Roadmap building utilities: content generation, UC parsing, and session stub creation.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -138,6 +138,81 @@ function inferNameFromDir(projectDir: string): string {
   return last.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// ── UC Dependency Inference ───────────────────────────────────────────
+
+/**
+ * Scan UC files for mentions of other UC IDs and infer implementation order.
+ * Returns a map of ucId → array of RM IDs that must complete first.
+ *
+ * Handles both canonical (docs/use-cases/<ucId>-*.md) and monolith (docs/use-cases.md).
+ *
+ * @param projectDir - Absolute project root
+ * @param ucItems - Ordered array of UC id/title pairs (index = RM position)
+ * @returns Map of ucId → dependent RM IDs
+ */
+export function inferUcDependencies(
+  projectDir: string,
+  ucItems: ReadonlyArray<{ readonly id: string; readonly title: string }>,
+): Map<string, string[]> {
+  const deps = new Map<string, string[]>();
+  if (ucItems.length === 0) return deps;
+
+  const ucIds = ucItems.map((u) => u.id);
+  const ucDir = join(projectDir, "docs", "use-cases");
+  const ucMono = join(projectDir, "docs", "use-cases.md");
+
+  const UC_REF = /\bUC-\d{3,4}\b/g;
+
+  for (const uc of ucItems) {
+    let content = "";
+
+    if (existsSync(ucDir)) {
+      try {
+        const files = readdirSync(ucDir);
+        const match = files.find(
+          (f) => f.endsWith(".md") && f.toUpperCase().includes(uc.id),
+        );
+        if (match) content = readFileSync(join(ucDir, match), "utf-8");
+      } catch {
+        /* skip */
+      }
+    } else if (existsSync(ucMono)) {
+      try {
+        const mono = readFileSync(ucMono, "utf-8");
+        const start = mono.indexOf(`## ${uc.id}`);
+        if (start >= 0) {
+          const end = mono.indexOf("\n## ", start + 3);
+          content = end >= 0 ? mono.slice(start, end) : mono.slice(start);
+        }
+      } catch {
+        /* skip */
+      }
+    }
+
+    if (!content) continue;
+
+    const refs = new Set<string>();
+    let m: RegExpExecArray | null;
+    UC_REF.lastIndex = 0;
+    while ((m = UC_REF.exec(content)) !== null) {
+      const refId = m[0]!;
+      if (refId !== uc.id && ucIds.includes(refId)) refs.add(refId);
+    }
+
+    if (refs.size > 0) {
+      const rmDeps = Array.from(refs)
+        .map((refId) => {
+          const idx = ucItems.findIndex((u) => u.id === refId);
+          return idx >= 0 ? `RM-${String(idx + 1).padStart(3, "0")}` : null;
+        })
+        .filter((id): id is string => id !== null);
+      if (rmDeps.length > 0) deps.set(uc.id, rmDeps);
+    }
+  }
+
+  return deps;
+}
+
 // ── Roadmap Content ────────────────────────────────────────────────────
 
 /**
@@ -147,6 +222,7 @@ function inferNameFromDir(projectDir: string): string {
  * @param ucItems - Parsed use-case items for Phase 1
  * @param specFilePath - Relative spec file path (for footer)
  * @param tags - Project classification tags (drives Executable Sprint gate selection)
+ * @param projectDir - Absolute project root for UC dependency inference (optional)
  * @returns Complete roadmap.md string
  */
 export function buildRoadmapContent(
@@ -154,6 +230,7 @@ export function buildRoadmapContent(
   ucItems: ReadonlyArray<{ readonly id: string; readonly title: string }>,
   specFilePath: string,
   tags: ReadonlyArray<string> = [],
+  projectDir?: string,
 ): string {
   const date = new Date().toISOString().split("T")[0]!;
   const lastPhase1Id = formatRmId(ucItems.length);
@@ -161,11 +238,16 @@ export function buildRoadmapContent(
   const gates = resolveExecutableGates(tags);
   const toolSummary = gateToolSummary(gates);
 
+  const ucDeps = projectDir
+    ? inferUcDependencies(projectDir, ucItems)
+    : new Map<string, string[]>();
+
   const phase1Rows = ucItems
     .map((uc, i) => {
       const rmId = formatRmId(i + 1);
       const title = `Implement ${uc.id}: ${uc.title}`;
-      return `| ${rmId} | ${title} | — | pending | docs/session-prompts/${rmId}.md |`;
+      const dependsOn = ucDeps.get(uc.id)?.join(", ") ?? "—";
+      return `| ${rmId} | ${title} | ${dependsOn} | pending | docs/session-prompts/${rmId}.md |`;
     })
     .join("\n");
 

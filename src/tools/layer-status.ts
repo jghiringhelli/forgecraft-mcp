@@ -476,10 +476,51 @@ export function buildL4Status(projectDir: string): {
  * @param projectDir - Absolute path to project root
  * @returns Structured layer report
  */
+/**
+ * Parse UC records from canonical docs/use-cases/ directory.
+ * Each file is named UC-NNN-slug.md; the title is taken from the first H1.
+ */
+function parseUseCaseDirectory(projectDir: string): UcRecord[] {
+  const ucDir = join(projectDir, "docs", "use-cases");
+  if (!existsSync(ucDir)) return [];
+  let files: string[];
+  try {
+    files = readdirSync(ucDir).filter((f) => /^UC-\d{3,4}-.+\.md$/i.test(f));
+  } catch {
+    return [];
+  }
+  const ucs: UcRecord[] = [];
+  for (const file of files.sort()) {
+    const idMatch = /^(UC-\d{3,4})/i.exec(file);
+    if (!idMatch) continue;
+    const id = idMatch[1]!.toUpperCase();
+    let title = file
+      .replace(/^UC-\d{3,4}-/, "")
+      .replace(/\.md$/, "")
+      .replace(/-/g, " ");
+    try {
+      const content = readFileSync(join(ucDir, file), "utf-8");
+      const h1 = /^#\s+(.+)$/m.exec(content);
+      if (h1) title = h1[1]!.trim();
+    } catch {
+      // use filename-derived title
+    }
+    ucs.push({ id, title });
+  }
+  return ucs;
+}
+
 export function buildLayerReport(projectDir: string): LayerReport {
-  const useCasesPath = join(projectDir, "docs", "use-cases.md");
   let ucs: UcRecord[] = [];
-  if (existsSync(useCasesPath)) {
+
+  // Try canonical directory first (docs/use-cases/UC-*.md), then legacy monolith
+  const ucDir = join(projectDir, "docs", "use-cases");
+  const useCasesPath = join(projectDir, "docs", "use-cases.md");
+
+  const dirUcs = parseUseCaseDirectory(projectDir);
+  if (dirUcs.length > 0) {
+    ucs = dirUcs;
+  } else if (existsSync(useCasesPath)) {
     try {
       const content = readFileSync(useCasesPath, "utf-8");
       ucs = parseUseCases(content);
@@ -487,6 +528,7 @@ export function buildLayerReport(projectDir: string): LayerReport {
       // leave ucs empty
     }
   }
+  void ucDir; // referenced above via parseUseCaseDirectory
 
   const l1 = buildL1Status(projectDir, ucs);
   const l2 = buildL2Status(projectDir, ucs);
@@ -566,8 +608,15 @@ export function formatLayerReport(report: LayerReport): string {
   }
 
   // L1
+  const unboundUcs = report.l1.filter((u) => !u.testsFound);
+  const testBindingPct =
+    total > 0 ? Math.round(((total - unboundUcs.length) / total) * 100) : 100;
+
   lines.push("### L1: Blueprint");
   lines.push(`${total}/${total} use cases documented`);
+  lines.push(
+    `${total - unboundUcs.length}/${total} use cases have test binding (${testBindingPct}%)`,
+  );
   lines.push("");
   lines.push("| UC | Title | Documented | Tests Found |");
   lines.push("|---|---|---|---|");
@@ -576,6 +625,17 @@ export function formatLayerReport(report: LayerReport): string {
     lines.push(`| ${uc.id} | ${uc.title} | ✅ | ${tests} |`);
   }
   lines.push("");
+
+  if (unboundUcs.length > 0) {
+    lines.push(
+      `> ⚠️ **${unboundUcs.length} use case(s) have no test binding** — tests pass but these UCs have no test file that references their ID.`,
+    );
+    lines.push(
+      `> This means the UCs are documentation, not contracts. Add a test that imports or references \`${unboundUcs[0]!.id}\` (even as a describe label) to establish the binding.`,
+    );
+    lines.push(`> Unbound: ${unboundUcs.map((u) => u.id).join(", ")}`);
+    lines.push("");
+  }
 
   // L1 gate violations
   if (report.l1GateViolations.length > 0) {

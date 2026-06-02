@@ -1,0 +1,37 @@
+id: react-component-types-required
+title: React — All Components Have TypeScript Props Types (No Implicit Any)
+description: >
+  Every React component must have an explicit TypeScript props interface or type alias.
+  Implicit `any` props types defeat TypeScript's ability to catch breaking prop changes
+  at compile time — a prop renamed in a parent breaks at runtime, not at build time.
+  This gate enforces the baseline type safety that makes component refactoring safe.
+category: type-safety
+gsProperty: verifiable
+phase: pre-commit
+hook: pre-commit
+check: >
+  Set `strict: true` in tsconfig.json (activates noImplicitAny).
+  Confirm with: npx tsc --noEmit (must exit 0).
+  Add to .eslintrc: "@typescript-eslint/no-explicit-any": "error" to prevent `any` workarounds.
+  For React props specifically: every function component must have either:
+    - An explicit interface: `interface Props { ... }; const MyComp = (props: Props) => ...`
+    - An inline type: `const MyComp = ({ name }: { name: string }) => ...`
+  Components that accept children must type them: `children: React.ReactNode`.
+passCriterion: >
+  `npx tsc --noEmit` exits 0 with `strict: true` enabled.
+  Zero @typescript-eslint/no-explicit-any violations in src/**/*.tsx.
+  All component props interfaces are explicitly declared.
+tags:
+  - WEB-REACT
+  - WEB-NEXT
+generalizable: true
+evidence: >
+  Components without typed props are the #1 source of breaking changes invisible at
+  compile time in React codebases. TypeScript strict mode is zero-cost to add at
+  project setup and exponentially expensive to retrofit into existing code. Adding
+  it as a gate at project initialization costs nothing and prevents an entire class
+  of runtime regressions from ever entering the codebase.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-react/react-component-types-required.yaml

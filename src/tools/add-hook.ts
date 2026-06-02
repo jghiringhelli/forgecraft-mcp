@@ -10,13 +10,16 @@ import { join } from "node:path";
 import { ALL_TAGS } from "../shared/types.js";
 import type { Tag } from "../shared/types.js";
 import { loadAllTemplates } from "../registry/loader.js";
+import { appendToHookManifest } from "../shared/hook-installer.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
 export const addHookSchema = z.object({
   hook: z
     .string()
-    .describe("Name of the hook to add (e.g. 'i18n-enforcement', 'secrets-scanner')."),
+    .describe(
+      "Name of the hook to add (e.g. 'i18n-enforcement', 'secrets-scanner').",
+    ),
   tag: z
     .enum(ALL_TAGS as unknown as [string, ...string[]])
     .optional()
@@ -79,18 +82,30 @@ export async function addHookHandler(
     // chmod may fail on Windows
   }
 
+  // Append to manifest so the dispatcher picks it up without re-scaffold
+  const manifestUpdated = appendToHookManifest(
+    args.project_dir,
+    foundHook.trigger,
+    foundHook.filename,
+  );
+
   const action = alreadyExists ? "Updated" : "Created";
+  const manifestNote = manifestUpdated
+    ? `\n**Manifest:** appended to \`.claude/hooks/${foundHook.trigger}.list\``
+    : `\n**Manifest:** already listed in \`.claude/hooks/${foundHook.trigger}.list\``;
 
   return {
     content: [
       {
         type: "text",
-        text: `${action} hook: \`${foundHook.filename}\`\n\n` +
+        text:
+          `${action} hook: \`${foundHook.filename}\`\n\n` +
           `**Name:** ${foundHook.name}\n` +
           `**Tag:** [${foundTag}]\n` +
           `**Trigger:** ${foundHook.trigger}\n` +
           `**Description:** ${foundHook.description}\n` +
-          `**Path:** \`.claude/hooks/${foundHook.filename}\``,
+          `**Path:** \`.claude/hooks/${foundHook.filename}\`` +
+          manifestNote,
       },
     ],
   };

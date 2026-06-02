@@ -64,6 +64,11 @@ export async function dispatchForgecraft(
         use_playwright: args.use_playwright,
         tool_sample_split: args.tool_sample_split,
         project_type_override: args.project_type_override,
+        problem_statement: args.problem_statement,
+        primary_users: args.primary_users,
+        success_criteria: args.success_criteria,
+        spec_file_confirmed: args.spec_file_confirmed,
+        use_cases: args.use_cases,
         tags: args.tags,
       });
 

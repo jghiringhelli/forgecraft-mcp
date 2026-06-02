@@ -79,7 +79,9 @@ export const PYTHON_PACKAGE_FILES = [
  * @param projectDir - Absolute project root path
  * @returns Parsed config or null
  */
-export function loadForgeCraftConfig(projectDir: string): ForgeCraftConfig | null {
+export function loadForgeCraftConfig(
+  projectDir: string,
+): ForgeCraftConfig | null {
   const yamlPath = join(projectDir, "forgecraft.yaml");
   if (!existsSync(yamlPath)) return null;
   try {
@@ -98,7 +100,9 @@ export function loadForgeCraftConfig(projectDir: string): ForgeCraftConfig | nul
  * @returns Whether the content contains unfilled template markers
  */
 export function isStub(content: string): boolean {
-  return /<!--\s*(FILL|TODO|UNFILLED)|(\[DESCRIBE|\[YOUR |fill in here)/i.test(content);
+  return /<!--\s*(FILL|TODO|UNFILLED)|(\[DESCRIBE|\[YOUR |fill in here)/i.test(
+    content,
+  );
 }
 
 // ── Step 1-3 Fallback Helpers ─────────────────────────────────────────
@@ -117,16 +121,23 @@ export function findFunctionalSpecFallback(projectDir: string): string | null {
     for (const file of files) {
       if (!file.endsWith(".md")) continue;
       const relPath = `docs/${file}`;
-      if ((FUNCTIONAL_SPEC_PATHS as readonly string[]).includes(relPath)) continue;
+      if ((FUNCTIONAL_SPEC_PATHS as readonly string[]).includes(relPath))
+        continue;
       try {
         const content = readFileSync(join(docsDir, file), "utf-8");
         if (content.length <= 500) continue;
         const lower = content.toLowerCase();
-        const matchCount = FUNCTIONAL_SPEC_STRUCTURAL_SECTIONS.filter((s) => lower.includes(s)).length;
+        const matchCount = FUNCTIONAL_SPEC_STRUCTURAL_SECTIONS.filter((s) =>
+          lower.includes(s),
+        ).length;
         if (matchCount >= 2) return relPath;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
-  } catch { /* skip */ }
+  } catch {
+    /* skip */
+  }
   return null;
 }
 
@@ -145,10 +156,15 @@ export function detectUnsafeDeserializationCast(projectDir: string): boolean {
       try {
         const content = readFileSync(join(srcDir, file), "utf-8");
         if (/yaml\.load\((?![^)]*,\s*[A-Za-z])/i.test(content)) return true;
-        if (/(?:JSON\.parse|yaml\.load)\([^)]+\)\s+as\s+\w/i.test(content)) return true;
-      } catch { /* skip */ }
+        if (/(?:JSON\.parse|yaml\.load)\([^)]+\)\s+as\s+\w/i.test(content))
+          return true;
+      } catch {
+        /* skip */
+      }
     }
-  } catch { /* skip */ }
+  } catch {
+    /* skip */
+  }
   return false;
 }
 
@@ -167,34 +183,50 @@ export function checkFunctionalSpec(projectDir: string): CascadeStep {
     "What does a successful outcome look like for them?",
   ] as const;
 
-  const found = FUNCTIONAL_SPEC_PATHS.find((p) => existsSync(join(projectDir, p)));
+  const found = FUNCTIONAL_SPEC_PATHS.find((p) =>
+    existsSync(join(projectDir, p)),
+  );
   if (!found) {
     const fallback = findFunctionalSpecFallback(projectDir);
     if (fallback) {
       return {
-        step: 1, name: "Functional Specification", status: "WARN",
+        step: 1,
+        name: "Functional Specification",
+        status: "WARN",
         detail: `Functional spec found at ${fallback}. Consider renaming to docs/PRD.md for standard compliance.`,
         action: `Rename ${fallback} to docs/PRD.md or docs/TechSpec.md for standard tooling compatibility.`,
         questions: [],
       };
     }
     return {
-      step: 1, name: "Functional Specification", status: "FAIL",
-      detail: "No functional specification found. The cascade has no axiom set.",
-      action: "Create docs/PRD.md or docs/TechSpec.md: what the system does, for whom, and what constitutes success.",
+      step: 1,
+      name: "Functional Specification",
+      status: "FAIL",
+      detail:
+        "No functional specification found. The cascade has no axiom set.",
+      action:
+        "Create docs/PRD.md or docs/TechSpec.md: what the system does, for whom, and what constitutes success.",
       questions: STEP_QUESTIONS,
     };
   }
   const content = readFileSync(join(projectDir, found), "utf-8");
   if (isStub(content)) {
     return {
-      step: 1, name: "Functional Specification", status: "STUB",
+      step: 1,
+      name: "Functional Specification",
+      status: "STUB",
       detail: `Found ${found} but it contains unfilled template markers. Fill in the spec before continuing.`,
       action: `Open ${found} and answer the questions below to complete it.`,
       questions: STEP_QUESTIONS,
     };
   }
-  return { step: 1, name: "Functional Specification", status: "PASS", detail: `Found: ${found}`, questions: [] };
+  return {
+    step: 1,
+    name: "Functional Specification",
+    status: "PASS",
+    detail: `Found: ${found}`,
+    questions: [],
+  };
 }
 
 /**
@@ -213,34 +245,50 @@ export function checkDiagrams(projectDir: string): CascadeStep {
   const diagramsDir = join(projectDir, "docs/diagrams");
   if (!existsSync(diagramsDir)) {
     return {
-      step: 2, name: "Architecture Diagrams", status: "FAIL",
+      step: 2,
+      name: "Architecture Diagrams",
+      status: "FAIL",
       detail: "docs/diagrams/ does not exist.",
-      action: "Create docs/diagrams/ and add a Mermaid C4 context diagram (docs/diagrams/c4-context.md).",
+      action:
+        "Create docs/diagrams/ and add a Mermaid C4 context diagram (docs/diagrams/c4-context.md).",
       questions: STEP_QUESTIONS,
     };
   }
-  const files = readdirSync(diagramsDir).filter((f) => /\.(md|mermaid|puml|svg|png)$/i.test(f));
+  const files = readdirSync(diagramsDir).filter((f) =>
+    /\.(md|mermaid|puml|svg|png)$/i.test(f),
+  );
   if (files.length === 0) {
     return {
-      step: 2, name: "Architecture Diagrams", status: "WARN",
+      step: 2,
+      name: "Architecture Diagrams",
+      status: "WARN",
       detail: "docs/diagrams/ exists but contains no diagram files.",
-      action: "Add docs/diagrams/c4-context.md with a Mermaid C4 context or container diagram.",
+      action:
+        "Add docs/diagrams/c4-context.md with a Mermaid C4 context or container diagram.",
       questions: STEP_QUESTIONS,
     };
   }
   const stubFile = files.find((f) => {
-    try { return isStub(readFileSync(join(diagramsDir, f), "utf-8")); } catch { return false; }
+    try {
+      return isStub(readFileSync(join(diagramsDir, f), "utf-8"));
+    } catch {
+      return false;
+    }
   });
   if (stubFile) {
     return {
-      step: 2, name: "Architecture Diagrams", status: "STUB",
+      step: 2,
+      name: "Architecture Diagrams",
+      status: "STUB",
       detail: `docs/diagrams/${stubFile} contains unfilled template markers. Fill in the diagram before continuing.`,
       action: `Open docs/diagrams/${stubFile} and answer the questions below to complete it.`,
       questions: STEP_QUESTIONS,
     };
   }
   return {
-    step: 2, name: "Architecture Diagrams", status: "PASS",
+    step: 2,
+    name: "Architecture Diagrams",
+    status: "PASS",
     detail: `${files.length} diagram file(s) in docs/diagrams/ (${files.join(", ")})`,
     questions: [],
   };
@@ -249,30 +297,114 @@ export function checkDiagrams(projectDir: string): CascadeStep {
 /**
  * Step 3: Architectural constitution — the operative grammar.
  *
+ * Also checks .claude/core.md for declared-line-limit violations and includes
+ * content for the calling AI to evaluate for LLM prompt contamination.
+ *
  * @param projectDir - Absolute project root
  * @returns Cascade step result
  */
 export function checkConstitution(projectDir: string): CascadeStep {
-  const foundPath = CONSTITUTION_PATHS.find((p) => existsSync(join(projectDir, p)));
+  const foundPath = CONSTITUTION_PATHS.find((p) =>
+    existsSync(join(projectDir, p)),
+  );
   if (!foundPath) {
     return {
-      step: 3, name: "Architectural Constitution", status: "FAIL",
-      detail: "No AI assistant instruction file found (CLAUDE.md, AGENTS.md, etc.).",
-      action: "Run `setup_project` or `forgecraft scaffold` to generate CLAUDE.md.",
+      step: 3,
+      name: "Architectural Constitution",
+      status: "FAIL",
+      detail:
+        "No AI assistant instruction file found (CLAUDE.md, AGENTS.md, etc.).",
+      action:
+        "Run `setup_project` or `forgecraft scaffold` to generate CLAUDE.md.",
       questions: [],
     };
   }
-  const lines = readFileSync(join(projectDir, foundPath), "utf-8").split("\n").length;
+  const lines = readFileSync(join(projectDir, foundPath), "utf-8").split(
+    "\n",
+  ).length;
   if (lines > CONSTITUTION_LINE_LIMIT) {
     return {
-      step: 3, name: "Architectural Constitution", status: "WARN",
+      step: 3,
+      name: "Architectural Constitution",
+      status: "WARN",
       detail: `${foundPath} found (${lines} lines) — exceeds the ${CONSTITUTION_LINE_LIMIT}-line threshold.`,
-      action: "Run `refresh_project` with tier: core to compress. An oversized constitution dilutes AI attention on every turn.",
+      action:
+        "Run `refresh_project` with tier: core to compress. An oversized constitution dilutes AI attention on every turn.",
       questions: [],
     };
   }
+
+  // Secondary check: .claude/core.md quality
+  const coreMdPath = join(projectDir, ".claude", "core.md");
+  if (existsSync(coreMdPath)) {
+    const coreContent = readFileSync(coreMdPath, "utf-8");
+    const coreLines = coreContent.split("\n");
+
+    // Detect a declared "Hard limit: N lines" in the file
+    const limitMatch = coreContent.match(
+      /(?:hard limit|line limit):\s*(\d+)\s*lines?/i,
+    );
+    const declaredLimit = limitMatch ? parseInt(limitMatch[1]!, 10) : null;
+
+    const limitViolated =
+      declaredLimit !== null && coreLines.length > declaredLimit;
+
+    // Fast-path contamination heuristic: obvious LLM instruction patterns
+    const PROMPT_PATTERNS = [
+      /you are\b/i,
+      /the user has answered/i,
+      /respond (?:with|to)/i,
+      /your (?:task|job|role) is/i,
+      /\bassistant:\s/i,
+      /\bsystem:\s/i,
+      /confirmatory questions/i,
+    ];
+    const suspiciousLine = coreLines.find((l) =>
+      PROMPT_PATTERNS.some((p) => p.test(l)),
+    );
+
+    if (limitViolated || suspiciousLine) {
+      const snippet = coreLines.slice(0, 60).join("\n");
+      const issues: string[] = [];
+      if (limitViolated) {
+        issues.push(
+          `⚠️ .claude/core.md has ${coreLines.length} lines but declares "Hard limit: ${declaredLimit} lines" (exceeded by ${coreLines.length - declaredLimit!}).`,
+        );
+      }
+      if (suspiciousLine) {
+        issues.push(
+          `⚠️ .claude/core.md may contain LLM prompt text (not project invariants). Flagged line: "${suspiciousLine.trim().slice(0, 80)}"`,
+        );
+      }
+      return {
+        step: 3,
+        name: "Architectural Constitution",
+        status: "WARN",
+        detail: [
+          `${foundPath} (${lines} lines) ✓`,
+          "",
+          ...issues,
+          "",
+          "Review .claude/core.md below for LLM prompt contamination — this file must contain",
+          "project invariants only, not instructions intended for an AI assistant:",
+          "",
+          "```",
+          snippet,
+          "```",
+        ].join("\n"),
+        action:
+          "Remove LLM prompt instructions from .claude/core.md. " +
+          "Only project-specific invariants, architectural constraints, and naming conventions belong here. " +
+          "Respect the declared line limit.",
+        questions: [],
+      };
+    }
+  }
+
   return {
-    step: 3, name: "Architectural Constitution", status: "PASS",
+    step: 3,
+    name: "Architectural Constitution",
+    status: "PASS",
     detail: `${foundPath} (${lines} lines) — within the ${CONSTITUTION_LINE_LIMIT}-line threshold`,
     questions: [],
   };

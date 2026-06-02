@@ -133,6 +133,7 @@ export const DEPLOYMENT_TAGS = new Set([
   "MOBILE",
   "WEB-REACT",
   "WEB-STATIC",
+  "WEB-NEXT",
 ]);
 
 /**

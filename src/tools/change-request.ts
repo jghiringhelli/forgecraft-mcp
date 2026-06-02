@@ -24,7 +24,8 @@ export type ChangeType =
   | "breaking-api"
   | "adr-supersession"
   | "gate-change"
-  | "dependency-update";
+  | "dependency-update"
+  | "bug-postmortem";
 
 export type ChangeStatus =
   | "open"
@@ -152,6 +153,13 @@ export function detectAffectedArtifacts(
     }
   }
 
+  // Bug post-mortem — always surface docs/decisions/ as the artifact slot.
+  // The actual file is created by generate_decision once the investigation
+  // resolves; listing the directory here tells the practitioner where to write.
+  if (type === "bug-postmortem") {
+    artifacts.push("docs/decisions/");
+  }
+
   return [...new Set(artifacts)];
 }
 
@@ -190,6 +198,22 @@ export function detectRequiredGates(
   if (breaking || type === "breaking-api") {
     for (const id of allGateIds) {
       if (id.includes("schema") || id.includes("contract")) {
+        if (!gates.includes(id)) gates.push(id);
+      }
+    }
+  }
+
+  // Bug post-mortems must pass any regression/test-related gate. The
+  // regression-test requirement in the cascade is what distinguishes a
+  // recorded post-mortem from "we just patched it and moved on".
+  if (type === "bug-postmortem") {
+    for (const id of allGateIds) {
+      if (
+        id.includes("regression") ||
+        id.includes("test") ||
+        id.startsWith("l2-") ||
+        id.startsWith("l3-")
+      ) {
         if (!gates.includes(id)) gates.push(id);
       }
     }

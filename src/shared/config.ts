@@ -71,7 +71,27 @@ export function readPractitionerLevel(
 
   if (!raw || typeof raw !== "object") return "novice";
   const config = raw as Record<string, unknown>;
-  return config["practitioner_level"] === "experienced" ? "experienced" : "novice";
+  return config["practitioner_level"] === "experienced"
+    ? "experienced"
+    : "novice";
+}
+
+/**
+ * Returns true when forgecraft.yaml has `brownfield: true`.
+ *
+ * @param projectDir - Absolute path to the project root
+ */
+export function readBrownfieldFlag(projectDir: string): boolean {
+  const yamlPath = join(projectDir, "forgecraft.yaml");
+  if (!existsSync(yamlPath)) return false;
+  let raw: unknown;
+  try {
+    raw = yaml.load(readFileSync(yamlPath, "utf-8"));
+  } catch {
+    return false;
+  }
+  if (!raw || typeof raw !== "object") return false;
+  return (raw as Record<string, unknown>)["brownfield"] === true;
 }
 
 function isValidExperimentType(

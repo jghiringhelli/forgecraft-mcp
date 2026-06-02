@@ -42,3 +42,115 @@ hooks:
         fi
       done
       rm -f /tmp/a11y_violations
+
+  - name: design-token-enforcement
+    trigger: pre-commit
+    description: "Block raw hex/rgb color literals in component and style files"
+    filename: pre-commit-design-tokens.sh
+    script: |
+      #!/bin/bash
+      # Block raw hex/rgb/hsl color literals — use design tokens instead.
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(tsx|jsx|css|scss|less)$')
+      if [ -z "$STAGED" ]; then exit 0; fi
+      VIOLATIONS=0
+      for file in $STAGED; do
+        # Skip token definition files and test/story files
+        if echo "$file" | grep -qiE '(tokens\.|variables\.|theme\.|_vars\.|\.test\.|\.spec\.|\.stories\.)'; then
+          continue
+        fi
+        COUNT=$(grep -cE '#[0-9A-Fa-f]{3,8}\b|rgb\s*\(|rgba\s*\(|hsl\s*\(' "$file" 2>/dev/null || echo 0)
+        if [ "$COUNT" -gt 0 ]; then
+          echo "  ❌ $file — $COUNT raw color literal(s). Use var(--color-*) design tokens:"
+          grep -nE '#[0-9A-Fa-f]{3,8}\b|rgb\s*\(|rgba\s*\(|hsl\s*\(' "$file" | head -3 | sed 's/^/    /'
+          VIOLATIONS=$((VIOLATIONS + 1))
+        fi
+      done
+      if [ $VIOLATIONS -gt 0 ]; then
+        echo ""
+        echo "❌ Design token gate failed. Replace raw colors with CSS custom property tokens."
+        echo "   Token reference: src/styles/tokens.css"
+        exit 1
+      fi
+
+  - name: atomic-structure-enforcement
+    trigger: pre-commit
+    description: "Enforce atomic design placement (atoms/molecules/organisms/templates/pages)"
+    filename: pre-commit-atomic-structure.sh
+    script: |
+      #!/bin/bash
+      # Enforce atomic component placement in components/ directories.
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(tsx|jsx)$')
+      if [ -z "$STAGED" ]; then exit 0; fi
+      VIOLATIONS=0
+      for file in $STAGED; do
+        # Only check files inside a components/ directory
+        if echo "$file" | grep -qE '/components/'; then
+          # Skip if in a valid atomic subdirectory
+          if ! echo "$file" | grep -qE '/components/(atoms|molecules|organisms|templates|pages)/'; then
+            echo "  ❌ $file — not in atomic directory. Move to atoms/, molecules/, organisms/, templates/, or pages/"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+        fi
+      done
+      if [ $VIOLATIONS -gt 0 ]; then
+        echo ""
+        echo "❌ Atomic structure gate failed: components/ files must be in atomic subdirectories."
+        echo "   Use: src/components/{atoms|molecules|organisms|templates|pages}/"
+        exit 1
+      fi
+
+  - name: responsive-adr-enforcement
+    trigger: pre-commit
+    description: "Require a responsive strategy ADR before committing responsive layout code"
+    filename: pre-commit-responsive-adr.sh
+    script: |
+      #!/bin/bash
+      # Require a responsive strategy ADR before any responsive layout code is committed.
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(tsx|jsx|css|scss|less)$')
+      if [ -z "$STAGED" ]; then exit 0; fi
+      HAS_RESPONSIVE=0
+      for file in $STAGED; do
+        if grep -qE '@media|sm:|md:|lg:|xl:|2xl:|breakpoint' "$file" 2>/dev/null; then
+          HAS_RESPONSIVE=1
+          break
+        fi
+      done
+      if [ $HAS_RESPONSIVE -eq 0 ]; then exit 0; fi
+      # Check for a responsive strategy ADR
+      ADR_EXISTS=$(find docs/adrs -name "*.md" 2>/dev/null | \
+        xargs grep -l -iE '(responsive|breakpoint|mobile.first|viewport)' 2>/dev/null | \
+        wc -l | tr -d ' ')
+      if [ "$ADR_EXISTS" -eq 0 ]; then
+        echo "❌ Responsive layout code added but no responsive strategy ADR found."
+        echo "   Create docs/adrs/active/responsive-strategy.md before adding responsive code."
+        echo "   The ADR must document: breakpoints, approach (mobile-first/desktop-first),"
+        echo "   CSS framework choice, and target viewport range."
+        exit 1
+      fi
+
+  - name: ux-pattern-docs-check
+    trigger: pre-commit
+    description: "Require docs/patterns/error.md and loading.md before page/modal/table components"
+    filename: pre-commit-ux-patterns.sh
+    script: |
+      #!/bin/bash
+      # Require UX pattern docs before page, modal, or table components are committed.
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(tsx|jsx)$')
+      if [ -z "$STAGED" ]; then exit 0; fi
+      HAS_PATTERN_COMPONENT=0
+      for file in $STAGED; do
+        if echo "$file" | grep -qiE '(page|screen|modal|dialog|table|drawer)\.(tsx|jsx)$'; then
+          HAS_PATTERN_COMPONENT=1
+          break
+        fi
+      done
+      if [ $HAS_PATTERN_COMPONENT -eq 0 ]; then exit 0; fi
+      MISSING=""
+      [ ! -f "docs/patterns/error.md" ] && MISSING="$MISSING error.md"
+      [ ! -f "docs/patterns/loading.md" ] && MISSING="$MISSING loading.md"
+      if [ -n "$MISSING" ]; then
+        echo "❌ UX pattern docs missing:$MISSING"
+        echo "   Create docs/patterns/{error,loading,empty,modals,tables}.md before adding"
+        echo "   page, modal, or table components. These are the source of truth for common UI patterns."
+        exit 1
+      fi

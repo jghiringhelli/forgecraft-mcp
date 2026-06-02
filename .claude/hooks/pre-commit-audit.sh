@@ -13,7 +13,8 @@ echo "🔍 Running dependency audit..."
 
 # ── npm ──────────────────────────────────────────────────────────────────
 if [ -f "package.json" ] && command -v npm &>/dev/null; then
-  AUDIT_OUT=$(npm audit --audit-level=high 2>&1)
+  # --omit=dev: dev-only CVEs (e.g. vitest UI file-read) are not exploitable in CI/prod
+  AUDIT_OUT=$(npm audit --audit-level=high --omit=dev 2>&1)
   AUDIT_EXIT=$?
   if [ $AUDIT_EXIT -ne 0 ]; then
     echo "❌ npm audit: HIGH or CRITICAL vulnerabilities found."

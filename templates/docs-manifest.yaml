@@ -97,10 +97,13 @@ documents:
     path: docs/decisions/
     pattern: "*.md"
     required_on: []          # optional even on fix; encouraged when behavior is intentionally redefined
+    scaffolded_by: generate_decision   # forgecraft tool that emits the post-mortem stub
     description: >
       One-pager rationale for non-architectural decisions: bug-fix interpretations,
       operational tweaks, "we chose X over Y because Z" notes that don't warrant a full ADR.
       Filename pattern: YYYY-MM-DD-slug.md.
+      Use forgecraft `generate_decision` (or change_request with type=bug-postmortem)
+      to scaffold a stub with Trigger / Root cause / Fix / Regression test / Chronicle link.
 
   # CONTRACTS — behavioral contracts (what the system promises)
   contracts:

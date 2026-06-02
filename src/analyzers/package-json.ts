@@ -25,18 +25,62 @@ const DEPENDENCY_PATTERNS: Array<{
   tag: Tag;
   evidence: string;
 }> = [
-  { packages: ["react", "react-dom"], tag: "WEB-REACT", evidence: "react in dependencies" },
-  { packages: ["next"], tag: "WEB-REACT", evidence: "next.js in dependencies" },
-  { packages: ["@remix-run/react"], tag: "WEB-REACT", evidence: "remix in dependencies" },
-  { packages: ["express", "fastify", "koa", "hapi", "nestjs"], tag: "API", evidence: "HTTP framework in dependencies" },
-  { packages: ["ethers", "web3", "viem", "@solana/web3.js"], tag: "WEB3", evidence: "blockchain library in dependencies" },
-  { packages: ["socket.io", "ws", "pusher"], tag: "REALTIME", evidence: "WebSocket library in dependencies" },
-  { packages: ["xstate", "robot3"], tag: "STATE-MACHINE", evidence: "state machine library in dependencies" },
-  { packages: ["phaser", "pixi.js", "three", "babylon"], tag: "GAME", evidence: "game engine in dependencies" },
-  { packages: ["commander", "yargs", "meow", "oclif"], tag: "CLI", evidence: "CLI framework in dependencies" },
-  { packages: ["react-native", "expo"], tag: "MOBILE", evidence: "mobile framework in dependencies" },
-  { packages: ["@tensorflow/tfjs", "onnxruntime-node"], tag: "ML", evidence: "ML library in dependencies" },
-  { packages: ["terraform-cdk", "pulumi", "@aws-cdk"], tag: "INFRA", evidence: "IaC library in dependencies" },
+  {
+    packages: ["react", "react-dom"],
+    tag: "WEB-REACT",
+    evidence: "react in dependencies",
+  },
+  { packages: ["next"], tag: "WEB-NEXT", evidence: "next.js in dependencies" },
+  {
+    packages: ["@remix-run/react"],
+    tag: "WEB-REACT",
+    evidence: "remix in dependencies",
+  },
+  {
+    packages: ["express", "fastify", "koa", "hapi", "nestjs"],
+    tag: "API",
+    evidence: "HTTP framework in dependencies",
+  },
+  {
+    packages: ["ethers", "web3", "viem", "@solana/web3.js"],
+    tag: "WEB3",
+    evidence: "blockchain library in dependencies",
+  },
+  {
+    packages: ["socket.io", "ws", "pusher"],
+    tag: "REALTIME",
+    evidence: "WebSocket library in dependencies",
+  },
+  {
+    packages: ["xstate", "robot3"],
+    tag: "STATE-MACHINE",
+    evidence: "state machine library in dependencies",
+  },
+  {
+    packages: ["phaser", "pixi.js", "three", "babylon"],
+    tag: "GAME",
+    evidence: "game engine in dependencies",
+  },
+  {
+    packages: ["commander", "yargs", "meow", "oclif"],
+    tag: "CLI",
+    evidence: "CLI framework in dependencies",
+  },
+  {
+    packages: ["react-native", "expo"],
+    tag: "MOBILE",
+    evidence: "mobile framework in dependencies",
+  },
+  {
+    packages: ["@tensorflow/tfjs", "onnxruntime-node"],
+    tag: "ML",
+    evidence: "ML library in dependencies",
+  },
+  {
+    packages: ["terraform-cdk", "pulumi", "@aws-cdk"],
+    tag: "INFRA",
+    evidence: "IaC library in dependencies",
+  },
 ];
 
 /** File patterns that indicate tags. Optional confidence overrides the default 0.7. */
@@ -46,12 +90,25 @@ const FILE_PATTERNS: Array<{
   evidence: string;
   confidence?: number;
 }> = [
-  { files: ["next.config.js", "next.config.mjs", "next.config.ts"], tag: "WEB-REACT", evidence: "next.config found" },
+  {
+    files: ["next.config.js", "next.config.mjs", "next.config.ts"],
+    tag: "WEB-NEXT",
+    evidence: "next.config found",
+  },
   { files: ["tsconfig.json"], tag: "LIBRARY", evidence: "TypeScript project" },
-  { files: [".solhint.json", "hardhat.config.ts", "foundry.toml"], tag: "WEB3", evidence: "smart contract tooling found" },
+  {
+    files: [".solhint.json", "hardhat.config.ts", "foundry.toml"],
+    tag: "WEB3",
+    evidence: "smart contract tooling found",
+  },
   // Docker alone is insufficient for INFRA — set below 0.6 threshold.
   // IaC deps (terraform-cdk, pulumi, @aws-cdk) in DEPENDENCY_PATTERNS correctly trigger INFRA at 0.6+.
-  { files: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml"], tag: "INFRA", evidence: "Docker config found", confidence: 0.45 },
+  {
+    files: ["Dockerfile", "docker-compose.yml", "docker-compose.yaml"],
+    tag: "INFRA",
+    evidence: "Docker config found",
+    confidence: 0.45,
+  },
 ];
 
 /**
@@ -138,9 +195,7 @@ function analyzeFilePresence(projectDir: string): Detection[] {
   const detections: Detection[] = [];
 
   for (const pattern of FILE_PATTERNS) {
-    const found = pattern.files.filter((f) =>
-      existsSync(join(projectDir, f)),
-    );
+    const found = pattern.files.filter((f) => existsSync(join(projectDir, f)));
     if (found.length > 0) {
       detections.push({
         tag: pattern.tag,
@@ -164,7 +219,11 @@ function analyzePythonProject(projectDir: string): Detection[] {
     try {
       const content = readFileSync(pyprojectPath, "utf-8");
 
-      if (content.includes("fastapi") || content.includes("flask") || content.includes("django")) {
+      if (
+        content.includes("fastapi") ||
+        content.includes("flask") ||
+        content.includes("django")
+      ) {
         detections.push({
           tag: "API",
           confidence: 0.85,
@@ -172,7 +231,11 @@ function analyzePythonProject(projectDir: string): Detection[] {
         });
       }
 
-      if (content.includes("pandas") || content.includes("apache-airflow") || content.includes("prefect")) {
+      if (
+        content.includes("pandas") ||
+        content.includes("apache-airflow") ||
+        content.includes("prefect")
+      ) {
         detections.push({
           tag: "DATA-PIPELINE",
           confidence: 0.8,
@@ -180,7 +243,11 @@ function analyzePythonProject(projectDir: string): Detection[] {
         });
       }
 
-      if (content.includes("scikit-learn") || content.includes("torch") || content.includes("tensorflow")) {
+      if (
+        content.includes("scikit-learn") ||
+        content.includes("torch") ||
+        content.includes("tensorflow")
+      ) {
         detections.push({
           tag: "ML",
           confidence: 0.85,
@@ -249,22 +316,119 @@ export function analyzeDescription(description: string): Detection[] {
     tag: Tag;
     evidence: string;
   }> = [
-    { keywords: ["react", "next.js", "nextjs", "frontend", "ui component"], tag: "WEB-REACT", evidence: "React/frontend mentioned in description" },
-    { keywords: ["api", "rest", "graphql", "backend", "server", "endpoint"], tag: "API", evidence: "API/backend mentioned in description" },
-    { keywords: ["blockchain", "crypto", "defi", "web3", "solidity", "ethereum", "smart contract"], tag: "WEB3", evidence: "Blockchain/Web3 mentioned in description" },
-    { keywords: ["game", "arcade", "gameplay", "player"], tag: "GAME", evidence: "Game mentioned in description" },
-    { keywords: ["social", "networking", "linkedin", "profile", "feed", "connection"], tag: "SOCIAL", evidence: "Social features mentioned in description" },
-    { keywords: ["realtime", "real-time", "websocket", "live", "streaming"], tag: "REALTIME", evidence: "Real-time features mentioned in description" },
-    { keywords: ["state machine", "workflow", "finite state", "transition"], tag: "STATE-MACHINE", evidence: "State machine mentioned in description" },
-    { keywords: ["cli", "command-line", "command line", "terminal tool"], tag: "CLI", evidence: "CLI tool mentioned in description" },
-    { keywords: ["library", "package", "npm", "sdk", "module"], tag: "LIBRARY", evidence: "Library/package mentioned in description" },
-    { keywords: ["data pipeline", "etl", "data processing", "batch"], tag: "DATA-PIPELINE", evidence: "Data pipeline mentioned in description" },
-    { keywords: ["machine learning", "ml model", "training", "inference", "neural"], tag: "ML", evidence: "ML mentioned in description" },
-    { keywords: ["hipaa", "phi", "healthcare", "medical", "patient"], tag: "HEALTHCARE", evidence: "Healthcare mentioned in description" },
-    { keywords: ["financial", "fintech", "payment", "transaction", "banking"], tag: "FINTECH", evidence: "Fintech mentioned in description" },
-    { keywords: ["analytics", "dashboard", "reporting", "metrics", "data warehouse"], tag: "ANALYTICS", evidence: "Analytics mentioned in description" },
-    { keywords: ["mobile", "react native", "flutter", "ios", "android"], tag: "MOBILE", evidence: "Mobile mentioned in description" },
-    { keywords: ["infrastructure", "terraform", "kubernetes", "devops", "deploy"], tag: "INFRA", evidence: "Infrastructure mentioned in description" },
+    {
+      keywords: ["react", "next.js", "nextjs", "frontend", "ui component"],
+      tag: "WEB-REACT",
+      evidence: "React/frontend mentioned in description",
+    },
+    {
+      keywords: ["api", "rest", "graphql", "backend", "server", "endpoint"],
+      tag: "API",
+      evidence: "API/backend mentioned in description",
+    },
+    {
+      keywords: [
+        "blockchain",
+        "crypto",
+        "defi",
+        "web3",
+        "solidity",
+        "ethereum",
+        "smart contract",
+      ],
+      tag: "WEB3",
+      evidence: "Blockchain/Web3 mentioned in description",
+    },
+    {
+      keywords: ["game", "arcade", "gameplay", "player"],
+      tag: "GAME",
+      evidence: "Game mentioned in description",
+    },
+    {
+      keywords: [
+        "social",
+        "networking",
+        "linkedin",
+        "profile",
+        "feed",
+        "connection",
+      ],
+      tag: "SOCIAL",
+      evidence: "Social features mentioned in description",
+    },
+    {
+      keywords: ["realtime", "real-time", "websocket", "live", "streaming"],
+      tag: "REALTIME",
+      evidence: "Real-time features mentioned in description",
+    },
+    {
+      keywords: ["state machine", "workflow", "finite state", "transition"],
+      tag: "STATE-MACHINE",
+      evidence: "State machine mentioned in description",
+    },
+    {
+      keywords: ["cli", "command-line", "command line", "terminal tool"],
+      tag: "CLI",
+      evidence: "CLI tool mentioned in description",
+    },
+    {
+      keywords: ["library", "package", "npm", "sdk", "module"],
+      tag: "LIBRARY",
+      evidence: "Library/package mentioned in description",
+    },
+    {
+      keywords: ["data pipeline", "etl", "data processing", "batch"],
+      tag: "DATA-PIPELINE",
+      evidence: "Data pipeline mentioned in description",
+    },
+    {
+      keywords: [
+        "machine learning",
+        "ml model",
+        "training",
+        "inference",
+        "neural",
+      ],
+      tag: "ML",
+      evidence: "ML mentioned in description",
+    },
+    {
+      keywords: ["hipaa", "phi", "healthcare", "medical", "patient"],
+      tag: "HEALTHCARE",
+      evidence: "Healthcare mentioned in description",
+    },
+    {
+      keywords: ["financial", "fintech", "payment", "transaction", "banking"],
+      tag: "FINTECH",
+      evidence: "Fintech mentioned in description",
+    },
+    {
+      keywords: [
+        "analytics",
+        "dashboard",
+        "reporting",
+        "metrics",
+        "data warehouse",
+      ],
+      tag: "ANALYTICS",
+      evidence: "Analytics mentioned in description",
+    },
+    {
+      keywords: ["mobile", "react native", "flutter", "ios", "android"],
+      tag: "MOBILE",
+      evidence: "Mobile mentioned in description",
+    },
+    {
+      keywords: [
+        "infrastructure",
+        "terraform",
+        "kubernetes",
+        "devops",
+        "deploy",
+      ],
+      tag: "INFRA",
+      evidence: "Infrastructure mentioned in description",
+    },
   ];
 
   for (const pattern of descriptionPatterns) {

@@ -9,6 +9,51 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-06-02
+
+### Added — GS white-paper compliance + new toolchain
+
+**Sentinel compliance (CLAUDE.md)**
+- **Navigation Mode section** (WP §6.0) — every generated CLAUDE.md now includes an explicit block instructing AI to read interfaces before implementations, trust contracts, use use-cases as the canonical spec, and raise ADRs instead of deviating silently. Tag-conditioned: emitted for UNIVERSAL, API, WEB-*, CLI, LIBRARY projects.
+- **Tool Sequencing table** — stub with 4 default task→sequence rows (new feature, bug fix, refactor, schema change) + placeholder row. The most commonly missing sentinel category per WP §6.0.
+- **Corrections Log stub** — empty section with `YYYY-MM-DD | [category] description` format. Fills during sessions; its presence prevents AI behavioral re-drift.
+
+**`setup_project` phase 2 — new artifacts**
+- `docs/manifest.yaml` — project-specific GS document taxonomy contract: `schema_source`, project `type` (inferred from tags), `human_judgment` gate (min_reviewers, block_ai_only_merge), three-layer recording contract. Never overwrites existing.
+- `docs/status.md` — temporal memory file with stubs for Current State, In Progress, Next, Open Issues, Recent Decisions. AI Tailoring Checklist updated to say "Already created — fill in."
+
+**New MCP tools**
+- `generate_decision` — scaffolds a `docs/decisions/YYYY-MM-DD-slug.md` post-mortem stub (Trigger / Root cause / Fix / Regression test / Chronicle link).
+- `extract_adrs_from_spec` — reads a spec file, extracts structural decisions, and writes ADR-*.md stubs to `docs/adrs/active/`. Auto-called during `setup_project` phase 2 when a spec is present.
+- `extract_adrs_from_history` — mines git log for architectural decision signals and creates ADR stubs for brownfield projects.
+- `check_derivation_chain` — verifies the spec → implementation chain: every UC has tests, every ADR has code.
+- `cnt_add_routing` — adds or patches a routing entry in `.claude/index.md` without full refresh.
+- `review_stubs` — detects stubs (`<!-- FILL: ... -->`) across all docs and surfaces them for population.
+- `score_rubric` — scores a project against a weighted rubric of GS properties.
+- `analyze_harness` — post-scaffold gap analysis: compares installed hooks/agents/docs/sentinel against WP + FC QG requirements; submits missing gates as GitHub issues to `jghiringhelli/quality-gates`.
+
+**FC QG remote gates in phase 2 response**
+- `executePhase2` now fetches relevant gates from the FC QG registry and lists them in the setup response with `[GS property] gate-id: title` grouping. Drives the `analyze_harness` → FC QG issue creation loop.
+
+**AI Tailoring Checklist** in phase 2 response — explicit numbered list of spec-dependent sentinel items only the AI can generate (Tool Sequencing sequences, Corrections Log, Bound Prompts, C4 diagram, framework conventions, API stubs, status.md current state). Prevents post-scaffold drift.
+
+**Hook stack-filtering**
+- `HookTemplate` gains optional `stack?: readonly string[]` field. Hooks restricted to a specific stack are skipped during install when the project's tags don't include that stack.
+- `cargo-clippy` hook now has `stack: [RUST]` — no longer installed on non-Rust projects.
+
+**Templates**
+- New `templates/web-next/` with `hooks.yaml` (Next.js-specific hooks) and `instructions.yaml` (App Router invariants, RSC boundary rules, Server Actions, loading.tsx ownership).
+- New `templates/web-react/` and `templates/web-static/` instruction + hook templates.
+- `templates/docs-manifest.yaml` schema extended with brownfield ingestion settings.
+
+**Layer tracking + quality gates**
+- `layer_status` MCP action and L1–L4 harness probes.
+- `l2-coverage-gap` gate in `.forgecraft/gates/registry/`.
+- 11 new WEB-NEXT and WEB-REACT gates (nextjs-build-passes, nextjs-bundle-size-budget, nextjs-no-raw-img, nextjs-api-routes-covered, atomic-component-structure, react-component-types-required, react-no-direct-dom, react-accessibility-axe, design-token-enforcement, responsive-strategy-adr, ux-pattern-docs-present).
+
+### Fixed
+- `pre-commit-audit.sh`: added `--omit=dev` to `npm audit` so devDependency CVEs (vitest UI file-read, not exploitable in CI) no longer block commits.
+- `mcp-discovery.test.ts`: `should return servers for every supported tag` timeout raised from 30s → 60s to prevent flakiness under full-suite concurrency.
 
 ## [1.6.1] — 2026-05-09
 
@@ -496,3 +541,12 @@ the published white paper and practitioner protocol.
 
 ### Other
 - **release**: v1.6.0 (`9ef0db9`)
+
+### Other
+- **license**: adopt PolyForm Small Business 1.0.0 (`6867d20`)
+
+### Added
+- **setup**: prompt-guard hook + sub-agent definitions close VairixDX gap (`7ca4d5d`)
+
+### Added
+- hook stack-filtering, FC QG wiring, analyze_harness action, AI tailoring checklist (`c2a9842`)

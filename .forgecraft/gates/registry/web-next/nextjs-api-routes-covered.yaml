@@ -1,0 +1,41 @@
+id: nextjs-api-routes-covered
+title: Next.js API Routes — Hurl Contract Tests for Every /api/* Route
+description: >
+  Every Next.js API route (app/api/*/route.ts or pages/api/*.ts) must have a
+  corresponding Hurl contract test covering: the happy path with correct response
+  shape, an unauthorized request (missing/invalid auth token → 401/403), and at
+  least one invalid input case (→ 400/422 with error envelope). API routes are
+  server-side code isolated from the UI — Playwright cannot verify their contract
+  in isolation. Uncovered routes are invisible to E2E tests.
+category: api-contracts
+gsProperty: verifiable
+phase: pre-release
+hook: pre-release
+check: >
+  1. Enumerate routes: find app/api -name "route.ts" && find pages/api -name "*.ts"
+  2. For each route, verify tests/api/<route-name>.hurl exists and covers:
+     a. Happy path: correct method, headers, body → assert response shape and status
+     b. Auth failure: missing/invalid Authorization header → HTTP 401 or 403
+     c. Validation failure: missing required field → HTTP 400/422 with error.message field
+  3. Run: hurl --test tests/api/*.hurl --variable host=localhost --variable port=3000
+  4. All tests exit 0.
+  Coverage check: count route files vs count hurl files — must be 1:1.
+passCriterion: >
+  Hurl test file exists for every API route (1:1 mapping enforced).
+  All hurl tests pass against a running local dev server.
+  Auth boundary (401/403) and validation boundary (400/422) covered per route.
+  hurl --test exits 0.
+tags:
+  - WEB-NEXT
+  - API
+generalizable: true
+evidence: >
+  Next.js projects with WEB-NEXT+API tags have server-side route logic that E2E
+  tests cannot isolate. A Playwright test that clicks "Submit" cannot verify whether
+  a 400 response from /api/submit returns the correct error envelope format. Hurl
+  contract tests cover the server contract directly and orthogonally from the UI,
+  making API behavior independently verifiable.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-next/nextjs-api-routes-covered.yaml

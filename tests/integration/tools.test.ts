@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { loadAllTemplates } from "../../src/registry/loader.js";
 import { composeTemplates } from "../../src/registry/composer.js";
-import { renderClaudeMd, type RenderContext } from "../../src/registry/renderer.js";
+import {
+  renderClaudeMd,
+  type RenderContext,
+} from "../../src/registry/renderer.js";
 import { listTagsHandler, listHooksHandler } from "../../src/tools/list.js";
 import { classifyProjectHandler } from "../../src/tools/classify.js";
 import { reviewProjectHandler } from "../../src/tools/review.js";
@@ -29,13 +32,16 @@ describe("integration", () => {
 
       // Should have content from both UNIVERSAL and API
       expect(claudeMd).toContain("# CLAUDE.md");
-      expect(claudeMd).toContain("Code Standards");  // UNIVERSAL block
-      expect(claudeMd).toContain("API");              // API block
+      expect(claudeMd).toContain("Code Standards"); // UNIVERSAL block
+      expect(claudeMd).toContain("API"); // API block
     });
 
     it("should compose WEB-REACT + API without conflicts", () => {
       const templates = loadAllTemplates(TEMPLATES_DIR);
-      const composed = composeTemplates(["UNIVERSAL", "WEB-REACT", "API"], templates);
+      const composed = composeTemplates(
+        ["UNIVERSAL", "WEB-REACT", "API"],
+        templates,
+      );
 
       // Should have blocks from all three tags
       expect(composed.claudeMdBlocks.length).toBeGreaterThan(3);
@@ -58,7 +64,7 @@ describe("integration", () => {
       expect(result.content[0]!.type).toBe("text");
       expect(result.content[0]!.text).toContain("UNIVERSAL");
       expect(result.content[0]!.text).toContain("WEB-REACT");
-      expect(result.content[0]!.text).toContain("Available Tags (27)");
+      expect(result.content[0]!.text).toContain("Available Tags (28)");
     });
   });
 
@@ -96,7 +102,9 @@ describe("integration", () => {
       mkdirSync(dir, { recursive: true });
       writeFileSync(
         join(dir, "package.json"),
-        JSON.stringify({ dependencies: { express: "^4.0.0", commander: "^11.0.0" } }),
+        JSON.stringify({
+          dependencies: { express: "^4.0.0", commander: "^11.0.0" },
+        }),
       );
 
       const result = await classifyProjectHandler({ project_dir: dir });
@@ -118,7 +126,10 @@ describe("integration", () => {
 
   describe("review_project tool", () => {
     it("should return review checklist for UNIVERSAL tag", async () => {
-      const result = await reviewProjectHandler({ tags: ["UNIVERSAL"], scope: "comprehensive" });
+      const result = await reviewProjectHandler({
+        tags: ["UNIVERSAL"],
+        scope: "comprehensive",
+      });
 
       expect(result.content).toHaveLength(1);
       expect(result.content[0]!.text).toContain("Code Review Checklist");
@@ -129,24 +140,38 @@ describe("integration", () => {
     });
 
     it("should include tag-specific review items for API", async () => {
-      const result = await reviewProjectHandler({ tags: ["API"], scope: "comprehensive" });
+      const result = await reviewProjectHandler({
+        tags: ["API"],
+        scope: "comprehensive",
+      });
 
       expect(result.content[0]!.text).toContain("[API]");
       expect(result.content[0]!.text).toContain("API Architecture Review");
     });
 
     it("should filter to critical items in focused scope", async () => {
-      const comprehensive = await reviewProjectHandler({ tags: ["UNIVERSAL"], scope: "comprehensive" });
-      const focused = await reviewProjectHandler({ tags: ["UNIVERSAL"], scope: "focused" });
+      const comprehensive = await reviewProjectHandler({
+        tags: ["UNIVERSAL"],
+        scope: "comprehensive",
+      });
+      const focused = await reviewProjectHandler({
+        tags: ["UNIVERSAL"],
+        scope: "focused",
+      });
 
       // Focused should be shorter — fewer items
-      expect(focused.content[0]!.text.length).toBeLessThan(comprehensive.content[0]!.text.length);
+      expect(focused.content[0]!.text.length).toBeLessThan(
+        comprehensive.content[0]!.text.length,
+      );
       expect(focused.content[0]!.text).toContain("[CRITICAL]");
       expect(focused.content[0]!.text).not.toContain("[NICE-TO-HAVE]");
     });
 
     it("should compose review blocks from multiple tags without duplicates", async () => {
-      const result = await reviewProjectHandler({ tags: ["UNIVERSAL", "WEB-REACT", "API"], scope: "comprehensive" });
+      const result = await reviewProjectHandler({
+        tags: ["UNIVERSAL", "WEB-REACT", "API"],
+        scope: "comprehensive",
+      });
 
       expect(result.content[0]!.text).toContain("React Architecture Review");
       expect(result.content[0]!.text).toContain("API Architecture Review");
@@ -154,7 +179,10 @@ describe("integration", () => {
     });
 
     it("should include per-issue output format guidance", async () => {
-      const result = await reviewProjectHandler({ tags: ["UNIVERSAL"], scope: "comprehensive" });
+      const result = await reviewProjectHandler({
+        tags: ["UNIVERSAL"],
+        scope: "comprehensive",
+      });
 
       expect(result.content[0]!.text).toContain("Problem");
       expect(result.content[0]!.text).toContain("Options");
@@ -181,8 +209,12 @@ describe("integration", () => {
 
       // DDD, CQRS, Design Patterns should NOT be in the instruction file
       expect(claudeMd).not.toContain("Domain-Driven Design (DDD) Essentials");
-      expect(claudeMd).not.toContain("CQRS (Command Query Responsibility Segregation)");
-      expect(claudeMd).not.toContain("Design Patterns — When to Reach for What");
+      expect(claudeMd).not.toContain(
+        "CQRS (Command Query Responsibility Segregation)",
+      );
+      expect(claudeMd).not.toContain(
+        "Design Patterns — When to Reach for What",
+      );
 
       // But TDD should be in the instruction file
       expect(claudeMd).toContain("Test-Driven Development (TDD)");

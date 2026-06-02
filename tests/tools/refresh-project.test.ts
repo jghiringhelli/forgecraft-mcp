@@ -179,7 +179,7 @@ describe("refreshProjectHandler", () => {
   // ── sentinel mode ─────────────────────────────────────────────────
 
   describe("sentinel mode (apply=true, sentinel default)", () => {
-    it("writes a short CLAUDE.md when sentinel mode is active", async () => {
+    it("writes a comprehensive CLAUDE.md when sentinel mode is active", async () => {
       writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
       await refreshProjectHandler({
         project_dir: tempDir,
@@ -188,7 +188,8 @@ describe("refreshProjectHandler", () => {
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
       const lineCount = content.split("\n").length;
-      expect(lineCount).toBeLessThan(100);
+      expect(lineCount).toBeGreaterThan(100);
+      expect(content).toContain("GS Properties");
     });
 
     it("CLAUDE.md contains the ForgeCraft sentinel comment", async () => {
@@ -236,8 +237,9 @@ describe("refreshProjectHandler", () => {
 
       const after = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
       const lineCount = after.split("\n").length;
-      // Must be sentinel-length (< 100), NOT monolithic + appended (~300)
-      expect(lineCount).toBeLessThan(100);
+      // Must be sentinel-length (100-200), NOT monolithic content appended (~300+)
+      expect(lineCount).toBeGreaterThan(100);
+      expect(lineCount).toBeLessThan(300);
       expect(after).toContain("ForgeCraft sentinel");
     });
 

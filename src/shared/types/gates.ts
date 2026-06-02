@@ -205,6 +205,12 @@ export interface ProjectGate {
    * P0: blocking (fail = no deploy), P1: warning (fail = PR comment), P2: advisory
    */
   readonly priority?: "P0" | "P1" | "P2";
+  /**
+   * Project-level severity override. Controls how audit surfaces this gate.
+   * error: blocks; warning: advisory; info: informational only.
+   * When absent, severity is derived from priority (P0→error, P1→warning, P2→info).
+   */
+  readonly severity?: "error" | "warning" | "info";
   /** Minimum tool/framework versions this gate requires. e.g. { "react": "18.0.0" } */
   readonly minVersion?: Readonly<Record<string, string>>;
   /** Maximum tool/framework versions this gate applies to (gate obsolete after this) */

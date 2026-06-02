@@ -1,0 +1,37 @@
+id: nextjs-build-passes
+title: Next.js Build — next build Exits 0 with Zero Type Errors
+description: >
+  `next build` must complete successfully before any merge. This catches errors
+  that `tsc --noEmit` alone cannot: server/client component boundary violations,
+  invalid use-server / use-client directives, missing required metadata exports for
+  App Router pages, and broken dynamic imports. A passing `next build` is the
+  minimum viable proof that the application will run in production.
+category: build-correctness
+gsProperty: executable
+phase: pre-commit
+hook: pre-commit
+check: >
+  Add to CI and pre-push hook: `npx next build` (or `NODE_ENV=production next build`).
+  Must exit 0. Common violations this catches:
+    - `"use client"` in a file that imports a server-only module
+    - Missing or incorrect `export const metadata` for App Router pages
+    - Dynamic import paths that don't exist
+    - Type errors in server actions (Route Handlers, Server Actions)
+    - Component using browser APIs (localStorage, window) without `"use client"`
+  Both `tsc --noEmit` AND `next build` are required — they catch different error classes.
+passCriterion: >
+  `npx next build` exits 0. Zero TypeScript errors in build output.
+  All routes compile successfully. Build output shows no warnings promoted to errors.
+tags:
+  - WEB-NEXT
+generalizable: true
+evidence: >
+  Next.js build errors are structurally distinct from TypeScript compiler errors:
+  the App Router applies server/client boundary rules and RSC constraints that
+  the TypeScript compiler alone cannot verify. Projects that pass `tsc --noEmit`
+  regularly fail `next build` due to RSC boundary violations. Both checks are
+  required in CI — running only one creates a false sense of correctness.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-next/nextjs-build-passes.yaml

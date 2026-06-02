@@ -308,6 +308,7 @@ const TAG_GATE_MAP: Readonly<Record<string, ReadonlyArray<ExecutableGate>>> = {
   API: [hurlGate],
   "WEB-REACT": [playwrightGate],
   "WEB-STATIC": [playwrightGate],
+  "WEB-NEXT": [playwrightGate, hurlGate],
   DATABASE: [sqlGate],
   REALTIME: [websocketGate],
   GAME: [gameSimulationGate, gameStateIntegrityGate, gameInterfaceGate],

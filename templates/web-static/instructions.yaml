@@ -113,3 +113,92 @@ blocks:
         await expect(page.locator('body')).not.toBeEmpty();
       });
       ```
+
+  - id: ui-design-token-enforcement
+    tier: core
+    title: "Design Token Enforcement"
+    content: |
+      ## Design Token Enforcement — Non-Negotiable
+
+      **Before writing any CSS or style code**, read `src/styles/tokens.css` (or `src/css/variables.css`).
+
+      - NEVER use raw hex (`#1a2b3c`), `rgb()`, `rgba()`, or `hsl()` values in stylesheets or template files.
+      - ALL colors: `var(--color-primary)`, `var(--color-text-muted)`, `var(--color-surface)`.
+      - ALL spacing: `var(--spacing-4)`, `var(--spacing-8)` (or equivalent scale tokens).
+      - ALL typography: `var(--font-size-lg)`, `var(--font-weight-semibold)`.
+      - If a token for the intended value doesn't exist, **add it to the token file** — don't hardcode the value inline.
+      - Token definition files (`tokens.css`, `_variables.scss`, `custom-properties.css`) are the ONLY exception.
+      - A pre-commit hook blocks commits containing raw color literals in HTML, CSS, or template files.
+
+  - id: ui-atomic-component-structure
+    tier: recommended
+    title: "Atomic Component Structure"
+    content: |
+      ## Atomic Component Structure — For Component-Based SSGs
+
+      For component-based static site generators (Astro, Svelte, Vue, Eleventy with components):
+
+      **Before creating any new component**, search the component library:
+      1. `src/components/atoms/` — does the primitive already exist?
+      2. `src/components/molecules/` — does the composition already exist?
+      3. `src/components/organisms/` — does the full section already exist?
+
+      ### Placement Rules
+      | Level | Scope | Examples |
+      |---|---|---|
+      | **atoms/** | Indivisible UI elements | Button, Icon, Badge, Label |
+      | **molecules/** | Small compositions | Card, NavItem, FormField |
+      | **organisms/** | Section-level components | Header, Footer, HeroSection, Gallery |
+      | **templates/** | Page layout shells | BaseLayout, ArticleLayout |
+      | **pages/** | Route-specific page files | index.astro, about.astro |
+
+      For template-engine SSGs (Nunjucks, Liquid, Handlebars): use `src/includes/` organized by the same scope tiers.
+
+  - id: ui-ux-pattern-wiring
+    tier: core
+    title: "UX Pattern Wiring"
+    content: |
+      ## UX Pattern Wiring — Read Before Implementing
+
+      **Before implementing any common interaction**, read the relevant pattern from `docs/patterns/`:
+
+      | Interaction | Pattern doc | What it defines |
+      |---|---|---|
+      | Error state | `docs/patterns/error.md` | 404/500 pages, form error display |
+      | Loading | `docs/patterns/loading.md` | Page transitions, lazy-load skeletons |
+      | Empty state | `docs/patterns/empty.md` | Zero-content pages, placeholder UI |
+      | Modal / overlay | `docs/patterns/modals.md` | Focus trap, overlay behaviour |
+      | Data table | `docs/patterns/tables.md` | Responsive table patterns |
+
+      If a pattern doc does not exist, **create it before implementing the component**.
+      Pattern docs define: when to use, HTML/CSS structure, accessibility requirements, and edge cases.
+
+  - id: ui-responsive-strategy-adr
+    tier: core
+    title: "Responsive Strategy ADR"
+    content: |
+      ## Responsive Strategy — ADR Required Before Any Responsive Code
+
+      Before writing any `@media` query or breakpoint value, verify that `docs/adrs/active/responsive-strategy.md` exists.
+
+      If it doesn't exist, create it:
+      ```markdown
+      # ADR: Responsive Strategy
+
+      ## Status: Accepted
+
+      ## Context
+      [Device/viewport range this site must support]
+
+      ## Decision
+      - **Breakpoints**: mobile < 640px | tablet 640–1024px | desktop > 1024px
+      - **Approach**: mobile-first (min-width media queries)
+      - **Methodology**: [CSS custom properties / Sass variables / Tailwind]
+      - **Target devices**: iOS Safari 16+, Chrome 110+, minimum viewport 320px
+
+      ## Consequences
+      All responsive layout code uses these breakpoints exclusively. No page-local
+      breakpoint values. Deviations require an amendment to this ADR.
+      ```
+
+      A pre-commit hook blocks responsive code when no responsive strategy ADR is present.

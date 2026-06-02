@@ -1,0 +1,37 @@
+id: nextjs-no-raw-img
+title: Next.js — Use next/image Instead of Raw <img> Tags
+description: >
+  All images must use the `<Image>` component from `next/image` rather than raw
+  HTML `<img>` tags. next/image provides: automatic WebP/AVIF conversion, lazy
+  loading, responsive srcset, CLS prevention via explicit width/height reservation,
+  and CDN integration. Raw <img> bypasses all of these and reliably degrades Core
+  Web Vitals — particularly Cumulative Layout Shift (CLS) and Largest Contentful
+  Paint (LCP).
+category: performance
+gsProperty: verifiable
+phase: pre-commit
+hook: pre-commit
+check: >
+  ESLint rule (enabled by default with `extends: "next/core-web-vitals"`):
+    "@next/next/no-img-element": "error"
+  Pre-commit: `eslint src/**/*.tsx --rule '{"@next/next/no-img-element":"error"}'` exits 0.
+  Exception: images inside markdown-rendered content (MDX) or third-party embeds
+  are excluded when they come from untrusted user content — document in .eslintrc
+  with `// eslint-disable-next-line @next/next/no-img-element` + reason comment.
+passCriterion: >
+  Zero `<img>` tags in Next.js component files outside documented exceptions.
+  @next/next/no-img-element reports 0 violations in ESLint CI run.
+  All documented exceptions have owner and justification.
+tags:
+  - WEB-NEXT
+generalizable: false
+evidence: >
+  Raw <img> tags in Next.js are the most reliable single cause of poor CLS scores
+  (layout shift on image load) and missing WebP optimization. The next/image API is
+  a drop-in replacement with identical usage. ESLint enforcement makes the rule
+  invisible after initial adoption — it only fires when a developer writes a raw
+  <img> tag, which is always a mistake in a Next.js project.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-next/nextjs-no-raw-img.yaml

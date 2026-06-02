@@ -29,114 +29,173 @@ export const listSkillsSchema = z.object({
 
 // ── Tag Descriptions ─────────────────────────────────────────────────
 
-const TAG_DESCRIPTIONS: Record<Tag, { description: string; appliesWhen: string }> = {
+const TAG_DESCRIPTIONS: Record<
+  Tag,
+  { description: string; appliesWhen: string }
+> = {
   UNIVERSAL: {
-    description: "Core standards applied to every project — code quality, architecture, testing, security.",
+    description:
+      "Core standards applied to every project — code quality, architecture, testing, security.",
     appliesWhen: "Always. Every project starts with UNIVERSAL.",
   },
   "WEB-REACT": {
-    description: "React/Next.js web applications — component architecture, state management, i18n, a11y.",
-    appliesWhen: "Project uses React, Next.js, Remix, or similar React-based framework.",
+    description:
+      "React web applications — component architecture, state management, i18n, a11y.",
+    appliesWhen:
+      "Project uses React, Remix, or similar React-based framework (non-Next.js).",
+  },
+  "WEB-NEXT": {
+    description:
+      "Next.js applications — App Router, SSR/ISR, API routes, bundle budget, Core Web Vitals.",
+    appliesWhen:
+      "Project uses Next.js (detected via next.config.* or next in package.json).",
   },
   "WEB-STATIC": {
-    description: "Static sites and landing pages — build optimization, SEO, CDN configuration.",
+    description:
+      "Static sites and landing pages — build optimization, SEO, CDN configuration.",
     appliesWhen: "Project is a static HTML/CSS/JS site, Astro, or Hugo site.",
   },
   API: {
-    description: "Backend APIs — REST/GraphQL design, authentication, rate limiting, contract-first.",
-    appliesWhen: "Project exposes HTTP/RPC endpoints with Express, Fastify, NestJS, Django, FastAPI.",
+    description:
+      "Backend APIs — REST/GraphQL design, authentication, rate limiting, contract-first.",
+    appliesWhen:
+      "Project exposes HTTP/RPC endpoints with Express, Fastify, NestJS, Django, FastAPI.",
   },
   "DATA-PIPELINE": {
-    description: "ETL/data processing — idempotency, checkpointing, schema evolution.",
-    appliesWhen: "Project processes data in batch/stream pipelines with Airflow, Prefect, Spark.",
+    description:
+      "ETL/data processing — idempotency, checkpointing, schema evolution.",
+    appliesWhen:
+      "Project processes data in batch/stream pipelines with Airflow, Prefect, Spark.",
   },
   ML: {
-    description: "Machine learning — experiment tracking, model versioning, reproducibility.",
-    appliesWhen: "Project trains/deploys ML models with PyTorch, TensorFlow, scikit-learn.",
+    description:
+      "Machine learning — experiment tracking, model versioning, reproducibility.",
+    appliesWhen:
+      "Project trains/deploys ML models with PyTorch, TensorFlow, scikit-learn.",
   },
   HEALTHCARE: {
-    description: "HIPAA-compliant healthcare — PHI handling, audit logs, encryption, access controls.",
-    appliesWhen: "Project handles Protected Health Information (PHI) or medical data.",
+    description:
+      "HIPAA-compliant healthcare — PHI handling, audit logs, encryption, access controls.",
+    appliesWhen:
+      "Project handles Protected Health Information (PHI) or medical data.",
   },
   FINTECH: {
-    description: "Financial applications — double-entry bookkeeping, compliance, decimal precision.",
-    appliesWhen: "Project handles financial transactions, payments, or regulatory compliance.",
+    description:
+      "Financial applications — double-entry bookkeeping, compliance, decimal precision.",
+    appliesWhen:
+      "Project handles financial transactions, payments, or regulatory compliance.",
   },
   WEB3: {
-    description: "Blockchain/crypto — smart contract patterns, gas optimization, wallet security.",
-    appliesWhen: "Project uses Ethereum, Solana, or other blockchain platforms.",
+    description:
+      "Blockchain/crypto — smart contract patterns, gas optimization, wallet security.",
+    appliesWhen:
+      "Project uses Ethereum, Solana, or other blockchain platforms.",
   },
   REALTIME: {
-    description: "Real-time communication — WebSocket patterns, presence, conflict resolution.",
-    appliesWhen: "Project uses WebSockets, Server-Sent Events, or real-time messaging.",
+    description:
+      "Real-time communication — WebSocket patterns, presence, conflict resolution.",
+    appliesWhen:
+      "Project uses WebSockets, Server-Sent Events, or real-time messaging.",
   },
   "STATE-MACHINE": {
-    description: "State machine patterns — explicit states, transitions, guards, event-driven.",
-    appliesWhen: "Project has complex state workflows (orders, approvals, game logic).",
+    description:
+      "State machine patterns — explicit states, transitions, guards, event-driven.",
+    appliesWhen:
+      "Project has complex state workflows (orders, approvals, game logic).",
   },
   GAME: {
-    description: "Game development — game loop, ECS, physics, rendering pipeline.",
-    appliesWhen: "Project is a game using Phaser, Three.js, Pixi.js, or similar.",
+    description:
+      "Game development — game loop, ECS, physics, rendering pipeline.",
+    appliesWhen:
+      "Project is a game using Phaser, Three.js, Pixi.js, or similar.",
   },
   SOCIAL: {
-    description: "Social/community features — feeds, connections, messaging, moderation.",
-    appliesWhen: "Project has user profiles, feeds, connections, or social interactions.",
+    description:
+      "Social/community features — feeds, connections, messaging, moderation.",
+    appliesWhen:
+      "Project has user profiles, feeds, connections, or social interactions.",
   },
   CLI: {
-    description: "Command-line tools — argument parsing, output formatting, exit codes.",
+    description:
+      "Command-line tools — argument parsing, output formatting, exit codes.",
     appliesWhen: "Project is a CLI tool using Commander, Yargs, or similar.",
   },
   LIBRARY: {
-    description: "Reusable libraries/SDKs — API design, semver, backwards compatibility, docs.",
-    appliesWhen: "Project is published as an npm/pip package for other projects to consume.",
+    description:
+      "Reusable libraries/SDKs — API design, semver, backwards compatibility, docs.",
+    appliesWhen:
+      "Project is published as an npm/pip package for other projects to consume.",
   },
   INFRA: {
-    description: "Infrastructure as Code — IaC patterns, environment management, secrets.",
-    appliesWhen: "Project manages infrastructure with Terraform, Pulumi, CDK, Docker.",
+    description:
+      "Infrastructure as Code — IaC patterns, environment management, secrets.",
+    appliesWhen:
+      "Project manages infrastructure with Terraform, Pulumi, CDK, Docker.",
   },
   MOBILE: {
-    description: "Mobile apps — React Native/Flutter patterns, offline-first, native APIs.",
-    appliesWhen: "Project targets iOS/Android with React Native, Expo, or Flutter.",
+    description:
+      "Mobile apps — React Native/Flutter patterns, offline-first, native APIs.",
+    appliesWhen:
+      "Project targets iOS/Android with React Native, Expo, or Flutter.",
   },
   ANALYTICS: {
-    description: "Analytics/reporting — event tracking, dashboards, data warehousing.",
-    appliesWhen: "Project includes analytics dashboards, reporting, or event tracking.",
+    description:
+      "Analytics/reporting — event tracking, dashboards, data warehousing.",
+    appliesWhen:
+      "Project includes analytics dashboards, reporting, or event tracking.",
   },
   HIPAA: {
-    description: "HIPAA compliance — PII masking templates, encryption checks, audit logging.",
-    appliesWhen: "Project handles Protected Health Information requiring HIPAA compliance.",
+    description:
+      "HIPAA compliance — PII masking templates, encryption checks, audit logging.",
+    appliesWhen:
+      "Project handles Protected Health Information requiring HIPAA compliance.",
   },
   SOC2: {
-    description: "SOC2 compliance — access control validation, change management, incident response.",
+    description:
+      "SOC2 compliance — access control validation, change management, incident response.",
     appliesWhen: "Project requires SOC2 audit readiness (Type I or Type II).",
   },
   "DATA-LINEAGE": {
-    description: "Data lineage — enforce 100% field coverage, lineage tracking decorators.",
-    appliesWhen: "Project processes data that requires full field-level lineage tracking.",
+    description:
+      "Data lineage — enforce 100% field coverage, lineage tracking decorators.",
+    appliesWhen:
+      "Project processes data that requires full field-level lineage tracking.",
   },
   "OBSERVABILITY-XRAY": {
-    description: "AWS X-Ray observability — auto-add X-Ray instrumentation to Lambdas.",
-    appliesWhen: "Project runs on AWS Lambda and requires distributed tracing with X-Ray.",
+    description:
+      "AWS X-Ray observability — auto-add X-Ray instrumentation to Lambdas.",
+    appliesWhen:
+      "Project runs on AWS Lambda and requires distributed tracing with X-Ray.",
   },
   "MEDALLION-ARCHITECTURE": {
-    description: "Medallion architecture — enforce Bronze=immutable, Silver=validated, Gold=aggregated.",
-    appliesWhen: "Project uses a lakehouse/medallion data architecture (Bronze/Silver/Gold).",
+    description:
+      "Medallion architecture — enforce Bronze=immutable, Silver=validated, Gold=aggregated.",
+    appliesWhen:
+      "Project uses a lakehouse/medallion data architecture (Bronze/Silver/Gold).",
   },
   "ZERO-TRUST": {
-    description: "Zero-trust security — deny-by-default IAM, explicit allow rules.",
-    appliesWhen: "Project requires zero-trust network/IAM policies with deny-by-default.",
+    description:
+      "Zero-trust security — deny-by-default IAM, explicit allow rules.",
+    appliesWhen:
+      "Project requires zero-trust network/IAM policies with deny-by-default.",
   },
-  "DOCS": {
-    description: "Pure documentation or specification project — no implementation code expected.",
-    appliesWhen: "Project is a design spec, narrative system, or docs-only artifact with no runnable code.",
+  DOCS: {
+    description:
+      "Pure documentation or specification project — no implementation code expected.",
+    appliesWhen:
+      "Project is a design spec, narrative system, or docs-only artifact with no runnable code.",
   },
-  "DATABASE": {
-    description: "Project with significant database logic — ORM models, migrations, or data access layers.",
-    appliesWhen: "Project uses an ORM (Prisma, TypeORM, SQLAlchemy) or has significant database interaction.",
+  DATABASE: {
+    description:
+      "Project with significant database logic — ORM models, migrations, or data access layers.",
+    appliesWhen:
+      "Project uses an ORM (Prisma, TypeORM, SQLAlchemy) or has significant database interaction.",
   },
-  "AUTH": {
-    description: "Project implements authentication or authorization — login, sessions, tokens, or access control.",
-    appliesWhen: "Project uses auth libraries (next-auth, passport, Auth0) or implements JWT/session management.",
+  AUTH: {
+    description:
+      "Project implements authentication or authorization — login, sessions, tokens, or access control.",
+    appliesWhen:
+      "Project uses auth libraries (next-auth, passport, Auth0) or implements JWT/session management.",
   },
 };
 

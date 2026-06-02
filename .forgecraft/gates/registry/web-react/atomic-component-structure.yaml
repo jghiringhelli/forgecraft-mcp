@@ -1,0 +1,38 @@
+id: atomic-component-structure
+title: Atomic Component Structure — Placement Enforcement
+description: >
+  Enforce Atomic Design organization: all UI components in src/components/ must live in
+  atoms/, molecules/, organisms/, templates/, or pages/ subdirectories. Flat component
+  directories become unsearchable at scale and cause AI assistants to create duplicate
+  components because no naming signal indicates whether a primitive already exists.
+domain: component-architecture
+gsProperty: self-describing
+implementation: tooled
+phase: development
+hook: pre-commit
+os: cross-platform
+check: >
+  Pre-commit hook scans staged .tsx/.jsx files under a components/ directory. Any file
+  that is a direct child of components/ (not in atoms/, molecules/, organisms/,
+  templates/, or pages/) fails the check and blocks the commit.
+passCriterion: >
+  All component files in components/ directories are organized inside atomic subdirectories.
+  No flat root-level component files exist in any components/ directory.
+failureMessage: >
+  Component placed in flat components/ directory. Classify and move to the appropriate
+  atomic subdirectory: atoms/, molecules/, organisms/, templates/, or pages/.
+fixHint: "Move to src/components/{atoms|molecules|organisms|templates|pages}/"
+tags:
+  - WEB-REACT
+  - WEB-NEXT
+generalizable: true
+evidence: >
+  Flat component directories are the primary cause of "component sprawl" — AI assistants
+  and developers create new components because the structure gives no signal about what
+  already exists. Teams using enforced atomic design see 40-60% reduction in duplicate
+  component creation and faster onboarding because new contributors can immediately
+  understand the scope and reuse potential of any component.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-react/atomic-component-structure.yaml

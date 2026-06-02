@@ -1,0 +1,42 @@
+id: responsive-strategy-adr
+title: Responsive Strategy ADR — Required Before Responsive Code
+description: >
+  An Architecture Decision Record (ADR) documenting the responsive strategy must exist
+  in docs/adrs/active/ before any component using CSS media queries, Tailwind responsive
+  prefixes (sm:, md:, lg:), or breakpoint variables is committed. Without a shared
+  decision, each component author picks their own breakpoints, creating an inconsistent
+  responsive experience across the application.
+domain: responsive-design
+gsProperty: self-describing
+implementation: tooled
+phase: development
+hook: pre-commit
+os: cross-platform
+check: >
+  When staged files contain @media queries, Tailwind responsive prefixes (sm:|md:|lg:|xl:),
+  or a "breakpoint" identifier, verify that at least one .md file in docs/adrs/active/
+  contains the word "responsive" or "breakpoint". If not found, block the commit and
+  direct the author to create the ADR from the template.
+passCriterion: >
+  An ADR covering responsive strategy exists in docs/adrs/active/ before any
+  responsive layout code is committed. The ADR specifies: breakpoint values, mobile-first
+  vs desktop-first approach, target viewport range, and the CSS framework/methodology.
+failureMessage: >
+  Responsive layout code added but no responsive strategy ADR found in docs/adrs/active/.
+  Create docs/adrs/active/responsive-strategy.md before adding responsive code.
+fixHint: "Create docs/adrs/active/responsive-strategy.md documenting breakpoints and approach"
+tags:
+  - WEB-REACT
+  - WEB-NEXT
+  - WEB-STATIC
+generalizable: true
+evidence: >
+  Frontend projects without a defined responsive strategy accumulate breakpoint
+  inconsistencies: one component breaks at 768px, another at 640px, a third at
+  the Tailwind md: breakpoint (768px, but now a "magic number" rather than a
+  decision). Mobile users hit layout issues only visible at exact viewport sizes.
+  An ADR costs 30 minutes and prevents weeks of responsive bug triage.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-react/responsive-strategy-adr.yaml

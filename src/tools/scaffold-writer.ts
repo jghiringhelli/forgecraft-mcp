@@ -14,6 +14,7 @@ import type { RenderContext } from "../registry/renderer.js";
 import { renderSentinelTree } from "../registry/sentinel-renderer.js";
 import { writeFileIfMissing } from "../shared/filesystem.js";
 import { ensureGateDirs } from "../shared/project-gates.js";
+import { installGitHooks } from "../shared/hook-installer.js";
 import { resolveTemplatePlaceholders } from "../shared/template-resolver.js";
 import type { PlaceholderContext } from "../shared/template-resolver.js";
 import {
@@ -306,6 +307,11 @@ export function writeScaffoldFiles(
       "",
     );
   }
+
+  // Auto-install git hooks after all files are written. Skip silently when
+  // not a git repo (dry-run or detached worktrees). Existing hooks are
+  // preserved (force=false) so husky/lefthook configs are not stomped.
+  installGitHooks(input.project_dir, false);
 
   return { filesCreated, filesSkipped };
 }

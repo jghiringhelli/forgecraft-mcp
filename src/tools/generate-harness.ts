@@ -75,6 +75,7 @@ export interface GenerateResult {
   probeFile?: string;
   probeType?: string;
   reason?: string;
+  autoSpec?: boolean;
 }
 
 export interface ErrorCase {
@@ -87,6 +88,7 @@ export interface ErrorCase {
 
 const TAG_PROBE_MAP: Record<string, ProbeType> = {
   "WEB-REACT": "playwright",
+  "WEB-NEXT": "playwright",
   "WEB-STATIC": "playwright",
   API: "api_call",
   GAME: "headless_sim",
@@ -223,6 +225,66 @@ function readUcDetails(projectDir: string, ucId: string): UcDetails {
   }
 }
 
+// ── Auto-spec generation ──────────────────────────────────────────────
+
+/**
+ * Build a minimal ProbeSpec from UC details when no YAML spec exists.
+ * The auto-spec is persisted so users can refine it for future runs.
+ */
+function autoGenerateHarnessSpec(
+  ucId: string,
+  title: string,
+  probeType: ProbeType,
+  details: UcDetails,
+): ProbeSpec {
+  const mainProbe = {
+    id: "happy",
+    type: probeType,
+    scenario: `${ucId} happy path — ${title}`,
+    description: `Auto-generated. Precondition: ${details.precondition}. Expected: ${details.postcondition}`,
+  };
+  const errorProbes = details.errorCases.map((ec) => ({
+    id: `error-${ec.slug}`,
+    type: probeType,
+    scenario: `${ucId} error — ${ec.name}`,
+    description: ec.description,
+  }));
+  return {
+    uc: ucId,
+    title,
+    action: details.steps[0] ?? "perform primary action",
+    probes: [mainProbe, ...errorProbes],
+  };
+}
+
+/**
+ * Write a YAML probe spec to .forgecraft/harness/<ucId>.yaml.
+ * Skips if the file already exists (never overwrites user-provided specs).
+ */
+function writeAutoHarnessSpec(
+  projectDir: string,
+  ucId: string,
+  spec: ProbeSpec,
+): boolean {
+  const harnessSpecDir = join(projectDir, ".forgecraft", "harness");
+  const specPath = join(harnessSpecDir, `${ucId.toLowerCase()}.yaml`);
+  if (existsSync(specPath)) return false;
+  try {
+    mkdirSync(harnessSpecDir, { recursive: true });
+    const header =
+      `# Auto-generated probe spec for ${ucId}.\n` +
+      `# Edit probe type, scenario, and description as needed.\n`;
+    writeFileSync(
+      specPath,
+      header + yaml.dump(spec, { lineWidth: 120, noRefs: true }),
+      "utf-8",
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Probe spec reader ─────────────────────────────────────────────────
 
 function readProbeSpec(projectDir: string, ucId: string): ProbeSpec | null {
@@ -297,6 +359,7 @@ function writeProbeFile(
   title: string,
   probeType: ProbeType,
   results: GenerateResult[],
+  autoSpec?: boolean,
 ): void {
   const filePath = join(harnessDir, fileName);
   if (existsSync(filePath) && !force) {
@@ -318,6 +381,7 @@ function writeProbeFile(
       status: "generated",
       probeFile: `tests/harness/${fileName}`,
       probeType,
+      autoSpec,
     });
   } catch (err) {
     results.push({
@@ -366,7 +430,24 @@ export async function generateHarnessHandler(
   const results: GenerateResult[] = [];
 
   for (const uc of filteredUcs) {
-    const spec = readProbeSpec(projectDir, uc.id);
+    let spec = readProbeSpec(projectDir, uc.id);
+    let autoSpec = false;
+
+    if (!spec) {
+      const defaultProbeType = defaultProbeTypeForTags(tags);
+      const details = readUcDetails(projectDir, uc.id);
+      const generated = autoGenerateHarnessSpec(
+        uc.id,
+        uc.title,
+        defaultProbeType,
+        details,
+      );
+      if (writeAutoHarnessSpec(projectDir, uc.id, generated)) {
+        spec = generated;
+        autoSpec = true;
+      }
+    }
+
     if (!spec) {
       results.push({ ucId: uc.id, title: uc.title, status: "no_spec" });
       continue;
@@ -397,6 +478,7 @@ export async function generateHarnessHandler(
       uc.title,
       probeType,
       results,
+      autoSpec,
     );
 
     // Generate error probes from UC error cases
@@ -419,6 +501,7 @@ export async function generateHarnessHandler(
         uc.title,
         probeType,
         results,
+        autoSpec,
       );
     }
   }
@@ -455,10 +538,15 @@ function formatReport(
   noSpec: GenerateResult[],
   totalNoSpec: number,
 ): string {
+  const autoCount = generated.filter((r) => r.autoSpec).length;
+  const autoNote =
+    autoCount > 0
+      ? ` (${autoCount} from auto-generated spec — edit .forgecraft/harness/uc-NNN.yaml to customise)`
+      : "";
   const lines: string[] = [
     "## Harness Generation Report",
     "",
-    `Generated: ${generated.length} probe files`,
+    `Generated: ${generated.length} probe files${autoNote}`,
     `Skipped:   ${skipped.length} (already exist, use force=true to overwrite)`,
     `No spec:   ${totalNoSpec} (no .forgecraft/harness/uc-NNN.yaml — run layer_status to see gaps)`,
   ];
@@ -466,8 +554,9 @@ function formatReport(
   if (generated.length > 0) {
     lines.push("", "### Generated");
     for (const r of generated) {
+      const tag = r.autoSpec ? " [auto-spec]" : "";
       lines.push(
-        `- ✅ ${r.probeFile}  (${r.probeType}, ${r.ucId}: ${r.title})`,
+        `- ✅ ${r.probeFile}  (${r.probeType}, ${r.ucId}: ${r.title})${tag}`,
       );
     }
   }

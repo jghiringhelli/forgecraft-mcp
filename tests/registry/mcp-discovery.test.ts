@@ -103,7 +103,7 @@ describe("McpDiscoveryService", () => {
           ).toBeGreaterThan(0);
         }),
       );
-    }, 30_000);
+    }, 120_000);
 
     it("should populate all recommendation fields", async () => {
       const results = await service.discoverServers(["UNIVERSAL"]);

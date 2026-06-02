@@ -1,0 +1,41 @@
+id: nextjs-bundle-size-budget
+title: Next.js — First-Load JS Bundle ≤ 200kB per Page
+description: >
+  The first-load JavaScript bundle for any page must not exceed 200kB (gzipped).
+  This covers shared chunks + page-specific chunks shown in `next build` output.
+  Exceeding this threshold reliably degrades Time-to-Interactive on mobile networks
+  and LCP on slow connections — both Core Web Vitals that affect SEO ranking and
+  user experience on low-end devices.
+category: performance
+gsProperty: verifiable
+phase: pre-release
+hook: pre-release
+check: >
+  1. Run `next build` and check the "First Load JS" column — any page exceeding 200kB is a violation.
+  2. For automated CI enforcement: add to package.json:
+       "size-limit": [{ "limit": "200 kB", "path": ".next/static/chunks/pages/**/*.js" }]
+     Run: npx size-limit (exits 1 on violation).
+  3. To investigate: ANALYZE=true next build (requires @next/bundle-analyzer).
+  Common fixes for over-budget pages:
+    - Dynamic import for non-critical sections: next/dynamic with { ssr: false }
+    - Tree-shake icon libraries: import { IconName } from 'lib/Icon' not from 'lib'
+    - Code-split large optional components (date pickers, rich text editors, charts)
+passCriterion: >
+  Every route shows First Load JS ≤ 200kB in `next build` output.
+  size-limit CI check exits 0 (when configured).
+  Any route exceeding the budget has an approved exception in .forgecraft/gates/exceptions.json
+  with owner, justification, and a remediation target date.
+tags:
+  - WEB-NEXT
+generalizable: true
+evidence: >
+  200kB is the empirical threshold above which Time-to-Interactive degrades measurably
+  on a 4G mobile connection (Google CrUX data). `next build` reports first-load JS
+  per route, making this trivially automatable. The most common violation: importing
+  a full component library (recharts, Three.js, TipTap) without dynamic import
+  splitting. One `next/dynamic` call typically reduces the affected page from 400kB
+  to under 100kB.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-next/nextjs-bundle-size-budget.yaml

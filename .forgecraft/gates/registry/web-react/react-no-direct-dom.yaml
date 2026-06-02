@@ -1,0 +1,37 @@
+id: react-no-direct-dom
+title: React — No Direct DOM Manipulation in Components
+description: >
+  Components must not use document.getElementById, document.querySelector,
+  or other direct DOM API calls. All DOM interactions must go through React refs
+  (useRef) or React state. Direct DOM manipulation bypasses React's reconciler,
+  causing stale renders, hydration mismatches in SSR, and hard-to-reproduce bugs
+  under concurrent mode.
+category: code-quality
+gsProperty: defended
+phase: pre-commit
+hook: pre-commit
+check: >
+  ESLint rule (add to .eslintrc):
+    "no-restricted-globals": ["error", "document", "window"]
+  Or use the more targeted pattern in a pre-commit script:
+    grep -rn "document\.\(getElementById\|querySelector\|querySelectorAll\|createElement\)" src/
+  Block commit if matches found outside test files (*.test.*, *.spec.*).
+  Exception: top-level _document.tsx (Next.js custom Document) is excluded.
+  useRef is the approved pattern for DOM element access.
+passCriterion: >
+  Zero occurrences of direct DOM API calls in component files (src/**/*.tsx, src/**/*.jsx).
+  ESLint rule or pre-commit hook enforces this automatically.
+  Any documented exceptions have owner and justification in .eslintrc comments.
+tags:
+  - WEB-REACT
+  - WEB-NEXT
+generalizable: true
+evidence: >
+  Direct DOM manipulation in React components is a reliable source of hydration errors
+  in Next.js SSR, stale-closure bugs in React concurrent mode, and visual glitches
+  on re-render. The pattern is eliminated structurally with a simple ESLint rule —
+  no runtime cost, zero false positives in well-structured code.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-react/react-no-direct-dom.yaml

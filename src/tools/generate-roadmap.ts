@@ -111,7 +111,7 @@ export async function generateRoadmapHandler(
   mkdirSync(join(projectDir, "docs"), { recursive: true });
   writeFileSync(
     roadmapPath,
-    buildRoadmapContent(projectName, ucItems, specFilePath, tags),
+    buildRoadmapContent(projectName, ucItems, specFilePath, tags, projectDir),
     "utf-8",
   );
 

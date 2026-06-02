@@ -177,6 +177,7 @@ export function tagDirNameToTag(dirName: string): Tag | null {
     universal: "UNIVERSAL",
     "web-react": "WEB-REACT",
     "web-static": "WEB-STATIC",
+    "web-next": "WEB-NEXT",
     api: "API",
     "data-pipeline": "DATA-PIPELINE",
     ml: "ML",

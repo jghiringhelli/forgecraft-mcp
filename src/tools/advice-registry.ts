@@ -16,8 +16,14 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
   API: {
     tools: [
       { layer: "Contract (CDC)", tools: "Pact, Spring Cloud Contract" },
-      { layer: "Subcutaneous / API", tools: "Supertest (Node), httpx (Python)" },
-      { layer: "Smoke", tools: "Playwright `APIRequestContext` — no browser overhead" },
+      {
+        layer: "Subcutaneous / API",
+        tools: "Supertest (Node), httpx (Python)",
+      },
+      {
+        layer: "Smoke",
+        tools: "Playwright `APIRequestContext` — no browser overhead",
+      },
       { layer: "Security DAST", tools: "OWASP ZAP (staging, pre-prod)" },
     ],
     cycleAdditions: [
@@ -32,8 +38,14 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
   },
   "WEB-REACT": {
     tools: [
-      { layer: "Component / Unit", tools: "@testing-library/react + @testing-library/user-event" },
-      { layer: "Visual Regression", tools: "Chromatic or Percy (per Storybook story)" },
+      {
+        layer: "Component / Unit",
+        tools: "@testing-library/react + @testing-library/user-event",
+      },
+      {
+        layer: "Visual Regression",
+        tools: "Chromatic or Percy (per Storybook story)",
+      },
       { layer: "a11y", tools: "axe-core + @axe-core/playwright" },
       { layer: "Smoke", tools: "Playwright (full browser)" },
     ],
@@ -47,6 +59,43 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
     ],
     smokeNote:
       "React smoke uses full browser Playwright. Covers: page load + console errors, auth redirect, critical a11y.",
+  },
+  "WEB-NEXT": {
+    tools: [
+      {
+        layer: "Component / Unit",
+        tools: "@testing-library/react + @testing-library/user-event",
+      },
+      {
+        layer: "API Routes",
+        tools: "Hurl (contract tests for /api/* routes) or Supertest",
+      },
+      {
+        layer: "E2E / SSR",
+        tools: "Playwright (server-side rendering + hydration verification)",
+      },
+      {
+        layer: "Performance",
+        tools: "Lighthouse CI (Core Web Vitals — LCP, FCP, CLS)",
+      },
+      {
+        layer: "Bundle",
+        tools: "@next/bundle-analyzer + size-limit (first-load JS budget)",
+      },
+      { layer: "a11y", tools: "axe-core + @axe-core/playwright" },
+    ],
+    cycleAdditions: [
+      "Pre-commit: `next build` exits 0 — catches server/client boundary violations and type errors",
+      "Pre-commit: ESLint @next/next/no-img-element — enforces next/image over raw <img>",
+      "PR gate: Hurl contract tests for every /api/* route (happy path + 401 + 400)",
+      "PR gate: Playwright E2E — SSR pages render with correct data, auth redirect, form submission",
+      "PR gate: axe automated a11y on all public routes (0 violations at A/AA level)",
+      "PR gate: Bundle size budget — first-load JS ≤ 200kB per page",
+      "Staging: Playwright browser smoke — pages load with real data, no hydration errors in console",
+      "Staging: Lighthouse CI — Core Web Vitals (LCP < 2.5s, FCP < 1.8s, CLS < 0.1)",
+    ],
+    smokeNote:
+      "Next.js smoke is dual-layer: Playwright for UI/SSR (hydration, auth, data) + Hurl for /api/* contracts. Both are required.",
   },
   "WEB-STATIC": {
     tools: [
@@ -63,10 +112,22 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
   },
   GAME: {
     tools: [
-      { layer: "Headless Unit (Tier 1)", tools: "Vitest / Jest — zero browser, pre-commit" },
-      { layer: "Browser Smoke (Tier 2)", tools: "Playwright (full browser — canvas, WebGL)" },
-      { layer: "Perf Smoke (Tier 3)", tools: "Playwright + CDP (`Performance.getMetrics` FPS floor)" },
-      { layer: "Visual QA Gate", tools: "Playwright screenshots + PCA silhouette checks" },
+      {
+        layer: "Headless Unit (Tier 1)",
+        tools: "Vitest / Jest — zero browser, pre-commit",
+      },
+      {
+        layer: "Browser Smoke (Tier 2)",
+        tools: "Playwright (full browser — canvas, WebGL)",
+      },
+      {
+        layer: "Perf Smoke (Tier 3)",
+        tools: "Playwright + CDP (`Performance.getMetrics` FPS floor)",
+      },
+      {
+        layer: "Visual QA Gate",
+        tools: "Playwright screenshots + PCA silhouette checks",
+      },
     ],
     cycleAdditions: [
       "Pre-commit: Headless unit — state machines, physics, scoring, save/load round-trip",
@@ -89,11 +150,15 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
       "PR gate: Schema contract tests (no unexpected column drops or type changes)",
       "Staging: Full pipeline run on staging data with quality gate thresholds",
     ],
-    smokeNote: "Pipeline smoke: run the pipeline end-to-end on a small staging dataset, assert row counts and key column non-null rates.",
+    smokeNote:
+      "Pipeline smoke: run the pipeline end-to-end on a small staging dataset, assert row counts and key column non-null rates.",
   },
   ML: {
     tools: [
-      { layer: "Model Evaluation", tools: "pytest + metrics assertions (accuracy, F1, AUC floors)" },
+      {
+        layer: "Model Evaluation",
+        tools: "pytest + metrics assertions (accuracy, F1, AUC floors)",
+      },
       { layer: "Drift Detection", tools: "Evidently AI, Alibi Detect" },
     ],
     cycleAdditions: [
@@ -102,11 +167,15 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
       "Staging: Shadow deployment — compare new model predictions to baseline",
       "RC: A/B significance test before full traffic cut-over",
     ],
-    smokeNote: "ML smoke: inference latency p99 within SLA, prediction schema validates, no NaN outputs on reference inputs.",
+    smokeNote:
+      "ML smoke: inference latency p99 within SLA, prediction schema validates, no NaN outputs on reference inputs.",
   },
   CLI: {
     tools: [
-      { layer: "Subprocess Integration", tools: "execa, child_process, subprocess.run" },
+      {
+        layer: "Subprocess Integration",
+        tools: "execa, child_process, subprocess.run",
+      },
     ],
     cycleAdditions: [
       "PR gate: Subprocess integration tests — spawns real CLI binary, asserts stdout/stderr/exit code",
@@ -114,12 +183,19 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
       "PR gate: `--help` and `--version` always succeed",
       "RC: Test against minimum supported Node/Python version",
     ],
-    smokeNote: "CLI smoke: `npx <package> --version` exits 0 with semver output; `--help` exits 0.",
+    smokeNote:
+      "CLI smoke: `npx <package> --version` exits 0 with semver output; `--help` exits 0.",
   },
   LIBRARY: {
     tools: [
-      { layer: "Public API Tests", tools: "Test against exported surface only (not internals)" },
-      { layer: "Multi-version", tools: "Matrix test against peer dependency version range" },
+      {
+        layer: "Public API Tests",
+        tools: "Test against exported surface only (not internals)",
+      },
+      {
+        layer: "Multi-version",
+        tools: "Matrix test against peer dependency version range",
+      },
     ],
     cycleAdditions: [
       "PR gate: Test only against the public API surface (barrel exports)",
@@ -127,23 +203,34 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
       "PR gate: Type-level tests (`tsd`, `expect-type`) for TypeScript libraries",
       "RC: Bundle size audit — `bundlephobia` or `size-limit` gate",
     ],
-    smokeNote: "Library smoke: `require()` / `import` the built package in a clean install; call each exported function once.",
+    smokeNote:
+      "Library smoke: `require()` / `import` the built package in a clean install; call each exported function once.",
   },
   REALTIME: {
     tools: [
-      { layer: "WebSocket / SSE", tools: "ws (test client), EventSource, Socket.IO mock" },
+      {
+        layer: "WebSocket / SSE",
+        tools: "ws (test client), EventSource, Socket.IO mock",
+      },
     ],
     cycleAdditions: [
       "PR gate: Reconnect and message ordering tests",
       "PR gate: Backpressure behavior under slow consumer",
       "Staging: Load test with sustained concurrent connections (k6 WebSocket scenario)",
     ],
-    smokeNote: "Realtime smoke: WebSocket handshake completes, heartbeat received within timeout, disconnect handled cleanly.",
+    smokeNote:
+      "Realtime smoke: WebSocket handshake completes, heartbeat received within timeout, disconnect handled cleanly.",
   },
   FINTECH: {
     tools: [
-      { layer: "Precision", tools: "Decimal arithmetic — never IEEE 754 floats for currency" },
-      { layer: "Audit Log", tools: "Assert every mutation event is logged (completeness test)" },
+      {
+        layer: "Precision",
+        tools: "Decimal arithmetic — never IEEE 754 floats for currency",
+      },
+      {
+        layer: "Audit Log",
+        tools: "Assert every mutation event is logged (completeness test)",
+      },
     ],
     cycleAdditions: [
       "PR gate: Financial precision tests — decimal arithmetic, rounding mode asserted",
@@ -151,11 +238,15 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
       "PR gate: Audit log completeness — every state change produces an immutable log entry",
       "RC: Reconciliation test — sum of ledger entries equals expected balance",
     ],
-    smokeNote: "Fintech smoke: health + auth + primary read path. No write operations in smoke — no production money movement.",
+    smokeNote:
+      "Fintech smoke: health + auth + primary read path. No write operations in smoke — no production money movement.",
   },
   HEALTHCARE: {
     tools: [
-      { layer: "PHI Access Control", tools: "Integration tests asserting role-based PHI visibility" },
+      {
+        layer: "PHI Access Control",
+        tools: "Integration tests asserting role-based PHI visibility",
+      },
     ],
     cycleAdditions: [
       "PR gate: PHI field access control — assert non-authorized roles cannot read PHI fields",
@@ -163,7 +254,8 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
       "PR gate: De-identification tests — exported data contains no identifying fields",
       "RC: HIPAA compliance review before deploy",
     ],
-    smokeNote: "Healthcare smoke: health + auth. Never include real PHI in smoke credentials or fixtures.",
+    smokeNote:
+      "Healthcare smoke: health + auth. Never include real PHI in smoke credentials or fixtures.",
   },
 };
 
@@ -171,8 +263,14 @@ export const TAG_ADVICE: Partial<Record<Tag, TagAdvice>> = {
 
 export const BASE_TOOLS = [
   { layer: "Unit (Solitary)", tools: "Vitest / Jest (JS/TS), pytest (Python)" },
-  { layer: "Unit (Sociable)", tools: "Same runner — allow real, fast non-I/O collaborators" },
-  { layer: "Integration (DB)", tools: "Testcontainers, SQLite in-process, pg-mem" },
+  {
+    layer: "Unit (Sociable)",
+    tools: "Same runner — allow real, fast non-I/O collaborators",
+  },
+  {
+    layer: "Integration (DB)",
+    tools: "Testcontainers, SQLite in-process, pg-mem",
+  },
   { layer: "Integration (External)", tools: "msw (HTTP stubs), WireMock" },
   { layer: "SAST", tools: "npm audit, Semgrep, ESLint security plugins, Snyk" },
 ];
@@ -198,7 +296,9 @@ export const BASE_CYCLE = [
  * @returns Markdown code block string, or empty string if not applicable
  */
 export function smokeConfigExample(tags: Tag[]): string {
-  const hasBrowser = tags.some((t) => ["WEB-REACT", "WEB-STATIC", "GAME"].includes(t));
+  const hasBrowser = tags.some((t) =>
+    ["WEB-REACT", "WEB-STATIC", "GAME"].includes(t),
+  );
   const hasApi = tags.includes("API");
 
   if (!hasBrowser && !hasApi) return "";

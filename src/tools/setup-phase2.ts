@@ -93,6 +93,8 @@ export interface Phase2ResponseParams {
   readonly operationClassificationWritten?: boolean;
   readonly subDocStubsWritten?: string[];
   readonly agentsWritten?: string[];
+  readonly manifestWritten?: boolean;
+  readonly statusWritten?: boolean;
   /** FC QG remote gates relevant to active tags — used to generate tailoring checklist. */
   readonly remoteGates?: readonly {
     id: string;
@@ -170,6 +172,10 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
     for (const f of params.agentsWritten)
       text += `  .claude/agents/${f} (sub-agent)\n`;
   }
+  if (params.manifestWritten)
+    text += `  docs/manifest.yaml (GS document taxonomy contract)\n`;
+  if (params.statusWritten)
+    text += `  docs/status.md (project state — update after each session)\n`;
 
   if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0)
     text += `  (all artifacts already existed — nothing overwritten)\n`;
@@ -357,7 +363,7 @@ function buildAiTailoringChecklist(params: Phase2ResponseParams): string {
 
   const nextNum = hasFrontend ? (hasApi ? 7 : 6) : hasApi ? 6 : 5;
   out += `**${nextNum}. docs/status.md (session narrative)**\n`;
-  out += `   Create with current date, project name, and the first roadmap item as "Next:".\n`;
+  out += `   Already created with stubs. Fill in: current state, what's in progress, and "Next:" from your roadmap.\n`;
   out += `   Update it at the end of every session. It is the project's temporal memory.\n\n`;
 
   out += `**${nextNum + 1}. analyze_harness (post-scaffold gap check)**\n`;

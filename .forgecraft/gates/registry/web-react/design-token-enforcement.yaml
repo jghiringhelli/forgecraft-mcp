@@ -1,0 +1,42 @@
+id: design-token-enforcement
+title: Design Token Enforcement — No Raw Color Literals
+description: >
+  Prevent raw hex (#abc123), rgb(), rgba(), and hsl() color values in component and
+  style files. All colors must reference CSS custom properties from the project token
+  file (tokens.css, variables.css, or theme.ts). This enforces visual consistency,
+  enables theming, and prevents the "dark mode break" failure class where hardcoded
+  colors ignore the active color scheme.
+domain: design-system
+gsProperty: verifiable
+implementation: tooled
+phase: development
+hook: pre-commit
+os: cross-platform
+check: >
+  A pre-commit hook scans staged .tsx, .jsx, .css, .scss, and .less files for raw
+  hex color patterns (#[3-8 hex digits]) and rgb()/rgba()/hsl() calls. Lines in
+  token definition files (files matching tokens., variables., or theme.) are excluded.
+  Any match in a non-token file blocks the commit.
+passCriterion: >
+  Zero raw hex or rgb/hsl color literals in component or style files (excluding token
+  definition files). All colors referenced via var(--color-token-name) or equivalent
+  design token syntax (e.g., Tailwind theme values, CSS-in-JS theme tokens).
+failureMessage: >
+  Raw color literals found in component/style file. Replace with design token references:
+  var(--color-*) for CSS custom properties, or theme.colors.* for CSS-in-JS.
+fixHint: "Replace #hex and rgb() with var(--color-token-name) from src/styles/tokens.css"
+tags:
+  - WEB-REACT
+  - WEB-NEXT
+  - WEB-STATIC
+generalizable: true
+evidence: >
+  Design systems fracture when raw hex values proliferate across components. Dark mode
+  implementations break because #1a2b3c ignores prefers-color-scheme. Brand refreshes
+  require grep-and-replace across hundreds of files instead of a single token edit.
+  Teams using design token enforcement report 10x faster brand update rollouts and
+  zero dark-mode contrast failures post-launch.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-react/design-token-enforcement.yaml

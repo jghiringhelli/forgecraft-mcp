@@ -178,6 +178,16 @@ describe("detectAffectedArtifacts", () => {
     expect(result).toContain("openapi.yaml");
   });
 
+  it("surfaces docs/decisions/ for bug-postmortem type", () => {
+    const result = detectAffectedArtifacts(
+      tmpDir,
+      "NPE in import",
+      "intermittent crash",
+      "bug-postmortem",
+    );
+    expect(result).toContain("docs/decisions/");
+  });
+
   it("does not include files that do not exist", () => {
     const result = detectAffectedArtifacts(
       tmpDir,
@@ -307,6 +317,25 @@ describe("detectRequiredGates", () => {
     // l2-contract matches both l2-* prefix AND contract keyword for breaking-api
     const result = detectRequiredGates(tmpDir, "breaking-api", true);
     expect(result.filter((g) => g === "l2-contract").length).toBe(1);
+  });
+
+  it("includes regression-test gates for bug-postmortem type", () => {
+    const gateDir = join(tmpDir, ".forgecraft", "gates", "active");
+    mkdirSync(gateDir, { recursive: true });
+    writeFileSync(
+      join(gateDir, "regression-test-required.yaml"),
+      "id: regression-test-required\n",
+    );
+    const result = detectRequiredGates(tmpDir, "bug-postmortem", false);
+    expect(result).toContain("regression-test-required");
+  });
+
+  it("includes l3-* gates for bug-postmortem type", () => {
+    const gateDir = join(tmpDir, ".forgecraft", "gates", "active");
+    mkdirSync(gateDir, { recursive: true });
+    writeFileSync(join(gateDir, "l3-integration.yaml"), "id: l3-integration\n");
+    const result = detectRequiredGates(tmpDir, "bug-postmortem", false);
+    expect(result).toContain("l3-integration");
   });
 });
 

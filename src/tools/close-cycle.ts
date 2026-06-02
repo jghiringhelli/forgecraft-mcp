@@ -29,7 +29,7 @@ import {
   computeSRealized,
   appendGsScoreRow,
 } from "../shared/gs-score-logger.js";
-import { readExperimentConfig } from "../shared/config.js";
+import { readExperimentConfig, readBrownfieldFlag } from "../shared/config.js";
 import {
   deriveTestCommand,
   findCodeseekerGates,
@@ -673,6 +673,23 @@ function buildSloProbeSection(projectDir: string): string[] {
 }
 
 /**
+ * Return warning-severity gate IDs that should be promoted to error severity
+ * now that the project has a clean cascade baseline.
+ *
+ * Only returns candidates when forgecraft.yaml has `brownfield: true`.
+ * Called after a successful close_cycle to surface the ramp opportunity.
+ *
+ * @param projectRoot - Absolute path to project root
+ * @returns Gate IDs at severity: warning
+ */
+export function detectSeverityRampCandidates(projectRoot: string): string[] {
+  if (!readBrownfieldFlag(projectRoot)) return [];
+  return getActiveProjectGates(projectRoot)
+    .filter((g) => g.severity === "warning")
+    .map((g) => g.id);
+}
+
+/**
  * MCP handler for the close_cycle action.
  *
  * @param args - Raw args from the MCP router (project_dir, dry_run)
@@ -713,6 +730,21 @@ export async function closeCycleHandler(
 
     const sloProbeLines = buildSloProbeSection(projectRoot);
     reportLines.push(...sloProbeLines);
+
+    // Brownfield severity ramp
+    const rampCandidates = detectSeverityRampCandidates(projectRoot);
+    if (rampCandidates.length > 0) {
+      reportLines.push(
+        "",
+        "### Brownfield Severity Ramp",
+        "",
+        `Baseline clean. ${rampCandidates.length} gate(s) are at \`severity: warning\` — promote to \`error\` now that the project has a clean baseline:`,
+        ...rampCandidates.map((id) => `- ${id}`),
+        "",
+        "To flip: edit `.forgecraft/gates/project/active/<id>.yaml` and set `severity: error`.",
+        "Future audit runs will then fail on violations instead of warning.",
+      );
+    }
 
     // Write docs/layer-status.md snapshot
     const cycleTimestamp = new Date().toISOString();

@@ -27,6 +27,9 @@ export interface CntAuditResult {
   readonly coreMdPass: boolean;
   readonly leafViolations: ReadonlyArray<{ file: string; lines: number }>;
   readonly indexMdPresent: boolean;
+  /** Leaf nodes with no routing directive in .claude/index.md */
+  readonly unroutedLeaves: ReadonlyArray<string>;
+  readonly routingPass: boolean;
   readonly score: number;
   readonly issues: string[];
 }
@@ -162,6 +165,8 @@ export function auditCntHealth(projectDir: string): CntAuditResult {
       coreMdPass: false,
       leafViolations: [],
       indexMdPresent: false,
+      unroutedLeaves: [],
+      routingPass: true,
       score: 0,
       issues: ["CNT not initialized — .claude/index.md missing"],
     };
@@ -188,20 +193,25 @@ export function auditCntHealth(projectDir: string): CntAuditResult {
   const indexMdPresent = true;
 
   const leafViolations = findLeafViolations(projectDir, exceptions);
+  const unroutedLeaves = findUnroutedLeaves(projectDir);
+  const routingPass = unroutedLeaves.length === 0;
+
   const issues = buildAuditIssues(
     claudeMdLines,
     claudeMdPass,
     coreMdLines,
     coreMdPass,
     leafViolations,
+    unroutedLeaves,
   );
 
-  const totalChecks = 4; // CLAUDE.md, core.md, index.md, no leaf violations
+  const totalChecks = 5; // CLAUDE.md, core.md, index.md, no leaf violations, routing
   const passing =
     (claudeMdPass ? 1 : 0) +
     (coreMdPass ? 1 : 0) +
     1 + // index.md present
-    (leafViolations.length === 0 ? 1 : 0);
+    (leafViolations.length === 0 ? 1 : 0) +
+    (routingPass ? 1 : 0);
   const score = Math.round((passing / totalChecks) * 100);
 
   return {
@@ -212,9 +222,40 @@ export function auditCntHealth(projectDir: string): CntAuditResult {
     coreMdPass,
     leafViolations,
     indexMdPresent,
+    unroutedLeaves,
+    routingPass,
     score,
     issues,
   };
+}
+
+/**
+ * Find leaf nodes that have no routing directive in .claude/index.md.
+ *
+ * A routing directive is any line in index.md that references the leaf's
+ * stem (filename without .md extension). Typical forms:
+ *   - "read .claude/standards/tools-routing.md when working on tools/"
+ *   - "→ standards/tools-routing.md"
+ *   - "[tools-routing](standards/tools-routing.md)"
+ *
+ * @param projectDir - Absolute path to project root
+ * @returns Array of leaf filenames (without .md) that have no routing reference
+ */
+export function findUnroutedLeaves(projectDir: string): string[] {
+  const indexPath = join(projectDir, ".claude", "index.md");
+  if (!existsSync(indexPath)) return [];
+  let indexContent = "";
+  try {
+    indexContent = readFileSync(indexPath, "utf-8").toLowerCase();
+  } catch {
+    return [];
+  }
+
+  const leafNames = readCntLeafNames(projectDir);
+  return leafNames.filter((leaf) => {
+    const stem = leaf.toLowerCase();
+    return !indexContent.includes(stem);
+  });
 }
 
 /** Prefix written by the sentinel renderer on the first line of scaffold-generated files. */
@@ -268,6 +309,7 @@ function buildAuditIssues(
   coreMdLines: number | null,
   coreMdPass: boolean,
   leafViolations: ReadonlyArray<{ file: string; lines: number }>,
+  unroutedLeaves: ReadonlyArray<string> = [],
 ): string[] {
   const issues: string[] = [];
   if (claudeMdLines === null) {
@@ -282,6 +324,11 @@ function buildAuditIssues(
   }
   for (const v of leafViolations) {
     issues.push(`.claude/standards/${v.file} has ${v.lines} lines (limit: 30)`);
+  }
+  if (unroutedLeaves.length > 0) {
+    issues.push(
+      `${unroutedLeaves.length} leaf node(s) have no routing directive in .claude/index.md: ${unroutedLeaves.join(", ")} — run cnt_add_routing to generate routing block`,
+    );
   }
   return issues;
 }

@@ -1,0 +1,40 @@
+id: ux-pattern-docs-present
+title: UX Pattern Docs — Required Before Common Interactions
+description: >
+  Require docs/patterns/ with at minimum error.md and loading.md before page, modal,
+  or table components are committed. These pattern docs are the single source of truth
+  that prevents each feature team from implementing error and loading states differently.
+  Without them, AI-assisted development generates fresh UI patterns per session.
+domain: ux-consistency
+gsProperty: self-describing
+implementation: process
+phase: development
+hook: pre-commit
+os: cross-platform
+check: >
+  When staged files include any file matching *page*, *Page*, *screen*, *Screen*,
+  *modal*, *Modal*, *table*, or *Table* naming patterns, verify that docs/patterns/error.md
+  and docs/patterns/loading.md exist. If either is missing, block the commit.
+passCriterion: >
+  docs/patterns/ contains at minimum error.md and loading.md before any page, modal,
+  or table components are committed. Each pattern doc defines: when to use, appearance,
+  component API, error cases, and empty state behaviour.
+failureMessage: >
+  UX pattern docs missing. Create docs/patterns/error.md and docs/patterns/loading.md
+  before implementing page or interactive components.
+fixHint: "mkdir -p docs/patterns && touch docs/patterns/error.md docs/patterns/loading.md docs/patterns/empty.md docs/patterns/modals.md docs/patterns/tables.md"
+tags:
+  - WEB-REACT
+  - WEB-NEXT
+  - WEB-STATIC
+generalizable: true
+evidence: >
+  Applications without shared UX pattern docs develop inconsistent error, loading, and
+  empty state treatments across features. Users encounter different behaviours for the
+  same interaction type in different parts of the same app — a trust-eroding inconsistency
+  that emerges specifically from AI-assisted development where each session starts fresh
+  without context from prior implementation decisions.
+status: approved
+approvedAt: '2026-05-29'
+contributor: jghiringhelli
+_path: gates/web-react/ux-pattern-docs-present.yaml

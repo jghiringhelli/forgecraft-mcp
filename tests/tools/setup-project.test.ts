@@ -853,4 +853,88 @@ describe("setupProjectHandler", () => {
       expect(settings.mcpServers).toHaveProperty("playwright");
     });
   });
+
+  describe("manifest and status artifacts", () => {
+    it("phase 2 creates docs/manifest.yaml", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const manifestPath = join(tempDir, "docs", "manifest.yaml");
+      expect(existsSync(manifestPath)).toBe(true);
+      const content = readFileSync(manifestPath, "utf-8");
+      expect(content).toContain("schema_source");
+      expect(content).toContain("human_judgment");
+    });
+
+    it("phase 2 creates docs/status.md", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const statusPath = join(tempDir, "docs", "status.md");
+      expect(existsSync(statusPath)).toBe(true);
+      const content = readFileSync(statusPath, "utf-8");
+      expect(content).toContain("## Next");
+      expect(content).toContain("## Current State");
+    });
+
+    it("phase 2 response lists docs/manifest.yaml in artifacts", async () => {
+      const result = await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("manifest.yaml");
+    });
+
+    it("phase 2 response lists docs/status.md in artifacts", async () => {
+      const result = await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const text = result.content[0]!.text;
+      expect(text).toContain("status.md");
+    });
+
+    it("does not overwrite existing docs/manifest.yaml", async () => {
+      const docsDir = join(tempDir, "docs");
+      mkdirSync(docsDir, { recursive: true });
+      writeFileSync(
+        join(docsDir, "manifest.yaml"),
+        "# existing manifest\n",
+        "utf-8",
+      );
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const content = readFileSync(join(docsDir, "manifest.yaml"), "utf-8");
+      expect(content).toBe("# existing manifest\n");
+    });
+
+    it("does not overwrite existing docs/status.md", async () => {
+      const docsDir = join(tempDir, "docs");
+      mkdirSync(docsDir, { recursive: true });
+      writeFileSync(join(docsDir, "status.md"), "# existing status\n", "utf-8");
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const content = readFileSync(join(docsDir, "status.md"), "utf-8");
+      expect(content).toBe("# existing status\n");
+    });
+  });
 });

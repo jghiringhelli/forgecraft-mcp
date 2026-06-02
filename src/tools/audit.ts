@@ -11,6 +11,7 @@ import { checkCompleteness } from "../analyzers/completeness.js";
 import { scanAntiPatterns } from "../analyzers/anti-pattern.js";
 import { auditCntHealth } from "../shared/cnt-health.js";
 import type { CntAuditResult } from "../shared/cnt-health.js";
+import { auditHookInstallation } from "../shared/hook-installer.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -53,6 +54,9 @@ export async function auditProjectHandler(
   // Run CNT health audit
   const cntAudit = auditCntHealth(args.project_dir);
 
+  // Run hook installation audit
+  const hookAudit = auditHookInstallation(args.project_dir);
+
   // Combine results
   const allPassing = [
     ...completeness.passing,
@@ -71,6 +75,22 @@ export async function auditProjectHandler(
         check: "cnt_health",
         message: issue,
         severity: "warning" as const,
+      });
+    }
+  }
+
+  // Add hook installation issues — always checked (hooks are the Defended property)
+  if (hookAudit.allInstalled) {
+    allPassing.push({
+      check: "hook_installation",
+      message: `Git hooks installed (${hookAudit.installedGitHooks.join(", ")})`,
+    });
+  } else {
+    for (const issue of hookAudit.issues) {
+      allFailing.push({
+        check: "hook_installation",
+        message: issue,
+        severity: "error" as const,
       });
     }
   }

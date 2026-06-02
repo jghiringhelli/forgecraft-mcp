@@ -28,6 +28,8 @@ import {
   writeOperationClassification,
   writeSpecSubDocStubs,
   writeAgentDefinitions,
+  writeProjectManifest,
+  writeStatusMd,
   initGitRepo,
   checkGitStatus,
 } from "./setup-artifact-writers.js";
@@ -317,6 +319,14 @@ async function executePhase2(
   // Write generic sub-agent definitions (.claude/agents/)
   const agentsWritten = writeAgentDefinitions(projectDir);
 
+  // Write GS document taxonomy manifest and project status file
+  const manifestWritten = writeProjectManifest(
+    projectDir,
+    projectName,
+    effectiveTags,
+  );
+  const statusWritten = writeStatusMd(projectDir, projectName);
+
   // Auto-extract ADRs from spec when spec is available (non-fatal if it fails)
   let adrsExtracted = 0;
   const specFileForAdrs =
@@ -371,6 +381,8 @@ async function executePhase2(
     operationClassificationWritten,
     subDocStubsWritten,
     agentsWritten,
+    manifestWritten,
+    statusWritten,
     remoteGates,
   });
 

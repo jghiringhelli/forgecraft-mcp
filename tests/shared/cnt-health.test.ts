@@ -140,7 +140,11 @@ describe("auditCntHealth", () => {
   });
 
   it("skips scaffold-generated files from leaf violation check", () => {
-    write(tempDir, ".claude/index.md", "# Index\n");
+    write(
+      tempDir,
+      ".claude/index.md",
+      "# Index\nLoad architecture when modifying src/ structure.\n",
+    );
     write(tempDir, ".claude/core.md", makeLines(10));
     write(tempDir, "CLAUDE.md", "sentinel\n");
     const scaffoldContent =
@@ -165,7 +169,11 @@ describe("auditCntHealth", () => {
   });
 
   it("returns score 100 when all checks pass", () => {
-    write(tempDir, ".claude/index.md", "# Index\n");
+    write(
+      tempDir,
+      ".claude/index.md",
+      "# Index\nLoad tools-routing when working on src/tools/.\n",
+    );
     write(tempDir, ".claude/core.md", makeLines(10));
     write(tempDir, "CLAUDE.md", "sentinel\n");
     write(tempDir, ".claude/standards/tools-routing.md", makeLines(20));
@@ -177,6 +185,51 @@ describe("auditCntHealth", () => {
     expect(result.leafViolations).toHaveLength(0);
     expect(result.score).toBe(100);
     expect(result.issues).toHaveLength(0);
+  });
+
+  describe("routing audit", () => {
+    it("reports unrouted leaves when index.md does not reference them", () => {
+      write(
+        tempDir,
+        ".claude/index.md",
+        "# CNT Index\nNo leaf references here.\n",
+      );
+      write(tempDir, ".claude/core.md", makeLines(10));
+      write(tempDir, "CLAUDE.md", "sentinel\n");
+      write(tempDir, ".claude/standards/tools-routing.md", makeLines(10));
+
+      const result = auditCntHealth(tempDir);
+      expect(result.unroutedLeaves).toContain("tools-routing");
+      expect(result.routingPass).toBe(false);
+      expect(result.issues.some((i) => i.includes("routing directive"))).toBe(
+        true,
+      );
+    });
+
+    it("passes routing check when index.md references all leaves", () => {
+      write(
+        tempDir,
+        ".claude/index.md",
+        "# CNT\nLoad tools-routing when working on src/tools/\n",
+      );
+      write(tempDir, ".claude/core.md", makeLines(10));
+      write(tempDir, "CLAUDE.md", "sentinel\n");
+      write(tempDir, ".claude/standards/tools-routing.md", makeLines(10));
+
+      const result = auditCntHealth(tempDir);
+      expect(result.unroutedLeaves).toHaveLength(0);
+      expect(result.routingPass).toBe(true);
+    });
+
+    it("passes routing check when there are no leaves", () => {
+      write(tempDir, ".claude/index.md", "# CNT Index\n");
+      write(tempDir, ".claude/core.md", makeLines(10));
+      write(tempDir, "CLAUDE.md", "sentinel\n");
+
+      const result = auditCntHealth(tempDir);
+      expect(result.routingPass).toBe(true);
+      expect(result.unroutedLeaves).toHaveLength(0);
+    });
   });
 
   describe("audit-check exemptions", () => {

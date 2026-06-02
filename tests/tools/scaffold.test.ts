@@ -160,7 +160,7 @@ describe("scaffoldProjectHandler", () => {
   // ── sentinel scaffolding ───────────────────────────────────────────
 
   describe("sentinel scaffolding (default)", () => {
-    it("creates a short sentinel CLAUDE.md (< 100 lines)", async () => {
+    it("creates a comprehensive sentinel CLAUDE.md (≥100 lines)", async () => {
       await scaffoldProjectHandler({
         tags: ["UNIVERSAL"],
         project_dir: tempDir,
@@ -171,7 +171,7 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      expect(content.split("\n").length).toBeLessThan(100);
+      expect(content.split("\n").length).toBeGreaterThan(100);
       expect(content).toContain("ForgeCraft sentinel");
     });
 
