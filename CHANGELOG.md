@@ -550,3 +550,6 @@ the published white paper and practitioner protocol.
 
 ### Added
 - hook stack-filtering, FC QG wiring, analyze_harness action, AI tailoring checklist (`c2a9842`)
+
+### Other
+- **tests**: sentinel GS sections + manifest/status writers; mcp-discovery timeout 120s; audit hook skips dev CVEs (`5549793`)
