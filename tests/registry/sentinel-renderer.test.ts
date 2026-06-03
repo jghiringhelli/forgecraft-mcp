@@ -73,21 +73,23 @@ describe("renderSentinelTree — structure", () => {
     expect(files[0]!.relativePath).toBe("CLAUDE.md");
   });
 
-  it("claude_md_is_sentinel_not_monolithic", () => {
+  it("claude_md_is_slim_routing_root", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    // Comprehensive sentinel: ≥100 lines with GS properties, architecture, code standards
-    expect(content.split("\n").length).toBeGreaterThan(100);
-    expect(content).toContain("ForgeCraft sentinel");
+    expect(content.split("\n").length).toBeLessThanOrEqual(80);
+    expect(content).toContain("CNT root");
+    expect(content).toContain("Navigate by Task");
   });
 
-  it("empty_blocks_returns_only_claude_md_with_no_domain_files", () => {
+  it("empty_blocks_produces_root_plus_five_cnt_branches", () => {
     const files = renderSentinelTree([], context);
-    expect(files).toHaveLength(1);
-    expect(files[0]!.relativePath).toBe("CLAUDE.md");
-    // Wayfinding moved to .claude/index.md — CLAUDE.md must not list domain files
-    const { content } = claudeMd(files);
-    expect(content).not.toContain(".claude/standards/architecture.md");
+    const paths = files.map((f) => f.relativePath);
+    expect(paths).toContain("CLAUDE.md");
+    expect(paths).toContain(".claude/constitution.md");
+    expect(paths).toContain(".claude/lifecycle.md");
+    expect(paths).toContain(".claude/routes/code.md");
+    expect(paths).toContain(".claude/routes/docs.md");
+    expect(paths).toContain(".claude/corrections.md");
   });
 
   it("produces_separate_domain_file_per_domain", () => {
@@ -99,16 +101,20 @@ describe("renderSentinelTree — structure", () => {
     expect(paths).toContain(".claude/standards/architecture.md");
     expect(paths).toContain(".claude/standards/testing.md");
     // The two domains should be separate files, not merged
-    expect(paths.filter((p) => p.includes("architecture")).length).toBe(1);
-    expect(paths.filter((p) => p.includes("testing")).length).toBe(1);
+    expect(
+      paths.filter((p) => p.includes("standards/architecture")).length,
+    ).toBe(1);
+    expect(paths.filter((p) => p.includes("standards/testing")).length).toBe(1);
   });
 
-  it("domain_file_paths_match_pattern", () => {
+  it("standards_domain_file_paths_match_pattern", () => {
     const files = renderSentinelTree(
       [architectureBlock, testingBlock],
       context,
     );
-    const domainFiles = files.filter((f) => f.relativePath !== "CLAUDE.md");
+    const domainFiles = files.filter((f) =>
+      f.relativePath.startsWith(".claude/standards/"),
+    );
     expect(domainFiles.length).toBeGreaterThan(0);
     for (const file of domainFiles) {
       expect(file.relativePath).toMatch(/^\.claude\/standards\/[^/]+\.md$/);
@@ -129,21 +135,18 @@ describe("renderSentinelTree — structure", () => {
 // ── CLAUDE.md content tests ──────────────────────────────────────────────
 
 describe("renderSentinelTree — CLAUDE.md content", () => {
-  it("claude_md_is_sentinel_not_monolithic", () => {
+  it("claude_md_is_slim_routing_root_in_content_suite", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    // Comprehensive sentinel: ≥100 lines with GS properties, architecture, code standards
-    expect(content.split("\n").length).toBeGreaterThan(100);
-    expect(content).toContain("ForgeCraft sentinel");
+    expect(content.split("\n").length).toBeLessThanOrEqual(80);
+    expect(content).toContain("CNT root");
   });
 
-  it("empty_blocks_returns_only_claude_md_with_no_domain_files", () => {
+  it("root_always_loads_list_references_branch_files", () => {
     const files = renderSentinelTree([], context);
-    expect(files).toHaveLength(1);
-    expect(files[0]!.relativePath).toBe("CLAUDE.md");
-    // Wayfinding moved to .claude/index.md — CLAUDE.md must not list domain files
     const { content } = claudeMd(files);
-    expect(content).not.toContain(".claude/standards/architecture.md");
+    expect(content).toContain(".claude/constitution.md");
+    expect(content).toContain(".claude/corrections.md");
   });
 
   it("contains_project_name_as_h1_title", () => {
@@ -152,23 +155,23 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
     expect(content).toContain(`# ${context.projectName}`);
   });
 
-  it("contains_navigation_pointer_to_index_md", () => {
+  it("root_routing_table_references_lifecycle_and_docs", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const { content } = claudeMd(files);
-    expect(content).toContain(".claude/index.md");
-    // Navigation section lists standard navigation targets
-    expect(content).toContain("Navigation");
+    expect(content).toContain(".claude/lifecycle.md");
+    expect(content).toContain(".claude/routes/docs.md");
   });
 
-  it("claude_md_does_not_contain_wayfinding_table", () => {
+  it("claude_md_does_not_contain_block_content_only_routing", () => {
     const files = renderSentinelTree(
       [architectureBlock, testingBlock],
       context,
     );
     const { content } = claudeMd(files);
-    // Wayfinding is now in .claude/index.md, not CLAUDE.md
-    expect(content).not.toContain(".claude/standards/architecture.md");
-    expect(content).not.toContain(".claude/standards/testing.md");
+    // Routing table may reference standards files as destinations — that's correct.
+    // What MUST NOT appear is the actual block content (which lives in branch files).
+    expect(content).not.toContain("All config via env vars");
+    expect(content).not.toContain("Unit → integration → E2E");
   });
 
   it("uses_tag_names_in_description_when_no_domain_set", () => {
@@ -194,9 +197,11 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
     const noTagCtx: RenderContext = { ...context, tags: [], domain: "none" };
     const files = renderSentinelTree([architectureBlock], noTagCtx);
     const { content } = claudeMd(files);
-    // Still produces a valid comprehensive sentinel
+    // Still produces a valid slim root with UNIVERSAL tag
     expect(content).toContain("**Tags**: UNIVERSAL");
-    expect(content).toContain("GS Properties");
+    // GS Properties live in the constitution branch, not in the slim root
+    const constitution = getFile(files, ".claude/constitution.md");
+    expect(constitution.content).toContain("GS Properties");
   });
 
   it("uses_tag_name_in_stack_when_tags_include_api", () => {
@@ -210,56 +215,165 @@ describe("renderSentinelTree — CLAUDE.md content", () => {
 // ── New GS-compliance sections ───────────────────────────────────────────
 
 describe("renderSentinelTree — GS compliance sections", () => {
-  it("claude_md_contains_tool_sequencing_section", () => {
+  it("lifecycle_branch_contains_tool_sequencing", () => {
     const files = renderSentinelTree([architectureBlock], context);
-    const { content } = claudeMd(files);
-    expect(content).toContain("## Tool Sequencing");
-    expect(content).toContain("Recommended tool sequence");
+    const lifecycle = getFile(files, ".claude/lifecycle.md");
+    expect(lifecycle.content).toContain("## Tool Sequencing");
+    expect(lifecycle.content).toContain("New feature");
+    expect(lifecycle.content).toContain("Read PRD");
   });
 
-  it("claude_md_contains_corrections_log_section", () => {
+  it("corrections_branch_contains_log_stub", () => {
     const files = renderSentinelTree([architectureBlock], context);
-    const { content } = claudeMd(files);
-    expect(content).toContain("## Corrections Log");
-    expect(content).toContain("YYYY-MM-DD");
+    const corrections = getFile(files, ".claude/corrections.md");
+    expect(corrections.content).toContain("## Corrections Log");
+    expect(corrections.content).toContain("YYYY-MM-DD");
   });
 
-  it("claude_md_contains_navigation_mode_section_for_api_project", () => {
+  it("docs_routes_branch_contains_navigation_mode_for_api_project", () => {
     const files = renderSentinelTree([architectureBlock], context);
-    const { content } = claudeMd(files);
-    expect(content).toContain("## Navigation Mode");
-    expect(content).toContain("Read interfaces, not implementations first");
+    const docsRoutes = getFile(files, ".claude/routes/docs.md");
+    expect(docsRoutes.content).toContain("## Navigation Mode");
+    expect(docsRoutes.content).toContain(
+      "Read interfaces, not implementations first",
+    );
   });
 
-  it("navigation_mode_section_present_for_web_next_project", () => {
+  it("navigation_mode_present_for_web_next_project", () => {
     const webCtx: RenderContext = {
       ...context,
       tags: ["UNIVERSAL", "WEB-NEXT"],
     };
     const files = renderSentinelTree([architectureBlock], webCtx);
-    const { content } = claudeMd(files);
-    expect(content).toContain("## Navigation Mode");
-    expect(content).toContain("contracts are trustworthy");
+    const docsRoutes = getFile(files, ".claude/routes/docs.md");
+    expect(docsRoutes.content).toContain("## Navigation Mode");
+    expect(docsRoutes.content).toContain("contracts are trustworthy");
   });
 
-  it("tool_sequencing_row_contains_new_feature_sequence", () => {
+  it("lifecycle_branch_contains_feature_estimation", () => {
     const files = renderSentinelTree([architectureBlock], context);
-    const { content } = claudeMd(files);
-    expect(content).toContain("New feature");
-    expect(content).toContain("Read PRD");
+    const lifecycle = getFile(files, ".claude/lifecycle.md");
+    expect(lifecycle.content).toContain("Feature Estimation");
+    expect(lifecycle.content).toContain("Break into sub-tasks");
+    expect(lifecycle.content).toContain("scope boundary");
   });
 
-  it("claude_md_contains_feature_estimation_instruction", () => {
+  it("constitution_branch_contains_7_gs_properties", () => {
     const files = renderSentinelTree([architectureBlock], context);
-    const { content } = claudeMd(files);
-    expect(content).toContain("Feature Estimation");
-    expect(content).toContain("Break into sub-tasks");
+    const constitution = getFile(files, ".claude/constitution.md");
+    expect(constitution.content).toContain("Self-describing");
+    expect(constitution.content).toContain("Executable");
+    expect(constitution.content).toContain("Prohibited Operations");
   });
 
-  it("feature_estimation_requires_scope_boundary_statement", () => {
+  it("lifecycle_branch_contains_session_loop_invariant", () => {
     const files = renderSentinelTree([architectureBlock], context);
+    const lifecycle = getFile(files, ".claude/lifecycle.md");
+    expect(lifecycle.content).toContain("Session Loop Invariant");
+    expect(lifecycle.content).toContain("docs/status.md");
+  });
+
+  it("code_routes_branch_contains_folder_map", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const codeRoutes = getFile(files, ".claude/routes/code.md");
+    expect(codeRoutes.content).toContain("Folder Map");
+    expect(codeRoutes.content).toContain("Naming Conventions");
+  });
+
+  it("docs_routes_branch_omits_navigation_mode_when_no_arch_discipline_tags", () => {
+    const minimalCtx: RenderContext = {
+      ...context,
+      tags: [],
+    };
+    const files = renderSentinelTree([architectureBlock], minimalCtx);
+    const docsRoutes = getFile(files, ".claude/routes/docs.md");
+    // No architecture discipline tags → Navigation Mode section is omitted
+    expect(docsRoutes.content).not.toContain("## Navigation Mode");
+    // Document Map is always present
+    expect(docsRoutes.content).toContain("## Document Map");
+  });
+
+  it("constitution_branch_uses_web_layer_diagram_for_web_next_tag", () => {
+    const webCtx: RenderContext = {
+      ...context,
+      tags: ["UNIVERSAL", "WEB-NEXT"],
+    };
+    const files = renderSentinelTree([architectureBlock], webCtx);
+    const constitution = getFile(files, ".claude/constitution.md");
+    expect(constitution.content).toContain("App Router");
+  });
+
+  it("constitution_branch_uses_cli_layer_diagram_for_cli_tag", () => {
+    const cliCtx: RenderContext = { ...context, tags: ["UNIVERSAL", "CLI"] };
+    const files = renderSentinelTree([architectureBlock], cliCtx);
+    const constitution = getFile(files, ".claude/constitution.md");
+    expect(constitution.content).toContain("Commands");
+  });
+
+  it("code_routes_branch_uses_web_folder_map_for_web_react_tag", () => {
+    const webCtx: RenderContext = {
+      ...context,
+      tags: ["UNIVERSAL", "WEB-REACT"],
+    };
+    const files = renderSentinelTree([architectureBlock], webCtx);
+    const codeRoutes = getFile(files, ".claude/routes/code.md");
+    expect(codeRoutes.content).toContain("atoms/");
+  });
+
+  it("code_routes_branch_uses_cli_folder_map_for_cli_tag", () => {
+    const cliCtx: RenderContext = { ...context, tags: ["UNIVERSAL", "CLI"] };
+    const files = renderSentinelTree([architectureBlock], cliCtx);
+    const codeRoutes = getFile(files, ".claude/routes/code.md");
+    expect(codeRoutes.content).toContain("src/commands/");
+  });
+
+  it("constitution_branch_uses_library_layer_diagram_for_library_tag", () => {
+    const libCtx: RenderContext = {
+      ...context,
+      tags: ["UNIVERSAL", "LIBRARY"],
+    };
+    const files = renderSentinelTree([architectureBlock], libCtx);
+    const constitution = getFile(files, ".claude/constitution.md");
+    expect(constitution.content).toContain("Public API");
+  });
+
+  it("constitution_branch_uses_default_layer_diagram_for_unknown_tags", () => {
+    const genericCtx: RenderContext = { ...context, tags: ["UNIVERSAL"] };
+    const files = renderSentinelTree([architectureBlock], genericCtx);
+    const constitution = getFile(files, ".claude/constitution.md");
+    expect(constitution.content).toContain("Entry Points");
+  });
+
+  it("root_uses_library_stack_description_for_library_tag", () => {
+    const libCtx: RenderContext = {
+      ...context,
+      tags: ["UNIVERSAL", "LIBRARY"],
+    };
+    const files = renderSentinelTree([architectureBlock], libCtx);
     const { content } = claudeMd(files);
-    expect(content).toContain("scope boundary");
+    expect(content).toContain("TypeScript library");
+  });
+
+  it("root_uses_typescript_fallback_stack_for_unknown_tags", () => {
+    const genericCtx: RenderContext = { ...context, tags: ["UNIVERSAL"] };
+    const files = renderSentinelTree([architectureBlock], genericCtx);
+    const { content } = claudeMd(files);
+    expect(content).toContain("TypeScript");
+  });
+
+  it("root_uses_python_stack_description_for_python_tag", () => {
+    const pyCtx: RenderContext = { ...context, tags: ["PYTHON"] };
+    const files = renderSentinelTree([architectureBlock], pyCtx);
+    const { content } = claudeMd(files);
+    expect(content).toContain("Python");
+  });
+
+  it("code_routes_uses_default_folder_map_for_generic_tags", () => {
+    const genericCtx: RenderContext = { ...context, tags: ["UNIVERSAL"] };
+    const files = renderSentinelTree([architectureBlock], genericCtx);
+    const codeRoutes = getFile(files, ".claude/routes/code.md");
+    expect(codeRoutes.content).toContain("src/");
+    expect(codeRoutes.content).toContain("docs/");
   });
 });
 

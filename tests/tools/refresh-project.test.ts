@@ -187,12 +187,18 @@ describe("refreshProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      const lineCount = content.split("\n").length;
-      expect(lineCount).toBeGreaterThan(100);
-      expect(content).toContain("GS Properties");
+      // Slim CNT root: ≤80 lines, routing only
+      expect(content.split("\n").length).toBeLessThanOrEqual(80);
+      expect(content).toContain("CNT root");
+      // GS Properties live in .claude/constitution.md branch
+      const constitutionPath = join(tempDir, ".claude", "constitution.md");
+      expect(existsSync(constitutionPath)).toBe(true);
+      expect(readFileSync(constitutionPath, "utf-8")).toContain(
+        "GS Properties",
+      );
     });
 
-    it("CLAUDE.md contains the ForgeCraft sentinel comment", async () => {
+    it("CLAUDE.md contains the CNT root comment after refresh", async () => {
       writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
       await refreshProjectHandler({
         project_dir: tempDir,
@@ -200,7 +206,7 @@ describe("refreshProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      expect(content).toContain("ForgeCraft sentinel");
+      expect(content).toContain("CNT root");
     });
 
     it("writes domain standards files into .claude/standards/", async () => {
@@ -237,10 +243,10 @@ describe("refreshProjectHandler", () => {
 
       const after = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
       const lineCount = after.split("\n").length;
-      // Must be sentinel-length (100-200), NOT monolithic content appended (~300+)
-      expect(lineCount).toBeGreaterThan(100);
-      expect(lineCount).toBeLessThan(300);
-      expect(after).toContain("ForgeCraft sentinel");
+      // Must be slim CNT root (≤80 lines), NOT monolithic content appended (~300+)
+      expect(lineCount).toBeLessThanOrEqual(80);
+      expect(after).toContain("CNT root");
+      expect(after).toContain("Navigate by Task");
     });
 
     it("creates project-specific.md as a user-owned placeholder", async () => {
@@ -287,7 +293,7 @@ describe("refreshProjectHandler", () => {
       expect(after).toContain("Deploy to Railway");
     });
 
-    it("CLAUDE.md contains navigation pointer to .claude/index.md", async () => {
+    it("CLAUDE.md routing table references lifecycle branch", async () => {
       writeForgecraftYaml(tempDir, ["UNIVERSAL"]);
       await refreshProjectHandler({
         project_dir: tempDir,
@@ -295,8 +301,9 @@ describe("refreshProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      // Wayfinding is now in .claude/index.md; CLAUDE.md is the 3-line CNT root
-      expect(content).toContain(".claude/index.md");
+      // Routing table references branch files
+      expect(content).toContain(".claude/lifecycle.md");
+      expect(content).toContain(".claude/constitution.md");
     });
 
     it("response text indicates sentinel was used and explains scaffold scope", async () => {

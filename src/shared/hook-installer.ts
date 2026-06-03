@@ -72,6 +72,7 @@ const DEFAULT_MANIFEST: Record<GitHookType, string[]> = {
     "pre-commit-coverage.sh",
     "pre-commit-audit.sh",
     "pre-commit-doc-cascade.sh",
+    "pre-commit-gs-links.sh",
   ],
   "commit-msg": ["commit-msg.sh", "commit-msg-cascade.sh"],
   "post-commit": [
@@ -79,7 +80,7 @@ const DEFAULT_MANIFEST: Record<GitHookType, string[]> = {
     "post-commit-complexity-baseline.sh",
   ],
   "prepare-commit-msg": ["prepare-commit-msg-usecase.sh"],
-  "pre-push": [],
+  "pre-push": ["pre-push-doc-cascade.sh"],
 };
 
 // ── Audit ─────────────────────────────────────────────────────────────

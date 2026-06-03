@@ -547,10 +547,15 @@ describe("setupProjectHandler", () => {
       const claudePath = join(tempDir, "CLAUDE.md");
       expect(existsSync(claudePath)).toBe(true);
       const content = readFileSync(claudePath, "utf-8");
-      expect(content.split("\n").length).toBeGreaterThan(100);
-      expect(content).toContain("ForgeCraft sentinel");
-      expect(content).toContain("GS Properties");
-      expect(content).toContain(".claude/index.md");
+      // Slim CNT root: ≤80 lines, routing only
+      expect(content.split("\n").length).toBeLessThanOrEqual(80);
+      expect(content).toContain("CNT root");
+      expect(content).toContain("Navigate by Task");
+      // Branch files are created alongside the root
+      expect(existsSync(join(tempDir, ".claude", "constitution.md"))).toBe(
+        true,
+      );
+      expect(existsSync(join(tempDir, ".claude", "lifecycle.md"))).toBe(true);
     });
 
     it("ADR-000 is created on first setup", async () => {

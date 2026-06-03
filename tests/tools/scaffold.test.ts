@@ -105,8 +105,8 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      // UNIVERSAL blocks appear in all CLAUDE.md outputs — sentinel comment always present
-      expect(content).toContain("ForgeCraft sentinel");
+      // Slim CNT root: always contains routing table
+      expect(content).toContain("Navigate by Task");
     });
 
     it("returns response text listing created files", async () => {
@@ -152,15 +152,15 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(claudeMdPath, "utf-8");
-      // New content should include standard sentinel comment
-      expect(content).toContain("ForgeCraft sentinel");
+      // Slim CNT root replaces old content
+      expect(content).toContain("CNT root");
     });
   });
 
   // ── sentinel scaffolding ───────────────────────────────────────────
 
   describe("sentinel scaffolding (default)", () => {
-    it("creates a comprehensive sentinel CLAUDE.md (≥100 lines)", async () => {
+    it("creates slim CNT root CLAUDE.md (≤80 lines) and branch files", async () => {
       await scaffoldProjectHandler({
         tags: ["UNIVERSAL"],
         project_dir: tempDir,
@@ -171,8 +171,13 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      expect(content.split("\n").length).toBeGreaterThan(100);
-      expect(content).toContain("ForgeCraft sentinel");
+      expect(content.split("\n").length).toBeLessThanOrEqual(80);
+      expect(content).toContain("CNT root");
+      // Branch files created alongside root
+      expect(existsSync(join(tempDir, ".claude", "constitution.md"))).toBe(
+        true,
+      );
+      expect(existsSync(join(tempDir, ".claude", "lifecycle.md"))).toBe(true);
     });
 
     it("creates .claude/standards/ domain files", async () => {
@@ -246,8 +251,9 @@ describe("scaffoldProjectHandler", () => {
         output_targets: ["claude"],
       });
       const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
-      // Wayfinding is now in .claude/index.md; CLAUDE.md points to it
-      expect(content).toContain(".claude/index.md");
+      // Slim CNT root: references branch files in routing table
+      expect(content).toContain(".claude/lifecycle.md");
+      expect(content).toContain(".claude/constitution.md");
     });
   });
 

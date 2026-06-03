@@ -72,6 +72,7 @@ run_hook "pre-commit-test.sh"
 run_hook "pre-commit-coverage.sh"
 run_hook "pre-commit-audit.sh"
 run_hook "pre-commit-doc-cascade.sh"
+run_hook "pre-commit-gs-links.sh"
 
 exit 0
 EOF
@@ -181,7 +182,7 @@ PUSHEOF
 chmod +x "$PRE_PUSH"
 
 echo "✅ Git hooks installed:"
-echo "   .git/hooks/pre-commit         — 12 checks (temp-files, secrets, quality, branch, format, compile, cycles, tdd, tests, coverage, audit, doc-cascade)"
+echo "   .git/hooks/pre-commit         — 13 checks (temp-files, secrets, quality, branch, format, compile, cycles, tdd, tests, coverage, audit, doc-cascade, gs-links)"
 echo "   .git/hooks/commit-msg         — conventional format + doc-cascade enforcement"
 echo "   .git/hooks/prepare-commit-msg — tags commit with touched use case IDs"
 echo "   .git/hooks/post-commit        — updates CHANGELOG.md + complexity baseline"
