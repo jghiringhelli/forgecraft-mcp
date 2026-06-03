@@ -273,6 +273,17 @@ describe("renderSentinelTree — GS compliance sections", () => {
     expect(lifecycle.content).toContain("docs/status.md");
   });
 
+  it("lifecycle_branch_contains_gate_awareness_with_origin_provenance", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const lifecycle = getFile(files, ".claude/lifecycle.md");
+    expect(lifecycle.content).toContain("Gate Awareness");
+    // In-session detection triggers
+    expect(lifecycle.content).toContain("Same bug class fixed twice");
+    // Provenance distinction: organic (AI/dev proactive) vs genesis (system-detected)
+    expect(lifecycle.content).toContain("origin: organic");
+    expect(lifecycle.content).toContain("origin: genesis");
+  });
+
   it("code_routes_branch_contains_folder_map", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const codeRoutes = getFile(files, ".claude/routes/code.md");

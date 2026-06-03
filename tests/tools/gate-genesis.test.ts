@@ -205,6 +205,9 @@ describe("writeGateDrafts", () => {
     expect(content).toContain("generalizable: false");
     expect(content).toContain("status: draft");
     expect(content).toContain("hardcoded URL in src/a.ts");
+    // Provenance: genesis drafts are marked as system-detected
+    expect(content).toContain("origin: genesis");
+    expect(content).toContain("detectedFrom: violations");
   });
 
   it("never overwrites an existing draft (idempotent)", () => {

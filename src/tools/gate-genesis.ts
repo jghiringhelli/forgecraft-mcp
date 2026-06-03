@@ -252,6 +252,12 @@ function buildDraftYaml(candidate: GateCandidate): string {
       implementation: "logic",
       source: "project",
       status: "draft",
+      // Provenance: "genesis" = the system detected the need from repeated
+      // friction. AI/dev-created gates use "organic" (see Gate Awareness in
+      // .claude/lifecycle.md). Tracked so the registry can distinguish gates
+      // born from observed failure vs. proactive judgment.
+      origin: "genesis",
+      detectedFrom: candidate.source,
       generalizable: false,
       evidence: `Observed ${candidate.occurrences}x in this project. Examples: ${candidate.examples.join(" | ")}`,
       observedExamples: [...candidate.examples],
