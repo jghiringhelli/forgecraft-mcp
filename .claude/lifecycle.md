@@ -45,6 +45,19 @@ Each sub-task must be completable without reloading the full spec.
 | Refactor | Read architecture → Check layers → Change → Run tests → Commit |
 | Schema change | Read data-model → Update schema types → Regen → Update UC → Commit |
 
+## Working Memory Protocol (mid-session context management)
+
+Context windows degrade. When a session grows long:
+
+1. **Checkpoint before continuing.** Update `docs/status.md` with completed sub-tasks
+   and the exact next step — specific enough to resume cold.
+2. **Don't reload what contracts already answer.** If tests pass and types compile,
+   trust the contract — do not re-read implementations to "refresh" your memory.
+3. **One sub-task at a time.** If the current sub-task's context no longer fits cleanly,
+   finish it, commit, checkpoint, and start the next sub-task fresh.
+4. **Never hold unsaved decisions in working memory.** A decision worth remembering
+   goes to an ADR or status.md the moment it's made — not at session end.
+
 ## Session Loop Invariant (close-of-session gate)
 
 Before closing any session:
