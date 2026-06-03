@@ -93,6 +93,7 @@ export function writeForgeYaml(
   decisions: CascadeDecision[],
   sensitiveData?: boolean,
   brownfield?: boolean,
+  language?: string,
 ): boolean {
   const yamlPath = join(projectDir, "forgecraft.yaml");
   let config: Record<string, unknown>;
@@ -107,6 +108,7 @@ export function writeForgeYaml(
     }
   } else {
     config = { projectName, tags: tags.length > 0 ? tags : ["UNIVERSAL"] };
+    if (language && language !== "typescript") config["language"] = language;
     if (sensitiveData !== undefined) config["sensitiveData"] = sensitiveData;
     if (brownfield === true) config["brownfield"] = true;
   }
@@ -1071,9 +1073,9 @@ export function writeStatusMd(
     `> Update this file at the end of each session. The Session Loop Invariant in CLAUDE.md`,
     `> references this file for any unresolved items.`,
     ``,
-    `## Current State`,
+    `## Completed (this session)`,
     ``,
-    `<!-- FILL: brief 1-2 sentence description of the current project state -->`,
+    `<!-- FILL: what was finished in the most recent session -->`,
     ``,
     `## In Progress`,
     ``,
@@ -1083,13 +1085,13 @@ export function writeStatusMd(
     ``,
     `<!-- FILL: first roadmap item or pending task — be specific enough to resume without re-reading everything -->`,
     ``,
-    `## Open Issues / Blockers`,
+    `## Decisions Made (this session)`,
     ``,
-    `<!-- FILL: known issues, blockers, or technical debt that need resolution -->`,
+    `<!-- FILL: key decisions made — link to ADRs where they exist -->`,
     ``,
-    `## Recent Decisions`,
+    `## Blockers / Dependencies`,
     ``,
-    `<!-- FILL: key decisions made recently — link to ADRs where they exist -->`,
+    `<!-- FILL: known blockers, open questions, or external dependencies -->`,
   ].join("\n");
 
   writeFileSync(statusPath, content, "utf-8");

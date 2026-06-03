@@ -885,7 +885,7 @@ describe("setupProjectHandler", () => {
       expect(existsSync(statusPath)).toBe(true);
       const content = readFileSync(statusPath, "utf-8");
       expect(content).toContain("## Next");
-      expect(content).toContain("## Current State");
+      expect(content).toContain("## In Progress");
     });
 
     it("phase 2 response lists docs/manifest.yaml in artifacts", async () => {

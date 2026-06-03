@@ -112,6 +112,12 @@ export interface SetupProjectArgs {
    * Enables generate_harness to produce meaningful probes immediately after setup.
    */
   readonly use_cases?: ReadonlyArray<UseCaseInput>;
+  /**
+   * Phase 2: primary programming language for the project.
+   * Persisted to forgecraft.yaml and used to select language-specific template blocks.
+   * Defaults to "typescript".
+   */
+  readonly language?: "typescript" | "python";
 }
 
 export type { UseCaseInput };
@@ -228,6 +234,7 @@ async function executePhase2(
     decisions,
     isSensitive,
     context.isBrownfield,
+    args.language,
   );
   setExperimentGroupIfMissing(projectDir);
 
@@ -261,7 +268,7 @@ async function executePhase2(
     tags: validTagsForHooks,
     project_dir: projectDir,
     project_name: projectName,
-    language: "typescript",
+    language: args.language ?? "typescript",
     dry_run: false,
     force: false,
     sentinel: true,
