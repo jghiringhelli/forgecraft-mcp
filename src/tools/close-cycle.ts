@@ -230,6 +230,27 @@ export async function closeCycle(
     nextSteps.push(`Warning: Drift: ${driftResult.message}`);
   }
 
+  // Step 8.5 -- Gate genesis: propose gates from repeated violations/corrections
+  let gateCandidates: import("./gate-genesis.js").GateCandidate[] = [];
+  let gateDraftsWritten: string[] = [];
+  try {
+    const { proposeGateCandidates, writeGateDrafts } =
+      await import("./gate-genesis.js");
+    gateCandidates = proposeGateCandidates(projectRoot);
+    if (gateCandidates.length > 0 && !effectiveDryRun) {
+      gateDraftsWritten = writeGateDrafts(projectRoot, gateCandidates);
+    }
+    for (const candidate of gateCandidates) {
+      nextSteps.push(
+        `Gate candidate: "${candidate.pattern}" recurred ${candidate.occurrences}x ` +
+          `(${candidate.source}). Draft at .forgecraft/gates/drafts/${candidate.id}.yaml — ` +
+          `fill it in and move to gates/active/ to enforce.`,
+      );
+    }
+  } catch {
+    // Gate genesis is advisory — never blocks cycle close
+  }
+
   if (nextSteps.length === 0) {
     nextSteps.push(
       "Cycle complete. Commit your changes with: git commit -m 'feat(...): ...'",
@@ -258,6 +279,17 @@ export async function closeCycle(
     ...(gsScoreLoop !== undefined ? { gsScoreLoop } : {}),
     ...(driftResult.driftDetected ? { driftWarning: driftResult.message } : {}),
     ...(experiment?.id ? { experimentId: experiment.id } : {}),
+    ...(gateCandidates.length > 0
+      ? {
+          gateCandidates: gateCandidates.map((c) => ({
+            id: c.id,
+            pattern: c.pattern,
+            source: c.source,
+            occurrences: c.occurrences,
+          })),
+          gateDraftsWritten,
+        }
+      : {}),
   };
 }
 

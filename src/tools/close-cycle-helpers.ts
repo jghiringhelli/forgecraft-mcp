@@ -38,6 +38,15 @@ export interface CloseCycleResult {
   readonly gsScoreLoop?: number;
   /** Experiment id when experiment mode is active — gates are auto-contributed */
   readonly experimentId?: string;
+  /** Gate candidates proposed from repeated violations/corrections (gate genesis). */
+  readonly gateCandidates?: ReadonlyArray<{
+    readonly id: string;
+    readonly pattern: string;
+    readonly source: "violations" | "corrections";
+    readonly occurrences: number;
+  }>;
+  /** Draft gate files written to .forgecraft/gates/drafts/ this cycle. */
+  readonly gateDraftsWritten?: string[];
 }
 
 // ── Roadmap Types ────────────────────────────────────────────────────
