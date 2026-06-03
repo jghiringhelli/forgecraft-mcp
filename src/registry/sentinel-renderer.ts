@@ -174,7 +174,7 @@ function buildRootClaudeMd(
   const date = new Date().toISOString().split("T")[0];
   const tagList =
     context.tags.filter((t) => t !== "UNIVERSAL").join(", ") || "UNIVERSAL";
-  const stackLine = inferStackFromTags(context.tags);
+  const stackLine = inferStackFromTags(context.tags, context.language);
 
   return [
     `# ${context.projectName} — Architecture Sentinel`,
@@ -262,9 +262,18 @@ function buildConstitutionFile(context: RenderContext): string {
     ``,
     `- A layer never imports from a layer above it. No lateral imports between domains.`,
     `- Shared utilities go to \`shared/\` — never duplicated across domains.`,
-    `- Strict typing: no \`any\` — use \`unknown\` + narrowing.`,
-    `- Explicit return types on all exported functions.`,
-    `- No circular imports (hook-enforced).`,
+    ...(context.language === "python"
+      ? [
+          `- Type hints required on all public functions (mypy strict or pyright strict).`,
+          `- No implicit \`Any\` — use \`Union\`, \`Optional\`, or \`Protocol\` for flexible types.`,
+          `- No circular imports (use TYPE_CHECKING guard if needed).`,
+        ]
+      : [
+          `- Strict typing: no \`any\` — use \`unknown\` + narrowing.`,
+          `- Explicit return types on all exported functions.`,
+          `- No circular imports (hook-enforced).`,
+          `- ESM imports: all local imports use \`.js\` extensions.`,
+        ]),
     `- Files ≤300 lines, functions ≤50 lines. Extract when exceeded.`,
     ``,
     `## Commit Protocol (Conventional Commits, strict)`,
@@ -400,21 +409,43 @@ function buildCodeRoutesFile(context: RenderContext): string {
     ``,
     `## Naming Conventions`,
     ``,
-    `| Artifact | Convention | Example |`,
-    `| --- | --- | --- |`,
-    `| Files | \`kebab-case.ts\` | \`user-service.ts\` |`,
-    `| Classes / Types / Interfaces | \`PascalCase\` | \`UserService\` |`,
-    `| Variables / Functions | \`camelCase\` | \`getUserById\` |`,
-    `| Database columns / JSON keys | \`snake_case\` | \`created_at\` |`,
-    `| Constants | \`SCREAMING_SNAKE_CASE\` | \`MAX_RETRY_COUNT\` |`,
-    `| Allowed abbreviations | — | id, url, http, db, api, ctx, err |`,
+    ...(context.language === "python"
+      ? [
+          `| Artifact | Convention | Example |`,
+          `| --- | --- | --- |`,
+          `| Files / modules | \`snake_case.py\` | \`user_service.py\` |`,
+          `| Classes | \`PascalCase\` | \`UserService\` |`,
+          `| Variables / Functions | \`snake_case\` | \`get_user_by_id\` |`,
+          `| Database columns / JSON keys | \`snake_case\` | \`created_at\` |`,
+          `| Constants | \`SCREAMING_SNAKE_CASE\` | \`MAX_RETRY_COUNT\` |`,
+          `| Allowed abbreviations | — | id, url, http, db, api, ctx, err |`,
+        ]
+      : [
+          `| Artifact | Convention | Example |`,
+          `| --- | --- | --- |`,
+          `| Files | \`kebab-case.ts\` | \`user-service.ts\` |`,
+          `| Classes / Types / Interfaces | \`PascalCase\` | \`UserService\` |`,
+          `| Variables / Functions | \`camelCase\` | \`getUserById\` |`,
+          `| Database columns / JSON keys | \`snake_case\` | \`created_at\` |`,
+          `| Constants | \`SCREAMING_SNAKE_CASE\` | \`MAX_RETRY_COUNT\` |`,
+          `| Allowed abbreviations | — | id, url, http, db, api, ctx, err |`,
+        ]),
     ``,
     `## Code Standards`,
     ``,
-    `- Strict typing — no \`any\`, use \`unknown\` + narrowing`,
-    `- Explicit return types on all exported functions`,
-    `- Files ≤300 lines, functions ≤50 lines — extract when exceeded`,
-    `- Absolute imports with path aliases (\`@/\` → \`src/\`)`,
+    ...(context.language === "python"
+      ? [
+          `- Type hints on all public functions — mypy strict or pyright strict`,
+          `- No mutable default arguments; use \`None\` + guard`,
+          `- Files ≤300 lines, functions ≤50 lines — extract when exceeded`,
+          `- Absolute imports from package root; no \`sys.path\` manipulation`,
+        ]
+      : [
+          `- Strict typing — no \`any\`, use \`unknown\` + narrowing`,
+          `- Explicit return types on all exported functions`,
+          `- Files ≤300 lines, functions ≤50 lines — extract when exceeded`,
+          `- Absolute imports with path aliases (\`@/\` → \`src/\`)`,
+        ]),
     `- No dead code, unused imports, or \`console.log\` in production files`,
     ``,
   ].join("\n");
@@ -511,12 +542,24 @@ function buildCorrectionsFile(): string {
 }
 
 /**
- * Infer the stack description from project tags.
+ * Infer the stack description from project tags and language.
  *
  * @param tags - Project tags
+ * @param language - Primary language ("typescript" default, "python")
  * @returns Human-readable stack string
  */
-function inferStackFromTags(tags: readonly string[]): string {
+function inferStackFromTags(
+  tags: readonly string[],
+  language?: string,
+): string {
+  if (language === "python") {
+    if (tags.includes("API")) return "Python REST/GraphQL API (FastAPI/Django)";
+    if (tags.includes("CLI")) return "Python CLI";
+    if (tags.includes("DATA-PIPELINE")) return "Python data pipeline";
+    if (tags.includes("ML")) return "Python ML";
+    if (tags.includes("LIBRARY")) return "Python library";
+    return "Python";
+  }
   if (tags.includes("WEB-NEXT")) return "Next.js 14+ App Router + TypeScript";
   if (tags.includes("WEB-REACT")) return "React + TypeScript + Vite/Next.js";
   if (tags.includes("API")) return "TypeScript/Node.js REST/GraphQL API";

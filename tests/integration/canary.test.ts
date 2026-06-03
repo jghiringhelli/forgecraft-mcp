@@ -330,4 +330,37 @@ describe("canary: Python analytics pipeline", () => {
     const yaml = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
     expect(yaml).toContain("python");
   });
+
+  it("CLAUDE.md stack line is Python, not TypeScript", () => {
+    const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+    expect(content).toContain("Python");
+    expect(content).not.toContain("TypeScript/Node.js");
+  });
+
+  it("constitution.md uses Python typing rules, not TypeScript", () => {
+    const content = readFileSync(
+      join(tempDir, ".claude/constitution.md"),
+      "utf-8",
+    );
+    expect(content).toContain("Type hints");
+    expect(content).not.toContain("ESM imports");
+    expect(content).not.toContain("`any`");
+  });
+
+  it("routes/code.md uses snake_case naming for Python", () => {
+    const content = readFileSync(
+      join(tempDir, ".claude/routes/code.md"),
+      "utf-8",
+    );
+    expect(content).toContain("snake_case.py");
+    expect(content).not.toContain("kebab-case.ts");
+  });
+
+  it("routes/code.md Python code standards mention mypy/pyright", () => {
+    const content = readFileSync(
+      join(tempDir, ".claude/routes/code.md"),
+      "utf-8",
+    );
+    expect(content).toMatch(/mypy|pyright/);
+  });
 });
