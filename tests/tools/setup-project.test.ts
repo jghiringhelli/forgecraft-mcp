@@ -937,4 +937,64 @@ describe("setupProjectHandler", () => {
       expect(content).toBe("# existing status\n");
     });
   });
+
+  describe("architecture CNT stubs", () => {
+    it("phase 2 creates docs/architecture/layers.md", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const filePath = join(tempDir, "docs", "architecture", "layers.md");
+      expect(existsSync(filePath)).toBe(true);
+      expect(readFileSync(filePath, "utf-8")).toContain("Boundary Rules");
+    });
+
+    it("phase 2 creates all four architecture CNT branch files", async () => {
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const archDir = join(tempDir, "docs", "architecture");
+      for (const file of [
+        "layers.md",
+        "modules.md",
+        "data-model.md",
+        "integrations.md",
+      ]) {
+        expect(existsSync(join(archDir, file)), `${file} should exist`).toBe(
+          true,
+        );
+      }
+    });
+
+    it("phase 2 response lists architecture CNT files in artifacts", async () => {
+      const result = await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("architecture CNT branch");
+    });
+
+    it("does not overwrite existing docs/architecture/layers.md", async () => {
+      const archDir = join(tempDir, "docs", "architecture");
+      mkdirSync(archDir, { recursive: true });
+      writeFileSync(join(archDir, "layers.md"), "# existing layers\n", "utf-8");
+      await setupProjectHandler({
+        project_dir: tempDir,
+        mvp: true,
+        scope_complete: false,
+        has_consumers: false,
+      });
+      expect(readFileSync(join(archDir, "layers.md"), "utf-8")).toBe(
+        "# existing layers\n",
+      );
+    });
+  });
 });

@@ -1096,6 +1096,137 @@ export function writeStatusMd(
   return true;
 }
 
+// ── Architecture CNT stub writer ─────────────────────────────────────
+
+/**
+ * Write docs/architecture/ CNT branch stubs — four scoped nodes for
+ * layers, modules, data-model, and integrations.
+ * Never overwrites existing files.
+ *
+ * @param projectDir - Project root
+ * @param projectName - Project name
+ * @returns Array of relative paths written
+ */
+export function writeArchitectureCntStubs(
+  projectDir: string,
+  projectName: string,
+): string[] {
+  const archDir = join(projectDir, "docs", "architecture");
+  mkdirSync(archDir, { recursive: true });
+  const written: string[] = [];
+
+  const stubs: Array<{ file: string; content: string }> = [
+    {
+      file: "layers.md",
+      content: [
+        `# Architecture: Layer Diagram & Boundary Rules`,
+        ``,
+        `> CNT node — read when: changing or reviewing layer structure, adding a new module, or diagnosing layer violations.`,
+        ``,
+        `## Layers`,
+        ``,
+        `<!-- FILL: document the layer stack (e.g. Entry → Dispatch → Handlers → Domain → Adapters) -->`,
+        ``,
+        `## Boundary Rules`,
+        ``,
+        `| From | To | Allowed | Rule |`,
+        `|---|---|---|---|`,
+        `| <!-- FILL --> | <!-- FILL --> | ✅/❌ | <!-- FILL --> |`,
+        ``,
+        `## Key Invariants`,
+        ``,
+        `<!-- FILL: list the non-negotiable structural invariants (e.g. "no circular imports", "domain has zero external imports") -->`,
+      ].join("\n"),
+    },
+    {
+      file: "modules.md",
+      content: [
+        `# Architecture: Module Registry`,
+        ``,
+        `> CNT node — read when: adding a new module, understanding file ownership, or debugging an unexpected dependency.`,
+        ``,
+        `## Core Modules`,
+        ``,
+        `| Module | File | Owns | Does NOT own |`,
+        `|---|---|---|---|`,
+        `| <!-- FILL: module name --> | <!-- FILL: path --> | <!-- FILL: responsibility --> | <!-- FILL: what it delegates --> |`,
+        ``,
+        `## Shared Utilities`,
+        ``,
+        `<!-- FILL: list shared utility modules and their purpose -->`,
+        ``,
+        `## Addition Protocol`,
+        ``,
+        `When adding a new module: <!-- FILL: define the decision tree for where new code goes -->`,
+      ].join("\n"),
+    },
+    {
+      file: "data-model.md",
+      content: [
+        `# Architecture: Data Model & Schema`,
+        ``,
+        `> CNT node — read when: changing the data model, adding entities, modifying schema, or updating the ERD.`,
+        ``,
+        `## Core Entities`,
+        ``,
+        `<!-- FILL: describe primary entities with their fields and invariants -->`,
+        ``,
+        `## Entity Relationships`,
+        ``,
+        `\`\`\`mermaid`,
+        `erDiagram`,
+        `    %% FILL: replace with actual entities and relationships`,
+        `    ENTITY_A ||--o{ ENTITY_B : "has"`,
+        `\`\`\``,
+        ``,
+        `## Schema Notes`,
+        ``,
+        `<!-- FILL: naming conventions, migration strategy, DB / persistence approach -->`,
+        ``,
+        `## DB / State`,
+        ``,
+        `<!-- FILL: where does state live? (DB, file system, in-memory, external service) -->`,
+        `<!-- If using a DB: describe the migration strategy and any ORM/query builder choices -->`,
+      ].join("\n"),
+    },
+    {
+      file: "integrations.md",
+      content: [
+        `# Architecture: External Integrations`,
+        ``,
+        `> CNT node — read when: adding a new external dependency, changing a protocol, or understanding network access.`,
+        ``,
+        `## Integration Map`,
+        ``,
+        `| Integration | Direction | When | Protocol |`,
+        `|---|---|---|---|`,
+        `| <!-- FILL: name --> | Inbound/Outbound | <!-- FILL: when --> | <!-- FILL: HTTP/gRPC/stdio/etc --> |`,
+        ``,
+        `## File System Contract`,
+        ``,
+        `<!-- FILL: what paths does this project read/write? what is out of bounds? -->`,
+        ``,
+        `## Network Policy`,
+        ``,
+        `<!-- FILL: which operations require network access? which must work offline? -->`,
+      ].join("\n"),
+    },
+  ];
+
+  for (const stub of stubs) {
+    const filePath = join(archDir, stub.file);
+    if (!existsSync(filePath)) {
+      writeFileSync(filePath, stub.content, "utf-8");
+      written.push(`docs/architecture/${stub.file}`);
+    }
+  }
+
+  // Suppress unused variable warning
+  void projectName;
+
+  return written;
+}
+
 // ── Load cascade decisions ────────────────────────────────────────────
 
 /**

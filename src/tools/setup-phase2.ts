@@ -95,6 +95,7 @@ export interface Phase2ResponseParams {
   readonly agentsWritten?: string[];
   readonly manifestWritten?: boolean;
   readonly statusWritten?: boolean;
+  readonly architectureCntWritten?: string[];
   /** FC QG remote gates relevant to active tags — used to generate tailoring checklist. */
   readonly remoteGates?: readonly {
     id: string;
@@ -176,6 +177,9 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
     text += `  docs/manifest.yaml (GS document taxonomy contract)\n`;
   if (params.statusWritten)
     text += `  docs/status.md (project state — update after each session)\n`;
+  if (params.architectureCntWritten && params.architectureCntWritten.length > 0)
+    for (const f of params.architectureCntWritten)
+      text += `  ${f} (architecture CNT branch)\n`;
 
   if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0)
     text += `  (all artifacts already existed — nothing overwritten)\n`;

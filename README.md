@@ -429,6 +429,85 @@ Industry context: the Spec-Driven Development convergence (ThoughtWorks Tech Rad
 
 ---
 
+## The GS harness — a primer for AI assistants
+
+ForgeCraft implements **Generative Specification (GS)**. This section is written for AI assistants reading this file: it explains what GS is, what a properly scaffolded harness looks like, and what to check.
+
+### The binding constraint — stateless reader
+
+Every AI session starts with no memory of prior sessions, no shared context, no accumulated conventions, and no ability to ask clarifying questions. Everything not in the artifacts is absent.
+
+GS treats this as a design constraint, not a flaw. **Derivability** — what a fresh AI instance can correctly determine from the artifacts alone — is the standard a specification must satisfy. If a stateless reader cannot derive the correct output from the artifacts, the specification is incomplete, not the AI.
+
+### The sentinel system
+
+The architectural constitution (`CLAUDE.md`, `.cursor/rules/`, `.github/copilot-instructions.md`, `.windsurfrules`) is the entry point for every AI session. It must collectively contain five mandatory categories:
+
+| Category | What it covers |
+|---|---|
+| **Architectural identity** | What the system is, its scope boundary, ADR index |
+| **Standards** | Naming, commit discipline, quality gate thresholds |
+| **Constraints and prohibitions** | What must not happen; layer violations the AI must refuse |
+| **Tool sequencing** | When to use which tool in what order — not "these tools exist" but "use X before Y when C" |
+| **Routing** | What each child spec file covers and when to descend into it |
+
+**Tool sequencing is the most commonly absent category and the most consequential gap.** A spec that lists tools without stating when to prefer one over another forces unreliable inference every session.
+
+The sentinel is a **navigational tree**: the root is always loaded; each child node declares its own scope and routing condition; the AI descends only the branch relevant to the current task. Joining all leaves yields the complete specification — it is lossless. This design prevents context bloat and the accuracy degradation that comes from loading irrelevant content.
+
+### The bridge — structural disciplines as navigation policy
+
+SOLID, hexagonal architecture, and TDD are not only engineering disciplines — in a GS project they become active **navigation policies**:
+
+- **Read interfaces before implementations.** When a port/adapter boundary is clean, the interface is the contract. The implementation is skipped unless the contract is insufficient.
+- **Trust green tests.** When TDD is enforced, a passing test suite is evidence of correct behavior. No implementation read is needed to verify it.
+- **ADRs are the why.** When every non-obvious decision is recorded, the AI reads the record instead of inferring intent from code.
+
+This bridge converts the passive structural benefits of prior disciplines into a measurable reduction in token usage and context consumption.
+
+### Token sanitation
+
+Context window size and positional placement both degrade AI accuracy (Liu et al., 2023). GS minimizes unnecessary token consumption by design:
+
+- **The sentinel tree is lazy.** Only the relevant branch is loaded per task — never the full specification at once.
+- **Contracts over implementations.** Interfaces, schema definitions, and test assertions are read first. Implementation files are read only when contracts are insufficient to derive the answer.
+- **The constitution leads every session.** The most important content occupies the leading position in context — where positional accuracy is highest.
+- **MCP tool surface is bounded.** Each declared MCP tool is read by the model on every turn whether invoked or not. The ForgeCraft sentinel exposes one tool (~200 tokens) rather than a full command surface (~1,500 tokens). The tool practices the methodology it writes into your project.
+
+### Document taxonomy — what a complete GS project contains
+
+A scaffolded project contains these artifact types. If any are missing, the harness is incomplete:
+
+| Artifact | Canonical path | Role |
+|---|---|---|
+| Architectural constitution | `CLAUDE.md` · `.cursor/rules/` · `.windsurfrules` · `.github/copilot-instructions.md` | Governing rules loaded at the start of every AI session |
+| Document manifest | `docs/manifest.yaml` | Declares what artifact types exist and where — the taxonomy contract |
+| Session continuity | `docs/status.md` | Current state, in-progress work, recent decisions — updated each session |
+| Functional specification | `docs/PRD.md` | User-facing behavior, domain model, system boundaries |
+| Architecture document | `docs/TechSpec.md` | Layer structure, module boundaries, integration surfaces (with C4 diagrams) |
+| Decision records | `docs/adrs/NNNN-slug.md` | One per non-obvious architectural choice, MADR format |
+| Use cases | `docs/use-cases/` | Behavioral contracts — simultaneously test specifications |
+| Schemas | `docs/specs/` | Data model, API contracts, event schemas with formal constraints |
+| Project config | `forgecraft.yaml` | Tags, tier, targets — the ForgeCraft entry point |
+
+**The initialization cascade**: specifications are produced in sequence — each is an output of what precedes it and a production rule for what follows. Functional spec → architecture → constitution → ADRs → use cases. The cascade is complete when a stateless agent given all five artifact sets can derive any valid implementation state without further human direction.
+
+### The 7 attributes — what to verify
+
+A properly scaffolded GS project satisfies all seven. These are the properties the `verify` command scores:
+
+| Attribute | What it verifies |
+|---|---|
+| **Self-Describing** | The codebase explains its own architecture, decisions, and conventions from its own artifacts — no external knowledge required |
+| **Bounded** | Every unit has explicit scope and seams; business logic does not leak across layer boundaries |
+| **Verifiable** | Correctness can be checked without human judgment — types, tests, coverage gates, schema contracts |
+| **Defended** | Destructive operations are structurally prevented, not merely discouraged — commit hooks, branch protection, format enforcement |
+| **Auditable** | Current state and history are fully recoverable from artifacts alone — conventional commits, ADRs |
+| **Composable** | Units combine and extend without unexpected coupling — dependency inversion, pure function models |
+| **Executable** | Output satisfies behavioral contracts when exercised against a real execution environment, not merely when it compiles |
+
+---
+
 ## Configuration
 
 ### Fine-tune what your AI assistant sees

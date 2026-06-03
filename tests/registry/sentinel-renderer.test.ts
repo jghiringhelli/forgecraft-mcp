@@ -248,6 +248,19 @@ describe("renderSentinelTree — GS compliance sections", () => {
     expect(content).toContain("New feature");
     expect(content).toContain("Read PRD");
   });
+
+  it("claude_md_contains_feature_estimation_instruction", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const { content } = claudeMd(files);
+    expect(content).toContain("Feature Estimation");
+    expect(content).toContain("Break into sub-tasks");
+  });
+
+  it("feature_estimation_requires_scope_boundary_statement", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const { content } = claudeMd(files);
+    expect(content).toContain("scope boundary");
+  });
 });
 
 // ── Domain file content tests ────────────────────────────────────────────

@@ -30,6 +30,7 @@ import {
   writeAgentDefinitions,
   writeProjectManifest,
   writeStatusMd,
+  writeArchitectureCntStubs,
   initGitRepo,
   checkGitStatus,
 } from "./setup-artifact-writers.js";
@@ -327,6 +328,12 @@ async function executePhase2(
   );
   const statusWritten = writeStatusMd(projectDir, projectName);
 
+  // Write docs/architecture/ CNT branch stubs
+  const architectureCntWritten = writeArchitectureCntStubs(
+    projectDir,
+    projectName,
+  );
+
   // Auto-extract ADRs from spec when spec is available (non-fatal if it fails)
   let adrsExtracted = 0;
   const specFileForAdrs =
@@ -383,6 +390,7 @@ async function executePhase2(
     agentsWritten,
     manifestWritten,
     statusWritten,
+    architectureCntWritten,
     remoteGates,
   });
 
