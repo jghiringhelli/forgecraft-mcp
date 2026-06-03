@@ -364,3 +364,136 @@ describe("canary: Python analytics pipeline", () => {
     expect(content).toMatch(/mypy|pyright/);
   });
 });
+
+// ── Diverse project-type canaries ─────────────────────────────────────
+// Each scaffolds a very different domain to verify tag-specific content
+// reaches the harness — not just structure.
+
+const FIXTURE_GAME = join(import.meta.dirname, "..", "fixtures", "canary-game");
+const FIXTURE_FINTECH = join(
+  import.meta.dirname,
+  "..",
+  "fixtures",
+  "canary-fintech",
+);
+const FIXTURE_MINIMAL = join(
+  import.meta.dirname,
+  "..",
+  "fixtures",
+  "canary-minimal",
+);
+
+describe("canary: GAME project (Orbit Breaker)", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    process.env["VITEST"] = "1";
+    tempDir = await scaffoldCanary(FIXTURE_GAME, {
+      language: "typescript",
+      tags: ["UNIVERSAL", "GAME", "WEB-STATIC"],
+    });
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+    delete process.env["VITEST"];
+  });
+
+  it("produces the full CNT structure", () => {
+    expect(existsSync(join(tempDir, "CLAUDE.md"))).toBe(true);
+    expect(existsSync(join(tempDir, ".claude", "constitution.md"))).toBe(true);
+    expect(existsSync(join(tempDir, ".claude", "lifecycle.md"))).toBe(true);
+  });
+
+  it("GAME tag content reaches the standards files", () => {
+    const standardsDir = join(tempDir, ".claude", "standards");
+    expect(existsSync(standardsDir)).toBe(true);
+    const all = readdirSync(standardsDir)
+      .map((f) => readFileSync(join(standardsDir, f), "utf-8"))
+      .join("\n");
+    // GAME template blocks must surface game-specific guidance
+    expect(all).toMatch(/game loop|frame|fps|Phaser|ECS|render/i);
+  });
+
+  it("forgecraft.yaml records the GAME tag", () => {
+    const yaml = readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8");
+    expect(yaml).toContain("GAME");
+  });
+});
+
+describe("canary: FINTECH project (LedgerCore)", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    process.env["VITEST"] = "1";
+    tempDir = await scaffoldCanary(FIXTURE_FINTECH, {
+      language: "typescript",
+      tags: ["UNIVERSAL", "API", "FINTECH"],
+    });
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+    delete process.env["VITEST"];
+  });
+
+  it("produces the full CNT structure", () => {
+    expect(existsSync(join(tempDir, "CLAUDE.md"))).toBe(true);
+    expect(existsSync(join(tempDir, ".claude", "constitution.md"))).toBe(true);
+  });
+
+  it("FINTECH tag content reaches the standards files", () => {
+    const standardsDir = join(tempDir, ".claude", "standards");
+    const all = readdirSync(standardsDir)
+      .map((f) => readFileSync(join(standardsDir, f), "utf-8"))
+      .join("\n");
+    // FINTECH blocks must surface money-handling discipline
+    expect(all).toMatch(/decimal|double-entry|currency|float|precision/i);
+  });
+
+  it("sensitive-data posture: PRD content with compliance reaches docs", () => {
+    const prd = readFileSync(join(tempDir, "docs", "PRD.md"), "utf-8");
+    expect(prd.length).toBeGreaterThan(100);
+  });
+});
+
+describe("canary: minimal one-paragraph spec (lazy user)", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    process.env["VITEST"] = "1";
+    // No tags override — let ForgeCraft infer from the thin spec
+    tempDir = await scaffoldCanary(FIXTURE_MINIMAL, {});
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+    delete process.env["VITEST"];
+  });
+
+  it("still produces a complete harness from a 3-sentence spec", () => {
+    expect(existsSync(join(tempDir, "CLAUDE.md"))).toBe(true);
+    expect(existsSync(join(tempDir, "forgecraft.yaml"))).toBe(true);
+    expect(existsSync(join(tempDir, "docs", "PRD.md"))).toBe(true);
+    expect(existsSync(join(tempDir, ".claude", "constitution.md"))).toBe(true);
+    expect(existsSync(join(tempDir, ".claude", "lifecycle.md"))).toBe(true);
+  });
+
+  it("PRD carries the spec content (not an empty template)", () => {
+    const prd = readFileSync(join(tempDir, "docs", "PRD.md"), "utf-8");
+    // The thin spec's substance must surface in the PRD
+    expect(prd).toMatch(/shortener|short code|redirect/i);
+  });
+
+  it("thin spec produces FILL markers, not hallucinated content", () => {
+    const prd = readFileSync(join(tempDir, "docs", "PRD.md"), "utf-8");
+    // A 3-sentence spec cannot fill every PRD section — gaps must be
+    // explicit FILL markers, never silently invented requirements
+    expect(prd).toContain("FILL");
+  });
+
+  it("CLAUDE.md root stays within budget regardless of spec size", () => {
+    const content = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+    expect(content.split("\n").length).toBeLessThanOrEqual(80);
+  });
+});

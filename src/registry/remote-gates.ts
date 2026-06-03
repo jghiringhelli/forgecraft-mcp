@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
+import { dump as yamlDump } from "js-yaml";
 
 export interface RemoteGate {
   readonly id: string;
@@ -90,6 +91,77 @@ export function filterGatesByTags(
       g.tags.length === 0 ||
       g.tags.some((t) => tags.includes(t.toUpperCase())),
   );
+}
+
+/**
+ * Install tag-matching approved registry gates into the project as YAML files.
+ *
+ * Gates land in `.forgecraft/gates/registry/<category>/<id>.yaml` — the
+ * community-suggestion area. The dev/AI reviews and promotes relevant gates
+ * to `.forgecraft/gates/active/` (human-judgment step — registry gates are
+ * never auto-activated).
+ *
+ * Idempotent: existing files are never overwritten. Quarantined gates are skipped.
+ *
+ * @param projectRoot - Target project root
+ * @param index - The fetched remote gates index
+ * @param tags - Active project tags to filter by
+ * @returns Relative paths of gate files written
+ */
+export function installRemoteGates(
+  projectRoot: string,
+  index: RemoteGatesIndex,
+  tags: string[],
+): string[] {
+  const written: string[] = [];
+  const matching = filterGatesByTags(index, tags).filter(
+    (g) => g.status === "approved",
+  );
+
+  for (const gate of matching) {
+    const category = sanitizePathSegment(gate.category || "general");
+    const id = sanitizePathSegment(gate.id);
+    if (!id) continue;
+
+    const dir = join(projectRoot, ".forgecraft", "gates", "registry", category);
+    const filePath = join(dir, `${id}.yaml`);
+    if (existsSync(filePath)) continue;
+
+    try {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        filePath,
+        yamlDump(
+          {
+            id: gate.id,
+            title: gate.title,
+            description: gate.description,
+            domain: gate.category,
+            gsProperty: gate.gsProperty,
+            phase: gate.phase,
+            hook: gate.hook,
+            check: gate.check,
+            passCriterion: gate.passCriterion,
+            tags: gate.tags ?? [],
+            ...(gate.evidence ? { evidence: gate.evidence } : {}),
+            source: "community-registry",
+          },
+          { lineWidth: 100, noRefs: true },
+        ),
+        "utf-8",
+      );
+      written.push(`.forgecraft/gates/registry/${category}/${id}.yaml`);
+    } catch {
+      // Single gate write failure is non-fatal — continue with the rest
+    }
+  }
+
+  return written;
+}
+
+/** Strip path-traversal characters from a gate-supplied path segment. */
+function sanitizePathSegment(segment: string): string {
+  return segment.replace(/[^a-zA-Z0-9_-]/g, "-").replace(/^-+|-+$/g, "");
 }
 
 function readCache(cachePath: string): CacheEntry | null {

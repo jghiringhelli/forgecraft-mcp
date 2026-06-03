@@ -297,11 +297,13 @@ async function executePhase2(
     logger.warn("configure_mcp failed during setup", { error });
   }
 
-  // Fetch FC QG remote gates for the active tag set (non-fatal — best effort)
+  // Fetch FC QG remote gates for the active tag set and install matching
+  // approved gates into .forgecraft/gates/registry/ (non-fatal — best effort)
   type RemoteGateSlim = { id: string; title: string; gsProperty: string };
   let remoteGates: RemoteGateSlim[] = [];
+  let registryGatesInstalled: string[] = [];
   try {
-    const { fetchRemoteGates, filterGatesByTags } =
+    const { fetchRemoteGates, filterGatesByTags, installRemoteGates } =
       await import("../registry/remote-gates.js");
     const index = await fetchRemoteGates(projectDir);
     remoteGates = filterGatesByTags(index, effectiveTags).map((g) => ({
@@ -309,6 +311,11 @@ async function executePhase2(
       title: g.title,
       gsProperty: g.gsProperty,
     }));
+    registryGatesInstalled = installRemoteGates(
+      projectDir,
+      index,
+      effectiveTags,
+    );
   } catch {
     // Network unavailable or parse failure — proceed without remote gates
   }
@@ -399,6 +406,7 @@ async function executePhase2(
     statusWritten,
     architectureCntWritten,
     remoteGates,
+    registryGatesInstalled,
   });
 
   return { content: [{ type: "text", text }] };

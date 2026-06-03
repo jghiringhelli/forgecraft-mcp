@@ -362,22 +362,29 @@ describe("closeCycle", () => {
       evidence: "Caught a critical vulnerability before production deploy",
     });
 
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        status: "submitted",
-        issueUrl: "https://github.com/example/repo/issues/99",
-      }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    // Pass dryRun=true, but experiment mode should override it to false
+    // Pass dryRun=true, but experiment mode should override it to false.
+    // Under VITEST the gh CLI is blocked (safety net), so the contribution
+    // attempt falls back to "pending" with a pre-filled GitHub issue URL —
+    // proof the submission was actually attempted, not dry-run skipped.
     const result = await closeCycle({ projectRoot: tempDir, dryRun: true });
 
     expect(result.cascadeStatus).toBe("pass");
-    // fetch was called despite dryRun=true because experiment mode forced effectiveDryRun=false
-    expect(fetchMock).toHaveBeenCalled();
     expect(result.experimentId).toBe("dx-2026-test");
+    // A real (non-dry) attempt produces a pending entry with the fallback
+    // issue URL. A dry run produces pending WITHOUT an issueUrl.
+    const pendingPath = join(
+      tempDir,
+      ".forgecraft",
+      "pending-contributions.json",
+    );
+    expect(existsSync(pendingPath)).toBe(true);
+    const pending = JSON.parse(readFileSync(pendingPath, "utf-8")) as {
+      gateId: string;
+      issueUrl?: string;
+    }[];
+    const entry = pending.find((p) => p.gateId === "experiment-gate-dryrun");
+    expect(entry).toBeDefined();
+    expect(entry!.issueUrl).toContain("issues/new");
   });
 
   it("close_cycle sets experimentId in result when experiment config present", async () => {

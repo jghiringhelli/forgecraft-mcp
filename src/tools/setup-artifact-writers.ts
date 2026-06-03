@@ -181,30 +181,37 @@ export interface UseCaseInput {
 
 /**
  * Write docs/PRD.md using AI-extracted fields when available.
+ * When AI fields are absent but a raw spec exists (CLI-only path, no AI in
+ * the loop), the source spec is embedded so its content is never lost.
  * Never overwrites an existing PRD.
  *
  * @param projectDir - Project root
  * @param projectName - Project name for the PRD title
  * @param aiFields - AI-extracted problem, users, criteria
- * @param _specContent - Raw spec text (reserved for future use)
+ * @param specContent - Raw spec text — embedded when AI fields are absent
  * @returns True if a new PRD was written
  */
 export function writePrd(
   projectDir: string,
   projectName: string,
   aiFields: AiExtractedFields,
-  _specContent: string | null,
+  specContent: string | null,
 ): boolean {
   const prdPath = join(projectDir, "docs", "PRD.md");
   if (existsSync(prdPath)) return false;
   mkdirSync(join(projectDir, "docs"), { recursive: true });
-  writeFileSync(prdPath, buildPrdContent(projectName, aiFields), "utf-8");
+  writeFileSync(
+    prdPath,
+    buildPrdContent(projectName, aiFields, specContent),
+    "utf-8",
+  );
   return true;
 }
 
 function buildPrdContent(
   projectName: string,
   aiFields: AiExtractedFields,
+  specContent: string | null,
 ): string {
   const fill = (placeholder: string) => `<!-- FILL: ${placeholder} -->`;
   const listOrFill = (csv: string | undefined, placeholder: string) =>
@@ -214,14 +221,34 @@ function buildPrdContent(
           .map((s) => `- ${s.trim()}`)
           .join("\n")
       : fill(placeholder);
-  return [
+
+  const sections = [
     `# ${projectName}\n`,
     `## Problem\n\n${aiFields.problemStatement ?? fill("describe the problem this project solves")}\n`,
     `## Users\n\n${listOrFill(aiFields.primaryUsers, "list the target users or personas")}\n`,
     `## Success Criteria\n\n${listOrFill(aiFields.successCriteria, "define measurable success criteria")}\n`,
     `## Components\n\n${fill("list the major components or modules")}\n`,
     `## External Systems\n\n${fill("list external APIs, services, or integrations")}\n`,
-  ].join("\n");
+  ];
+
+  // No AI extraction happened but the user provided a spec — preserve it.
+  // The sections above stay as FILL markers; the source is the ground truth
+  // the AI (or human) extracts from on the next pass.
+  const noAiFields =
+    !aiFields.problemStatement &&
+    !aiFields.primaryUsers &&
+    !aiFields.successCriteria;
+  if (noAiFields && specContent?.trim()) {
+    sections.push(
+      `## Source Specification\n`,
+      `> Original spec provided at setup. Extract the sections above from this`,
+      `> content, then remove this section once the PRD is fully derived.\n`,
+      specContent.trim(),
+      ``,
+    );
+  }
+
+  return sections.join("\n");
 }
 
 /**

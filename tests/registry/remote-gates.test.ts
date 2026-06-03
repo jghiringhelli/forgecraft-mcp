@@ -13,9 +13,11 @@ import { tmpdir } from "node:os";
 import {
   filterGatesByTags,
   fetchRemoteGates,
+  installRemoteGates,
   type RemoteGate,
   type RemoteGatesIndex,
 } from "../../src/registry/remote-gates.js";
+import { existsSync, readFileSync } from "node:fs";
 
 function makeIndex(gates: RemoteGate[]): RemoteGatesIndex {
   return {
@@ -124,7 +126,7 @@ describe("fetchRemoteGates", () => {
     writeFileSync(
       join(cacheDir, "gates-cache.json"),
       JSON.stringify(cacheEntry),
-      "utf-8"
+      "utf-8",
     );
 
     const result = await fetchRemoteGates(tempDir);
@@ -144,7 +146,7 @@ describe("fetchRemoteGates", () => {
     writeFileSync(
       join(cacheDir, "gates-cache.json"),
       JSON.stringify(staleCacheEntry),
-      "utf-8"
+      "utf-8",
     );
 
     // Fetch throws — should get empty index (not stale cache)
@@ -153,6 +155,84 @@ describe("fetchRemoteGates", () => {
     expect(fetch).toHaveBeenCalled();
     expect(result.gateCount).toBe(0);
     expect(result.gates).toHaveLength(0);
+  });
+});
+
+describe("installRemoteGates", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = makeTempDir();
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("writes approved tag-matching gates to .forgecraft/gates/registry/<category>/", () => {
+    const index = makeIndex([
+      makeGate({ id: "api-gate", category: "api-contract", tags: ["API"] }),
+    ]);
+    const written = installRemoteGates(tempDir, index, ["API"]);
+    expect(written).toHaveLength(1);
+    const gatePath = join(
+      tempDir,
+      ".forgecraft",
+      "gates",
+      "registry",
+      "api-contract",
+      "api-gate.yaml",
+    );
+    expect(existsSync(gatePath)).toBe(true);
+    const content = readFileSync(gatePath, "utf-8");
+    expect(content).toContain("id: api-gate");
+    expect(content).toContain("source: community-registry");
+  });
+
+  it("skips quarantined gates", () => {
+    const index = makeIndex([
+      makeGate({ id: "quarantined-gate", status: "quarantine", tags: ["API"] }),
+    ]);
+    const written = installRemoteGates(tempDir, index, ["API"]);
+    expect(written).toHaveLength(0);
+  });
+
+  it("skips gates whose tags do not match the project", () => {
+    const index = makeIndex([makeGate({ id: "ml-gate", tags: ["ML"] })]);
+    const written = installRemoteGates(tempDir, index, ["API"]);
+    expect(written).toHaveLength(0);
+  });
+
+  it("never overwrites an existing gate file (idempotent)", () => {
+    const index = makeIndex([
+      makeGate({ id: "stable-gate", category: "security", tags: ["API"] }),
+    ]);
+    const first = installRemoteGates(tempDir, index, ["API"]);
+    expect(first).toHaveLength(1);
+    // Second install must skip the existing file
+    const second = installRemoteGates(tempDir, index, ["API"]);
+    expect(second).toHaveLength(0);
+  });
+
+  it("sanitizes path-traversal characters in gate id and category", () => {
+    const index = makeIndex([
+      makeGate({
+        id: "../../../evil",
+        category: "../escape",
+        tags: ["API"],
+      }),
+    ]);
+    const written = installRemoteGates(tempDir, index, ["API"]);
+    // Sanitized — file lands inside the registry dir, no traversal
+    expect(written).toHaveLength(1);
+    expect(written[0]).not.toContain("..");
+    expect(written[0]).toMatch(/^\.forgecraft\/gates\/registry\//);
+  });
+
+  it("untagged gates install for any project (universal)", () => {
+    const index = makeIndex([makeGate({ id: "universal-gate", tags: [] })]);
+    const written = installRemoteGates(tempDir, index, ["CLI"]);
+    expect(written).toHaveLength(1);
   });
 });
 

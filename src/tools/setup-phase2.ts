@@ -96,6 +96,8 @@ export interface Phase2ResponseParams {
   readonly manifestWritten?: boolean;
   readonly statusWritten?: boolean;
   readonly architectureCntWritten?: string[];
+  /** Community registry gates installed to .forgecraft/gates/registry/. */
+  readonly registryGatesInstalled?: string[];
   /** FC QG remote gates relevant to active tags — used to generate tailoring checklist. */
   readonly remoteGates?: readonly {
     id: string;
@@ -180,6 +182,11 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
   if (params.architectureCntWritten && params.architectureCntWritten.length > 0)
     for (const f of params.architectureCntWritten)
       text += `  ${f} (architecture CNT branch)\n`;
+  if (params.registryGatesInstalled && params.registryGatesInstalled.length > 0)
+    text +=
+      `  .forgecraft/gates/registry/ — ${params.registryGatesInstalled.length} community ` +
+      `gate(s) installed for your tags. Review and promote relevant ones to ` +
+      `.forgecraft/gates/active/ (never auto-activated — human judgment required).\n`;
 
   if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0)
     text += `  (all artifacts already existed — nothing overwritten)\n`;
