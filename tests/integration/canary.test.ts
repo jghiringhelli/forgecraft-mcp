@@ -26,6 +26,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { setupProjectHandler } from "../../src/tools/setup-project.js";
 import { checkCascadeHandler } from "../../src/tools/check-cascade.js";
+import { measureHarnessBudget } from "../../src/shared/harness-budget.js";
 
 const FIXTURE_TS = join(import.meta.dirname, "..", "fixtures", "canary-ts");
 const FIXTURE_PY = join(import.meta.dirname, "..", "fixtures", "canary-py");
@@ -242,6 +243,40 @@ describe("canary: TypeScript API project", () => {
           `Missing agent: ${agent}`,
         ).toBe(true);
       }
+    });
+  });
+
+  describe("harness budget (context-degradation defense)", () => {
+    it("generated harness stays within the context budget", () => {
+      // Field evidence: ~200-line hand-written harness held GS discipline;
+      // a ~2,000-line generated harness degraded fast. Bounded applies to
+      // the harness itself. This assertion is the regression lock.
+      const report = measureHarnessBudget(tempDir);
+      expect(
+        report.withinBudget,
+        `Harness over budget:\n${report.violations.join("\n")}`,
+      ).toBe(true);
+    });
+
+    it("GS theory is evicted to .claude/reference/, never session-routed", () => {
+      const refPath = join(tempDir, ".claude", "reference", "gs-theory.md");
+      expect(existsSync(refPath)).toBe(true);
+      const ref = readFileSync(refPath, "utf-8");
+      expect(ref).toContain("DO NOT load this file during implementation");
+      // The theory must NOT be in the session-loaded standards tree
+      const specStandards = readFileSync(
+        join(tempDir, ".claude", "standards", "spec.md"),
+        "utf-8",
+      );
+      expect(specStandards).not.toContain("Five Memory Types");
+      expect(specStandards).not.toContain("Agentic Self-Refinement");
+    });
+
+    it("root contains the Context Discipline prime directive", () => {
+      const root = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      expect(root).toContain("Context Discipline");
+      expect(root).toContain("generate_session_prompt");
+      expect(root).toContain("Never graze the harness");
     });
   });
 

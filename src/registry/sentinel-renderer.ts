@@ -18,7 +18,7 @@
  * Only applies to the "claude" target — other AI assistants receive the full file.
  */
 
-import { renderTemplate } from "./renderer.js";
+import { renderTemplate, compactifyContent } from "./renderer.js";
 import type { InstructionBlock } from "../shared/types.js";
 import type { RenderContext } from "./renderer.js";
 import {
@@ -62,6 +62,17 @@ export function renderSentinelTree(
 
   for (const [domain, domainBlocks] of byDomain) {
     if (domainBlocks.length === 0) continue;
+
+    // "reference" domain: GS theory — written outside the session-loaded tree.
+    // Background reading for humans; the routing table never points here.
+    // This is the harness-budget defense: theory must not displace the task.
+    if (domain === "reference") {
+      files.push({
+        relativePath: ".claude/reference/gs-theory.md",
+        content: renderReferenceFile(domainBlocks, context),
+      });
+      continue;
+    }
 
     const content = renderDomainFile(domain, domainBlocks, context);
     files.push({ relativePath: `.claude/standards/${domain}.md`, content });
@@ -130,6 +141,32 @@ function groupBlocksByDomain(
 }
 
 /**
+ * Render the reference file — GS theory kept OUT of session context.
+ * Header explicitly tells the AI not to load this during work.
+ */
+function renderReferenceFile(
+  blocks: InstructionBlock[],
+  context: RenderContext,
+): string {
+  const date = new Date().toISOString().split("T")[0];
+  const lines: string[] = [
+    `<!-- ForgeCraft reference: GS theory | ${date} -->`,
+    `<!-- DO NOT load this file during implementation sessions. -->`,
+    `<!-- It is background reading on the methodology. The operational rules`,
+    `     derived from it live in CLAUDE.md, .claude/constitution.md, and`,
+    `     .claude/lifecycle.md — those are the session-loaded contracts. -->`,
+    "",
+  ];
+  for (const block of blocks) {
+    const rendered = renderTemplate(block.content, context).trim();
+    if (rendered) {
+      lines.push(rendered, "");
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
  * Render a single domain standards file.
  * Contains full rendered block content for all blocks in that domain.
  *
@@ -157,7 +194,10 @@ function renderDomainFile(
     }
   }
 
-  return lines.join("\n");
+  // Compact by default: strip explanatory tails, dedupe bullets, compress
+  // blanks. Session-loaded files must be rules, not lectures — every line of
+  // explanation displaces task context (harness budget).
+  return compactifyContent(lines.join("\n"));
 }
 
 // ── CNT root ──────────────────────────────────────────────────────────
@@ -183,6 +223,14 @@ function buildRootClaudeMd(
     `> **CNT root** — loaded every session, routing only (≤80 lines).`,
     `> Always load the files below, then navigate to the relevant branch.`,
     `> If anything contradicts \`docs/PRD.md\`, PRD wins. Raise an ADR to change course.`,
+    ``,
+    `## Context Discipline (the prime directive)`,
+    ``,
+    `**Less harness, more task.** For any roadmap item, run \`generate_session_prompt\``,
+    `and work from THAT bound prompt — it contains everything the step needs.`,
+    `Load AT MOST one branch + one standards file per task. Never graze the harness`,
+    `"to be thorough" — every line of methodology you load displaces the task.`,
+    `\`.claude/reference/\` is background reading: NEVER load it during work.`,
     ``,
     `## Always Load`,
     ``,

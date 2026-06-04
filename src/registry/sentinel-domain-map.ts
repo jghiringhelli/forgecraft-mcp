@@ -30,17 +30,24 @@ export const BLOCK_DOMAIN_MAP: Readonly<Record<string, string>> = {
   "commit-protocol": "cicd",
   "dev-environment-hygiene": "cicd",
 
-  // ── Spec / GS ──
-  "artifact-grammar": "spec",
-  "naming-as-grammar": "spec",
+  // ── Spec (operational, project-binding rules only) ──
   "adr-protocol": "spec",
   "use-case-triple-derivation": "spec",
   "release-phase-gate": "spec",
-  "gs-five-memory-types": "spec",
-  "gs-status-format": "spec",
-  "living-documentation": "spec",
-  "agentic-self-refinement": "spec",
-  "wrong-specification-risk": "spec",
+
+  // ── Reference (GS theory — NEVER session-loaded) ──
+  // These teach the methodology rather than bind this project. Their
+  // operational content lives in the CNT branches (lifecycle.md Memory Map,
+  // session loop, doc obligation table, corrections.md). Loading theory in
+  // sessions is the context-degradation source — it displaces the task.
+  "artifact-grammar": "reference",
+  "naming-as-grammar": "reference",
+  "gs-five-memory-types": "reference",
+  "gs-status-format": "reference",
+  "living-documentation": "reference",
+  "agentic-self-refinement": "reference",
+  "wrong-specification-risk": "reference",
+  "spec-meta-query": "reference",
 
   // ── Protocols (on-demand workflow rules) ──
   "clarification-protocol": "protocols",
@@ -49,7 +56,8 @@ export const BLOCK_DOMAIN_MAP: Readonly<Record<string, string>> = {
   "engineering-preferences": "protocols",
   "code-generation-verification": "protocols",
   "known-pitfalls": "protocols",
-  "corrections-log": "protocols",
+  // corrections-log → covered by the .claude/corrections.md CNT branch
+  "corrections-log": "reference",
   "dependency-registry": "protocols",
 
   // ── API ──

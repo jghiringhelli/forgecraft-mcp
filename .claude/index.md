@@ -4,6 +4,12 @@
 > **CNT root** — load always-load files, then navigate to the relevant branch.
 > If anything contradicts `docs/PRD.md`, PRD wins. Raise an ADR to change course.
 
+## Context Discipline (the prime directive)
+
+**Less harness, more task.** Load AT MOST one branch + one standards file per task.
+Never graze the harness "to be thorough" — every line of methodology loaded
+displaces the task. `.claude/reference/` (if present) is background reading: never load it.
+
 ## Always Load
 
 - `.claude/core.md` — non-negotiables: SOLID, arch invariants, commit protocol, prohibited ops

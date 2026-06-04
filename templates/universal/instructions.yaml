@@ -39,158 +39,60 @@ blocks:
     title: "Dev Environment Hygiene"
     content: |
       ## Dev Environment Hygiene
-
-      AI-assisted development can silently fill disk space. These rules are non-negotiable.
-      A full disk kills every running tool simultaneously — VS Code, Docker, the terminal, the DB.
-
-      ### VS Code Extensions
-      - Before installing any extension: `code --list-extensions | grep -i <name>`.
-      - Only install if no version in the required major range is already present.
-      - Never run `code --install-extension` unconditionally in scripts or setup steps.
-      - Installing the same extension twice on the same day = a bug in your script.
-
-      ### Docker Containers & Volumes
-      - Check before creating: `docker ps -a --filter name=<service>` — if it exists, start it, don't create it.
-      - Prefer `docker compose up` (reuse) over bare `docker run` (always creates new).
-      - One Compose file per project. Split files for the same project = tech debt.
-      - Log pruning: run `docker system prune -f` periodically. Never let container logs exceed 500 MB total.
-      - Time-series or synthetic data volumes: before writing >100 MB, ask whether raw retention,
-        statistical condensation, or deletion after the run is preferred.
-      - Synthetic datasets older than 7 days with no code reference: ask to delete.
-
-      ### Python Virtual Environments
-      - One `.venv` per project root, one per standalone package subdirectory — never more.
-      - Before creating: check if `.venv/` exists and `python --version` matches the required major.minor.
-        Recreate only on major version mismatch or explicit user request.
-      - Never create a venv in a subdirectory unless that directory is a standalone installable package.
-      - Sanitize dependencies: if `pip list --not-required` reveals packages not in requirements, flag them.
-
-      ### General Install Hygiene
-      - Before any install/download: check version already installed. Skip if within the required range.
-      - If project directory disk usage outside of `node_modules/`, `.venv/`, `dist/`, `.next/`
-        exceeds 2 GB: surface a warning and ask before continuing any file-generating operation.
-      - Never silently grow the workspace. When uncertain about retention, ask.
+      - VS Code: `code --list-extensions | grep -i <name>` before install; skip if in-range. Never install unconditionally in scripts.
+      - Docker: `docker ps -a --filter name=<service>` before create — reuse if exists. Prefer `docker compose up` over `docker run`. One Compose file per project.
+      - Docker: `docker system prune -f` periodically; container logs < 500 MB total.
+      - Data volumes: before writing >100 MB, ask retention. Synthetic data >7 days with no code ref: ask to delete.
+      - Python: one `.venv` per project root or standalone package — never more. Check `.venv/` + `python --version` before creating; recreate only on major mismatch.
+      - Before any install: check installed version, skip if in-range.
+      - If project dir usage (excluding `node_modules/`, `.venv/`, `dist/`, `.next/`) > 2 GB: warn and ask before generating files.
 
   - id: dependency-registry
     tier: core
     title: "Dependency Registry"
     content: |
-      ## Dependency Registry — AI-Maintained Security Contract
-
-      The project's approved dependency set is a **living GS artifact maintained by the AI
-      assistant**. It is not a template rule — template authors cannot predict which library
-      will gain a CVE next quarter. The AI can run an audit at the moment a dependency is
-      about to be added. This block prescribes that it must.
-
-      ### The registry artifact
-
-      File: **`docs/approved-packages.md`** — emit in P1 alongside schema, tsconfig, package.json.
-      Update it every time a dependency is added or upgraded. If it exists only in prose or a
-      README reference, it does not exist.
-
-      ```markdown
-      # Approved Packages
-
-      | Package | Version range | Purpose | Alternatives rejected | Rationale | Audit status |
-      |---|---|---|---|---|---|
-      | example-pkg | ^2.4 | HTTP client | axios (larger bundle), node-fetch (no TS types) | Wide adoption, zero known CVEs | 0 HIGH/CRITICAL |
-      ```
-
-      The AI populates every row. The registry is the authoritative record of WHY each
-      dependency was chosen and that it was clean at the time of addition.
-
-      ### Process rules — stack-agnostic
-
-      1. **Before adding any package**: run the project's audit command (see table below)
-         with `--dry-run` or equivalent to check the candidate for known CVEs.
-         - If HIGH or CRITICAL found: choose an alternative and document the rejection.
-         - If no CVE-free alternative exists: document the accepted risk and create an ADR
-           naming the approver. Zero-tolerance is the default; exceptions require a record.
-      2. **After adding a package**: add a row to `docs/approved-packages.md` with audit status.
-      3. **Commit gate**: the pre-commit hook runs the audit command. HIGH or CRITICAL blocks
-         the commit. If audit is not in the pre-commit hook, the gate does not exist.
-      4. **Version pins**: approved version ranges are locked in the lockfile (package-lock.json,
-         uv.lock, Cargo.lock). The lockfile is committed. Ranges without a lockfile are not pins.
-
-      ### Audit commands by ecosystem
+      ## Dependency Registry
+      - File: **`docs/approved-packages.md`** — emit in P1, update on every add/upgrade. Columns: Package, Version range, Purpose, Alternatives rejected, Rationale, Audit status.
+      - Before adding any package: run the audit command (table) for CVEs. HIGH/CRITICAL → pick an alternative and document the rejection. No clean alternative → ADR naming the approver.
+      - After adding: add a row with audit status.
+      - Commit gate: pre-commit hook runs audit; HIGH/CRITICAL blocks. Not in the hook = gate does not exist.
+      - Version pins live in the committed lockfile (package-lock.json, uv.lock, Cargo.lock).
 
       | Ecosystem | Audit command | Threshold |
       |---|---|---|
-      | npm / Node.js | `npm audit --audit-level=high` | HIGH or CRITICAL |
-      | pnpm | `pnpm audit --audit-level=high` | HIGH or CRITICAL |
-      | yarn | `yarn npm audit --severity high` | HIGH or CRITICAL |
-      | Python / pip | `pip-audit --fail-on-severity high` | HIGH or CRITICAL |
-      | Python / uv | `uv audit` | HIGH or CRITICAL |
-      | Rust | `cargo audit` | HIGH or CRITICAL |
-      | Go | `govulncheck ./...` | Any directly imported |
-      | Java / Maven | `mvn dependency-check:check -DfailBuildOnCVSS=7` | CVSS ≥ 7 |
-      | Ruby | `bundle audit` | HIGH or CRITICAL |
-
-      The correct command for **this project's ecosystem** must appear in the pre-commit hook
-      emitted in P1. Discovering CVEs at code review is too late.
+      | npm | `npm audit --audit-level=high` | HIGH/CRITICAL |
+      | pnpm | `pnpm audit --audit-level=high` | HIGH/CRITICAL |
+      | yarn | `yarn npm audit --severity high` | HIGH/CRITICAL |
+      | pip | `pip-audit --fail-on-severity high` | HIGH/CRITICAL |
+      | uv | `uv audit` | HIGH/CRITICAL |
+      | Rust | `cargo audit` | HIGH/CRITICAL |
+      | Go | `govulncheck ./...` | Any direct |
+      | Maven | `mvn dependency-check:check -DfailBuildOnCVSS=7` | CVSS ≥ 7 |
+      | Ruby | `bundle audit` | HIGH/CRITICAL |
 
   - id: language-stack-constraints
     tier: core
     title: "Language Stack Constraints"
     content: |
-      ## Language Stack Constraints — Seed Defaults
-
-      These are **starting defaults for {{language}} projects** — use them to populate the
-      initial rows of `docs/approved-packages.md` in P1. They are not a permanent approved
-      list: the AI maintains the registry from here forward, keeps versions current, and
-      replaces any entry that develops a known CVE. The Dependency Registry block above
-      governs the process.
-
-      Before adding any dependency not listed here, apply the audit-before-add process.
+      ## Language Stack Constraints — Seed Defaults for {{language}}
+      Seed rows for `docs/approved-packages.md` in P1; apply audit-before-add for anything not listed.
 
       {{#if language_is_typescript}}
-      ### TypeScript / Node.js — Approved Toolchain
-
-      **Runtime & compiler**
-      - Node.js: `^20 LTS` minimum. NOT `^16` or `^18` (EOL or near-EOL).
-      - TypeScript: `^5.4` minimum. `tsconfig.json` must include `"strict": true` AND
-        `"noUncheckedIndexedAccess": true`. The second flag is required to narrow
-        `process.env.*` from `string | undefined` at compile time.
-
-      **Linting**
-      - `eslint@^9` + `@typescript-eslint/eslint-plugin@^8` + `@typescript-eslint/parser@^8`
-      - NOT `@typescript-eslint@^5` or `^6` — old `minimatch` transitive dep has known CVEs.
-      - NOT `tslint` — deprecated.
-
-      **Test runner**
-      - `vitest@^2` (preferred — native ESM, fast, Jest-compatible API) or `jest@^29`.
-      - NOT `mocha` + `chai` for new projects (weaker TypeScript support).
-      - NOT `jasmine` (no active maintenance for Node.js use).
-
-      **Formatting**
-      - `prettier@^3` — configured via `.prettierrc`, integrated with ESLint via
-        `eslint-config-prettier`. NOT separate manual formatting.
+      ### TypeScript / Node.js
+      - Node.js `^20 LTS` min. NOT `^16`/`^18` (EOL).
+      - TypeScript `^5.4` min. `tsconfig.json`: `"strict": true` AND `"noUncheckedIndexedAccess": true`.
+      - `eslint@^9` + `@typescript-eslint/*@^8`. NOT `^5`/`^6` (minimatch CVE). NOT `tslint` (deprecated).
+      - `vitest@^2` or `jest@^29`. NOT `mocha`+`chai` (weak TS). NOT `jasmine` (unmaintained).
+      - `prettier@^3` via `.prettierrc` + `eslint-config-prettier`.
       {{/if}}
 
       {{#if language_is_python}}
-      ### Python — Approved Toolchain
-
-      **Runtime**
-      - Python `^3.11` minimum. NOT `3.8` or `3.9` for new projects — `3.11+` brings
-        `tomllib` builtin, `ExceptionGroup`, and significant performance improvements.
-
-      **Linting / formatting**
-      - `ruff@^0.4` — replaces `flake8` + `isort` + `black` with a single 10–100× faster tool.
-      - NOT separate `flake8` + `isort` + `black` for new projects.
-
-      **Type checking**
-      - `pyright@^1.1` (strict mode) — same engine as Pylance, best TypedDict support.
-      - `mypy@^1.9` is acceptable. Strict mode required in both cases.
-      - NOT unchecked Python — all public functions must be typed.
-
-      **Test runner**
-      - `pytest@^8` — NOT `unittest` for new projects.
-      - Async tests: `pytest-asyncio@^0.23`.
-
-      **Dependency management**
-      - `uv@^0.1` (recommended — fastest resolver) or `poetry@^1.7`.
-      - ALL dependencies pinned in lockfile (`uv.lock` or `poetry.lock`). Lockfile committed.
-      - `pip-tools` acceptable for library projects.
+      ### Python
+      - Python `^3.11` min. NOT `3.8`/`3.9` (no tomllib/ExceptionGroup).
+      - `ruff@^0.4`. NOT separate `flake8`+`isort`+`black`.
+      - `pyright@^1.1` strict or `mypy@^1.9` strict. All public functions typed.
+      - `pytest@^8` (NOT `unittest`); async via `pytest-asyncio@^0.23`.
+      - `uv@^0.1` or `poetry@^1.7`. Deps pinned in committed `uv.lock`/`poetry.lock`.
       {{/if}}
 
   - id: production-code-standards
@@ -198,322 +100,113 @@ blocks:
     title: "Production Code Standards"
     content: |
       ## Production Code Standards — NON-NEGOTIABLE
+      Apply to ALL code including prototypes.
 
-      These apply to ALL code including prototypes. "It's just a prototype" is never a valid
-      exception. Prototypes become production code within days at CC development speed.
-
-      ### SOLID Principles
-      - **Single Responsibility**: One module = one reason to change. Use "and" to describe it? Split it.
-      - **Open/Closed**: Extend via interfaces and composition. Never modify working code for new behavior.
-      - **Liskov Substitution**: Any interface implementation must be fully swappable. No isinstance checks.
-      - **Interface Segregation**: Small focused interfaces. No god-interfaces.
-      - **Dependency Inversion**: Depend on abstractions. Concrete classes are injected, never instantiated
-        inside business logic. **In practice**: define `IUserRepository`, `IOrderRepository`,
-        `IEmailSender` etc. as interfaces in the domain/service layer first. Services depend on
-        the interface. The Prisma/SQL/HTTP concrete implementation lives in the adapter layer and
-        is injected at the composition root. Emit these interfaces in P1 alongside the schema —
-        a service that imports a concrete class cannot be unit-tested, cannot be swapped, and
-        is not Composable.
-
-      ### Zero Hardcoded Values
-      - ALL configuration through environment variables or config files. No exceptions.
-      - ALL external URLs, ports, credentials, thresholds, feature flags must be configurable.
-      - ALL magic numbers must be named constants with documentation.
-      - Config is validated at startup — fail fast if required values are missing.
-
-      ### Zero Mocks in Application Code
-      - No mock objects, fake data, or stub responses in source code. Ever.
-      - Mocks belong ONLY in test files.
-      - For local dev: create proper interface implementations selected via config.
-      - No `if DEBUG: return fake_data` patterns. Use dependency injection to swap implementations.
-      - No TODO/FIXME stubs returning hardcoded values. Use NotImplementedError with a description.
-
-      ### Interfaces First
-      Before writing any implementation:
-      1. Define the interface/protocol/abstract class
-      2. Define the data contracts (input/output DTOs)
-      3. Write the consuming code against the interface
-      4. Write tests against the interface
-      5. THEN implement the concrete class
-
-      ### Dependency Injection
-      - Every service receives dependencies through its constructor.
-      - A composition root (main.py / app.ts / container) wires everything.
-      - No service locator pattern. No global singletons. No module-level instances.
-
-      ### Error Handling
-      - Custom exception hierarchy per module. No bare Exception raises.
-      - Errors carry context: IDs, timestamps, operation names.
-      - Fail fast, fail loud. No silent swallowing of exceptions.
-      - Domain code never returns HTTP status codes — that's the API layer's job.
-
-      ### Modular from Day One
-      - Feature-based modules over layer-based. Each feature owns its models, service, repository, routes.
-      - Module dependency graph must be acyclic.
-      - Every module has a clear public API via {{#if language_is_typescript}}index.ts{{/if}}{{#if language_is_python}}__init__.py{{/if}} exports.
+      - **SOLID**: SRP (one reason to change), OCP (extend, don't modify), LSP (swappable, no isinstance), ISP (small interfaces), DIP (depend on abstractions; inject concretes at composition root).
+      - Define port interfaces (`IUserRepository`, `IEmailSender`) in the domain/service layer in P1; concrete impls live in adapters, injected at the root.
+      - Zero hardcoded values: all config via env/config files, validated at startup (fail fast). Magic numbers → named constants.
+      - Zero mocks in source: mocks only in test files. No `if DEBUG: return fake_data`. Stubs use NotImplementedError, not hardcoded returns.
+      - Interfaces first: interface → DTOs → consuming code → tests → concrete impl.
+      - DI via constructor; composition root wires everything. No service locator, global singletons, module-level instances.
+      - Error handling: custom exception hierarchy per module, errors carry context (IDs, timestamps, op name), fail loud. Domain never returns HTTP status codes.
+      - Feature-based modules (own models/service/repo/routes), acyclic graph, public API via {{#if language_is_typescript}}index.ts{{/if}}{{#if language_is_python}}__init__.py{{/if}}.
 
   - id: layered-architecture
     tier: recommended
     title: "Layered Architecture"
     content: |
       ## Layered Architecture (Ports & Adapters / Hexagonal)
+      Layers (outer→inner): API/CLI/Handlers (thin, validate+delegate) → Services (orchestrate, depend on ports only) → Domain models (pure, no I/O, no framework) → Port interfaces → Repositories/Adapters (external I/O) → Infrastructure/Config (DI, env).
 
-      ```
-      ┌─────────────────────────────┐
-      │  API / CLI / Event Handlers │  ← Thin. Validation + delegation only. No logic.
-      ├─────────────────────────────┤     These are DRIVING ADAPTERS (primary).
-      │  Services (Business Logic)  │  ← Orchestration. Depends on PORT INTERFACES only.
-      ├─────────────────────────────┤
-      │  Domain Models              │  ← Pure data + behavior. No I/O. No framework imports.
-      │  (Entities, Value Objects)  │     The inner hexagon. Zero external dependencies.
-      ├─────────────────────────────┤
-      │  Port Interfaces            │  ← Abstract contracts (Repository, Gateway, Notifier).
-      │                             │     Defined by the domain, implemented by adapters.
-      ├─────────────────────────────┤
-      │  Repositories / Adapters    │  ← DRIVEN ADAPTERS (secondary). All external I/O
-      │                             │     (DB, APIs, files, queues, email, caches).
-      ├─────────────────────────────┤
-      │  Infrastructure / Config    │  ← DI container, env config, connection factories
-      └─────────────────────────────┘
-      ```
+      ### Ports & Adapters
+      - Ports (`UserRepository`, `PaymentGateway`, `EmailSender`) defined in domain/service layer, never in adapters. Specify WHAT, not HOW.
+      - Driving adapters (HTTP/CLI/consumers) call through ports; driven adapters (PostgresUserRepository, StripePaymentGateway) are called through ports.
+      - Adapters interchangeable: swap Postgres for InMemory in tests with zero logic changes.
 
-      ### Ports (Interfaces owned by the domain)
-      - **Repository ports**: `UserRepository`, `OrderRepository` — data persistence contracts.
-      - **Gateway ports**: `PaymentGateway`, `EmailSender` — external service contracts.
-      - Ports are defined in the domain/service layer, never in the adapter layer.
-      - Port interfaces specify WHAT, never HOW.
-
-      ### Adapters (Implementations of ports)
-      - **Driving adapters** (primary): HTTP controllers, CLI handlers, message consumers
-        — they CALL the application through port interfaces.
-      - **Driven adapters** (secondary): PostgresUserRepository, StripePaymentGateway,
-        SESEmailSender — they ARE CALLED BY the application through port interfaces.
-      - Adapters are interchangeable. Swap `PostgresUserRepository` for `InMemoryUserRepository`
-        in tests without changing a single line of business logic.
-
-      ### Data Transfer Objects (DTOs)
-      - Use DTOs at layer boundaries — never pass domain entities to/from the API layer.
-      - **Request DTOs**: validated at the API boundary ({{#if language_is_typescript}}Zod schema{{/if}}{{#if language_is_python}}Pydantic model{{/if}} → typed object).
-      - **Response DTOs**: shaped for the consumer, not mirroring the domain model.
-      - **Domain ↔ Persistence mapping**: repositories map between domain entities and DB rows/documents.
-      - DTOs are plain data objects — no methods, no behavior, no framework decorators.
+      ### DTOs
+      - DTOs at every layer boundary — never pass domain entities to/from the API layer.
+      - Request DTOs validated at boundary ({{#if language_is_typescript}}Zod{{/if}}{{#if language_is_python}}Pydantic{{/if}}); Response DTOs shaped for consumer; repos map domain ↔ persistence.
+      - DTOs are plain data — no methods, no framework decorators.
 
       ### Layer Rules
-      - Never skip layers. API handlers do not call repositories directly.
-      - Dependencies point INWARD only. Inner layers never import from outer layers.
-      - Domain models have ZERO external dependencies.
-      - The domain layer does not know HTTP, SQL, or any framework exists.
+      - Never skip layers (handlers never call repos directly). Dependencies point INWARD only.
+      - Domain models have ZERO external dependencies; the domain does not know HTTP/SQL/frameworks exist.
 
   - id: clean-code-principles
     tier: recommended
     title: "Clean Code Principles"
     content: |
       ## Clean Code Principles
+      - **CQS**: commands change state return void; queries return data no side effects. A function does one, not both.
+      - **Guard clauses**: handle invalid cases first, return early; happy path at shallowest indent.
+      - **Composition over inheritance**: compose via interfaces/delegation; inheritance only for genuine "is-a".
+      - **Law of Demeter**: no chaining through objects (`order.getCustomer().getAddress()` — bad); add `order.getShippingCity()`.
+      - **Immutability by default**: {{#if language_is_typescript}}`const`/`readonly`, `ReadonlyArray<T>`{{/if}}{{#if language_is_python}}`Final`, `frozen=True` dataclasses, `tuple` over `list`{{/if}}; copy-on-modify; restrict mutable state to smallest scope.
+      - **Pure functions**: domain logic/validation/calculation pure; push I/O to adapters.
+      - **Factory pattern**: encapsulate construction (`User.create(dto)`); the DI container is the top-level factory.
 
-      ### Command-Query Separation (CQS)
-      - **Commands** change state but return nothing (void).
-      - **Queries** return data but change nothing (no side effects).
-      - A function should do one or the other, never both.
-      - Exception: stack.pop() style operations where separation is impractical — document why.
-
-      ### Guard Clauses & Early Return
-      - Eliminate deep nesting. Handle invalid cases first, return early.
-      - The happy path runs at the shallowest indentation level.
-      - Before:
-        ```
-        if (user) {
-          if (user.isActive) {
-            if (user.hasPermission) {
-              // actual logic buried 3 levels deep
-        ```
-      - After:
-        ```
-        if (!user) throw new NotFoundError(...);
-        if (!user.isActive) throw new InactiveError(...);
-        if (!user.hasPermission) throw new ForbiddenError(...);
-        // actual logic at top level
-        ```
-
-      ### Composition over Inheritance
-      - Prefer composing objects via interfaces and delegation over class inheritance.
-      - Inheritance creates tight coupling and fragile hierarchies.
-      - Use inheritance ONLY for genuine "is-a" relationships (rare).
-      - When in doubt, compose: inject a collaborator, don't extend a base class.
-
-      ### Law of Demeter (Principle of Least Knowledge)
-      - A method should only call methods on: its own object, its parameters, objects it creates,
-        its direct dependencies.
-      - Do NOT chain through objects: `order.getCustomer().getAddress().getCity()` — BAD.
-      - Instead: `order.getShippingCity()` or pass the needed data directly.
-
-      ### Immutability by Default
-      {{#if language_is_typescript}}- Use `const` over `let`. Use `readonly` on properties and parameters.
-      - Prefer `ReadonlyArray<T>`, `Readonly<T>`, `ReadonlyMap`, `ReadonlySet`.{{/if}}{{#if language_is_python}}- Use `Final` for constants. Use `frozen=True` on dataclasses.
-      - Prefer `tuple` over `list` for immutable sequences. Use `MappingProxyType` for immutable dicts.{{/if}}
-      - When you need to "modify" data, create a new copy with the change.
-      - Mutable state is the #1 source of bugs. Restrict it to the smallest possible scope.
-
-      ### Pure Functions
-      - A pure function: same inputs → same outputs, no side effects.
-      - Domain logic, validation, transformation, and calculation should be pure.
-      - Side effects (I/O, logging, database) are pushed to the edges (adapters).
-      - Pure functions are trivially testable — no mocks needed.
-
-      ### Factory Pattern
-      - Use factories to encapsulate complex object construction.
-      - Factory methods on the class itself for simple cases: `User.create(dto)`.
-      - Factory classes/functions when construction involves dependencies or conditional logic.
-      - Factories are the natural companion to dependency injection — the DI container
-        IS the top-level factory.
-
-      > **Design reference patterns** (DDD, CQRS, GoF) available on demand via `get_design_reference` tool.
+      > Design reference patterns (DDD, CQRS, GoF) on demand via `get_design_reference` tool.
 
   - id: twelve-factor-ops
     tier: optional
     title: "12-Factor & Operational Readiness"
     content: |
-      ## 12-Factor App & Operational Readiness
-
-      ### Configuration
-      - ALL config comes from environment variables or external config services. Zero config in code.
-      - Config is validated at startup — fail fast with a clear error if required values are missing.
-      - `.env.example` committed with every variable documented. `.env` is gitignored.
-
-      ### Stateless Processes
-      - Application processes are stateless. Session data lives in external stores (Redis, DB).
-      - Any process can be killed and restarted without data loss.
-      - File uploads go to object storage (S3, GCS), not local disk.
-
-      ### Port Binding
-      - The application is self-contained and exports services via port binding.
-      - No runtime injection of a web server — the app embeds its own (Express, Uvicorn, etc.).
-
-      ### Disposability
-      - Processes start fast (< 5 seconds) and shut down gracefully.
-      - SIGTERM triggers: stop accepting new work → finish in-flight requests → close connections → exit.
-      - Workers use robust job queues so interrupted work is retried, not lost.
-
-      ### Dev/Prod Parity
-      - Minimize gaps between development and production environments.
-      - Use the same backing services in dev as prod (same DB engine, same cache).
-      - Docker / containers recommended for environment parity.
-
-      ### Logs as Event Streams
-      - The app writes logs to stdout/stderr — never to local files.
-      - Log aggregation is an ops concern (ELK, Datadog, CloudWatch), not an application concern.
-      - Structured JSON logs with correlation IDs for tracing across services.
-
-      ### Build, Release, Run
-      - Strict separation: build (compile + assets), release (build + config), run (execute).
-      - Every release is immutable and tagged. Rollback = deploy a previous release.
-      - CI/CD pipeline automates: lint → test → build → deploy with gates at each stage.
+      ## 12-Factor & Operational Readiness
+      - **Config**: all from env/config services, validated at startup (fail fast). Commit `.env.example`, gitignore `.env`.
+      - **Stateless processes**: session data in external stores (Redis/DB); uploads to object storage (S3/GCS), not local disk.
+      - **Port binding**: app embeds its own server (Express, Uvicorn); no runtime web-server injection.
+      - **Disposability**: start < 5s; SIGTERM → stop intake → drain → close → exit; workers use durable queues.
+      - **Dev/prod parity**: same backing services (DB engine, cache); containers recommended.
+      - **Logs as streams**: write to stdout/stderr (never files); structured JSON + correlation IDs; aggregation is an ops concern.
+      - **Build/release/run**: strict separation; immutable tagged releases; rollback = redeploy prior release.
 
   - id: cicd-deployment
     tier: recommended
     title: "CI/CD & Deployment"
     content: |
       ## CI/CD & Deployment
-
-      ### Pipeline
-      - Every push triggers: lint → type-check → unit tests → build → integration tests.
-      - Merges to main additionally run: security scan → deploy to staging → smoke tests → promote.
-      - Pipeline must complete in under 10 minutes. Parallelize test suites, cache dependencies.
-      - Failed pipelines block merge. No exceptions.
-
-      ### Environments
-      - Minimum three environments: **development** (local), **staging** (mirrors prod), **production**.
-      - Environment config is injected — same artifact runs everywhere with different env vars.
-      - Staging is a faithful replica of production (same provider, same DB engine, same services).
-
-      ### Deployment Strategy
-      - Default: **rolling deployment** with health checks (zero downtime).
-      - For critical services: **blue-green** or **canary** with automated rollback on error rate spike.
-      - Every deploy is tagged with git SHA. Rollback = redeploy a previous SHA.
-      - Deployment must be one command or one button. No multi-step manual runbooks.
-
-      ### Preview Environments
-      - Pull requests get ephemeral preview deployments where feasible (Vercel, Netlify, Railway).
-      - Preview URLs in PR comments for stakeholder review before merge.
+      - Pipeline on push: lint → type-check → unit → build → integration. On main: + security scan → staging → smoke → promote. < 10 min (parallelize, cache). Failed pipeline blocks merge.
+      - Three environments min: development (local), staging (faithful prod replica), production. Same artifact, injected config.
+      - Default rolling deploy with health checks; blue-green/canary for critical services with auto-rollback on error spike.
+      - Tag every deploy with git SHA; rollback = redeploy prior SHA. One command/button — no manual runbooks.
+      - PRs get ephemeral preview deploys where feasible (Vercel, Netlify, Railway); preview URL in PR comment.
 
   - id: testing-pyramid
     tier: core
     title: "Testing Pyramid"
     content: |
       ## Testing Pyramid
-
-      ```
-               /  E2E  \          ← 5-10% of tests. Core journeys only.
-              / Integration \      ← 20-30%. Real dependencies at boundaries.
-             /    Unit Tests   \   ← 60-75%. Fast, isolated, every public function.
-      ```
+      Unit 60-75% (fast, isolated, every public fn) · Integration 20-30% (real deps at boundaries) · E2E 5-10% (core journeys only).
 
       ### Coverage Targets
-      - Overall minimum: {{coverage_minimum | default: 80}}% line coverage (blocks commit)
-      - New/changed code: {{coverage_new_code_min | default: 90}}% minimum (measured on diff)
-      - Critical paths: 95%+ (data pipelines, auth, PHI handling, financial calculations)
-      - Mutation score (MSI) — overall: ≥ 65% (blocks PR merge)
-      - Mutation score (MSI) — new/changed code: ≥ 70% (measured on diff)
-      - Note: Line coverage and mutation score are both required. 80% line coverage can coexist
-        with 58% MSI when tests execute code without asserting its behavior (confirmed in Shattered
-        Stars). Run stryker-mutator immediately after writing each test batch, not only pre-release.
-        Tooling: stryker-mutator (JS/TS), mutmut (Python), Pitest (Java).
+      - Overall: {{coverage_minimum | default: 80}}% line (blocks commit). New/changed: {{coverage_new_code_min | default: 90}}% on diff. Critical paths (auth, data pipelines, financial): 95%+.
+      - Mutation score (MSI): overall ≥ 65% (blocks PR merge), new/changed ≥ 70% on diff.
+      - Line coverage AND MSI both required (80% line can coexist with 58% MSI). Run mutation after each test batch. Tooling: stryker-mutator (JS/TS), mutmut (Python), Pitest (Java).
 
       ### Test Rules
-      - Every test name is a specification: `test_rejects_duplicate_member_ids` not `test_validation`
-      - No empty catch blocks. No `assert True`. No tests that can't fail.
-      - Test files colocated: `[module].test.[ext]` or in `tests/` mirroring src structure.
-      - Flaky tests are bugs — fix or quarantine, never ignore.
-      - After writing tests for any module, run Stryker on that module before moving on.
-        Surviving mutants = missing assertions. Fix before proceeding.
+      - Test name = spec: `test_rejects_duplicate_member_ids` not `test_validation`.
+      - No empty catch, no `assert True`, no tests that can't fail.
+      - Colocate `[module].test.[ext]` or mirror src in `tests/`. Flaky tests are bugs — fix or quarantine.
+      - Run Stryker per module after writing its tests; surviving mutants = missing assertions.
 
-      ### Test Doubles Taxonomy
-      Use the correct double for the job:
-      - **Stub**: Returns canned data. No assertions on calls. Use when you need to control input.
-      - **Spy**: Records calls. Assert after the fact. Use to verify side effects.
-      - **Fake**: Working implementation with shortcuts (in-memory DB). Use for integration-speed tests.
-      - **Mock**: Pre-programmed expectations. Assert call patterns. Use sparingly — they couple to implementation.
-      Prefer stubs and fakes over mocks. Tests that mock everything test nothing.
-
-      ### Test Data Builders
-      - Use Builder or Factory pattern for test data: `UserBuilder.anAdmin().withName('Alice').build()`.
-      - One builder per domain entity. Builders provide sensible defaults so tests only specify what matters.
-      - No raw object literals scattered across tests. Centralize in `tests/fixtures/` or `tests/builders/`.
-
-      ### Property-Based Testing
-      - For pure functions with wide input ranges, add property tests (fast-check, Hypothesis, QuickCheck).
-      - Define invariants, not examples: "sorting is idempotent", "encode then decode = identity".
-      - Property tests complement, not replace, example-based tests.
+      ### Test Doubles
+      - Stub (canned data), Spy (record+assert calls), Fake (in-memory working impl), Mock (preprogrammed expectations — use sparingly). Prefer stubs/fakes.
+      - Test data via Builder/Factory (`UserBuilder.anAdmin().build()`), one per entity, centralized in `tests/builders/`. No scattered literals.
+      - Property tests (fast-check, Hypothesis) for pure functions: assert invariants, not examples. Complement example tests.
 
   - id: tdd-methodology
     tier: core
     title: "Test-Driven Development"
     content: |
       ## Test-Driven Development (TDD)
+      - **RED**: write a failing test, run it, confirm it fails (if it passes, the test is wrong).
+      - **GREEN**: minimum code to pass. No more.
+      - **REFACTOR**: clean up while green; no new behavior.
+      Repeat for every feature, function, and bug fix.
 
-      ### Red-Green-Refactor — The Only Cycle
-      1. **RED**: Write a failing test that describes the desired behavior. Run it. It MUST fail.
-         If it passes, the test is wrong — it's not testing what you think.
-      2. **GREEN**: Write the minimum code to make the test pass. No more.
-      3. **REFACTOR**: Clean up while all tests stay green. No new behavior in this step.
-      Repeat. Every feature, every function, every bug fix follows this cycle.
-
-      ### Tests Are Specifications, Not Confirmations
-      - Write tests against **expected behavior**, never against current implementation.
-      - A test that passes on broken code is worse than no test — it provides false confidence.
-      - Never weaken an assertion to match what the code currently does. If the code disagrees
-        with the spec, the code is wrong.
-      - Never write a test suite after the fact that just "locks in" existing behavior without
-        verifying it's correct.
-
-      ### Bug Fix Protocol
-      - **Every bug fix starts with a failing test** that reproduces the bug.
-      - The test must fail before the fix and pass after. No exceptions.
-      - If you can't write a reproducing test, you don't understand the bug well enough to fix it.
-
-      ### One Behavior Per Test
-      - Each test verifies exactly one behavior or rule.
-      - A test with multiple unrelated assertions is testing multiple things — split it.
-      - Test name = the specification: `rejects_expired_tokens`, not `test_auth`.
+      - Tests are specs: write against expected behavior, never current implementation. Never weaken an assertion to match the code. Never write after-the-fact tests that lock in unverified behavior.
+      - Bug fix: starts with a failing reproducing test (fails before fix, passes after). Can't reproduce = don't understand it.
+      - One behavior per test; test name = spec (`rejects_expired_tokens`, not `test_auth`).
 
   - id: tdd-enforcement
     tier: core
@@ -521,144 +214,47 @@ blocks:
     content: |
       ## TDD Enforcement — Forbidden Patterns and Gate Protocol
 
-      Instructions describe a process. Gates enforce it. This block defines what is
-      structurally prohibited, what output is required at each gate, and how the
-      commit sequence makes the TDD cycle auditable.
+      ### Forbidden (non-negotiable)
+      - NEVER write an implementation file before running and showing a failing test. "Would fail" ≠ ran it.
+      - NEVER write tests after implementation (except bug-fix repro on pre-existing code: write, show fail, fix, show pass).
+      - NEVER weaken an assertion to pass a test.
+      - NEVER skip the refactor phase.
+      - NEVER commit `feat:`/`fix:` without a preceding `test:` commit in the same branch.
 
-      ### Forbidden Patterns (non-negotiable)
-      The following are architecture violations, not style preferences:
-      - **NEVER write an implementation file before running and showing a failing test.**
-        Stating that "the test would fail" is not equivalent to running it. Run it.
-      - **NEVER write tests after implementation** except for bug fix reproduction tests on
-        pre-existing code not yet covered. Even then: write the test, show it fails, fix,
-        show it passes.
-      - **NEVER weaken an assertion** to make a test pass. If the assertion disagrees with
-        the output, the implementation is wrong.
-      - **NEVER skip the refactor phase** because "the code is clean enough." The refactor
-        phase exists to enforce separation of concerns under green. Skipping it is a
-        commitment not to separate concerns in that increment.
-      - **NEVER commit a `feat:` or `fix:` with no corresponding `test:` commit** preceding
-        it in the same branch. The test commit is the audit trail that the red phase occurred.
+      ### Gate Protocol — paste actual runner output at each gate, not a summary
+      - RED: write test → run, paste full failure → commit `test(scope): [RED] describe behavior`.
+      - GREEN: minimum impl → run, paste full pass → commit `feat(scope): implement to satisfy test`.
+      - REFACTOR: improve structure → run full suite, paste summary → commit `refactor(scope): clean without behavior`.
 
-      ### The Session Gate Protocol
-      TDD across a multi-step session requires explicit checkpoints the AI reports and the
-      human can verify. At each gate, the AI must output the actual test runner output,
-      not a summary of what it expects.
-
-      ```
-      ┌─────────────────────────────────────────────────────┐
-      │  PHASE 1: RED                                       │
-      │  Action:  Write test for the specified behavior     │
-      │  Gate:    Run test — paste full failure output      │
-      │  Block:   Cannot proceed until failure is shown     │
-      │  Commit:  test(scope): [RED] describe behavior      │
-      └───────────────────┬─────────────────────────────────┘
-                          │ failure confirmed
-      ┌───────────────────▼─────────────────────────────────┐
-      │  PHASE 2: GREEN                                     │
-      │  Action:  Write minimum implementation              │
-      │  Gate:    Run test — paste full passing output      │
-      │  Block:   Cannot proceed until passing is shown     │
-      │  Commit:  feat(scope): implement to satisfy test    │
-      └───────────────────┬─────────────────────────────────┘
-                          │ green confirmed
-      ┌───────────────────▼─────────────────────────────────┐
-      │  PHASE 3: REFACTOR                                  │
-      │  Action:  Improve structure, not behavior           │
-      │  Gate:    Run full suite — paste summary output     │
-      │  Block:   Cannot commit if any test regresses       │
-      │  Commit:  refactor(scope): clean without behavior   │
-      └─────────────────────────────────────────────────────┘
-      ```
-
-      ### Commit Sequence as Audit Trail
-      The git log for any feature must be readable as:
-      ```
-      test(cart): [RED] add test for removing last item empties cart
-      feat(cart): remove last item empties cart
-      refactor(cart): extract empty-check to CartState predicate
-      ```
-      This sequence is auditable. An AI that wrote the `feat:` commit without the preceding
-      `test:` commit either skipped the red phase entirely or conflated it with implementation.
-      The commit hook `pre-commit-tdd-check.sh` detects the second pattern before it lands.
-
-      ### Why Instructions Alone Are Not Sufficient
-      A language model generating in a single context window experiences no time delay between
-      writing a test and writing an implementation that passes it. The RED phase is structurally
-      collapsed. The gates above exist precisely to make the phases non-simultaneous:
-      - The test commit must happen before the implementation can be written.
-      - The failure output must be produced (by running the code) before the game state is known.
-      - The model cannot "know" the failure output without actually running the test,
-        because the failure messages are not in the training distribution for this specific code.
-      These gates transform TDD from a discipline into a constraint.
+      The git log per feature reads as the audit trail (test → feat → refactor). `pre-commit-tdd-check.sh` detects a `feat:` with no preceding `test:`.
 
   - id: adversarial-testing
     tier: core
     title: "Adversarial Testing Posture"
     content: |
       ## Adversarial Testing Posture
-
-      Tests are not documentation of what the code does. Tests are adversarial assertions
-      that the code does the right thing even when given inputs designed to break it.
-
-      ### The adversarial posture
-      - Design every test as if the implementation is wrong until proven otherwise.
-      - Write tests that FAIL on incorrect code — not tests that pass on any reasonable implementation.
-      - If a test is hard to make fail, the specification is underspecified, not the test.
-
-      ### Name tests as behaviors, not paths
-      - `rejects_expired_tokens` not `test_validate_token`
-      - `throws_on_missing_required_field` not `test_error_handling`
-      - `returns_empty_list_not_null_when_no_results` not `test_query`
-
-      ### Cover the adversarial surface
-      For every public function or API endpoint, write tests for:
-      1. **Valid boundary values**: minimum, maximum, exact-zero, single-element
-      2. **Invalid boundary values**: below-minimum, above-maximum, empty, null/undefined
-      3. **Constraint violations**: values that look valid but break invariants (negative balance, future birth date)
-      4. **Ordering and concurrency**: does order matter? what if called twice?
-      5. **Authorization boundaries**: can a user access another user's resource?
-
-      A test suite that only exercises the happy path is documentation, not specification.
-      Every mutation that survives is a missing adversarial test.
+      - Write tests that FAIL on incorrect code, not tests that pass on any reasonable impl. Hard to make fail = underspecified.
+      - Name as behaviors: `rejects_expired_tokens` not `test_validate_token`; `returns_empty_list_not_null_when_no_results` not `test_query`.
+      - Per public function/endpoint, cover: valid boundaries (min/max/zero/single) · invalid boundaries (below/above/empty/null) · constraint violations (negative balance, future birth date) · ordering/concurrency · authorization boundaries.
+      - Happy-path-only suite is documentation, not spec. Every surviving mutant = a missing adversarial test.
 
   - id: property-based-testing
     tier: recommended
     title: "Property-Based Testing"
     content: |
       ## Property-Based Testing
+      Add property tests for: pure functions with wide input domains (serialization, parsing, math, sorting); encoder/decoder pairs (`decode(encode(x)) === x`); sort idempotence (`sort(sort(xs)) === sort(xs)`); financial calculations (bounded results for all valid inputs).
 
-      Example-based tests verify that `f(x) = y` for specific known pairs.
-      Property-based tests verify that invariants hold for ALL inputs the generator can produce.
-      Both are required. Neither replaces the other.
+      | Ecosystem | Tool |
+      |---|---|
+      | TS/JS | `fast-check` |
+      | Python | `hypothesis` |
+      | Java/Kotlin | `jqwik` / `kotest` |
+      | Go | `gopter` / `rapid` |
+      | Rust | `proptest` |
+      | Scala | `scalacheck` |
 
-      ### When to add property tests
-      - Pure functions with wide input domains (serialization, parsing, math, sorting)
-      - Functions where "same inputs → same outputs" must hold across edge cases
-      - Any encoder/decoder pair: `decode(encode(x)) === x` must hold for all x
-      - Any sort or ranking: `sort(sort(xs))` must equal `sort(xs)` (idempotence)
-      - Any financial calculation: results must be within bounds for all valid inputs
-
-      ### Ecosystem tools (language-agnostic principle)
-      Use whatever property testing library matches the project's language:
-      - TypeScript / JavaScript: `fast-check`
-      - Python: `hypothesis`
-      - Java / Kotlin: `jqwik` or `kotest`
-      - Go: `gopter` or `rapid`
-      - Rust: `proptest`
-      - Scala: `scalacheck`
-
-      ### Template invariant structure
-      ```
-      property("encode-decode round trip", () => {
-        forAll(arbitrary_valid_input(), (input) => {
-          expect(decode(encode(input))).toEqual(input);
-        });
-      });
-      ```
-
-      If a property test fails with an unexpected input, add that input as a regression example test.
-      Property failures are bugs, not edge cases to suppress.
+      A property failure is a bug — add the failing input as a regression example test, do not suppress.
 
   - id: spec-meta-query
     tier: recommended
@@ -712,139 +308,22 @@ blocks:
     title: "Commit Protocol"
     content: |
       ## Commit Protocol
+      - Conventional commits: `feat|fix|refactor|docs|test|chore(scope): description`.
+      - A commit must pass: compilation, lint, tests, coverage gate, mutation gate (Stryker on changed modules), anti-pattern scan.
+      - Atomic — one logical change per commit. Never combine a behavior change with a refactor.
+      - Commit BEFORE any risky refactor. Update Status.md at end of every session.
 
-      A commit is a **verified state** of the system — not a save point, not a checkpoint.
-      A valid commit requires all three: test suite passes, delta is bounded and coherent,
-      no new anti-patterns introduced.
+      ### One logical change =
+      feature+tests · behavior-preserving refactor · spec change + its code change · bug fix + repro test.
 
-      - Conventional commits: `feat|fix|refactor|docs|test|chore(scope): description`
-      - Commits must pass: compilation, lint, tests, coverage gate, mutation score gate (Stryker on changed modules), anti-pattern scan.
-      - Keep commits atomic — one logical change per commit.
-      - Commit BEFORE any risky refactor. Tag stable states.
-      - Update Status.md at the end of every session.
+      ### Message precision
+      - ❌ `fix bug` — not queryable.
+      - ✅ `fix(auth): reject expired tokens at middleware boundary before service invocation`
+      Commit history is episodic memory the AI reads in future sessions; `wip`/`changes` are not.
 
-      ### Commit Hooks — Emit, Don't Reference
-      Commit hooks, commit-message linting, and the CI pipeline must be **emitted as fenced
-      code blocks** in the first session response — not merely referenced in prose or README
-      text. A hook that exists only as "you should add a pre-commit hook" in documentation
-      provides zero enforcement. If the file is not written to disk, the gate does not exist.
-
-      The following files must be emitted for any new project:
-
-      **`package.json`** — add to `scripts` and `devDependencies`:
-      ```json
-      "scripts": { "prepare": "husky install" },
-      "devDependencies": {
-        "husky": "^9.0.0",
-        "@commitlint/cli": "^19.0.0",
-        "@commitlint/config-conventional": "^19.0.0"
-      }
-      ```
-
-      **`.husky/pre-commit`**:
-      ```bash
-      #!/usr/bin/env sh
-      . "$(dirname -- "$0")/_/husky.sh"
-      npx tsc --noEmit && npm run lint && npm test -- --passWithNoTests
-      ```
-
-      **`.husky/commit-msg`**:
-      ```bash
-      #!/usr/bin/env sh
-      . "$(dirname -- "$0")/_/husky.sh"
-      npx commitlint --edit "$1"
-      ```
-
-      **`commitlint.config.js`**:
-      ```js
-      module.exports = { extends: ['@commitlint/config-conventional'] };
-      ```
-
-      ### Linter Config — Emit in P0, Don't Reference
-      Linter configuration is infrastructure, not application code. It must be committed to the
-      repo root in the **first response** (P0) alongside hooks and CI config — not added post-hoc.
-      A linter mentioned only in documentation does not enforce anything.
-
-      **TypeScript / JavaScript** — emit `.eslintrc.json` (or `eslint.config.js` for flat config):
-      ```json
-      {
-        "parser": "@typescript-eslint/parser",
-        "plugins": ["@typescript-eslint"],
-        "rules": {
-          "no-unused-vars": "off",
-          "@typescript-eslint/no-unused-vars": "error",
-          "@typescript-eslint/no-explicit-any": "error"
-        }
-      }
-      ```
-
-      **Python** — emit `ruff.toml` (or `[tool.ruff]` section in `pyproject.toml`):
-      ```toml
-      [tool.ruff]
-      select = ["E", "F", "I"]
-      ignore = []
-      line-length = 100
-      ```
-
-      **Go** — emit `.golangci.yaml`:
-      ```yaml
-      linters:
-        enable:
-          - unused
-          - govet
-          - errcheck
-      ```
-
-      The correct linter config for **this project's language** must be committed to the repo root
-      in the same response that emits hooks and CI. Discovering lint errors at code review is too late.
-
-      ### CI Pipeline — Emit, Don't Reference
-      `.github/workflows/ci.yml` must be emitted as a fenced code block in the first response.
-      A CI configuration described only in documentation does not enforce anything.
-      Adapt service blocks, branch names, and language-specific commands to the project stack.
-      The mutation gate step (`npx stryker run` for JS/TS, `mutmut run` for Python, `pitest` for
-      Java) is non-negotiable — it is the only gate that verifies test quality, not just
-      test execution. Line coverage at 80% can coexist with 58% mutation score; the mutation
-      gate catches the difference.
-
-      Minimum CI for a Node.js/TypeScript project:
-      ```yaml
-      name: CI
-      on:
-        push:
-          branches: [main, develop]
-        pull_request:
-          branches: [main, develop]
-      jobs:
-        ci:
-          runs-on: ubuntu-latest
-          steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
-              with:
-                node-version: '20'
-                cache: 'npm'
-            - run: npm ci
-            - run: npx tsc --noEmit
-            - run: npm run lint
-            - run: npm test -- --coverage --passWithNoTests
-            - name: Mutation gate
-              run: npx stryker run
-      ```
-
-      ### Commit Message Precision
-      The commit message is the sentence describing this state in the project's typed corpus.
-      - ❌ `fix bug` — not a sentence; not queryable; useless as episodic memory.
-      - ✅ `fix(auth): reject expired tokens at middleware boundary before service layer invocation`
-      The AI uses commit history as context in future sessions. Typed, scoped conventional
-      messages are a queryable episodic record. `wip` and `changes` are not.
-
-      ### What Constitutes One Logical Change
-      - A new feature and its tests: one commit.
-      - A refactor of an existing module that does not change behavior: one commit.
-      - A spec update (constitution change + the code change it governs): one commit.
-      - A bug fix with the reproducing test included: one commit.
-      Never combine a behavior change with a refactor in the same commit.
+      ### Emit, Don't Reference (P0/P1)
+      Hooks (`.husky/pre-commit`, `.husky/commit-msg`, `commitlint.config.js`), linter config (`.eslintrc.json`/`ruff.toml`/`.golangci.yaml` for this stack), and `.github/workflows/ci.yml` must be written to disk as fenced code blocks in the first response — not referenced in prose. If the file is not on disk, the gate does not exist. The hook stack emits these configs in P0/P1.
+      - CI steps: checkout → install → type-check → lint → test --coverage → mutation gate (`stryker run`/`mutmut run`/`pitest`). The mutation gate is non-negotiable — it verifies test quality, not just execution.
 
   - id: clarification-protocol
     tier: core
@@ -868,56 +347,20 @@ blocks:
     title: "Feature Completion Protocol"
     content: |
       ## Feature Completion Protocol
-      After implementing any feature (new or changed):
-
-      ### 1. Verify (local, pre-commit)
-      Run: `npx forgecraft-mcp verify .`
-      (Or `npm test` + manual HTTP check if forgecraft is not installed.)
-      A feature is not done until verify passes. Do not proceed to docs if it fails.
-
-      ### 2. Commit (code only)
-      Commit after `verify` passes. This triggers CI and the staging deploy pipeline.
-      `feat(scope): <description>` — describes the feature, not the docs update.
-
-      ### 3. Deploy to Staging + Smoke Gate
-      After the CI pipeline deploys to staging, run the smoke suite:
-      ```
-      npx playwright test --config playwright.smoke.config.ts --grep @smoke
-      ```
-      If smoke fails: **revert the deploy**. Do not proceed to production and do not cascade docs
-      for a feature that is broken in the deployed environment.
-
-      ### 4. Doc Sync Cascade
-      Update the following in order — skip any that do not exist in this project:
-      1. **spec.md** — update the relevant feature section (APIs, behavior, contract changes)
-      2. **docs/adrs/** — add an ADR if a new architectural decision was made
-      3. **docs/diagrams/c4-*.md** — update `c4-context.md` or `c4-container.md` if a new
-         module, container, or external dependency was added. Diagrams must be written to disk
-         as fenced Mermaid blocks — updating prose that references a diagram is not an update.
-      4. **docs/diagrams/sequence-*.md / state-*.md / flow-*.md** — update or create the
-         relevant diagram file for the changed surface. Sequence diagrams must name real
-         participants; state diagrams must name real states and transitions; flow diagrams must
-         have entry/exit nodes and decision diamonds. A file containing only `<!-- UNFILLED -->`
-         markers is a specification gap, not a completed diagram.
-      5. **docs/TechSpec.md** — update module list, API reference, or technology choice sections
-      6. **docs/use-cases.md** — update or add use cases if new actor interactions were introduced
-      7. **Status.md** — always update: what changed, current state, next steps
+      1. **Verify** (local): `npx forgecraft-mcp verify .` (or `npm test` + manual HTTP check). Not done until it passes; don't proceed to docs on failure.
+      2. **Commit** (code only) after verify passes: `feat(scope): <description>`. Triggers CI + staging deploy.
+      3. **Smoke gate**: after staging deploy, `npx playwright test --config playwright.smoke.config.ts --grep @smoke`. On failure: revert the deploy, do not cascade docs.
+      4. **Doc sync cascade** in order (skip non-existent): spec.md → docs/adrs/ (if new decision) → docs/diagrams/c4-*.md → docs/diagrams/sequence|state|flow-*.md → docs/TechSpec.md → docs/use-cases.md → Status.md (always). Diagrams written to disk as real Mermaid (named participants/states/nodes); `<!-- UNFILLED -->` is a gap, not a diagram.
 
   - id: mcp-tooling
     tier: recommended
     title: "MCP-Powered Tooling"
     content: |
       ## MCP-Powered Tooling
-      ### CodeSeeker — Graph-Powered Code Intelligence
-      CodeSeeker builds a knowledge graph of the codebase with hybrid search
-      (vector + text + path, fused with RRF). Use it for:
-      - **Semantic search**: "find code that handles errors like this" — not just grep.
-      - **Graph traversal**: imports, calls, extends — follow dependency chains.
-      - **Coding standards**: auto-detected validation, error handling, and state patterns.
-      - **Contextual reads**: `get_file_context` returns a file with its related code.
-      Indexing is automatic on first search (~30s–5min depending on codebase size).
-      Most valuable on mid-to-large projects (10K+ files) with established patterns.
-      Install: `npx codeseeker install --vscode` or see https://github.com/jghiringhelli/codeseeker
+      ### CodeSeeker — graph-powered code intelligence (hybrid vector+text+path, RRF)
+      - Semantic search (beyond grep), graph traversal (imports/calls/extends), auto-detected standards, `get_file_context` contextual reads.
+      - Auto-indexes on first search (~30s–5min). Most valuable on 10K+ file projects.
+      - Install: `npx codeseeker install --vscode` — https://github.com/jghiringhelli/codeseeker
 
   - id: engineering-preferences
     tier: recommended
@@ -938,108 +381,36 @@ blocks:
     title: "Agent Mechanical Constraints"
     content: |
       ## Agent Mechanical Constraints — Non-Negotiable Overrides
-
-      These rules exist because the model has hard constraints that silently produce wrong
-      results without them. Each override targets a specific failure mode observed in practice.
-
-      ### 1. Step 0 — Dead Code First
-      Before ANY structural refactor on a file > 300 LOC:
-      1. Delete all dead props, unused exports, unused imports, and debug logs.
-      2. Commit that cleanup separately under `chore(scope): strip dead code`.
-      3. Only then begin the real work.
-      Dead code accelerates context compaction. Every orphaned import is budget spent on
-      tokens that contribute nothing to the task.
-
-      ### 2. Phase Limit — 5 Files Maximum
-      Never attempt multi-file refactors in a single response. Break work into explicit phases.
-      Each phase must touch **no more than 5 files**. Complete Phase N, verify it compiles and
-      all tests pass, then wait for explicit approval before Phase N+1.
-      Why: context compaction fires around 167K tokens and discards all intermediate reasoning,
-      file reads, and decision chains. Keeping phases small prevents mid-task compaction.
-
-      ### 3. Senior Dev Override
-      The model's default system-level directives instruct it to "try the simplest approach
-      first" and "avoid refactoring beyond what was asked." These are active constraints that
-      fight your intent on architectural tasks.
-      **Override them explicitly** when quality requires it:
-      > "What would a senior, experienced, perfectionist dev reject in code review? Fix all of it."
-      This reframes what "done" means. System-level brevity mandates yield to an explicit
-      quality bar stated in the prompt.
-
-      ### 4. Sub-Agent Parallelism for Large Tasks
-      For tasks spanning > 5 independent files, **launch parallel sub-agents** (5–8 files per
-      agent). Each agent gets its own isolated context window and compaction cycle.
-      Sequential processing of large tasks guarantees context decay by the later files.
-      Batching into parallel agents multiplies the effective working memory proportionally.
-
-      ### 5. File Read Budget — 2,000-Line Cap
-      Each file read is hard-capped at 2,000 lines. Everything past that is silently truncated.
-      The model does not know what it didn't see — it will hallucinate the rest.
-      **For any file over 500 LOC**: read in sequential chunks using `offset` and `limit`
-      parameters. Never assume a single read captured the full file.
-
-      ### 6. Tool Result Truncation
-      Tool results exceeding ~50,000 characters are truncated to a 2,000-byte preview.
-      The model works from the preview and does not know results were cut.
-      If any search returns suspiciously few results: re-run it with narrower scope
-      (single directory, stricter glob). State explicitly when truncation may have occurred.
-
-      ### 7. Grep Is Not an AST
-      `grep` is raw text pattern matching. It cannot distinguish a function call from a
-      comment, a type reference from a string literal, or an import from one module vs another.
-      On any rename or signature change, search **separately** for:
-      - Direct calls and references
-      - Type-level references (interfaces, generics, `typeof`)
-      - String literals containing the name
-      - Dynamic imports and `require()` calls
-      - Re-exports and barrel file entries (`index.ts`, `__init__.py`)
-      - Test files and mocks
-      Never assume a single grep caught everything. Verify or expect regressions.
+      1. **Dead code first**: before any refactor on a file > 300 LOC, strip dead props/exports/imports/logs and commit `chore(scope): strip dead code` separately.
+      2. **Phase limit — 5 files max** per response. Complete a phase, verify compile+tests, await approval before the next. (Compaction fires ~167K tokens and discards intermediate reasoning.)
+      3. **Senior dev override**: explicitly counter the "simplest approach / don't refactor beyond ask" defaults when quality requires — "What would a perfectionist senior reject in review? Fix all of it."
+      4. **Sub-agent parallelism**: for > 5 independent files, launch parallel sub-agents (5–8 files each) for isolated context windows.
+      5. **File read budget — 2,000-line cap** (silent truncation beyond). For files > 500 LOC, read in `offset`/`limit` chunks.
+      6. **Tool result truncation**: results > ~50K chars truncate to a 2K preview. On suspiciously few results, re-run narrower and state when truncation may have occurred.
+      7. **Grep is not an AST**: on rename/signature change, search separately for direct calls, type-level refs, string literals, dynamic imports/`require()`, re-exports/barrels (`index.ts`/`__init__.py`), and test files/mocks.
 
   - id: code-generation-verification
     tier: core
     title: "Code Generation — Self-Verify Loop"
     content: |
       ## Code Generation — Verify Before Returning
+      Show the evidence — do not claim without running.
+      1. **Compile**: `tsc --noEmit` / `mypy` / equiv — 0 errors.
+      2. **Test suite**: full run (`jest --runInBand`, `pytest`) — 0 failures.
+      3. **Interface consistency**: when changing a signature, fix ALL callers in the same pass (else oscillation).
+      4. **DRY check**: duplication < 5% (min-tokens 50) on `src/` — see project-gates.yaml `no-code-duplication`; extract above threshold.
+      5. **Interface completeness**: every interface method implemented by its concrete class — see `interface-contract-completeness`.
 
-      When emitting implementation code across one or more files, the response is not complete
-      until the following are true. Show the evidence in your response — do not claim without running.
-
-      ### Verification steps (in order)
-      1. **Compile check**: Run `tsc --noEmit` (TypeScript), `mypy` (Python), or equivalent.
-         Zero errors required. Do not return with type errors outstanding.
-      2. **Test suite**: Run the full test suite (`jest --runInBand`, `pytest`, etc.).
-         Zero failures required. Fix every failure before returning.
-      3. **Interface consistency**: When fixing a compile error in file A, check ALL callers of
-         the changed interface. Fixing one side without seeing the other causes oscillation:
-         the model fixes `service.ts` (3-param signature) but `routes.ts` still calls it with
-         an object — same error reappears inverted next pass.
-      4. **§8 DRY Check**: Run duplication detector on `src/`. Duplicated lines must be < 5%
-         (min-tokens 50). Use the tool appropriate for your stack (see project-gates.yaml:
-         `no-code-duplication`). If above threshold, extract duplicated logic to a shared utility
-         before closing.
-      5. **§9 Interface Completeness**: Every method declared in each interface must be implemented
-         by its concrete class. Run static type checking (0 errors required). Use the tool
-         appropriate for your stack (see project-gates.yaml: `interface-contract-completeness`).
-         If errors exist, implement missing methods before closing.
-
-      ### Required evidence in the final response
+      Required evidence:
       ```
       tsc --noEmit: 0 errors
       Jest: 109 passed, 0 failed, 11 suites
       ```
 
-      ### Common test setup pitfalls (TypeScript / Prisma)
-      - **`prisma db push`, not `prisma migrate deploy`** in test environments.
-        `migrate deploy` silently no-ops when no `prisma/migrations/` folder exists,
-        leaving all tables absent. `db push --accept-data-loss` syncs `schema.prisma` directly.
-      - **`deleteMany` in FK order, not `DROP SCHEMA`**.
-        `$executeRawUnsafe('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')` throws
-        error 42601 — pg rejects multi-statement queries in prepared statements.
-        Use ordered `deleteMany()` calls in `beforeEach` instead.
-      - **JWT_SECRET minimum length**: HS256 requires ≥ 32 characters.
-        Test secrets like `"test-secret"` (11 chars) cause startup errors.
-        Use `"test-secret-that-is-at-least-32-chars"` in test env.
+      ### Test-setup pitfalls (TS/Prisma)
+      - Use `prisma db push --accept-data-loss`, not `migrate deploy` (no-ops without a migrations folder).
+      - Reset via ordered `deleteMany()` in FK order, not `DROP SCHEMA` (pg error 42601 on multi-statement).
+      - JWT_SECRET ≥ 32 chars (HS256) in test env.
 
   - id: known-pitfalls
     tier: core
@@ -1089,8 +460,7 @@ blocks:
     content: |
       ## Testing Architecture
 
-      ### Test Types by Scope and Purpose
-      Listed from fastest/most-isolated to slowest/most-integrated:
+      ### Test Types by Scope and Purpose (fast/isolated → slow/integrated)
 
       | Type | Description | Tooling |
       |---|---|---|
@@ -1116,19 +486,9 @@ blocks:
       | **Exploratory** | Manual, session-based, scheduled. Charter-driven. Findings become regression tests. | Manual + session notes |
 
       ### Variant Coverage Dimensions
-      For each test scope, the following input/condition variants are required:
+      Happy path · Sad/Negative · Edge/BVA (max/min/empty/null/coercion) · Corner (intersecting edges) · State transition (needs state diagram) · Equivalence partition · Error path (timeout/500/DB refused) · Security/Adversarial (SQLi, XSS, path traversal, oversized, malformed tokens) · Random/Monkey (via property-based).
 
-      - **Happy path** — nominal, valid inputs. Necessary but never sufficient.
-      - **Sad / Negative path** — correct rejection of invalid input or sequences.
-      - **Edge case / BVA** — boundary values: max, min, empty, null, type coercions.
-      - **Corner case** — intersection of two or more simultaneous edge conditions. Requires explicit enumeration.
-      - **State transition** — valid and invalid state machine transitions. Requires a state diagram as prerequisite.
-      - **Equivalence partitioning** — one representative from each equivalence class. Reduces test count without reducing coverage.
-      - **Error path** — infrastructure/dependency failure: timeout, 500, DB refused, queue full — conditions the user did not cause.
-      - **Security / Adversarial input** — SQL injection, XSS, path traversal, oversized payloads, malformed tokens. Required at every layer touching user-supplied data.
-      - **Random / Monkey** — unstructured random input. Subsumed by property-based layer.
-
-      **Variant coverage matrix** (✓ = required, ~ = structural constraint, — = not applicable):
+      **Variant coverage matrix** (✓ required, ~ structural, — n/a):
 
       | Variant | Unit | Integration | Contract | API | E2E | Smoke | Chaos |
       |---|---|---|---|---|---|---|---|
@@ -1142,8 +502,7 @@ blocks:
       | Security / Adversarial | — | — | — | ✓ | — | — | ~ always adversarial |
       | Random / Monkey | via property-based | — | — | — | — | — | ✓ |
 
-      ### Test Pipeline Mapping
-      Each trigger gate accumulates the prior gates. A gate may not be skipped.
+      ### Test Pipeline Mapping (each gate accumulates prior gates; none skippable)
 
       | Trigger | Gate Contents | Target Duration |
       |---|---|---|
@@ -1161,10 +520,7 @@ blocks:
     title: "Active Release Phase Gate"
     content: |
       ## Active Release Phase: {{release_phase | default: development}}
-
-      Your current phase determines which test gates are **required now**, not advisory.
-      The full taxonomy and trigger mapping are in the Testing section above.
-      Read your phase row below and apply every requirement listed.
+      Your phase determines which gates are blocking NOW. Apply every requirement in your phase row.
 
       | Phase | Required now — blocking | Not required yet |
       |---|---|---|
@@ -1175,89 +531,18 @@ blocks:
 
       **Current active phase: `{{release_phase | default: development}}`**
 
-      > If the phase is `pre-release` or `release-candidate`:
-      > Hardening tests (load, DAST, penetration) are REQUIRED in this session, not deferred.
-      > Do not proceed to merge without completing the required gate for your phase.
-      > The Testing section above maps each gate to its tooling and target duration.
+      > If `pre-release`/`release-candidate`: hardening tests (load, DAST, penetration) are REQUIRED this session, not deferred. Do not merge without completing your phase's gate.
 
   - id: gs-test-techniques
     tier: recommended
     title: "Generative Specification — Testing Techniques"
     content: |
       ## Generative Specification: Testing Techniques
-
-      These five techniques are specific to GS practice and extend the standard taxonomy above.
-
-      ### Adversarial Test Posture
-      The test is a hunter, not a witness.
-      - Tests are written to FAIL on incorrect code — to find the input or condition that exposes
-        a violation, not to confirm the current behavior.
-      - Tests must be written against interfaces, not implementations.
-        A test coupled to internal state fails on correct refactors and passes on behavioral violations
-        that happen to preserve internal structure. That is the worst outcome.
-
-      ### Expose-Store-to-Window (Interactive / Game / Real-Time UIs)
-      For applications with a shared state store (Redux, Zustand, Pinia, state machine), expose the
-      store to `window` in the test environment:
-      ```typescript
-      if (process.env.NODE_ENV === 'test') {
-        (window as any).__store = store;
-      }
-      ```
-      Playwright tests can then assert both what the screen renders AND what the application believes
-      is true — the store's internal state — without coupling assertions to DOM structure. This catches
-      the failure class that renders correctly but corrupts internal state (score displays right, stored wrong;
-      entity in undefined state not yet manifested as a visual defect).
-
-      ### Vertical Chain Test
-      A single UI action triggers Playwright, which then:
-      1. Queries the service layer response
-      2. Queries the database state and any affected indexes
-      3. Verifies correct propagation through every boundary the action crosses
-      4. Returns to the UI to confirm the visible outcome matches the stored state
-
-      Not a unit test, not a visual check, not a flow test: a chain verification. One trigger, inspected
-      at every boundary it crosses. Specify which critical flows receive this treatment in the test
-      architecture document. A defect anywhere in the chain (service logic, persistence, index consistency,
-      UI rendering) is surfaced in a single pass.
-
-      ### Mutation Testing as Adversarial Audit
-      An AI-generated test suite carries a structural risk: tests written by a system that knows the
-      correct implementation may pass it rather than catch violations of it.
-      - Run Stryker (JS/TS) or mutmut (Python) against every AI-generated suite before accepting it.
-      - A test that passes a mutant is not testing the contract — it is confirming the absence of one
-        specific mutation, no more.
-      - Coverage measures what was executed. Mutation score measures what was caught. The second is
-        the meaningful metric.
-      - Gates: 70% mutation score at PR, 80% at release candidate on changed code.
-
-      ### Multimodal Quality Gates (Generative Assets)
-      When content is AI-generated (images, audio, video), the acceptance criteria must be executable.
-      Manual review at scale is not a pipeline.
-
-      **Visual assets (sprite sheets, generated imagery):**
-      ```python
-      # PCA-based orientation check
-      from sklearn.decomposition import PCA
-      pca = PCA(n_components=2).fit(ship_pixel_coordinates)
-      angle = np.degrees(np.arctan2(*pca.components_[0][::-1]))
-      assert abs(angle) <= 15, f"Sprite orientation {angle:.1f}° exceeds 15° tolerance"
-
-      # Symmetry check (horizontal flip similarity)
-      similarity = ssim(img_half_left, np.fliplr(img_half_right))
-      assert similarity >= 0.85, f"Symmetry {similarity:.2f} below 0.85 threshold"
-      ```
-
-      **Audio assets:**
-      - Loudness normalization: assert target LUFS within ±1 dB of spec (pyloudnorm).
-      - Frequency profile: no asset competes in the 2–4 kHz presence range during dialogue.
-      - Silence detection: reject assets with generation artifacts (> X ms silence in unexpected positions).
-
-      **MCP-mediated inspection (judgment-requiring defects):**
-      An instrumented game/app state exposed through an MCP server lets a language model
-      evaluate whether a running scene satisfies its acceptance criteria without pre-scripting
-      every assertion. Feed the model the scene spec + MCP access; it reports violations.
-      This addresses defects that are easy to name but hard to encode as assertions.
+      - **Adversarial posture**: write tests to FAIL on incorrect code; against interfaces, not internal state.
+      - **Expose-store-to-window**: for shared-state UIs (Redux/Zustand/Pinia), set `window.__store` in test env so Playwright asserts internal state, not just DOM. Catches "renders right, stored wrong".
+      - **Vertical chain test**: one UI action → assert service response → DB state + indexes → back to UI. Surfaces a defect anywhere in the chain in one pass. Name which critical flows get it.
+      - **Mutation as adversarial audit**: run Stryker (JS/TS) / mutmut (Python) on every AI-generated suite. Gates: 70% at PR, 80% at RC on changed code.
+      - **Multimodal quality gates** (generated assets): executable acceptance, not manual review. Visual: PCA orientation (≤15°), SSIM symmetry (≥0.85). Audio: LUFS ±1 dB, frequency profile, silence detection. MCP-mediated inspection for judgment-requiring defects.
 
   - id: artifact-grammar
     tier: core
@@ -1357,140 +642,44 @@ blocks:
     title: "ADR Protocol"
     content: |
       ## ADR Protocol — Persistent Memory
-
-      Every non-obvious architectural decision produces an ADR before implementation begins.
-      An unrecorded architectural decision is a gap in the grammar.
-
-      Without an ADR, the AI will "improve" intentional decisions that appear suboptimal
-      without context — turning deliberate architectural tradeoffs into silently-introduced drift.
+      Every non-obvious architectural decision produces an ADR before implementation.
 
       ### Format (minimal)
       ```markdown
-      # ADR-NNNN: [Decision Title]
-
+      # ADR-NNNN: [Title]
       **Date**: YYYY-MM-DD
       **Status**: Proposed | Accepted | Deprecated | Superseded by ADR-NNNN
-
-      ## Context
-      What is the situation that requires a decision? What forces are in tension?
-
-      ## Decision
-      What was decided? State it plainly.
-
-      ## Alternatives Considered
-      What other options were evaluated and why were they not chosen?
-
-      ## Consequences
-      What becomes easier or harder as a result of this decision?
-      What will the AI need to know to work within this constraint?
+      ## Context / Decision / Alternatives Considered / Consequences
       ```
 
-      ### When to Write an ADR
-      - Any architectural choice that is not obvious from the code structure
-      - Any decision that involves a tradeoff (performance vs. simplicity, security vs. UX)
-      - Any decision that was reached after considering alternatives
-      - Any decision that future engineers (or AI sessions) might be tempted to "fix"
-      - Any change to the architectural constitution itself
+      ### When to write
+      Non-obvious choice · tradeoff (perf vs simplicity, security vs UX) · decided after alternatives · future sessions might "fix" it · any change to the constitution.
 
-      ### ADR Directory
-      - Path: `docs/adrs/` (zero-padded, kebab-case: `ADR-0001-short-title.md`)
-      - ADRs are immutable once Accepted. To change a decision: write a new ADR that supersedes the old one.
-      - The old ADR is updated only to add `Superseded by ADR-NNNN` to its status.
-
-      ### ADR Stubs — Emit in P1
-      When starting a new project, emit ADR stub files as **fenced code blocks** in the first
-      response alongside `prisma/schema.prisma`, `tsconfig.json`, and `package.json`.
-      ADRs referenced only in a README but not written as files are not present in the project.
-      The model cannot reference a file that does not exist. Emit the file.
-
-      **Minimum ADRs to emit in P1** (adapt titles to the actual stack chosen):
-      - `docs/adrs/ADR-0001-stack.md` — language, runtime, framework, ORM selection and rationale
-      - `docs/adrs/ADR-0002-authentication.md` — auth strategy (JWT/session), hashing algorithm and why
-      - `docs/adrs/ADR-0003-architecture.md` — layered/hexagonal architecture decision and boundary rules
-
-      Each ADR stub must contain real content in `Status`, `Context`, `Decision`, and `Consequences`
-      fields — not placeholder text. A stub that says "TBD" is not an ADR.
-
-      **ADR reference check:** If your README mentions `docs/adrs/ADR-0001-stack.md`, that file
-      must appear as a fenced code block in the same response. A reference to a non-emitted file
-      is an Auditable violation — it creates the appearance of traceability without the substance.
-
-      Also emit **`CHANGELOG.md`** in P1 with initial content documenting the P1 decisions:
-      ```markdown
-      # Changelog
-      All notable changes to this project will be documented here.
-      Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
-
-      ## [Unreleased]
-      ### Added
-      - Initial project scaffold: layered architecture, Prisma schema, repository interfaces
-      - Authentication: JWT + Argon2 (see ADR-0002)
-      - Dependency registry: docs/approved-packages.md with audit baseline
-      - CI pipeline: lint, type-check, test, npm audit, mutation gate
-      - Pre-commit hooks: tsc, lint, audit, test gates
-      ```
-      A CHANGELOG that exists only as "we will add one" is not Auditable. Write the file.
-      Document the P1 decisions immediately — the first entry is not a release entry, it is the
-      architectural record of what was built in this session.
-
-      ### Session Protocol
-      Every session begins by reading the open ADRs. The status of each ADR is the authoritative
-      record of what is intentional. A session that modifies an ADR-governed boundary without
-      first reading the ADR has produced drift, regardless of whether the code compiles.
+      - Path `docs/adrs/ADR-0001-short-title.md` (zero-padded, kebab). Immutable once Accepted; supersede with a new ADR.
+      - **Emit in P1** as fenced code blocks (a referenced-but-unwritten ADR is an Auditable violation). Minimum: ADR-0001-stack, ADR-0002-authentication (auth strategy + hashing), ADR-0003-architecture. Real content, not "TBD".
+      - Also emit **`CHANGELOG.md`** in P1 (Keep a Changelog format) documenting the P1 decisions under `[Unreleased] > Added`.
+      - Session start: read open ADRs first. Modifying an ADR-governed boundary without reading it = drift, even if it compiles.
 
   - id: use-case-triple-derivation
     tier: recommended
     title: "Use Case Triple Derivation"
     content: |
       ## Use Cases — Triple Derivation
+      One precise use case derives three artifacts:
+      1. **Implementation contract** — actor/precondition/trigger/postcondition is the spec the service layer is written against.
+      2. **Acceptance test** — same artifact in test dialect (Playwright/Cucumber). Hard to write the test = underspecified use case.
+      3. **User documentation** — the same content narrated for a non-technical reader; a rendering pass, not a rewrite.
 
-      A use case is not a requirements artifact produced before implementation and superseded by it.
-      In a generative specification it is a multi-purpose production rule: a single, precise
-      description of an interaction from which three artifacts derive independently and without
-      redundancy.
-
-      ### The Three Derivations
-      1. **Implementation contract** — The use case names the actor, precondition, trigger, and
-         postcondition with enough precision to be unambiguous. This is the specification the
-         service layer is written against. When the AI reads a well-formed use case before
-         generating the corresponding service method, it has what a human architect would
-         communicate in a design review.
-
-      2. **Acceptance test** — The use case and the test scenario are the same artifact expressed
-         in different dialects. A Playwright E2E test for a checkout flow is the checkout use case
-         transcribed into executable form. A Cucumber scenario in Given-When-Then is the use case
-         in declarative test notation. When the use case is precise, the test writes itself.
-         **When the test is hard to write, the use case is underspecified.** The test difficulty
-         is the diagnostic for underspecification.
-
-      3. **User documentation** — A use case narrated to a non-technical reader (actor, goal,
-         precondition, sequence, expected outcome, error cases) is a user manual section.
-         The content is identical. The framing is different. A specification with complete use
-         cases does not need a separate documentation writing pass — it needs a rendering pass.
-
-      ### Use Case Format (minimal)
+      ### Format (minimal)
       ```markdown
       ## UC-NNN: [Action] [Domain Object]
-
-      **Actor**: [who initiates]
-      **Precondition**: [what must be true before]
-      **Trigger**: [what event or action starts the flow]
-      **Main Flow**:
-        1. [Step one]
-        2. [Step two]
-      **Postcondition**: [what is true after success]
-      **Error Cases**:
-        - [Condition]: [System response]
-      **Acceptance Criteria** (machine-checkable):
-        - [ ] [Criterion 1]
-        - [ ] [Criterion 2]
+      **Actor**: / **Precondition**: / **Trigger**:
+      **Main Flow**: 1. ... 2. ...
+      **Postcondition**: / **Error Cases**: [Condition]: [response]
+      **Acceptance Criteria** (machine-checkable): - [ ] ...
       ```
 
-      ### The Diagnostic Rule
-      Before writing any service method, write the use case first. If you cannot state the
-      precondition and postcondition precisely, you do not yet understand the behavior well enough
-      to implement it correctly. The implementation will be wrong. The use case forces the
-      understanding the implementation requires.
+      Diagnostic: write the use case before any service method. Can't state pre/postcondition precisely = don't understand the behavior well enough to implement it.
 
   - id: living-documentation
     tier: recommended

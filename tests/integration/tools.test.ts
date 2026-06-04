@@ -217,8 +217,10 @@ describe("integration", () => {
       );
 
       // But TDD should be in the instruction file
+      // (compact rule form post harness-diet: RED/GREEN/REFACTOR one-liners)
       expect(claudeMd).toContain("Test-Driven Development (TDD)");
-      expect(claudeMd).toContain("Red-Green-Refactor");
+      expect(claudeMd).toContain("**RED**");
+      expect(claudeMd).toContain("**REFACTOR**");
     });
   });
 });
