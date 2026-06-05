@@ -258,6 +258,35 @@ describe("renderSentinelTree — GS compliance sections", () => {
     expect(lifecycle.content).toContain("scope boundary");
   });
 
+  it("constitution_contains_type_driven_design_and_core_disciplines", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const constitution = getFile(files, ".claude/constitution.md");
+    // Type-Driven Design (Minsky/King): illegal states unrepresentable, parse don't validate
+    expect(constitution.content).toContain("illegal states unrepresentable");
+    expect(constitution.content).toContain("Parse, don't validate");
+    expect(constitution.content).toContain("Result<T,E>");
+    // Functional Core, Imperative Shell (Bernhardt)
+    expect(constitution.content).toContain("Functional core, imperative shell");
+    // Design by Contract (Meyer) — UC contract = function contract
+    expect(constitution.content).toContain("Design by Contract");
+  });
+
+  it("python_constitution_uses_python_type_driven_idioms", () => {
+    const pyCtx: RenderContext = { ...context, language: "python" };
+    const files = renderSentinelTree([architectureBlock], pyCtx);
+    const constitution = getFile(files, ".claude/constitution.md");
+    expect(constitution.content).toContain("illegal states unrepresentable");
+    expect(constitution.content).toContain("frozen dataclasses");
+    expect(constitution.content).not.toContain("Result<T,E>");
+  });
+
+  it("code_routes_contains_screaming_architecture", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const codeRoutes = getFile(files, ".claude/routes/code.md");
+    expect(codeRoutes.content).toContain("Screaming Architecture");
+    expect(codeRoutes.content).toContain("first search must hit");
+  });
+
   it("constitution_branch_contains_7_gs_properties", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const constitution = getFile(files, ".claude/constitution.md");

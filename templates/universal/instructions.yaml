@@ -107,6 +107,7 @@ blocks:
       - Zero hardcoded values: all config via env/config files, validated at startup (fail fast). Magic numbers → named constants.
       - Zero mocks in source: mocks only in test files. No `if DEBUG: return fake_data`. Stubs use NotImplementedError, not hardcoded returns.
       - Interfaces first: interface → DTOs → consuming code → tests → concrete impl.
+      - Type-driven design: make illegal states unrepresentable. {{#if language_is_typescript}}Discriminated unions for state, `Result<T,E>` for fallible ops, branded types for validated values; parse external input into typed objects at the boundary (Zod) — never pass raw input inward.{{/if}}{{#if language_is_python}}Tagged unions (`Literal` + dataclass), `NewType` for validated values, frozen dataclasses; parse external input at the boundary (Pydantic) — never pass raw dicts inward.{{/if}}
       - DI via constructor; composition root wires everything. No service locator, global singletons, module-level instances.
       - Error handling: custom exception hierarchy per module, errors carry context (IDs, timestamps, op name), fail loud. Domain never returns HTTP status codes.
       - Feature-based modules (own models/service/repo/routes), acyclic graph, public API via {{#if language_is_typescript}}index.ts{{/if}}{{#if language_is_python}}__init__.py{{/if}}.
@@ -665,6 +666,7 @@ blocks:
     title: "Use Case Triple Derivation"
     content: |
       ## Use Cases — Triple Derivation
+      The UC format IS Design by Contract (Meyer): precondition/postcondition/invariant — the contract is the executable spec.
       One precise use case derives three artifacts:
       1. **Implementation contract** — actor/precondition/trigger/postcondition is the spec the service layer is written against.
       2. **Acceptance test** — same artifact in test dialect (Playwright/Cucumber). Hard to write the test = underspecified use case.

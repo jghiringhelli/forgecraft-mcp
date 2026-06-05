@@ -44,16 +44,20 @@ if [ ! -f "package.json" ]; then
 fi
 
 if grep -q '"vitest"' package.json 2>/dev/null; then
-  OUTPUT=$(npx vitest run --coverage --reporter=verbose 2>&1)
+  # --maxWorkers=4: full suite + v8 coverage instrumentation starves the vitest
+  # worker IPC channel ("Timeout calling onTaskUpdate" unhandled error → exit 1
+  # with all tests green). Capping workers eliminates the contention.
+  OUTPUT=$(npx vitest run --coverage --maxWorkers=4 2>&1)
   EXIT_CODE=$?
 
   if [ $EXIT_CODE -ne 0 ]; then
-    # Print only the relevant failure lines to avoid noise
-    echo "$OUTPUT" | grep -E "ERROR|Coverage|does not meet|%|FAIL|✗|passed|failed" | head -40
+    # Print the run summary and real errors — NOT lines merely containing
+    # keywords (✓-lines with "coverage" in test names used to drown the cause).
+    echo "$OUTPUT" | grep -E "Unhandled|does not meet|Test Files|Tests  |Errors |FAIL  " | head -20
     echo ""
-    echo "❌ Coverage gate failed — thresholds not met."
-    echo "   Run 'npx vitest run --coverage' locally to see the full report."
-    echo "   Add tests until coverage meets the configured minimums."
+    echo "❌ Coverage gate failed. Possible causes: failing test, threshold miss,"
+    echo "   or an unhandled error (see above — NOT necessarily thresholds)."
+    echo "   Reproduce: npx vitest run --coverage --maxWorkers=4"
     exit 1
   fi
   echo "  ✅ Coverage gate passed"
