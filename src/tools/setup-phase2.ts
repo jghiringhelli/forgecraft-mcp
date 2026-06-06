@@ -98,6 +98,12 @@ export interface Phase2ResponseParams {
   readonly architectureCntWritten?: string[];
   /** Community registry gates installed to .forgecraft/gates/registry/. */
   readonly registryGatesInstalled?: string[];
+  /** docs/learning-graph.csv emission result (harness as Compact Knowledge Graph). */
+  readonly learningGraph?: {
+    written: boolean;
+    concepts: number;
+    edges: number;
+  };
   /** FC QG remote gates relevant to active tags — used to generate tailoring checklist. */
   readonly remoteGates?: readonly {
     id: string;
@@ -187,6 +193,11 @@ export function buildPhase2Response(params: Phase2ResponseParams): string {
       `  .forgecraft/gates/registry/ — ${params.registryGatesInstalled.length} community ` +
       `gate(s) installed for your tags. Review and promote relevant ones to ` +
       `.forgecraft/gates/active/ (never auto-activated — human judgment required).\n`;
+  if (params.learningGraph?.written)
+    text +=
+      `  docs/learning-graph.csv (harness as Compact Knowledge Graph — ` +
+      `${params.learningGraph.concepts} concepts, ${params.learningGraph.edges} edges; ` +
+      `derived artifact, regenerated on refresh)\n`;
 
   if (!prdWritten && !yamlWritten && scaffoldFiles.length === 0)
     text += `  (all artifacts already existed — nothing overwritten)\n`;

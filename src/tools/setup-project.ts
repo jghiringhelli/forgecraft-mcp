@@ -370,6 +370,16 @@ async function executePhase2(
     }
   }
 
+  // Emit docs/learning-graph.csv — the harness serialized as a Compact
+  // Knowledge Graph (derived artifact; scans everything written above).
+  let learningGraph = { written: false, concepts: 0, edges: 0 };
+  try {
+    const { emitLearningGraph } = await import("./learning-graph.js");
+    learningGraph = emitLearningGraph(projectDir);
+  } catch {
+    // Derived artifact — emission failure never blocks setup
+  }
+
   const text = buildPhase2Response({
     decisions,
     tags: effectiveTags,
@@ -407,6 +417,7 @@ async function executePhase2(
     architectureCntWritten,
     remoteGates,
     registryGatesInstalled,
+    learningGraph,
   });
 
   return { content: [{ type: "text", text }] };

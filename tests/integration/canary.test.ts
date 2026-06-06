@@ -280,6 +280,21 @@ describe("canary: TypeScript API project", () => {
     });
   });
 
+  describe("learning graph emission (harness as CKG)", () => {
+    it("scaffold emits docs/learning-graph.csv with a valid header and content", () => {
+      const lgPath = join(tempDir, "docs", "learning-graph.csv");
+      expect(existsSync(lgPath)).toBe(true);
+      const raw = readFileSync(lgPath, "utf-8");
+      expect(raw.split("\n")[0]).toBe(
+        "ConceptID,ConceptLabel,Dependencies,TaxonomyID",
+      );
+      // Concepts present for the core artifact classes
+      expect(raw).toContain(",CNT");
+      expect(raw).toContain(",DOC");
+      expect(raw).toContain(",GATE");
+    });
+  });
+
   describe("cascade readiness", () => {
     it("check_cascade returns results for all 5 steps", async () => {
       const result = await checkCascadeHandler({ project_dir: tempDir });
