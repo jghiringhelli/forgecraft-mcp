@@ -1,0 +1,39 @@
+id: regression-fixture-on-bugfix
+title: Bug Fix Requires a Regression Test That Fails Before the Fix
+description: >
+  Every fix that closes a reported bug must add a regression test exercising the
+  concrete input that broke (payload, document, click sequence, model output),
+  and that test must fail against the pre-fix code. The breaking input becomes a
+  permanent fixture. Without this, the same failure class returns with a
+  near-identical sample because the lesson lived only in a changelog, not in an
+  executable check.
+category: test-quality
+gsProperty: verifiable
+phase: development
+hook: pre-commit
+check: >
+  1. Detect commits whose type is fix( and whose message or linked tracker marks
+  a bug transitioning to resolved. 2. Confirm the same commit adds or modifies a
+  test under a regression fixtures path. 3. Confirm the test encodes the actual
+  breaking input, not a synthetic restatement. 4. Ideally confirm the test fails
+  against the parent commit.
+passCriterion: >
+  Every bug-closing fix commit touches a regression test/fixture that reproduces
+  the original breaking input and would fail before the fix.
+tags:
+  - UNIVERSAL
+generalizable: true
+evidence: >
+  Vairix DELTA-079 was a regression of DELTA-051, itself a regression of
+  DELTA-007 — a JSON-escape sanitizer bug returning under a cousin sample each
+  time. The lesson was captured in a Corrections Log but the breaking document
+  never entered fixtures, so the same class broke three times.
+provenance:
+  experiment: vairix-delta-050-100
+  finding: >-
+    DELTA-079/051/007 — same sanitizer bug class recurred three times; breaking
+    sample never captured as a fixture
+  discovered_in: GS field use (Vairix), gap G2
+status: approved
+approvedAt: '2026-06-08'
+contributor: jghiringhelli

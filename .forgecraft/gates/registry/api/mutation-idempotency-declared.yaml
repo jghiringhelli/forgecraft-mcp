@@ -1,0 +1,38 @@
+id: mutation-idempotency-declared
+title: POST/DELETE Endpoints Must Declare and Test Idempotency
+description: >
+  Every state-changing endpoint (POST create, DELETE) must declare its behavior
+  under a repeated call and have a contract test that issues the call twice. A
+  double click, a retry, or a network replay is normal; the endpoint must define
+  whether the second call returns the same id (200/idempotent), conflicts (409),
+  or no-ops (204) — and a test must pin it. Free-text create endpoints must also
+  declare a fuzzy-duplicate policy.
+category: api-contracts
+gsProperty: defended
+phase: development
+hook: pre-commit
+check: >
+  1. Enumerate POST/DELETE endpoints. 2. For each, confirm an idempotency
+  declaration (in spec or test header) and a contract test that calls it twice
+  and asserts the declared behavior. 3. For free-text create endpoints, confirm a
+  near-duplicate test. 4. Flag mutations with no double-call test.
+passCriterion: >
+  Every POST/DELETE declares its repeat-call behavior and has a test issuing the
+  call twice that asserts it.
+tags:
+  - API
+generalizable: true
+evidence: >
+  Vairix DELTA-048 — startOrgDiagnosis rejected the second (idempotent) click;
+  no test issued the call twice. Related DELTA-095 — survey-template create
+  accepted semantically fuzzy duplicates ("ship to production" vs "deploy to
+  production") because no test sent a near-duplicate. Mutation endpoints accept
+  inputs the UI never exercises.
+provenance:
+  experiment: vairix-delta-050-100
+  finding: >-
+    DELTA-048 — idempotent second call rejected; no two-call contract test
+  discovered_in: GS field use (Vairix), gap G6
+status: approved
+approvedAt: '2026-06-08'
+contributor: jghiringhelli

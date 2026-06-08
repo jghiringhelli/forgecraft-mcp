@@ -8,10 +8,16 @@
  * discipline; a ~2,000-line generated harness degraded fast.
  *
  * Budgets (lines — proxy for tokens at ~10 tokens/line of markdown):
- *   always-load    ≤ 160   root + constitution + corrections + status
+ *   always-load    ≤ 175   root + constitution + corrections + status
  *   single branch  ≤ 130   any one routed file (lifecycle, routes/*, standards/*)
  *   typical task   ≤ 480   always-load + lifecycle + docs-route + 2 standards
  *   full harness   ≤ 1100  every instruction file an AI could be routed to
+ *
+ * always-load was 160; raised to 175 (2026-06-08) for the Forbidden Patterns
+ * block in constitution.md — five field-derived failure classes (Vairix
+ * DELTA-046/057/058/088/089) that pass typecheck+units and reach production.
+ * These are always-loaded non-negotiables by definition; the degradation risk
+ * lives in full-harness grazing (1100), which retains ample headroom.
  *
  * `.claude/reference/` is exempt — it exists precisely so theory can live
  * outside the session context.
@@ -30,7 +36,7 @@ export interface HarnessBudgetReport {
 }
 
 export const HARNESS_BUDGET = {
-  alwaysLoad: 160,
+  alwaysLoad: 175,
   singleBranch: 130,
   typicalTask: 480,
   fullHarness: 1100,

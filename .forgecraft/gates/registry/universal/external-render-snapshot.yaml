@@ -1,0 +1,37 @@
+id: external-render-snapshot
+title: External-Render Templates Require a Snapshot Test
+description: >
+  Any template that renders content consumed outside the app — PDF, email,
+  CSV/JSON export, public webhook payload — must have a snapshot test that
+  freezes a fixture input and compares the rendered output. Visual code review
+  does not catch label drift, raw-enum leaks, or layout breaks. Snapshot diffs
+  require explicit human approval; CI must not auto-update them.
+category: test-quality
+gsProperty: verifiable
+phase: development
+hook: pre-commit
+check: >
+  1. Identify modules that render external output (pdf, email, export, template,
+  report renderers). 2. Confirm each has a colocated snapshot test that renders a
+  fixture and asserts against a stored snapshot. 3. Confirm CI runs snapshots in
+  non-updating mode (no --updateSnapshot / -u in the pipeline).
+passCriterion: >
+  Every external-render template has a snapshot test over a fixture; CI fails on
+  snapshot drift rather than silently rewriting it.
+tags:
+  - UNIVERSAL
+generalizable: true
+evidence: >
+  Vairix DELTA-058 — the generated PDF rendered raw enum values
+  (strongly_recommended, quick_win) in user-visible badges for roughly three
+  weeks. tsc passed, units passed, no test exercised the rendered HTML. A single
+  snapshot test of the template would have failed the moment the label leaked.
+provenance:
+  experiment: vairix-delta-050-100
+  finding: >-
+    DELTA-058 — PDF leaked raw enum labels for ~3 weeks; no test rendered the
+    template output
+  discovered_in: GS field use (Vairix), gap G6
+status: approved
+approvedAt: '2026-06-08'
+contributor: jghiringhelli

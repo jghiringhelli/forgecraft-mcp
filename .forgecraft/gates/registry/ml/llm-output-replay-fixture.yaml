@@ -1,0 +1,40 @@
+id: llm-output-replay-fixture
+title: LLM-Output-Consuming Code Must Test Against Recorded Replay Fixtures
+description: >
+  Any code that consumes model output — directly from an LLM client or downstream
+  of a generation pipeline — must have at least one test that runs against a real
+  recorded output (a replay fixture), not only hand-rolled synthetic mocks.
+  Synthetic mocks encode the shape the author imagined; production emits enum
+  values, escape sequences, and orderings the author did not. Capture real
+  outputs with metadata (model, timestamp, phase) and replay them.
+category: test-quality
+gsProperty: verifiable
+phase: development
+hook: pre-commit
+check: >
+  1. Identify spec files for handlers under ai/ or pipeline/ (LLM consumers).
+  2. Confirm each imports at least one replay fixture from a recorded-outputs
+  corpus. 3. Synthetic mocks are allowed only as a complement, never the sole
+  input. 4. New pipeline phases add a fixture before their first green commit.
+passCriterion: >
+  Every LLM-output-consuming test exercises at least one recorded replay fixture;
+  no model-consumer is tested on synthetic mocks alone.
+tags:
+  - ML
+  - DATA-PIPELINE
+generalizable: true
+evidence: >
+  Vairix DELTA-088 — the promote-pattern endpoint tested with severity "high"
+  but the model emitted "moderate"/"severe", breaking the enum cast with a 500
+  in production. DELTA-051/079 — the model emitted double-escaped JSON the
+  synthetic mocks never produced. Tests mocked the OpenAI client, so the real
+  output shape never reached an assertion.
+provenance:
+  experiment: vairix-delta-050-100
+  finding: >-
+    DELTA-088 — endpoint 500 on real LLM enum value never present in synthetic
+    test mocks
+  discovered_in: GS field use (Vairix), gap G1
+status: approved
+approvedAt: '2026-06-08'
+contributor: jghiringhelli

@@ -357,6 +357,22 @@ function buildConstitutionFile(context: RenderContext): string {
     `- Adding dependencies >100 KB`,
     `- Full data resync / backfill operations`,
     ``,
+    `## Forbidden Patterns`,
+    `> Failure classes that pass typecheck + unit tests yet reach production. Each was paid for once.`,
+    ``,
+    `- **No duplicate business rule across handlers** — read and write share one tested helper, never parallel copies (they desync silently).`,
+    `- **No \`findMany\`/\`SELECT\` consumed by positional index without explicit \`ORDER BY\`** (+ \`id\` tie-breaker) — heap-scan order is luck.`,
+    `- **No spec-declared response field without a contract assertion** — the backend drops it silently and unit tests still pass.`,
+    `- **No external-render template (PDF, email, export) without a snapshot test** — review misses label drift and raw-enum leaks.`,
+    `- **No bug fix without a regression test that fails before the fix** — the concrete input that broke becomes a permanent fixture.`,
+    ...(context.tags.some((t) =>
+      ["ML", "DATA-PIPELINE", "ANALYTICS"].includes(t),
+    )
+      ? [
+          `- **No LLM/model-output-consuming test with synthetic mocks only** — record a real output as a replay fixture; production shapes differ.`,
+        ]
+      : []),
+    ``,
   ].join("\n");
 }
 

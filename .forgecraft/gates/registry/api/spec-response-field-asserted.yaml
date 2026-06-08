@@ -1,0 +1,36 @@
+id: spec-response-field-asserted
+title: Spec-Declared Response Fields Must Have Contract Assertions
+description: >
+  When an API spec declares that an endpoint returns a field, a contract test
+  (Hurl or integration) must assert that field exists in the live response. The
+  backend can drop a declared field silently — every unit test still passes
+  because they assert on synthetic objects, not the wire response. The assertion
+  need not check the value, only that the field was not dropped.
+category: api-contracts
+gsProperty: verifiable
+phase: development
+hook: pre-commit
+check: >
+  1. Parse the API spec for declared response fields per endpoint. 2. For each
+  endpoint with a contract test, confirm a jsonpath/exists assertion for each
+  declared field. 3. Flag declared fields with no corresponding assertion.
+passCriterion: >
+  Every field the spec declares in a response has a contract-test assertion that
+  it exists; a backend that drops the field fails the contract suite.
+tags:
+  - API
+generalizable: true
+evidence: >
+  Vairix DELTA-057 and DELTA-082 — the spec declared latestDiagnosis on the
+  projects listing; the backend dropped it; the dashboard hardcoded
+  "No diagnosis". No test failed until a manual walkthrough weeks later. The same
+  shape-drift appeared twice in different endpoints.
+provenance:
+  experiment: vairix-delta-050-100
+  finding: >-
+    DELTA-057/082 — spec-declared response field dropped by backend, no contract
+    test asserted its presence
+  discovered_in: GS field use (Vairix), gap G4
+status: approved
+approvedAt: '2026-06-08'
+contributor: jghiringhelli

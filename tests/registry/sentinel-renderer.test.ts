@@ -295,6 +295,32 @@ describe("renderSentinelTree — GS compliance sections", () => {
     expect(constitution.content).toContain("Prohibited Operations");
   });
 
+  it("constitution_contains_field_derived_forbidden_patterns", () => {
+    // Five failure classes from Vairix field findings (DELTA-046/057/058/088/089)
+    const files = renderSentinelTree([architectureBlock], context);
+    const c = getFile(files, ".claude/constitution.md").content;
+    expect(c).toContain("Forbidden Patterns");
+    expect(c).toContain("duplicate business rule"); // G5a / DELTA-089
+    expect(c).toContain("positional index without explicit"); // G5b / DELTA-046
+    expect(c).toContain("spec-declared response field"); // G4 / DELTA-057
+    expect(c).toContain("external-render template"); // G6 / DELTA-058
+    expect(c).toContain("regression test that fails before"); // G2 / DELTA-079
+  });
+
+  it("llm_replay_forbidden_pattern_only_for_model_tags", () => {
+    const apiOnly = getFile(
+      renderSentinelTree([architectureBlock], context),
+      ".claude/constitution.md",
+    ).content;
+    expect(apiOnly).not.toContain("replay fixture");
+    const mlCtx: RenderContext = { ...context, tags: ["UNIVERSAL", "ML"] };
+    const ml = getFile(
+      renderSentinelTree([architectureBlock], mlCtx),
+      ".claude/constitution.md",
+    ).content;
+    expect(ml).toContain("replay fixture");
+  });
+
   it("lifecycle_branch_contains_session_loop_invariant", () => {
     const files = renderSentinelTree([architectureBlock], context);
     const lifecycle = getFile(files, ".claude/lifecycle.md");

@@ -1,0 +1,37 @@
+id: findmany-deterministic-order
+title: Positional-Consumed Queries Require Explicit ORDER BY
+description: >
+  Any database query whose result is consumed by positional index — accessed as
+  row[0], or zipped/bound to another array by position — must declare an explicit
+  ORDER BY with a stable tie-breaker (e.g. a trailing id sort). Postgres and most
+  engines do not guarantee heap-scan order; a test with two rows passes by
+  coincidence, then production binds the wrong record.
+category: api-contracts
+gsProperty: verifiable
+phase: development
+hook: pre-commit
+check: >
+  1. Find findMany/SELECT calls whose results are indexed positionally or zipped
+  to a sibling collection. 2. Confirm each declares orderBy / ORDER BY. 3. Prefer
+  a tie-breaker: orderBy [{ field }, { id }] or { id }. 4. Flag positional
+  consumers with no explicit order.
+passCriterion: >
+  Every query consumed by positional index has an explicit, tie-broken sort;
+  result order does not depend on storage layout.
+tags:
+  - API
+generalizable: true
+evidence: >
+  Vairix DELTA-046 — findByDiagnosisId returned items in heap-scan order; the
+  pipeline bound LLM-generated items to the wrong hypothesis by position. A
+  two-row unit test passed; production ordering differed. An explicit orderBy
+  fixes it permanently.
+provenance:
+  experiment: vairix-delta-050-100
+  finding: >-
+    DELTA-046 — findMany without orderBy bound positional results to the wrong
+    record in production
+  discovered_in: GS field use (Vairix), gap G5
+status: approved
+approvedAt: '2026-06-08'
+contributor: jghiringhelli
