@@ -9,6 +9,57 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-06-08
+
+### Added — multi-file CNT, harness budget, gate flywheel, field-derived defenses
+
+**Multi-file CNT (Contextual Navigation Tree)** (`2535c4d`, `4c28838`)
+- `CLAUDE.md` is now a slim routing root (≤80 lines) — project identity, always-load list, routing table, doc obligation table. All content lives in branch files loaded only when the task needs them.
+- Branch files: `.claude/constitution.md` (non-negotiables), `.claude/lifecycle.md` (cascade, feature estimation, session loop), `.claude/routes/code.md`, `.claude/routes/docs.md`, `.claude/corrections.md`.
+- `docs/architecture/` CNT split: `layers.md`, `modules.md`, `data-model.md` (with Mermaid ERD), `integrations.md`.
+- `@gs-links` convention + `pre-commit-gs-links.sh` hook: source files declare the docs that govern them; the hook blocks commits where linked docs aren't updated together (escape hatch: `docs/change-manifest.md`).
+- `pre-push-doc-cascade.sh`: blocking gate when public surface changes without a docs touch.
+- `npm run self-check`: scaffolds ForgeCraft against its own spec and reports GS gaps vs useful extras.
+
+**Harness budget — Bounded applied to the harness itself** (`7a4b18e`)
+- `measureHarnessBudget()` enforces context budgets (always-load ≤175, single branch ≤130, typical task ≤480, full harness ≤1100 lines), canary-locked so bloat cannot regress.
+- GS theory evicted to `.claude/reference/gs-theory.md` with a "do not load during sessions" header; ~30 template blocks rewritten from lectures to rule lists. **Full generated harness: 1,961 → 808 lines.**
+- Context Discipline prime directive in the CNT root: work from the bound session prompt, load at most one branch + one standards file per task.
+
+**Gate flywheel** (`29d0c6c`, `2fb7edf`, `dcc0c4c`)
+- Registry gates matching project tags are now **installed** at setup into `.forgecraft/gates/registry/` (previously only mentioned), for review and promotion to `active/` (never auto-activated).
+- `contribute_gate` submits generalizable gates as **GitHub issues** on `jghiringhelli/quality-gates` (`gh` CLI primary, pre-filled issue URL fallback) — no API server.
+- **Gate genesis**: `close_cycle` scans `gate-violations.jsonl` (≥3× same hook) and `corrections.md` (≥2× same category) and writes draft gate stubs to `.forgecraft/gates/drafts/`.
+- Gate provenance: drafts carry `origin: genesis` (system-detected) vs `origin: organic` (AI/dev-proposed); a Gate Awareness section teaches in-session detection.
+
+**Disciplines in the generated constitution** (`e9ee2fa`)
+- Type-Driven Design (make illegal states unrepresentable, parse-don't-validate, `Result<T,E>`), Design by Contract lineage, Functional Core/Imperative Shell, Screaming Architecture. Language-aware (TS and Python idioms).
+
+**Field-derived Forbidden Patterns + registry gates** (`246eb3f`)
+- Five failure classes from real GS field use encoded as one-line Forbidden Patterns in every generated constitution: no duplicate business rule across handlers, no `findMany` by positional index without `ORDER BY`, no spec-declared response field without a contract assertion, no external-render template without a snapshot test, no bug fix without a failing-first regression test. (ML/DATA-PIPELINE projects also get: no LLM-output test on synthetic mocks alone.)
+- Six contributable registry gates with field provenance: `regression-fixture-on-bugfix`, `external-render-snapshot` (universal); `spec-response-field-asserted`, `findmany-deterministic-order`, `mutation-idempotency-declared` (api); `llm-output-replay-fixture` (ml).
+
+**Working memory protocol** (`7ec7da6`)
+- `lifecycle.md` gains a mid-session context-management protocol (checkpoint to `status.md`, trust green contracts, one sub-task per context window) and a five-memory-types map (Semantic/Procedural/Episodic/Relationship/Working → which artifact).
+
+**Language-aware generation** (`dd3c1d2`)
+- Python projects receive Python typing rules (mypy/pyright, `snake_case.py`, frozen dataclasses) instead of TypeScript idioms; `inferStackFromTags` takes the language; `forgecraft.yaml` persists the `language` field.
+
+**learning-graph.csv emission** (`7e13e18`)
+- `setup_project` emits `docs/learning-graph.csv` — the harness serialized as a Compact Knowledge Graph (4-column `ConceptID,ConceptLabel,Dependencies,TaxonomyID`, DAG-validated). Concepts are harness artifacts; edges are reading order (routing, derivations, `@gs-links`). Derived artifact, regenerated on setup, never session-routed.
+
+**Canary + WP compliance** (`02c5ada`)
+- End-to-end canary suite scaffolds real fixtures (TypeScript API, Python pipeline, GAME, FINTECH, minimal one-paragraph spec) and asserts CNT structure, document taxonomy, hooks, agents, cascade, harness budget, and language correctness.
+- `docs/status.md` canonical format (Completed/In Progress/Next/Decisions Made/Blockers); `writePrd` preserves raw spec content when AI extraction is absent.
+
+### Changed
+- always-load harness budget raised 160 → 175 to accommodate the field-derived Forbidden Patterns block (documented; full-harness degradation budget unchanged at 1100).
+- Coverage gate hook runs with `--maxWorkers=4` to eliminate a vitest worker-IPC flake; failure output now shows the run summary instead of keyword-matched lines.
+
+### Validated
+- **AX Treatment-v8**: a ForgeCraft-generated harness (zero hand-tuning) implemented the RealWorld Conduit API to blind audit 12/12, official conformance 13/13 (one fix pass), 99% coverage, 0 layer violations, 11/11 live use-case probes — matching the best hand-built GS arm.
+- **KX knowledge-retrieval replication**: CNT-routed retrieval scored macro F1 0.808 at $0.10/query — RDS 1.7× over a full-context dump and 5.6× over code search, replicating the Compact Knowledge Graph efficiency result on a software harness.
+
 ## [1.7.0] — 2026-06-02
 
 ### Added — GS white-paper compliance + new toolchain
@@ -553,3 +604,42 @@ the published white paper and practitioner protocol.
 
 ### Other
 - **tests**: sentinel GS sections + manifest/status writers; mcp-discovery timeout 120s; audit hook skips dev CVEs (`5549793`)
+
+### Other
+- **release**: v1.7.0 (`ffc0b6c`)
+
+### Added
+- **harness**: doc-code integrity + architecture CNT + feature estimation + GS spec (`2535c4d`)
+
+### Added
+- **cnt**: multi-file CNT + @gs-links hook + self-check script + ForgeCraft eats own cooking (`4c28838`)
+
+### Added
+- **canary**: end-to-end scaffold validation + WP compliance gaps (`02c5ada`)
+
+### Added
+- **lang**: language-aware CNT generation — Python projects get Python rules (`dd3c1d2`)
+
+### Added
+- **lifecycle**: working memory protocol — mid-session context management (`7ec7da6`)
+
+### Added
+- **gates**: registry loop via GitHub issues + diverse canaries + spec preservation (`29d0c6c`)
+
+### Added
+- **genesis**: propose gates from repeated violations and corrections (`2fb7edf`)
+
+### Added
+- **genesis**: gate provenance (origin) + in-session Gate Awareness detection (`dcc0c4c`)
+
+### Added
+- **budget**: harness diet — Bounded applied to the harness itself (`7a4b18e`)
+
+### Added
+- **disciplines**: type-driven design, DbC lineage, functional core, screaming architecture (`e9ee2fa`)
+
+### Added
+- **ckg**: emit docs/learning-graph.csv — the harness as a Compact Knowledge Graph (`7e13e18`)
+
+### Added
+- **gates**: encode Vairix field findings — 5 Forbidden Patterns + 6 registry gates (`246eb3f`)
