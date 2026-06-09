@@ -66,6 +66,8 @@ const DEFAULT_MANIFEST: Record<GitHookType, string[]> = {
     "pre-commit-branch-check.sh",
     "pre-commit-format.sh",
     "pre-commit-compile.sh",
+    "pre-commit-lint.sh",
+    "pre-commit-complexity.sh",
     "pre-commit-import-cycles.sh",
     "pre-commit-tdd-check.sh",
     "pre-commit-test.sh",

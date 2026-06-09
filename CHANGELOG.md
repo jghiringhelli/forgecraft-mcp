@@ -9,6 +9,25 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-06-09
+
+### Added — between-cycle quality enforcement: blocking lint + complexity
+
+**Lint gate** (`pre-commit-lint.sh`) — closes the gap where formatters ran but real linting did not. Format hooks (prettier/black/rustfmt) fix style; they do not catch unused vars, `no-explicit-any`, shadowing, etc. The lint gate is **blocking** (exit 1) and **stack-dispatched**:
+- TS/JS → `eslint --max-warnings=0`
+- Python → `ruff check` (or `flake8` fallback)
+- Go → `golangci-lint run` (or `go vet` fallback)
+- Rust → `clippy` (already covered by `pre-commit-clippy.sh`)
+
+Skips (does not fail) when no linter is configured for the staged stack, so projects that haven't opted into a linter are not blocked — but a configured linter blocks hard.
+
+**Cyclomatic-complexity gate** (`pre-commit-complexity.sh`) — promotes the `cyclomatic-complexity-max-10` registry gate from **declarative** (advisory, human-read) to **executable** (blocking). Stack-dispatched: `radon` (Python), `gocyclo` (Go), eslint `complexity` rule (TS/JS), clippy `cognitive_complexity` (Rust). Threshold parameterized (`max_cyclomatic_complexity`, default 10). Replaces the old warning-only `function-length` heuristic as the real enforcement path.
+
+Both hooks log to `.forgecraft/gate-violations.jsonl`, so repeated lint/complexity friction feeds the gate-genesis flywheel. Wired into the default pre-commit chain after `compile` (valid syntax first) and before `test`.
+
+### Fixed
+- eslint-config detection used `ls .eslintrc* eslint.config.*`, which exits non-zero when either glob is unmatched even if the other matched a real file — replaced with independent `compgen -G` tests so `eslint.config.js`-only projects are detected.
+
 ## [1.8.0] — 2026-06-08
 
 ### Added — multi-file CNT, harness budget, gate flywheel, field-derived defenses

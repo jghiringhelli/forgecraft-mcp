@@ -11,15 +11,17 @@ gsProperty: bounded
 phase: development
 hook: pre-commit
 check: >
-  Run ESLint with complexity rule:
-    eslint --rule '{"complexity": ["error", 10]}' src/
-  Or configure in .eslintrc:
-    "complexity": ["error", 10]
-  Fix violations by decomposing the function into smaller, single-purpose
-  functions.
+  ENFORCED EXECUTABLY by pre-commit-complexity.sh (stack-dispatched, blocking):
+    TS/JS  → eslint complexity rule ("complexity": ["error", 10])
+    Python → radon cc (any block > 10)
+    Go     → gocyclo -over 10
+    Rust   → clippy cognitive_complexity (via pre-commit-clippy.sh)
+  The hook skips (does not fail) only when no complexity tool is installed for
+  the staged stack — install the tool to make the gate block. Fix violations by
+  decomposing the function into smaller, single-purpose functions.
 passCriterion: >
-  Zero functions with cyclomatic complexity > 10. eslint with complexity rule
-  exits 0.
+  pre-commit-complexity.sh exits 0 — zero functions with cyclomatic complexity
+  > 10 across any supported stack.
 tags:
   - UNIVERSAL
 generalizable: true
