@@ -662,6 +662,7 @@ hooks:
             fi
           fi
         fi
+      done
       rm -f /tmp/violations
       if [ $VIOLATIONS -gt 0 ]; then
         echo "❌ $VIOLATIONS violation(s) found — commit blocked."

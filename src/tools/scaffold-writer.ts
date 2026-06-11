@@ -9,7 +9,11 @@ import { join, dirname } from "node:path";
 import type { ForgeCraftConfig, OutputTarget } from "../shared/types.js";
 import { OUTPUT_TARGET_CONFIGS } from "../shared/types.js";
 import type { composeTemplates } from "../registry/composer.js";
-import { renderInstructionFile, renderSkill } from "../registry/renderer.js";
+import {
+  renderInstructionFile,
+  renderSkill,
+  renderTemplate,
+} from "../registry/renderer.js";
 import type { RenderContext } from "../registry/renderer.js";
 import { renderSentinelTree } from "../registry/sentinel-renderer.js";
 import { writeFileIfMissing } from "../shared/filesystem.js";
@@ -243,7 +247,15 @@ export function writeScaffoldFiles(
   mkdirSync(hooksDir, { recursive: true });
   for (const hook of composed.hooks) {
     const hookPath = join(hooksDir, hook.filename);
-    trackWrite(`.claude/hooks/${hook.filename}`, hookPath, hook.script);
+    // Hook scripts carry Liquid vars like {{coverage_minimum | default: 80}}.
+    // They MUST be rendered before writing — an unrendered {{...}} is invalid
+    // bash and the hook fails on the first commit. (Skills/standards already
+    // render; hooks were the one path that wrote raw.)
+    trackWrite(
+      `.claude/hooks/${hook.filename}`,
+      hookPath,
+      renderTemplate(hook.script, context),
+    );
     try {
       chmodSync(hookPath, 0o755);
     } catch {

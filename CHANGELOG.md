@@ -11,6 +11,16 @@ Breaking changes are marked **BREAKING**.
 
 ## [1.8.1] — 2026-06-10
 
+### Fixed — CRITICAL: scaffolded hooks shipped broken (field-reported)
+
+Field analysis of a scaffolded Expo project (thanks @gabriel) surfaced two
+independent bugs that made **every scaffolded project's** pre-commit hooks fail:
+
+- **Hooks were never rendered.** Hook scripts carry Liquid vars like `{{coverage_minimum | default: 80}}` and `{{max_cyclomatic_complexity | default: 10}}`, but the scaffold write loop wrote them **raw** — skills and standards were rendered, hooks were the one path that wasn't. Result: literal `{{…}}` reached disk, producing invalid bash (`default:: command not found`, malformed `--cov-fail-under`). The coverage, complexity, function-length, and prod-quality gates all shipped non-functional. Fix: hooks now pass through `renderTemplate` (which honors the `| default:` filter) before writing.
+- **`pre-commit-prod-quality.sh` was unparseable bash** — its `for file in $SOURCE_FILES; do` loop was missing its `done`, so the whole script failed `bash -n` ("unexpected end of file") and aborted the commit chain. Added the missing `done`.
+
+**Ratchet pawl** (`tests/tools/no-unrendered-templates.test.ts`): scaffolds a broad tag set and asserts (1) **no** emitted file contains an unrendered `{{`, and (2) **every** emitted `.claude/hooks/*.sh` passes `bash -n`. This locks out both the unrendered-template and the malformed-bash classes — a hook can no longer ship broken.
+
 ### Added — per-environment bounding: security gates + test suites
 
 Closes a silent false-assurance: the deployment schema's `containsPii` and
