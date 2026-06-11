@@ -9,6 +9,12 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+### Added — field-analysis remediation, wave 2 (tag taxonomy & content)
+
+- **U7 — EXPO tag.** New first-class tag for the Expo managed workflow, layered on MOBILE. A project depending on `expo`/`expo-router` is now tagged both MOBILE and EXPO. EXPO ships: EAS Build/Submit/Update (OTA) guidance, Expo project conventions (expo-router, `app.config.ts`, `expo-sqlite`/`expo-secure-store`, `expo install`), a recommended iOS-simulator MCP server, and a **blocking `pre-commit-expo-doctor.sh`** hook that runs `npx expo-doctor` (catches SDK/dependency/config mismatches before they fail an EAS Build; no-ops on non-Expo projects). Tag count 28 → 29.
+- **U6 — axios constraint is role-aware.** The API stack-constraints block previously banned `axios` outright, contradicting any project that *consumes* an API (the field report's Expo app had axios mandated by its spec). The rule now explicitly governs only the **API server's own outbound calls** (Node ≥18 has native `fetch`); a mobile app / SPA / SDK / CLI consuming an API may use axios/got/ky.
+- **U12 — mobile guidance no longer bleeds web.** The MOBILE responsive/offline block recommended "CSS media queries" and listed IndexedDB/WatermelonDB as primary stores — web concepts that mislead React Native work (and contradicted a project that chose Drizzle). It now points to `useWindowDimensions`/Flexbox/safe-area for layout and `expo-sqlite`/`expo-secure-store`/MMKV for storage, framing the store choice as a recorded ADR decision (IndexedDB called out as web-only).
+
 ### Fixed / Added — field-analysis remediation, wave 1 (calibration & refresh)
 
 From the SafetyCore Mobile field report. Bug-class fixes that need no new tag taxonomy:

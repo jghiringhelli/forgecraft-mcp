@@ -23,6 +23,7 @@ export const ALL_TAGS = [
   "LIBRARY",
   "INFRA",
   "MOBILE",
+  "EXPO",
   "ANALYTICS",
   "HIPAA",
   "SOC2",

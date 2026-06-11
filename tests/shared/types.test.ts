@@ -5,8 +5,8 @@ import { describe, it, expect } from "vitest";
 import { ALL_TAGS } from "../../src/shared/types.js";
 
 describe("ALL_TAGS", () => {
-  it("contains exactly 28 tags", () => {
-    expect(ALL_TAGS).toHaveLength(28);
+  it("contains exactly 29 tags", () => {
+    expect(ALL_TAGS).toHaveLength(29);
   });
 
   it("starts with UNIVERSAL", () => {

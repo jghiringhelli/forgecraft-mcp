@@ -31,8 +31,10 @@ blocks:
       | JWT | `jsonwebtoken@^9` | `jwt-simple` (abandoned), `<9` |
       | ORM | `@prisma/client@^5`/`kysely@^0.27` | `typeorm`, `sequelize` (weak TS) |
       | Logger | `pino@^9` | `winston`, `console.log` in prod |
-      | HTTP client | `undici@^6`/native `fetch` | `axios` for Node ≥18 |
+      | HTTP client (server's own outbound calls) | `undici@^6`/native `fetch` | `axios` for Node ≥18 |
       | ESLint | `@typescript-eslint/*@^8` | `^5`/`^6` (minimatch CVE) |
+
+      The HTTP-client rule governs **this API server's outbound calls** (Node ≥18 ships native `fetch`/`undici`, so a heavy client dependency is unwarranted). A separate project that *consumes* an API — a mobile app, SPA, SDK, or CLI — may use `axios`/`got`/`ky`; pick one and stay consistent. Don't apply the server's no-axios rule to client code.
 
       `npm audit` zero high/critical before first commit; else replace or ADR the exception.
       {{/if}}

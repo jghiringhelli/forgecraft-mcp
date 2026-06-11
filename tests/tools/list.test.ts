@@ -9,12 +9,12 @@ import {
 } from "../../src/tools/list.js";
 
 describe("listTagsHandler", () => {
-  it("returns exactly 28 tags", async () => {
+  it("returns exactly 29 tags", async () => {
     const result = await listTagsHandler();
     const text = result.content[0]!.text;
     const match = text.match(/Available Tags \((\d+)\)/);
     expect(match).not.toBeNull();
-    expect(parseInt(match![1]!, 10)).toBe(28);
+    expect(parseInt(match![1]!, 10)).toBe(29);
   });
 
   it("includes UNIVERSAL tag description", async () => {

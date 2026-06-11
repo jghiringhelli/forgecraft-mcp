@@ -192,6 +192,7 @@ export function tagDirNameToTag(dirName: string): Tag | null {
     library: "LIBRARY",
     infra: "INFRA",
     mobile: "MOBILE",
+    expo: "EXPO",
     analytics: "ANALYTICS",
     hipaa: "HIPAA",
     soc2: "SOC2",

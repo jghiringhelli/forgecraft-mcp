@@ -72,6 +72,11 @@ const DEPENDENCY_PATTERNS: Array<{
     evidence: "mobile framework in dependencies",
   },
   {
+    packages: ["expo", "expo-router", "expo-constants"],
+    tag: "EXPO",
+    evidence: "Expo managed workflow in dependencies",
+  },
+  {
     packages: ["@tensorflow/tfjs", "onnxruntime-node"],
     tag: "ML",
     evidence: "ML library in dependencies",

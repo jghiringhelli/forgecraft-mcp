@@ -137,7 +137,7 @@ describe("every scaffolded hook is syntactically valid bash", () => {
       await scaffoldProjectHandler({
         project_dir: tempDir,
         project_name: "BashN",
-        tags: ["UNIVERSAL", "API", "WEB-REACT", "DATABASE", "CLI", "ML", "INFRA"],
+        tags: ["UNIVERSAL", "API", "WEB-REACT", "DATABASE", "CLI", "ML", "INFRA", "MOBILE", "EXPO"],
         language: "typescript",
         force: false,
         sentinel: true,
