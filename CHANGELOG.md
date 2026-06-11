@@ -9,6 +9,8 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-06-11
+
 ### Added — field-analysis remediation, wave 2 (tag taxonomy & content)
 
 - **U7 — EXPO tag.** New first-class tag for the Expo managed workflow, layered on MOBILE. A project depending on `expo`/`expo-router` is now tagged both MOBILE and EXPO. EXPO ships: EAS Build/Submit/Update (OTA) guidance, Expo project conventions (expo-router, `app.config.ts`, `expo-sqlite`/`expo-secure-store`, `expo install`), a recommended iOS-simulator MCP server, and a **blocking `pre-commit-expo-doctor.sh`** hook that runs `npx expo-doctor` (catches SDK/dependency/config mismatches before they fail an EAS Build; no-ops on non-Expo projects). Tag count 28 → 29.
@@ -26,8 +28,6 @@ From the SafetyCore Mobile field report. Bug-class fixes that need no new tag ta
 - **U8 — schema detection sees code-defined ORMs.** The cascade Step 6 schema check only looked for standalone files (prisma/openapi/graphql). It now also scans source for Drizzle (`sqliteTable(`/`pgTable(`/`drizzle-orm`), TypeORM (`@Entity()`), Mongoose (`new Schema(`), Kysely, Sequelize, and Zod — so a Drizzle-backed project stops getting a false "no schema" warning.
 - **U9 — authoritative spec discovery.** `collectSpecCandidates` now ranks candidates largest-first and reports line counts; the disambiguation prompt flags the largest as "likely the authoritative spec" and tells the AI not to generate parallel PRD/TechSpec stubs that duplicate it.
 - **U10 — preserve blocks survive refresh.** Wrap manual edits in `<!-- forgecraft:preserve-start -->` … `<!-- forgecraft:preserve-end -->` and `refresh` carries them forward into the regenerated file (idempotent).
-
-## [1.8.1] — 2026-06-10
 
 ### Fixed — CRITICAL: scaffolded hooks shipped broken (field-reported)
 
@@ -61,8 +61,6 @@ only by its own test, never by `audit`.
 - `design-doc-required` used a legacy gstack schema (`name`/`checks`/`remediation`, no `title`/`check`/`passCriterion`/`gsProperty`/`phase`) — migrated to the canonical gate schema; structured probes preserved under `checkSpec`.
 - `doc-cascade-required`, `human-judgment-required` carried a structured object `check:` (incompatible with `validateGate`) and lacked `passCriterion`/`gsProperty` — added the scalar fields; structured rules preserved under `checkSpec`.
 - `project.ts` docs for `containsPii`/`externallyAccessible` now name the gates actually activated instead of gates that never existed.
-
-## [1.8.1-quality] — 2026-06-09
 
 ### Added — between-cycle quality enforcement: blocking lint + complexity
 
