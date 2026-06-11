@@ -1,0 +1,52 @@
+id: audit-log-on-pii-access
+title: Audit Log on PII Access for PII-Bearing Environments
+description: >
+  In any environment that can hold real personally identifiable information,
+  read and write access to PII records must produce an audit-log entry capturing
+  who accessed what and when. Without an access audit trail, a PII-bearing
+  environment cannot answer the breach-investigation and compliance questions
+  (SOC2 CC7, HIPAA §164.312(b)) that justify holding the data at all.
+domain: security
+gsProperty: auditable
+phase: pre-release
+hook: pre-push
+implementation: cli
+check: >
+  Confirm that the data-access layer for PII entities emits an audit record on
+  access. Verify an audit-log writer exists and is invoked from the repository/
+  service methods that read or mutate PII entities (the entities flagged in the
+  data model / synthetic-data spec). The audit record must include actor
+  identity, action, resource id, and timestamp. Absence of any audit-log writer
+  in a containsPii environment fails the gate.
+passCriterion: >
+  PII read/write paths emit audit records (actor, action, resource, timestamp)
+  to a durable audit sink, for every environment marked containsPii: true.
+failureMessage: >
+  Environment marked containsPii: true has no audit logging on PII access. Add an
+  audit-log writer invoked from the PII data-access paths.
+fixHint: >
+  Add an append-only audit-log writer (actor, action, resourceId, timestamp) and
+  call it from repository/service methods that read or mutate PII entities.
+tags:
+  - INFRA
+  - API
+  - HIPAA
+  - SOC2
+  - FINTECH
+  - HEALTHCARE
+  - UNIVERSAL
+priority: P1
+likelihood: medium
+impact: high
+confidence: medium
+generalizable: true
+evidence: >
+  Compliance regimes that permit holding PII (SOC2, HIPAA, PCI) require an access
+  audit trail; its absence is a finding that blocks certification and cripples
+  breach forensics. The control is invisible until an auditor or incident asks
+  for it, so it is routinely deferred. This gate exists because the deployment
+  schema advertised an "audit logging gate" for containsPii environments while
+  no such gate was wired.
+source: registry
+status: ready
+addedAt: '2026-06-10T00:00:00.000Z'

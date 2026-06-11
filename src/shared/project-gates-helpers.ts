@@ -190,6 +190,15 @@ export function getEnvironmentActivatedGateIds(
     }
     if (env.containsPii === true) {
       activated.add("no-cross-tier-urls");
+      // PII-bearing environments require masking at the log boundary and an
+      // access audit trail (SOC2 CC7, HIPAA §164.312(b)).
+      activated.add("pii-masking-in-logs");
+      activated.add("audit-log-on-pii-access");
+    }
+    if (env.externallyAccessible === true) {
+      // Internet-facing environments require baseline hardening.
+      activated.add("security-headers-present");
+      activated.add("content-security-policy-set");
     }
     if (
       env.smtpRelay === "prod" &&

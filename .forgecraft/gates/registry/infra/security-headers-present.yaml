@@ -1,0 +1,50 @@
+id: security-headers-present
+title: Security Headers Present on Externally-Accessible Services
+description: >
+  Any environment reachable from the public internet must serve the baseline
+  HTTP security headers: Strict-Transport-Security (HSTS), X-Content-Type-Options
+  (nosniff), X-Frame-Options (or frame-ancestors via CSP), and Referrer-Policy.
+  Missing headers leave externally-facing services open to clickjacking, MIME
+  sniffing, protocol downgrade, and referrer leakage.
+domain: security
+gsProperty: defended
+phase: pre-release
+hook: pre-push
+implementation: cli
+check: >
+  Inspect the server/middleware configuration (e.g. helmet for Express, secure
+  headers middleware for FastAPI/Django, the reverse-proxy config, or a live
+  curl -I against the deployed URL) and confirm these response headers are set:
+  Strict-Transport-Security, X-Content-Type-Options: nosniff, X-Frame-Options
+  (or a CSP frame-ancestors directive), Referrer-Policy. For a deployed target:
+  curl -sI "$API_URL" | grep -iE 'strict-transport-security|x-content-type-options|x-frame-options|referrer-policy'
+passCriterion: >
+  All four baseline security headers are present in responses from every
+  environment declared externallyAccessible: true (verified in middleware config
+  or against the live endpoint).
+failureMessage: >
+  Externally-accessible environment is missing one or more baseline security
+  headers (HSTS, X-Content-Type-Options, X-Frame-Options/CSP frame-ancestors,
+  Referrer-Policy). Add a security-headers middleware (helmet, secure, etc.).
+fixHint: >
+  Add a security-headers middleware (Express: helmet(); FastAPI: secure.Secure;
+  Django: SecurityMiddleware) or set the headers at the reverse proxy.
+tags:
+  - INFRA
+  - API
+  - UNIVERSAL
+priority: P0
+likelihood: high
+impact: high
+confidence: high
+generalizable: true
+evidence: >
+  Public services shipped without HSTS or X-Frame-Options are a recurring source
+  of clickjacking and SSL-strip incidents. The headers are cheap, static, and
+  universally recommended (OWASP Secure Headers Project), yet routinely omitted
+  because nothing fails without them — exactly the silent gap a gate closes.
+  This gate exists because the deployment schema advertised "security headers
+  gate" for externallyAccessible environments while no such gate was wired.
+source: registry
+status: ready
+addedAt: '2026-06-10T00:00:00.000Z'

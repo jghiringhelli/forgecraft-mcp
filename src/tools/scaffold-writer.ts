@@ -25,6 +25,8 @@ import {
   renderGitignore,
   renderSmokeTestsReadme,
   renderLoadTestsReadme,
+  renderEnvSmokeTest,
+  renderEnvLoadTest,
 } from "./scaffold-templates.js";
 import {
   buildC4ContextStub,
@@ -306,6 +308,26 @@ export function writeScaffoldFiles(
       join(reportsDir, ".gitkeep"),
       "",
     );
+
+    // Per-environment test stubs — one smoke script per declared environment,
+    // one load stub per non-production environment (prod is not a load target).
+    const environments = userConfig.deployment.environments ?? {};
+    for (const [envName, envConfig] of Object.entries(environments)) {
+      const smokeFile = `tests/smoke/${envName}.smoke.sh`;
+      trackWrite(
+        smokeFile,
+        join(smokeDir, `${envName}.smoke.sh`),
+        renderEnvSmokeTest(envName, envConfig, userConfig.deployment),
+      );
+      if (envConfig.class !== "prd") {
+        const loadFile = `tests/load/${envName}.load.js`;
+        trackWrite(
+          loadFile,
+          join(loadDir, `${envName}.load.js`),
+          renderEnvLoadTest(envName, envConfig, userConfig.deployment),
+        );
+      }
+    }
   }
 
   // Auto-install git hooks after all files are written. Skip silently when

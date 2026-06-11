@@ -1,0 +1,55 @@
+id: pii-masking-in-logs
+title: PII Masked in Logs for PII-Bearing Environments
+description: >
+  In any environment that can hold real personally identifiable information,
+  application logs must not emit raw PII (email, full name, phone, national id,
+  card number, password, token). Sensitive fields must be masked, redacted, or
+  omitted at the logging boundary. Raw PII in logs is the most common way
+  regulated data leaks into systems with weaker access controls (log
+  aggregators, error trackers, terminals).
+domain: security
+gsProperty: defended
+phase: development
+hook: pre-commit
+implementation: cli
+check: >
+  Scan source for logging calls that pass known-sensitive fields directly.
+  Grep for logger/console/print statements that interpolate fields named
+  password, token, secret, ssn, creditCard, cardNumber, email, phone without a
+  mask/redact wrapper. Example:
+  grep -rEn '(log(ger)?\.(info|debug|warn|error)|console\.(log|info)|print)\(.*(password|token|secret|ssn|card|creditCard)' src/
+  Each hit must route the value through a masking helper (e.g. mask(), redact()).
+passCriterion: >
+  No logging statement emits a raw sensitive field. Sensitive values are masked
+  or omitted before reaching any log sink in PII-bearing environments.
+failureMessage: >
+  A logging statement appears to emit raw PII/secret in an environment marked
+  containsPii: true. Route the value through a masking/redaction helper or omit
+  it.
+fixHint: >
+  Wrap sensitive values in a mask()/redact() helper before logging, or configure
+  a log processor that strips known sensitive keys.
+tags:
+  - INFRA
+  - API
+  - HIPAA
+  - SOC2
+  - FINTECH
+  - HEALTHCARE
+  - UNIVERSAL
+priority: P0
+likelihood: high
+impact: high
+confidence: medium
+generalizable: true
+evidence: >
+  PII in plaintext logs is a top cause of reportable data exposure: the data is
+  copied to log aggregators and error trackers that have broader access than the
+  primary datastore, defeating the database-level controls. Masking at the log
+  boundary is standard (OWASP Logging Cheat Sheet) but easy to forget on a new
+  log line. This gate exists because the deployment schema advertised a "PII
+  logging gate" / "data masking gate" for containsPii environments while no such
+  gate was wired.
+source: registry
+status: ready
+addedAt: '2026-06-10T00:00:00.000Z'

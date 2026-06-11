@@ -1,13 +1,31 @@
 id: design-doc-required
-name: Design Doc Required Before Feature Work
+title: Design Doc Required Before Feature Work
 description: >
   Verifies that a design document (PRD or feature spec) exists before feature
   implementation begins. Encourages design-first discipline: define the problem,
   explore alternatives, and document trade-offs before writing production code.
   Inspired by the "office hours → plan review" gate from gstack.
+domain: documentation
+gsProperty: self-describing
+phase: development
+hook: pre-commit
+implementation: cli
 severity: warning
-tags: [universal]
-checks:
+check: >
+  Confirm docs/PRD.md and docs/TechSpec.md exist before feature code is written.
+  PRD must state problem, target users, use cases, non-goals, and alternatives
+  considered; TechSpec must state architecture, key decisions, dependencies, and
+  required environment variables. See checkSpec below for the per-document probes.
+passCriterion: >
+  Both docs/PRD.md and docs/TechSpec.md are present before feature implementation
+  begins.
+failureMessage: >
+  Design docs missing — docs/PRD.md and/or docs/TechSpec.md not found before
+  feature work. Document the problem and approach first.
+fixHint: Create docs/PRD.md and docs/TechSpec.md, then run forgecraft audit.
+tags:
+  - UNIVERSAL
+checkSpec:
   - id: prd-exists
     description: docs/PRD.md must exist
     fail_message: >

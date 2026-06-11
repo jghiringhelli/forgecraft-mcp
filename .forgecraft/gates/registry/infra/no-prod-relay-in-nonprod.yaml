@@ -1,0 +1,46 @@
+id: no-prod-relay-in-nonprod
+title: No Production Email/Message Relay in Non-Production Environments
+description: >
+  Non-production environments (dev, qae, lte) must not be configured to use the
+  production email/SMS/notification relay. A test environment wired to the prod
+  relay sends real messages to real users from test data — password resets,
+  receipts, and alerts that should never have left the sandbox.
+domain: environment-hygiene
+gsProperty: defended
+phase: development
+hook: pre-commit
+implementation: cli
+check: >
+  For every environment whose class is not cae or prd, confirm the relay/SMTP
+  configuration does not point at the production relay. Inspect forgecraft.yaml
+  deployment.environments[*].smtpRelay and the environment's mail/notification
+  config: a non-prod environment must use a test/sandbox relay (e.g. Mailpit,
+  Mailtrap, a stub sink), never the production provider credentials.
+passCriterion: >
+  No environment with class dev/qae/lte resolves its email/message relay to the
+  production provider. smtpRelay: prod appears only on cae/prd environments.
+failureMessage: >
+  A non-production environment is configured with the production email/message
+  relay (smtpRelay: prod). Test traffic would send real messages to real users.
+fixHint: >
+  Point non-prod environments at a sandbox relay (Mailpit, Mailtrap, or a stub),
+  and restrict the production relay credentials to cae/prd only.
+tags:
+  - INFRA
+  - API
+  - UNIVERSAL
+priority: P0
+likelihood: medium
+impact: high
+confidence: high
+generalizable: true
+evidence: >
+  A classic incident: a staging environment left pointing at the production
+  email provider blasts password-reset and billing emails to the real customer
+  list during a test run. The blast radius is external and immediate, and the
+  misconfiguration is invisible until messages land. This gate is the enforcement
+  half of the smtpRelay activation rule in getEnvironmentActivatedGateIds, which
+  previously referenced a gate id that did not exist in the registry.
+source: registry
+status: ready
+addedAt: '2026-06-10T00:00:00.000Z'

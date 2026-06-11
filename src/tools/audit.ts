@@ -12,6 +12,9 @@ import { scanAntiPatterns } from "../analyzers/anti-pattern.js";
 import { auditCntHealth } from "../shared/cnt-health.js";
 import type { CntAuditResult } from "../shared/cnt-health.js";
 import { auditHookInstallation } from "../shared/hook-installer.js";
+import { loadUserOverrides } from "../registry/loader.js";
+import { getEnvironmentActivatedGateIds } from "../shared/project-gates-helpers.js";
+import { getRegistryGates } from "../shared/project-gates-folder.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
 
@@ -160,7 +163,51 @@ export async function auditProjectHandler(
     text += formatCntAuditSection(cntAudit);
   }
 
+  // Environment-activated gates — surface which registry gates the declared
+  // deployment environments pull in. This makes getEnvironmentActivatedGateIds
+  // observable: declaring externallyAccessible/containsPii/prd now visibly
+  // tightens the gate set the project is held to.
+  const envSection = formatEnvironmentGatesSection(args.project_dir);
+  if (envSection) text += envSection;
+
   return { content: [{ type: "text", text }] };
+}
+
+/**
+ * Format the environment-activated gate section.
+ *
+ * Reads deployment.environments from forgecraft.yaml, computes the gate IDs
+ * those environment properties activate, and lists them with their titles
+ * (resolved from the installed registry when available).
+ *
+ * @param projectDir - Absolute path to the project root
+ * @returns Markdown section, or null when no environments are declared
+ */
+export function formatEnvironmentGatesSection(projectDir: string): string | null {
+  const config = loadUserOverrides(projectDir);
+  const environments = config?.deployment?.environments;
+  if (!environments || Object.keys(environments).length === 0) return null;
+
+  const activatedIds = getEnvironmentActivatedGateIds(environments);
+  if (activatedIds.length === 0) return null;
+
+  // Resolve gate titles from the installed registry (best-effort).
+  const registry = getRegistryGates(projectDir);
+  const titleById = new Map(registry.map((g) => [g.id, g.title]));
+  const installedIds = new Set(registry.map((g) => g.id));
+
+  let text = `\n## Environment-Activated Gates\n`;
+  text += `Declared environments: ${Object.keys(environments)
+    .map((n) => `\`${n}\``)
+    .join(", ")}\n\n`;
+  text += `These gates apply because of the declared environment properties:\n`;
+  for (const id of activatedIds) {
+    const title = titleById.get(id);
+    const installed = installedIds.has(id) ? "" : " — ⚠️ not installed in .forgecraft/gates/registry/";
+    text += `- \`${id}\`${title ? ` — ${title}` : ""}${installed}\n`;
+  }
+  text += "\n";
+  return text;
 }
 
 /**

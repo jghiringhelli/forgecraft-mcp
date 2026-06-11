@@ -106,12 +106,14 @@ export interface DeploymentEnvironmentConfig {
   readonly class?: EnvironmentClass;
   /**
    * Whether this environment can hold real personally identifiable information.
-   * When true: PII logging gate, data masking gate, and audit logging gate are activated.
+   * When true, getEnvironmentActivatedGateIds activates: no-cross-tier-urls,
+   * pii-masking-in-logs, and audit-log-on-pii-access.
    */
   readonly containsPii?: boolean;
   /**
    * Whether this environment is reachable from the public internet.
-   * When true: security headers gate, WAF gate, and CSP gate are activated.
+   * When true, getEnvironmentActivatedGateIds activates: security-headers-present
+   * and content-security-policy-set.
    */
   readonly externallyAccessible?: boolean;
   /**

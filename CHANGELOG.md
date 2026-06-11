@@ -9,7 +9,32 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
-## [1.8.1] — 2026-06-09
+## [1.8.1] — 2026-06-10
+
+### Added — per-environment bounding: security gates + test suites
+
+Closes a silent false-assurance: the deployment schema's `containsPii` and
+`externallyAccessible` flags **documented** security gates that were never wired
+and did not exist. `getEnvironmentActivatedGateIds` was itself dead code — called
+only by its own test, never by `audit`.
+
+**Five new environment-activated registry gates** (`.forgecraft/gates/registry/infra/`):
+- `security-headers-present`, `content-security-policy-set` — activate on `externallyAccessible: true`
+- `pii-masking-in-logs`, `audit-log-on-pii-access` — activate on `containsPii: true`
+- `no-prod-relay-in-nonprod` — the gate the activation logic already referenced but that was never installed
+
+**Activation is now live.** `audit` reads `deployment.environments` from `forgecraft.yaml`, computes the activated gate set, and prints an **Environment-Activated Gates** section — declaring `externallyAccessible`/`containsPii`/`prd` now visibly tightens the gate set the project is held to.
+
+**Per-environment test suites are now scaffolded** (not just READMEs). For each declared environment, scaffold writes `tests/smoke/<env>.smoke.sh` targeting that tier's URL (via a per-env URL variable) and asserting its health endpoint; for every non-production environment it writes `tests/load/<env>.load.js` (k6) with the declared `concurrentUsers`/`p99CeilingMs`/`durationSeconds` baked into the thresholds. Production is excluded from load generation by design.
+
+**Ratchet pawl — registry-wide gate schema lint** (`tests/registry/gates-schema.test.ts`): every gate YAML in the registry must parse, pass `validateGate`, and have a filename matching its `id`; and every gate id `getEnvironmentActivatedGateIds` can emit must resolve to an installed gate. This invariant is what makes the false-assurance class impossible going forward.
+
+### Fixed — schema debt surfaced by the new ratchet
+- `design-doc-required` used a legacy gstack schema (`name`/`checks`/`remediation`, no `title`/`check`/`passCriterion`/`gsProperty`/`phase`) — migrated to the canonical gate schema; structured probes preserved under `checkSpec`.
+- `doc-cascade-required`, `human-judgment-required` carried a structured object `check:` (incompatible with `validateGate`) and lacked `passCriterion`/`gsProperty` — added the scalar fields; structured rules preserved under `checkSpec`.
+- `project.ts` docs for `containsPii`/`externallyAccessible` now name the gates actually activated instead of gates that never existed.
+
+## [1.8.1-quality] — 2026-06-09
 
 ### Added — between-cycle quality enforcement: blocking lint + complexity
 
@@ -662,3 +687,6 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **gates**: encode Vairix field findings — 5 Forbidden Patterns + 6 registry gates (`246eb3f`)
+
+### Added
+- **learning-graph**: validate the DAG invariant at emission (`b093482`)
