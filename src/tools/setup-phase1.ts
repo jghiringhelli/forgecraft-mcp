@@ -55,15 +55,19 @@ export function buildPhase1Response(context: ProjectContext): ToolResult {
  * Build the "multiple spec files found — please identify" block.
  */
 function buildSpecDisambiguationBlock(
-  candidates: ReadonlyArray<{ path: string; preview: string }>,
+  candidates: ReadonlyArray<{ path: string; preview: string; lines: number }>,
 ): string {
   let block = `\n### Multiple specification files found\n\n`;
-  block += `Before proceeding, read each of these files and identify which one is the **project system spec** `;
+  block += `Candidates are listed largest-first — the longest document is usually the authoritative project spec. `;
+  block += `Read each and confirm which one is the **project system spec** `;
   block += `(not a series bible, world-building document, or supporting creative content).\n\n`;
   for (let i = 0; i < candidates.length; i++) {
-    block += `**[${i + 1}] \`${candidates[i].path}\`**\n`;
+    const lead = i === 0 ? " — **likely the authoritative spec** (largest)" : "";
+    block += `**[${i + 1}] \`${candidates[i].path}\`** (${candidates[i].lines} lines)${lead}\n`;
     block += `\`\`\`\n${candidates[i].preview.replace(/`/g, "'")}...\n\`\`\`\n\n`;
   }
+  block += `**Do not generate parallel PRD/TechSpec stubs that duplicate the authoritative spec** — `;
+  block += `set \`spec_file_confirmed\` to it and let the generated docs reference it.\n\n`;
   block += `In your next call to \`setup_project\`, provide:\n`;
   block += `- \`spec_file_confirmed\`: the full path to the project spec file\n`;
   block += `- \`problem_statement\`: 1–3 sentence summary of the core problem the app solves\n`;

@@ -9,6 +9,18 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+### Fixed / Added — field-analysis remediation, wave 1 (calibration & refresh)
+
+From the SafetyCore Mobile field report. Bug-class fixes that need no new tag taxonomy:
+
+- **U5 — LIBRARY no longer over-triggers.** A bare `tsconfig.json` previously tagged every TypeScript app as a LIBRARY, dragging in "library consumer" cascade pressure and ADRs about "API surface / versioning." LIBRARY now requires a real publishable package — an `exports`/`main`/`module` entry point and not `private: true`. (This also resolves **U11**: the "Library consumers need…" cascade rationales only fired because LIBRARY was misapplied; they're now accurate whenever they appear.)
+- **U4 — rejected tags stay rejected.** `refresh --remove-tags X` now records `X` in `rejectedTags` in `forgecraft.yaml`; tag inference will not re-add it on later refreshes (the WEB-REACT-keeps-coming-back loop). `refresh --add-tags X` clears the rejection.
+- **U2 — refresh renders placeholders.** The refresh path wrote sentinel files (CLAUDE.md, standards/*) raw, leaving literal `{{repo_url}}`/`{{domain}}`. It now runs `resolveTemplatePlaceholders` like the scaffold path.
+- **U3 — Stack line reflects mobile.** A MOBILE/Expo app that consumes an API was labelled "TypeScript/Node.js REST/GraphQL API". `inferStackFromTags` now ranks MOBILE/EXPO above API → "React Native (Expo) + TypeScript".
+- **U8 — schema detection sees code-defined ORMs.** The cascade Step 6 schema check only looked for standalone files (prisma/openapi/graphql). It now also scans source for Drizzle (`sqliteTable(`/`pgTable(`/`drizzle-orm`), TypeORM (`@Entity()`), Mongoose (`new Schema(`), Kysely, Sequelize, and Zod — so a Drizzle-backed project stops getting a false "no schema" warning.
+- **U9 — authoritative spec discovery.** `collectSpecCandidates` now ranks candidates largest-first and reports line counts; the disambiguation prompt flags the largest as "likely the authoritative spec" and tells the AI not to generate parallel PRD/TechSpec stubs that duplicate it.
+- **U10 — preserve blocks survive refresh.** Wrap manual edits in `<!-- forgecraft:preserve-start -->` … `<!-- forgecraft:preserve-end -->` and `refresh` carries them forward into the regenerated file (idempotent).
+
 ## [1.8.1] — 2026-06-10
 
 ### Fixed — CRITICAL: scaffolded hooks shipped broken (field-reported)

@@ -39,8 +39,13 @@ import { detectCntDrift } from "../shared/cnt-health.js";
 import {
   analyzeDrift,
   computeUpdatedTags,
+  computeRejectedTags,
   inferProjectName,
 } from "./refresh-analyzer.js";
+import {
+  buildPlaceholderContext,
+  resolveTemplatePlaceholders,
+} from "../shared/template-resolver.js";
 import {
   buildNoConfigOutput,
   buildPreviewOutput,
@@ -48,6 +53,7 @@ import {
   formatCntDriftSection,
   ensureProjectSpecific,
   extractCustomContent,
+  preserveUserBlocks,
 } from "./refresh-output.js";
 
 export type { DriftReport } from "./refresh-analyzer.js";
@@ -133,17 +139,24 @@ export async function refreshProjectHandler(
   const cntDrift = detectCntDrift(projectDir);
   const drift = analyzeDrift(projectDir, existingConfig, args);
 
+  const updatedRejectedTags = computeRejectedTags(
+    existingConfig.rejectedTags as Tag[] | undefined,
+    args.remove_tags as Tag[] | undefined,
+    args.add_tags as Tag[] | undefined,
+  );
   const updatedTags = computeUpdatedTags(
     drift.currentTags,
     drift.newTagSuggestions,
     args.add_tags as Tag[] | undefined,
     args.remove_tags as Tag[] | undefined,
+    updatedRejectedTags,
   );
   const updatedTier = args.tier ?? existingConfig.tier ?? "recommended";
 
   const updatedConfig: ForgeCraftConfig = {
     ...existingConfig,
     tags: updatedTags,
+    rejectedTags: updatedRejectedTags.length > 0 ? updatedRejectedTags : undefined,
     tier: updatedTier as ContentTier,
     releasePhase: (args.release_phase ?? existingConfig.releasePhase ?? "development") as ForgeCraftConfig["releasePhase"],
   };
@@ -196,10 +209,22 @@ export async function refreshProjectHandler(
         }
       }
 
+      // Render {{repo_url}}/{{domain}}/{{framework}} placeholders before writing
+      // — the scaffold path does this; the refresh path previously wrote raw,
+      // leaving literal {{repo_url}} in CLAUDE.md / standards files.
+      const placeholderContext = buildPlaceholderContext(
+        projectDir,
+        undefined,
+        updatedTags.map(String),
+      );
       for (const file of sentinelFiles) {
         const fullPath = join(projectDir, file.relativePath);
         mkdirSync(dirname(fullPath), { recursive: true });
-        writeFileSync(fullPath, file.content, "utf-8");
+        const rendered = resolveTemplatePlaceholders(
+          file.content,
+          placeholderContext,
+        );
+        writeFileSync(fullPath, preserveUserBlocks(fullPath, rendered), "utf-8");
       }
 
       ensureProjectSpecific(projectDir);

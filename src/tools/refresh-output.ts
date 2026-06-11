@@ -47,6 +47,48 @@ export function ensureProjectSpecific(projectDir: string): void {
   }
 }
 
+const PRESERVE_BLOCK_RE =
+  /<!--\s*forgecraft:preserve-start\s*-->[\s\S]*?<!--\s*forgecraft:preserve-end\s*-->/g;
+
+/**
+ * Carry forward user-authored preserve blocks across a wholesale refresh.
+ *
+ * ForgeCraft regenerates sentinel files (CLAUDE.md, standards/*) on refresh,
+ * which would otherwise discard manual edits. Any region a user wraps in
+ * `<!-- forgecraft:preserve-start -->` … `<!-- forgecraft:preserve-end -->` in
+ * the existing file is appended to the regenerated content (if not already
+ * present), so deliberate customizations survive. Idempotent: re-running keeps
+ * the same blocks since they are matched verbatim.
+ *
+ * @param existingPath - Absolute path to the file about to be overwritten
+ * @param rendered - The freshly regenerated content
+ * @returns rendered content with any preserved blocks appended
+ */
+export function preserveUserBlocks(
+  existingPath: string,
+  rendered: string,
+): string {
+  if (!existsSync(existingPath)) return rendered;
+  let existing: string;
+  try {
+    existing = readFileSync(existingPath, "utf-8");
+  } catch {
+    return rendered;
+  }
+  const blocks = existing.match(PRESERVE_BLOCK_RE);
+  if (!blocks || blocks.length === 0) return rendered;
+
+  const missing = blocks.filter((b) => !rendered.includes(b));
+  if (missing.length === 0) return rendered;
+
+  return (
+    rendered.replace(/\s*$/, "") +
+    "\n\n<!-- Preserved across refresh (forgecraft:preserve blocks) -->\n" +
+    missing.join("\n\n") +
+    "\n"
+  );
+}
+
 /**
  * Migrates content from a large monolithic CLAUDE.md to project-specific.md.
  * Extracts sections that look like user-added content (not ForgeCraft template output).

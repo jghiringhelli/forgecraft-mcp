@@ -58,6 +58,13 @@ export interface ForgeCraftConfig {
   /** Additional tags beyond auto-detected ones. */
   readonly additionalTags?: Tag[];
   /**
+   * Tags the user explicitly removed via `refresh --remove-tags`. Tag inference
+   * will NOT re-add these on subsequent refreshes (even if their dependency
+   * signal is still present), so a deliberate removal stays removed. Re-adding a
+   * tag via `refresh --add-tags` clears it from this list.
+   */
+  readonly rejectedTags?: Tag[];
+  /**
    * Practitioner experience level. Controls verbosity of generated session prompts.
    * - `novice` (default): full methodology explanations, step-by-step instructions
    * - `experienced`: compact output — just commit sequence and test command; no methodology teaching

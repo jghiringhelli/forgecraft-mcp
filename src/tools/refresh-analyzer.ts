@@ -123,11 +123,16 @@ export function computeUpdatedTags(
   suggestions: Array<{ tag: Tag; confidence: number }>,
   addTags?: Tag[],
   removeTags?: Tag[],
+  rejectedTags?: Tag[],
 ): Tag[] {
   const tagSet = new Set<Tag>(currentTags);
+  // A tag the user explicitly rejected is only re-added if they ask for it now
+  // via addTags. Inference suggestions for it are ignored.
+  const rejected = new Set<Tag>(rejectedTags ?? []);
+  for (const t of addTags ?? []) rejected.delete(t);
 
   for (const s of suggestions) {
-    if (s.confidence >= 0.6) tagSet.add(s.tag);
+    if (s.confidence >= 0.6 && !rejected.has(s.tag)) tagSet.add(s.tag);
   }
 
   if (addTags) {
@@ -140,8 +145,36 @@ export function computeUpdatedTags(
     }
   }
 
+  // A rejected tag that slipped in via currentTags is also pruned, unless the
+  // user re-added it this run.
+  for (const t of rejected) {
+    if (t !== "UNIVERSAL") tagSet.delete(t);
+  }
+
   tagSet.add("UNIVERSAL");
   return Array.from(tagSet);
+}
+
+/**
+ * Compute the persisted rejected-tags list for the next refresh.
+ * Removed tags are remembered; explicitly re-added tags are forgotten.
+ *
+ * @param existing - rejectedTags currently in config
+ * @param removeTags - tags removed this run (--remove-tags)
+ * @param addTags - tags added this run (--add-tags), which clear rejection
+ * @returns Deduplicated rejected-tag list (never includes UNIVERSAL)
+ */
+export function computeRejectedTags(
+  existing: Tag[] | undefined,
+  removeTags?: Tag[],
+  addTags?: Tag[],
+): Tag[] {
+  const rejected = new Set<Tag>(existing ?? []);
+  for (const t of removeTags ?? []) {
+    if (t !== "UNIVERSAL") rejected.add(t);
+  }
+  for (const t of addTags ?? []) rejected.delete(t);
+  return Array.from(rejected);
 }
 
 /**

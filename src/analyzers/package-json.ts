@@ -95,7 +95,6 @@ const FILE_PATTERNS: Array<{
     tag: "WEB-NEXT",
     evidence: "next.config found",
   },
-  { files: ["tsconfig.json"], tag: "LIBRARY", evidence: "TypeScript project" },
   {
     files: [".solhint.json", "hardhat.config.ts", "foundry.toml"],
     tag: "WEB3",
@@ -137,6 +136,12 @@ export function analyzeProject(projectDir: string): Detection[] {
     const binDetection = analyzeBinEntry(packageJsonPath);
     if (binDetection) {
       detections.push(binDetection);
+    }
+    // LIBRARY only when the package is actually published/consumable — a bare
+    // tsconfig.json is not a library (that over-tagged end-user apps as libs).
+    const libDetection = analyzeLibraryEntry(packageJsonPath);
+    if (libDetection) {
+      detections.push(libDetection);
     }
   }
 
@@ -278,6 +283,58 @@ function analyzeBinEntry(filePath: string): Detection | null {
       };
     }
     return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Detect a publishable library from package.json signals.
+ *
+ * A library is a package OTHER projects consume — that requires an entry point
+ * declaration (`exports`, `main`, or `module`) and not being marked `private`.
+ * A `tsconfig.json` alone (the old heuristic) flags every TypeScript app as a
+ * library, which is wrong for end-user apps with internal `src/index.ts` barrels.
+ *
+ * @param filePath - Absolute path to package.json
+ * @returns LIBRARY detection, or null when the package is not consumable
+ */
+function analyzeLibraryEntry(filePath: string): Detection | null {
+  try {
+    const pkg = JSON.parse(readFileSync(filePath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    if (pkg["private"] === true) return null;
+
+    const signals: string[] = [];
+    if (pkg["exports"]) signals.push("exports");
+    if (pkg["main"]) signals.push("main");
+    if (pkg["module"]) signals.push("module");
+    if (pkg["publishConfig"]) signals.push("publishConfig");
+    if (Array.isArray(pkg["files"]) && (pkg["files"] as unknown[]).length > 0) {
+      signals.push("files");
+    }
+    if (pkg["types"] || pkg["typings"]) signals.push("types");
+
+    // Need at least an entry point (exports/main/module) — `types`/`files`
+    // alone are too weak to call something a published library.
+    const hasEntryPoint =
+      signals.includes("exports") ||
+      signals.includes("main") ||
+      signals.includes("module");
+    if (!hasEntryPoint) return null;
+
+    // Higher confidence when an explicit publish surface is declared.
+    const confidence =
+      signals.includes("exports") || signals.includes("publishConfig")
+        ? 0.8
+        : 0.65;
+    return {
+      tag: "LIBRARY",
+      confidence,
+      evidence: [`publishable package (${signals.join(", ")})`],
+    };
   } catch {
     return null;
   }

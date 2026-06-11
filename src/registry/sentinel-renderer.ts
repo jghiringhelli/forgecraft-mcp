@@ -666,6 +666,10 @@ function inferStackFromTags(
     if (tags.includes("LIBRARY")) return "Python library";
     return "Python";
   }
+  // Mobile takes precedence over API/WEB: a mobile app that consumes an API is
+  // primarily a mobile app, not an API server. EXPO is more specific than MOBILE.
+  if (tags.includes("EXPO")) return "React Native (Expo) + TypeScript";
+  if (tags.includes("MOBILE")) return "React Native + TypeScript";
   if (tags.includes("WEB-NEXT")) return "Next.js 14+ App Router + TypeScript";
   if (tags.includes("WEB-REACT")) return "React + TypeScript + Vite/Next.js";
   if (tags.includes("API")) return "TypeScript/Node.js REST/GraphQL API";
