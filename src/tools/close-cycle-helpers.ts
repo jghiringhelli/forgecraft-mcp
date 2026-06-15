@@ -48,6 +48,11 @@ export interface CloseCycleResult {
   /** Draft gate files written to .forgecraft/gates/drafts/ this cycle. */
   readonly gateDraftsWritten?: string[];
   /**
+   * Count of inline debt markers (TODO(<scope>)) found this cycle (PT-4).
+   * Advisory only — surfaced as a nextSteps nudge, never affects `ready`.
+   */
+  readonly debtCount?: number;
+  /**
    * Generative-execution gate result (FC-1). Present whenever the gate ran
    * (cascade + in-flight checks passed). `blocked: true` forces ready:false.
    */

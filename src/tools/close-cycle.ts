@@ -325,6 +325,23 @@ export async function closeCycle(
     // Gate genesis is advisory — never blocks cycle close
   }
 
+  // Step 8.6 -- Debt marker advisory (PT-4)
+  // Surface deferred minimization shortcuts (TODO(min)) as a non-blocking
+  // nudge to run harvest-debt. Advisory only — NEVER sets ready:false.
+  let debtCount: number | undefined;
+  try {
+    const { scanDebtMarkers } = await import("./harvest-debt.js");
+    const debtMarkers = scanDebtMarkers(projectRoot);
+    debtCount = debtMarkers.length;
+    if (debtCount > 0) {
+      nextSteps.push(
+        `${debtCount} deferred minimization shortcut(s) (TODO(min)) — run harvest-debt to review.`,
+      );
+    }
+  } catch {
+    // Debt harvest is advisory — never blocks cycle close
+  }
+
   if (nextSteps.length === 0) {
     nextSteps.push(
       "Cycle complete. Commit your changes with: git commit -m 'feat(...): ...'",
@@ -365,6 +382,7 @@ export async function closeCycle(
     ...(gsScoreLoop !== undefined ? { gsScoreLoop } : {}),
     ...(driftResult.driftDetected ? { driftWarning: driftResult.message } : {}),
     ...(experiment?.id ? { experimentId: experiment.id } : {}),
+    ...(debtCount !== undefined ? { debtCount } : {}),
     ...(gateCandidates.length > 0
       ? {
           gateCandidates: gateCandidates.map((c) => ({

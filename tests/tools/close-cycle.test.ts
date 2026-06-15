@@ -890,6 +890,93 @@ describe("closeCycle static-analyzer gate (FC-2)", () => {
   });
 });
 
+// ── debt marker advisory (PT-4) tests ─────────────────────────────────
+
+describe("closeCycle debt marker advisory (PT-4)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-debt-${Date.now()}-${Math.random()}`);
+    mkdirSync(dir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  /** Build a passing cascade whose use-cases.md has one parseable UC header. */
+  function buildCascadeWithUcs(d: string): void {
+    buildCompleteCascade(d);
+    write(
+      d,
+      "docs/use-cases.md",
+      ["# Use Cases", "", "## UC-001: First Use Case", "", "Body."].join("\n"),
+    );
+  }
+
+  /** Persist a green generative-execution state so FC-1 does not block. */
+  function writeGenExecGreen(d: string): void {
+    write(
+      d,
+      ".forgecraft/verification-state.json",
+      JSON.stringify({
+        version: "1",
+        projectDir: d,
+        tags: [],
+        language: "typescript",
+        createdAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:00.000Z",
+        steps: [],
+        summary: [],
+        aggregate_s: 0,
+        generativeExecution: [
+          {
+            ucId: "UC-001",
+            status: "green",
+            lastRunAt: "2026-06-15T00:00:00.000Z",
+            source: "harness-run",
+          },
+        ],
+      }),
+    );
+  }
+
+  it("surfaces a TODO(min) advisory line and keeps ready:true", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    write(
+      dir,
+      "src/shortcut.ts",
+      "// TODO(min): inline this — upgrade: extract\n",
+    );
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.ready).toBe(true);
+    expect(result.debtCount).toBe(1);
+    expect(
+      result.nextSteps.some((s) =>
+        s.includes("deferred minimization shortcut(s) (TODO(min))"),
+      ),
+    ).toBe(true);
+  });
+
+  it("adds no advisory line when there are zero debt markers", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.ready).toBe(true);
+    expect(result.debtCount).toBe(0);
+    expect(result.nextSteps.some((s) => s.includes("TODO(min)"))).toBe(false);
+  });
+});
+
 // ── closeCycleHandler state leaf tests ────────────────────────────────
 
 describe("closeCycleHandler state leaf (.claude/state.md)", () => {
