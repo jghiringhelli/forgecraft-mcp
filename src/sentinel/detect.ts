@@ -34,6 +34,9 @@ export const SENTINEL_PRIORITY_PATHS: readonly string[] = [
   ".cursor/rules",
   ".aider.conf.yml",
   ".github/copilot-instructions.md",
+  ".windsurf/rules",
+  ".clinerules",
+  ".kiro/steering",
 ] as const;
 
 /**

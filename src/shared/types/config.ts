@@ -159,6 +159,33 @@ export interface ForgeCraftConfig {
     readonly code_climate?: Record<string, unknown>;
   };
   /**
+   * Multi-agent sentinel projection (PT-2). Treats the canonical AGENTS.md body
+   * as the single source of truth and projects byte-identical copies to other
+   * agent targets (copilot, cline, windsurf, cursor). A drift check (the
+   * sentinel-copies gate) verifies the on-disk copies match the re-rendered
+   * canonical. CLAUDE.md / the CNT tree stay SPECIAL (routing root) and are NOT
+   * in the copy-set.
+   */
+  readonly sentinel?: {
+    /**
+     * Copy targets to project the canonical body to. Defaults (when omitted) to
+     * ["agents-md"]. claude/CNT is always generated via its existing path and is
+     * never a copy target.
+     */
+    readonly targets?: ReadonlyArray<string>;
+    /**
+     * Per-target overrides. An override with an empty/missing rationale is NOT
+     * valid (mirrors generative_execution.overrides / static_analysis.overrides).
+     * An overridden target that drifts does not block the gate.
+     */
+    readonly overrides?: ReadonlyArray<{
+      /** Copy target this override excuses, e.g. "copilot". */
+      readonly target: string;
+      /** Mandatory justification for why a drifted copy may pass the gate. */
+      readonly rationale: string;
+    }>;
+  };
+  /**
    * When true, the project was detected as brownfield (existing source code, no substantial spec).
    * setup_project writes this flag and uses brownfield calibration questions.
    */
