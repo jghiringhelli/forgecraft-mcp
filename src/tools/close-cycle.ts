@@ -42,6 +42,7 @@ import {
   suggestVersionBump,
   appendChangelogEntry,
 } from "./close-cycle-versioning.js";
+import { evaluateGenerativeExecution } from "./generative-execution-gate.js";
 
 export type {
   CloseCycleOptions,
@@ -120,6 +121,37 @@ export async function closeCycle(
         "Run `list_changes` to review. Set status to 'verified' or 'closed' in .forgecraft/changes/<id>.yaml.",
       ],
       ready: false,
+    };
+  }
+
+  // Step 1.6 -- Generative-execution gate (FC-1)
+  // Every in-scope UC must be green (objective harness evidence) or carry a
+  // valid forgecraft.yaml override. unrun blocks: no evidence is not acceptance.
+  const inScopeUcIds = buildLayerReport(projectRoot).ucs.map((u) => u.id);
+  const genExec = evaluateGenerativeExecution(projectRoot, inScopeUcIds);
+  if (genExec.blocked) {
+    const nextSteps = [
+      `${genExec.reds.length} in-scope use case(s) are not green — regenerate from spec, then run \`run_harness\` until green: ${genExec.reds.join(", ")}`,
+      "A use case is green only when its harness probes pass (objective execution evidence). `unrun` UCs block too — run `run_harness` first.",
+    ];
+    if (genExec.overridden.length > 0) {
+      nextSteps.push(
+        `Overridden (non-green but excused): ${genExec.overridden.join(", ")}`,
+      );
+    }
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
     };
   }
 
@@ -271,6 +303,12 @@ export async function closeCycle(
     codeseekerGates,
     nextSteps,
     ready: true,
+    generativeExecutionStatus: {
+      status: genExec.status,
+      reds: genExec.reds,
+      overridden: genExec.overridden,
+      blocked: genExec.blocked,
+    },
     nextRoadmapItem,
     versionSuggestion: versionSuggestion ?? undefined,
     changelogUpdated,

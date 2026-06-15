@@ -47,6 +47,20 @@ export interface CloseCycleResult {
   }>;
   /** Draft gate files written to .forgecraft/gates/drafts/ this cycle. */
   readonly gateDraftsWritten?: string[];
+  /**
+   * Generative-execution gate result (FC-1). Present whenever the gate ran
+   * (cascade + in-flight checks passed). `blocked: true` forces ready:false.
+   */
+  readonly generativeExecutionStatus?: {
+    /** Overall normalized status across in-scope UCs. */
+    readonly status: "green" | "red" | "unrun";
+    /** In-scope UCs that are not green and not overridden — these block. */
+    readonly reds: string[];
+    /** In-scope non-green UCs excused by a valid forgecraft.yaml override. */
+    readonly overridden: string[];
+    /** True when at least one in-scope UC blocked the cycle. */
+    readonly blocked: boolean;
+  };
 }
 
 // ── Roadmap Types ────────────────────────────────────────────────────
@@ -292,6 +306,31 @@ export function formatCloseCycleResult(result: CloseCycleResult): string {
   if (result.cascadeBlockers?.length) {
     for (const blocker of result.cascadeBlockers) {
       lines.push(`- x ${blocker}`);
+    }
+  }
+
+  const ge = result.generativeExecutionStatus;
+  if (ge && (ge.reds.length > 0 || ge.overridden.length > 0)) {
+    lines.push("", "### Generative Execution");
+    if (ge.reds.length > 0) {
+      lines.push(
+        `⛔ ${ge.reds.length} in-scope use case(s) are not green — close_cycle blocked.`,
+        "These are specification violations: the code did not satisfy the UC postcondition when run (or was never run).",
+        "",
+      );
+      for (const uc of ge.reds) {
+        lines.push(`- ${uc}: spec violation → regenerate from spec`);
+      }
+      lines.push(
+        "",
+        "Run `run_harness` after regenerating until every in-scope UC is green.",
+      );
+    }
+    if (ge.overridden.length > 0) {
+      lines.push(
+        "",
+        `Overridden (non-green but excused via forgecraft.yaml generative_execution.overrides): ${ge.overridden.join(", ")}`,
+      );
     }
   }
 
