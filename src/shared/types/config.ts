@@ -116,6 +116,49 @@ export interface ForgeCraftConfig {
     }>;
   };
   /**
+   * Static-analyzer gate (FC-2) configuration. Treats a set of static analyzers
+   * (eslint, tsc, complexity, audit by default) as ONE structural-discipline
+   * signal, evaluated at close_cycle. Green raises the probability of
+   * structural-discipline conformance; it does not prove it — one signal
+   * alongside the harness. Sonar/CodeClimate are optional config-gated plug-ins:
+   * absent → skipped (never blocks). Analyzer commands resolve from `tools:`.
+   */
+  readonly static_analysis?: {
+    /**
+     * Analyzers to treat as the gate signal. Defaults (when omitted) to
+     * ["eslint", "tsc", "complexity", "audit"].
+     */
+    readonly analyzers?: ReadonlyArray<string>;
+    /** Threshold knobs surfaced to the analyzer hooks. */
+    readonly thresholds?: {
+      /** Maximum cyclomatic complexity per function. Default 10. */
+      readonly complexity_max?: number;
+      /** Minimum audit severity that blocks. Default "high". */
+      readonly audit_level?: "low" | "moderate" | "high" | "critical";
+    };
+    /**
+     * Per-analyzer overrides. An override with an empty/missing rationale is NOT
+     * valid (mirrors generative_execution.overrides).
+     */
+    readonly overrides?: ReadonlyArray<{
+      /** Analyzer this override excuses, e.g. "complexity". */
+      readonly analyzer: string;
+      /** Mandatory justification for why a failing analyzer may pass the gate. */
+      readonly rationale: string;
+    }>;
+    /**
+     * Optional SonarQube plug-in seam (DEFERRED). When this block is absent the
+     * analyzer is skipped and never blocks. Real scanner invocation is a
+     * documented extension point — the MVP only wires the absent → skip path.
+     */
+    readonly sonar?: Record<string, unknown>;
+    /**
+     * Optional Code Climate plug-in seam (DEFERRED). Same skip-if-absent
+     * semantics as `sonar`.
+     */
+    readonly code_climate?: Record<string, unknown>;
+  };
+  /**
    * When true, the project was detected as brownfield (existing source code, no substantial spec).
    * setup_project writes this flag and uses brownfield calibration questions.
    */
