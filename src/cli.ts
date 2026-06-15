@@ -25,6 +25,7 @@ import {
   cmdAddModule,
   cmdCheckCascade,
   cmdViolations,
+  cmdCheckSentinelCopies,
   cmdStatus,
 } from "./cli/commands.js";
 
@@ -89,6 +90,9 @@ export async function runCli(argv: string[]): Promise<boolean> {
         break;
       case "violations":
         await cmdViolations(positional, flags);
+        break;
+      case "check-sentinel-copies":
+        await cmdCheckSentinelCopies(positional, flags);
         break;
       case "status":
         await cmdStatus(positional, flags);

@@ -33,6 +33,7 @@ import {
   buildGateViolationReport,
   formatGateViolationReport,
 } from "../tools/gate-violations.js";
+import { evaluateSentinelCopies } from "../tools/sentinel-copies-gate.js";
 import { consolidateStatusHandler } from "../tools/consolidate-status.js";
 import type { Flags } from "./args.js";
 import { str, arr, bool } from "./args.js";
@@ -391,7 +392,9 @@ export async function cmdCheckCascade(
       }
     }
     if (!passed) {
-      console.error("\n❌ Cascade gate failed — required steps are incomplete.");
+      console.error(
+        "\n❌ Cascade gate failed — required steps are incomplete.",
+      );
     }
   }
 
@@ -437,6 +440,59 @@ export async function cmdViolations(
   }
 
   if (report.active.length > 0) process.exit(1);
+}
+
+/**
+ * `check-sentinel-copies [dir]` — verify per-agent sentinel copies match the
+ * canonical AGENTS.md body, exit 1 when un-overridden drift is present (PT-2).
+ *
+ * The canonical body is the single source of truth; opted-in copy targets
+ * (sentinel.targets) must be byte-identical projections of it. A missing or
+ * differing opted-in copy is drift; an overridden target (with rationale) does
+ * not block. CLAUDE.md / the CNT tree are not part of the copy-set.
+ *
+ * With `--json`: outputs structured JSON suitable for CI parsing.
+ * Exit codes: 0 = no un-overridden drift, 1 = drift blocks.
+ *
+ * @param pos - Positional args (pos[0] = project dir)
+ * @param flags - Parsed flags
+ */
+export async function cmdCheckSentinelCopies(
+  pos: string[],
+  flags: Flags,
+): Promise<void> {
+  const projectDir = resolve(pos[0] ?? ".");
+  const json = bool(flags, "json", false);
+  const evaluation = evaluateSentinelCopies(projectDir);
+
+  if (json) {
+    console.log(
+      JSON.stringify({
+        ok: !evaluation.blocked,
+        status: evaluation.status,
+        drifted: evaluation.drifted,
+        overridden: evaluation.overridden,
+      }),
+    );
+  } else {
+    if (evaluation.status === "green") {
+      console.log("✅ Sentinel copies in sync with canonical AGENTS.md.");
+    } else {
+      for (const d of evaluation.drifted) {
+        console.log(`❌ ${d.target} (${d.path}): ${d.reason}`);
+      }
+      for (const o of evaluation.overridden) {
+        console.log(`⚠️  ${o.target} (${o.path}): ${o.reason} — overridden`);
+      }
+    }
+    if (evaluation.blocked) {
+      console.error(
+        `\n❌ ${evaluation.drifted.length} sentinel copy drift(s) — run \`npx forgecraft-mcp refresh . --apply\` to regenerate.`,
+      );
+    }
+  }
+
+  if (evaluation.blocked) process.exit(1);
 }
 
 /**

@@ -32,6 +32,7 @@ COMMANDS
 CI / BARE GATE COMMANDS (exit codes: 0 = pass, 1 = fail)
   check-cascade [dir]    Run cascade gate checks — exit 1 if required steps are incomplete
   violations    [dir]    Report active gate violations — exit 1 if any violations present
+  check-sentinel-copies [dir]  Verify per-agent sentinel copies match canonical AGENTS.md — exit 1 on drift
   status        [dir]    Print live project state snapshot (cascade + roadmap + git + Status.md)
 
 FLAGS (vary by command)
