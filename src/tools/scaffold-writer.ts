@@ -16,6 +16,12 @@ import {
 } from "../registry/renderer.js";
 import type { RenderContext } from "../registry/renderer.js";
 import { renderSentinelTree } from "../registry/sentinel-renderer.js";
+import {
+  renderCanonicalSentinel,
+  projectSentinel,
+  SENTINEL_PROJECTIONS,
+} from "../registry/sentinel-projection.js";
+import { resolveSentinelTargets } from "./sentinel-copies-gate.js";
 import { writeFileIfMissing } from "../shared/filesystem.js";
 import { ensureGateDirs } from "../shared/project-gates.js";
 import { installGitHooks } from "../shared/hook-installer.js";
@@ -149,6 +155,33 @@ export function writeScaffoldFiles(
         relativePath,
         outputPath,
         resolveTemplatePlaceholders(content, placeholderContext),
+      );
+    }
+  }
+
+  // PT-2: project the canonical sentinel body to each opted-in copy target.
+  // The canonical body is rendered ONCE (deterministic, date-free) and projected
+  // per target. CLAUDE.md / the CNT tree are NOT in the copy-set — they are
+  // generated above via the claude branch and stay routing-special. Default
+  // copy-set is ["agents-md"]; opt in to more via sentinel.targets.
+  const sentinelTargets = resolveSentinelTargets(userConfig);
+  if (sentinelTargets.length > 0) {
+    const canonicalBody = renderCanonicalSentinel(
+      composed.instructionBlocks,
+      context,
+      { compact: userConfig?.compact },
+    );
+    for (const target of sentinelTargets) {
+      const projection = SENTINEL_PROJECTIONS[target];
+      if (!projection) continue;
+      const projected = projectSentinel(target, canonicalBody, context);
+      if (projected === null) continue;
+      const fullPath = join(input.project_dir, projection.path);
+      mkdirSync(dirname(fullPath), { recursive: true });
+      trackWrite(
+        projection.path,
+        fullPath,
+        resolveTemplatePlaceholders(projected, placeholderContext),
       );
     }
   }

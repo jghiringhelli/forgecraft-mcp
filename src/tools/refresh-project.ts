@@ -30,6 +30,12 @@ import {
 import { composeTemplates } from "../registry/composer.js";
 import { renderInstructionFile } from "../registry/renderer.js";
 import { renderSentinelTree } from "../registry/sentinel-renderer.js";
+import {
+  renderCanonicalSentinel,
+  projectSentinel,
+  SENTINEL_PROJECTIONS,
+} from "../registry/sentinel-projection.js";
+import { resolveSentinelTargets } from "./sentinel-copies-gate.js";
 import { writeInstructionFileWithMerge } from "../shared/filesystem.js";
 import { detectLanguage } from "../analyzers/language-detector.js";
 import { detectProjectContext } from "../analyzers/project-context.js";
@@ -83,7 +89,9 @@ export const refreshProjectSchema = z.object({
   apply: z
     .boolean()
     .default(false)
-    .describe("If true, apply recommended changes to forgecraft.yaml and CLAUDE.md."),
+    .describe(
+      "If true, apply recommended changes to forgecraft.yaml and CLAUDE.md.",
+    ),
   tier: z
     .enum(CONTENT_TIERS as unknown as [string, ...string[]])
     .optional()
@@ -99,15 +107,21 @@ export const refreshProjectSchema = z.object({
   output_targets: z
     .array(z.enum(ALL_OUTPUT_TARGETS as unknown as [string, ...string[]]))
     .optional()
-    .describe("Override output targets. If omitted, uses current config value or defaults to ['claude']."),
+    .describe(
+      "Override output targets. If omitted, uses current config value or defaults to ['claude'].",
+    ),
   sentinel: z
     .boolean()
     .default(true)
-    .describe("If true (default), generate a sentinel CLAUDE.md + .claude/standards/ domain files."),
+    .describe(
+      "If true (default), generate a sentinel CLAUDE.md + .claude/standards/ domain files.",
+    ),
   release_phase: z
     .enum(["development", "pre-release", "release-candidate", "production"])
     .optional()
-    .describe("Override current release cycle phase. If omitted, uses value from forgecraft.yaml."),
+    .describe(
+      "Override current release cycle phase. If omitted, uses value from forgecraft.yaml.",
+    ),
 });
 
 // ── Handler ──────────────────────────────────────────────────────────
@@ -127,7 +141,9 @@ export async function refreshProjectHandler(
 
   const existingConfig = loadUserOverrides(projectDir);
   if (!existingConfig) {
-    return { content: [{ type: "text", text: buildNoConfigOutput(projectDir) }] };
+    return {
+      content: [{ type: "text", text: buildNoConfigOutput(projectDir) }],
+    };
   }
 
   const registryResult = await pullRegistryGates(
@@ -156,29 +172,50 @@ export async function refreshProjectHandler(
   const updatedConfig: ForgeCraftConfig = {
     ...existingConfig,
     tags: updatedTags,
-    rejectedTags: updatedRejectedTags.length > 0 ? updatedRejectedTags : undefined,
+    rejectedTags:
+      updatedRejectedTags.length > 0 ? updatedRejectedTags : undefined,
     tier: updatedTier as ContentTier,
-    releasePhase: (args.release_phase ?? existingConfig.releasePhase ?? "development") as ForgeCraftConfig["releasePhase"],
+    releasePhase: (args.release_phase ??
+      existingConfig.releasePhase ??
+      "development") as ForgeCraftConfig["releasePhase"],
   };
 
-  const allTemplates = await loadAllTemplatesWithExtras(undefined, updatedConfig.templateDirs);
-  const composed = composeTemplates(updatedTags, allTemplates, { config: updatedConfig });
+  const allTemplates = await loadAllTemplatesWithExtras(
+    undefined,
+    updatedConfig.templateDirs,
+  );
+  const composed = composeTemplates(updatedTags, allTemplates, {
+    config: updatedConfig,
+  });
 
   if (!args.apply) {
     return {
-      content: [{
-        type: "text",
-        text: buildPreviewOutput(drift, updatedTags, updatedConfig, composed, updatedTier as ContentTier) +
-          "\n\n" + formatRefreshResult(registryResult) + formatCntDriftSection(cntDrift),
-      }],
+      content: [
+        {
+          type: "text",
+          text:
+            buildPreviewOutput(
+              drift,
+              updatedTags,
+              updatedConfig,
+              composed,
+              updatedTier as ContentTier,
+            ) +
+            "\n\n" +
+            formatRefreshResult(registryResult) +
+            formatCntDriftSection(cntDrift),
+        },
+      ],
     };
   }
 
   const configYaml = yaml.dump(updatedConfig, { lineWidth: 100, noRefs: true });
   writeFileSync(join(projectDir, "forgecraft.yaml"), configYaml, "utf-8");
 
-  const outputTargets = (args.output_targets ?? updatedConfig.outputTargets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
-  const releasePhase = args.release_phase ?? updatedConfig.releasePhase ?? "development";
+  const outputTargets = (args.output_targets ??
+    updatedConfig.outputTargets ?? [DEFAULT_OUTPUT_TARGET]) as OutputTarget[];
+  const releasePhase =
+    args.release_phase ?? updatedConfig.releasePhase ?? "development";
   const context = {
     ...detectProjectContext(
       projectDir,
@@ -195,17 +232,25 @@ export async function refreshProjectHandler(
     const targetConfig = OUTPUT_TARGET_CONFIGS[target];
 
     if (target === "claude" && args.sentinel !== false) {
-      const sentinelFiles = renderSentinelTree(composed.instructionBlocks, context);
+      const sentinelFiles = renderSentinelTree(
+        composed.instructionBlocks,
+        context,
+      );
 
       const claudeMdPath = join(projectDir, "CLAUDE.md");
       if (existsSync(claudeMdPath)) {
         const existing = readFileSync(claudeMdPath, "utf-8");
         const lineCount = existing.split("\n").length;
         const isSentinel = existing.includes("ForgeCraft sentinel");
-        const isForgeCraftGenerated = existing.includes("ForgeCraft |") || isSentinel;
+        const isForgeCraftGenerated =
+          existing.includes("ForgeCraft |") || isSentinel;
 
         if (!isSentinel && lineCount > 100) {
-          migrationWarning = extractCustomContent(projectDir, existing, isForgeCraftGenerated);
+          migrationWarning = extractCustomContent(
+            projectDir,
+            existing,
+            isForgeCraftGenerated,
+          );
         }
       }
 
@@ -224,13 +269,19 @@ export async function refreshProjectHandler(
           file.content,
           placeholderContext,
         );
-        writeFileSync(fullPath, preserveUserBlocks(fullPath, rendered), "utf-8");
+        writeFileSync(
+          fullPath,
+          preserveUserBlocks(fullPath, rendered),
+          "utf-8",
+        );
       }
 
       ensureProjectSpecific(projectDir);
     } else {
       const content = renderInstructionFile(
-        composed.instructionBlocks, context, target,
+        composed.instructionBlocks,
+        context,
+        target,
         { compact: updatedConfig.compact },
       );
       const outputPath = targetConfig.directory
@@ -240,11 +291,55 @@ export async function refreshProjectHandler(
     }
   }
 
+  // PT-2: project the canonical sentinel body to each opted-in copy target.
+  // Rendered ONCE (deterministic, date-free) and projected per target so the
+  // drift check sees byte-identical output. CLAUDE.md / the CNT tree stay
+  // routing-special and are written above; they are never copy targets.
+  const sentinelTargets = resolveSentinelTargets(updatedConfig);
+  if (sentinelTargets.length > 0) {
+    const placeholderContext = buildPlaceholderContext(
+      projectDir,
+      undefined,
+      updatedTags.map(String),
+    );
+    const canonicalBody = renderCanonicalSentinel(
+      composed.instructionBlocks,
+      context,
+      { compact: updatedConfig.compact },
+    );
+    for (const target of sentinelTargets) {
+      const projection = SENTINEL_PROJECTIONS[target];
+      if (!projection) continue;
+      const projected = projectSentinel(target, canonicalBody, context);
+      if (projected === null) continue;
+      const fullPath = join(projectDir, projection.path);
+      mkdirSync(dirname(fullPath), { recursive: true });
+      const rendered = resolveTemplatePlaceholders(
+        projected,
+        placeholderContext,
+      );
+      writeFileSync(fullPath, preserveUserBlocks(fullPath, rendered), "utf-8");
+    }
+  }
+
   return {
-    content: [{
-      type: "text",
-      text: buildAppliedOutput(drift, updatedTags, updatedConfig, composed, updatedTier as ContentTier, args.sentinel !== false, migrationWarning) +
-        "\n\n" + formatRefreshResult(registryResult) + formatCntDriftSection(cntDrift),
-    }],
+    content: [
+      {
+        type: "text",
+        text:
+          buildAppliedOutput(
+            drift,
+            updatedTags,
+            updatedConfig,
+            composed,
+            updatedTier as ContentTier,
+            args.sentinel !== false,
+            migrationWarning,
+          ) +
+          "\n\n" +
+          formatRefreshResult(registryResult) +
+          formatCntDriftSection(cntDrift),
+      },
+    ],
   };
 }
