@@ -716,3 +716,30 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **learning-graph**: validate the DAG invariant at emission (`b093482`)
+
+### Added
+- **types**: add generative-execution flag types and config (FC-1) (`6cdf005`)
+
+### Added
+- **tools**: add generative-execution gate module (FC-1) (`8e3872c`)
+
+### Added
+- **tools**: consolidate generative-execution flags from run_harness (FC-1) (`92ee911`)
+
+### Added
+- **tools**: gate close_cycle on generative-execution status (FC-1) (`f37bb14`)
+
+### Documentation
+- **adr**: ADR-0011 generative-execution gate + sentinel/EG vocabulary (FORGE-DOC) (`e03fb7a`)
+
+### Added
+- **config**: add static_analysis block for FC-2 analyzer gate (`8ddb038`)
+
+### Added
+- **close-cycle**: add pure static-analyzer gate evaluator (FC-2) (`a17c029`)
+
+### Added
+- **close-cycle**: wire static-analyzer gate as Step 1.7 (FC-2) (`0095127`)
+
+### Added
+- **hooks**: add blocking eslint + complexity pre-commit hooks (FC-2) (`501b9df`)
