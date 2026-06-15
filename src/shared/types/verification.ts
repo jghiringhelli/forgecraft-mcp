@@ -3,6 +3,7 @@
  */
 
 import type { Tag } from "./project.js";
+import type { UcGenerativeExecution } from "./verify.js";
 
 /**
  * Uncertainty level for a domain — how well-defined the expected output is
@@ -173,4 +174,9 @@ export interface VerificationStateFile {
    * weighted mean of per-tag s_realized, weight = completeness_ceiling.
    */
   readonly aggregate_s: number;
+  /**
+   * Per-UC generative-execution flags (FC-1), derived from objective harness
+   * probe results. Optional for backward compatibility with pre-FC-1 state files.
+   */
+  readonly generativeExecution?: UcGenerativeExecution[];
 }

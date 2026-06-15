@@ -103,6 +103,19 @@ export interface ForgeCraftConfig {
   /** Optional experiment metadata. When present, close_cycle auto-contributes gates with this id as label. */
   readonly experiment?: ExperimentConfig;
   /**
+   * Generative-execution gate (FC-1) configuration. Auditable, file-based overrides
+   * that allow a non-green UC to NOT block close_cycle, with a mandatory rationale.
+   */
+  readonly generative_execution?: {
+    /** Per-UC overrides. An override with an empty/missing rationale is NOT valid. */
+    readonly overrides?: ReadonlyArray<{
+      /** Use-case id this override applies to, e.g. "UC-001". */
+      readonly uc: string;
+      /** Mandatory justification for why a non-green UC may pass the gate. */
+      readonly rationale: string;
+    }>;
+  };
+  /**
    * When true, the project was detected as brownfield (existing source code, no substantial spec).
    * setup_project writes this flag and uses brownfield calibration questions.
    */
