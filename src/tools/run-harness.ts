@@ -18,6 +18,7 @@ import { join, resolve } from "node:path";
 import { parseUseCases } from "./layer-status.js";
 import { runProbe, isToolAvailable } from "./probe-runners.js";
 import { countProbeAssertions } from "./postcondition-coverage.js";
+import { consolidateGenerativeExecution } from "./generative-execution-gate.js";
 import type { ToolResult } from "../shared/types.js";
 
 // ── Schema ───────────────────────────────────────────────────────────
@@ -195,6 +196,8 @@ export async function runHarnessHandler(
 
   const timestamp = new Date().toISOString();
   writeHarnessRunJson(projectDir, timestamp, results);
+  // FC-1: derive durable per-UC generative-execution flags from this objective run.
+  consolidateGenerativeExecution(projectDir);
   return {
     content: [{ type: "text", text: formatRunReport(results, timestamp) }],
   };

@@ -260,6 +260,44 @@ describe("runHarnessHandler", () => {
     expect(text).toContain("generate_harness");
   });
 
+  it("persists generative-execution flags to verification-state.json after a run", async () => {
+    tempDir = makeTempDir();
+    write(tempDir, "docs/use-cases.md", MINIMAL_USE_CASES);
+    write(tempDir, "tests/harness/uc-001.sh", `#!/usr/bin/env bash\nexit 0\n`);
+    // UC-002 has no probe → should be persisted as unrun.
+
+    await runHarnessHandler({ project_dir: tempDir });
+
+    const statePath = join(tempDir, ".forgecraft", "verification-state.json");
+    expect(existsSync(statePath)).toBe(true);
+    const state = JSON.parse(readFileSync(statePath, "utf-8")) as {
+      generativeExecution?: Array<{
+        ucId: string;
+        status: string;
+        source: string;
+        lastRunAt: string;
+      }>;
+    };
+    // Derive expectation from the harness-run.json the handler wrote, so the
+    // assertion is robust to the local bash environment (a probe may pass or
+    // fail depending on whether bash is available).
+    const run = JSON.parse(
+      readFileSync(join(tempDir, ".forgecraft", "harness-run.json"), "utf-8"),
+    ) as { results: Array<{ ucId: string; status: string }> };
+    const uc001Probe = run.results.find((r) => r.ucId === "UC-001")?.status;
+    const expectedUc001 = uc001Probe === "pass" ? "green" : "red";
+
+    const ge = state.generativeExecution ?? [];
+    const uc001 = ge.find((f) => f.ucId === "UC-001");
+    const uc002 = ge.find((f) => f.ucId === "UC-002");
+    // The flag was derived from the objective run (not a self-report).
+    expect(uc001?.source).toBe("harness-run");
+    expect(uc001?.status).toBe(expectedUc001);
+    // UC-002 has no probe in the run → unrun.
+    expect(uc002?.status).toBe("unrun");
+    expect(uc002?.source).toBe("harness-run");
+  });
+
   it("loop section says call close_cycle when all probes pass", async () => {
     tempDir = makeTempDir();
     write(tempDir, "docs/use-cases.md", MINIMAL_USE_CASES);
