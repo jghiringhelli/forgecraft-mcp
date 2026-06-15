@@ -28,6 +28,8 @@ beforeAll(() => {
     "pre-commit-prod-quality.sh",
     "pre-commit-compile.sh",
     "pre-commit-clippy.sh",
+    "pre-commit-eslint.sh",
+    "pre-commit-complexity.sh",
     "pre-commit-test.sh",
     "commit-msg.sh",
   ];
@@ -269,10 +271,7 @@ describe("CommitHooksArtifact", () => {
         await import("../../src/registry/composer.js");
       const templateSets = await loadAllTemplatesWithExtras();
       const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
-      for (const name of [
-        "pre-commit-lint.sh",
-        "pre-commit-complexity.sh",
-      ]) {
+      for (const name of ["pre-commit-lint.sh", "pre-commit-complexity.sh"]) {
         const hook = composed.hooks.find((h) => h.filename === name);
         expect(hook?.script, name).toContain("_fc_write_violation");
         expect(hook?.script, name).toContain("gate-violations.jsonl");
