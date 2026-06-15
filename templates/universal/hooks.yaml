@@ -931,6 +931,43 @@ hooks:
       fi
       exit 0
 
+  - name: sentinel-copies
+    trigger: pre-commit
+    description: "Blocking sentinel-copies drift gate (PT-2) — the canonical AGENTS.md body is the single source of truth; per-agent copies (copilot/cline/windsurf/cursor) must be byte-identical projections. Runs only when a sentinel copy path or forgecraft.yaml/templates are staged. Writes failures to .forgecraft/gate-violations.jsonl."
+    filename: pre-commit-sentinel-copies.sh
+    script: |
+      #!/bin/bash
+      # Pre-Commit Hook: Sentinel-Copies Drift Gate (blocking, PT-2)
+      # The canonical AGENTS.md body is authored once (composed blocks → render);
+      # other agent targets are PURE projections of it. This gate fails the commit
+      # when an opted-in copy has drifted from a fresh re-render of the canonical
+      # body. It runs only when something that could change the copies is staged:
+      # a sentinel copy path, forgecraft.yaml, or a template directory. CLAUDE.md /
+      # the CNT tree are routing-special and are NOT part of the copy-set.
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root; repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"; mkdir -p "$dir" 2>/dev/null || return 0
+        local ts; ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg; esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
+      STAGED=$(git diff --cached --name-only --diff-filter=ACMD)
+      [ -z "$STAGED" ] && exit 0
+      # Only run when copy targets or their source-of-truth inputs are staged.
+      if ! echo "$STAGED" | grep -qE '(^AGENTS\.md$|^\.clinerules$|^\.github/copilot-instructions\.md$|^\.windsurf/rules/|^\.cursor/rules/|^forgecraft\.yaml$|^templates/)'; then
+        exit 0
+      fi
+      echo "🛰  Sentinel-copies drift gate..."
+      if ! npx forgecraft-mcp check-sentinel-copies . --json; then
+        echo "❌ Sentinel copies drifted from canonical AGENTS.md. Run: npx forgecraft-mcp refresh . --apply"
+        _fc_write_violation "pre-commit-sentinel-copies" "error" "Per-agent sentinel copies drifted from the canonical AGENTS.md body"
+        exit 1
+      fi
+      echo "  ✅ sentinel copies in sync"
+      exit 0
+
   - name: import-cycle-detector
     trigger: pre-commit
     description: "Detect circular import dependencies in TypeScript and Python projects"
