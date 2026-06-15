@@ -67,6 +67,7 @@ export const ACTIONS = [
   "setup_monitoring",
   "check_t4",
   "analyze_harness",
+  "harvest_debt",
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -138,6 +139,7 @@ export const forgecraftSchema = z
           "  setup_monitoring    — generate docs/monitoring-spec.md from NFR contracts: exception classes, alert thresholds, SLO definitions, PII policy, property violation map. Required before T4 is operational.\n\n" +
           "  check_t4            — surface pending T4 production signals from .forgecraft/t4-signals.json. Run at session start. Each signal is a spec-level diagnosis from production exceptions — update the spec, then derive the fix.\n\n" +
           "  analyze_harness     — post-scaffold gap analysis: compare installed hooks, agents, docs, and sentinel sections against FC QG registry + GS WP requirements for active tags. Submits missing gates as improvement proposals to the FC QG GitHub repo.\n\n" +
+          "  harvest_debt        — scan for inline TODO(<scope>): markers (the minimization skill convention) and harvest them into an auditable ledger (docs/debt-ledger.md + .forgecraft/debt.json). Read-only unless apply=true. Advisory — never blocks.\n\n" +
           "Quick usage examples:\n" +
           '  To run a cascade check:              action="check_cascade"\n' +
           '  To generate a session prompt:        action="generate_session_prompt"\n' +

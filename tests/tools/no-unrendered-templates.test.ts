@@ -74,12 +74,8 @@ describe("scaffold emits no unrendered Liquid placeholders", () => {
         continue;
       }
       if (content.includes("{{")) {
-        const line = content
-          .split("\n")
-          .find((l) => l.includes("{{"));
-        offenders.push(
-          `${file.replace(tempDir, "")}: ${line?.trim() ?? ""}`,
-        );
+        const line = content.split("\n").find((l) => l.includes("{{"));
+        offenders.push(`${file.replace(tempDir, "")}: ${line?.trim() ?? ""}`);
       }
     }
 
@@ -137,7 +133,17 @@ describe("every scaffolded hook is syntactically valid bash", () => {
       await scaffoldProjectHandler({
         project_dir: tempDir,
         project_name: "BashN",
-        tags: ["UNIVERSAL", "API", "WEB-REACT", "DATABASE", "CLI", "ML", "INFRA", "MOBILE", "EXPO"],
+        tags: [
+          "UNIVERSAL",
+          "API",
+          "WEB-REACT",
+          "DATABASE",
+          "CLI",
+          "ML",
+          "INFRA",
+          "MOBILE",
+          "EXPO",
+        ],
         language: "typescript",
         force: false,
         sentinel: true,
@@ -154,6 +160,7 @@ describe("every scaffolded hook is syntactically valid bash", () => {
         try {
           execFileSync("bash", ["-n", join(hooksDir, script)], {
             stdio: "pipe",
+            timeout: 10_000,
           });
         } catch (err) {
           const stderr =
@@ -169,5 +176,9 @@ describe("every scaffolded hook is syntactically valid bash", () => {
         `Hooks with bash syntax errors:\n${broken.join("\n")}`,
       ).toHaveLength(0);
     },
+    // Spawns `bash -n` once per emitted hook (~27 processes). Under heavy
+    // parallel-suite load on Windows, bash startup can exceed the default 10s
+    // test budget even though each check is fast — give it real headroom.
+    60_000,
   );
 });

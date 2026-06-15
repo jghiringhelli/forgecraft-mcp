@@ -361,6 +361,18 @@ export async function dispatchExtendedAction(
       });
     }
 
+    case "harvest_debt": {
+      const { harvestDebtHandler } = await import("./harvest-debt.js");
+      return harvestDebtHandler({
+        project_dir: requireParam(
+          args.project_dir,
+          "project_dir",
+          "harvest_debt",
+        ),
+        apply: args.apply,
+      });
+    }
+
     case "analyze_harness": {
       const { analyzeHarnessHandler } = await import("./analyze-harness.js");
       return analyzeHarnessHandler({

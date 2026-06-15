@@ -27,6 +27,7 @@ import {
   cmdViolations,
   cmdCheckSentinelCopies,
   cmdStatus,
+  cmdHarvestDebt,
 } from "./cli/commands.js";
 
 // ── Entry Point ──────────────────────────────────────────────────────
@@ -96,6 +97,9 @@ export async function runCli(argv: string[]): Promise<boolean> {
         break;
       case "status":
         await cmdStatus(positional, flags);
+        break;
+      case "harvest-debt":
+        await cmdHarvestDebt(positional, flags);
         break;
       case "verify":
         await cmdVerify(positional, flags);

@@ -509,3 +509,28 @@ export async function cmdStatus(pos: string[], flags: Flags): Promise<void> {
   const result = await consolidateStatusHandler({ project_dir: projectDir });
   printResult(result, json);
 }
+
+/**
+ * `harvest-debt [dir]` — scan for inline `TODO(<scope>):` debt markers and
+ * harvest them into an auditable ledger. Advisory: always exits 0.
+ *
+ * Read-only by default; pass `--write` to write `docs/debt-ledger.md` +
+ * `.forgecraft/debt.json`. With `--json`, wraps the rendered ledger text in
+ * `{ "ok": true, "output": "..." }`.
+ *
+ * @param pos - Positional args (pos[0] = project dir)
+ * @param flags - Parsed flags
+ */
+export async function cmdHarvestDebt(
+  pos: string[],
+  flags: Flags,
+): Promise<void> {
+  const projectDir = resolve(pos[0] ?? ".");
+  const json = bool(flags, "json", false);
+  const { harvestDebtHandler } = await import("../tools/harvest-debt.js");
+  const result = await harvestDebtHandler({
+    project_dir: projectDir,
+    apply: bool(flags, "write", false),
+  });
+  printResult(result, json);
+}
