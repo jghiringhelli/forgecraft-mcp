@@ -61,6 +61,22 @@ export interface CloseCycleResult {
     /** True when at least one in-scope UC blocked the cycle. */
     readonly blocked: boolean;
   };
+  /**
+   * Static-analyzer gate result (FC-2). Present whenever the gate ran (cascade +
+   * in-flight + FC-1 checks passed). `blocked: true` forces ready:false. Green
+   * raises the probability of structural-discipline conformance; it does not
+   * prove it — one signal alongside the harness.
+   */
+  readonly staticAnalyzerStatus?: {
+    /** Overall normalized status across the resolved analyzer set. */
+    readonly status: "green" | "red";
+    /** Analyzers that are red and not overridden — these block. */
+    readonly failing: string[];
+    /** Analyzers that are red but excused by a valid forgecraft.yaml override. */
+    readonly overridden: string[];
+    /** True when at least one analyzer blocked the cycle. */
+    readonly blocked: boolean;
+  };
 }
 
 // ── Roadmap Types ────────────────────────────────────────────────────
@@ -330,6 +346,25 @@ export function formatCloseCycleResult(result: CloseCycleResult): string {
       lines.push(
         "",
         `Overridden (non-green but excused via forgecraft.yaml generative_execution.overrides): ${ge.overridden.join(", ")}`,
+      );
+    }
+  }
+
+  const sa = result.staticAnalyzerStatus;
+  if (sa && (sa.failing.length > 0 || sa.overridden.length > 0)) {
+    lines.push("", "### Static Analysis");
+    if (sa.failing.length > 0) {
+      lines.push(
+        `⛔ ${sa.failing.length} static analyzer(s) are red — close_cycle blocked: ${sa.failing.join(", ")}`,
+        "Green raises the probability of structural-discipline conformance; it does not prove it — treat as one signal alongside the harness.",
+        "",
+        "Fix the active analyzer violations (read `read_gate_violations`), then re-run. Green = zero active analyzer violations.",
+      );
+    }
+    if (sa.overridden.length > 0) {
+      lines.push(
+        "",
+        `Overridden (red but excused via forgecraft.yaml static_analysis.overrides): ${sa.overridden.join(", ")}`,
       );
     }
   }

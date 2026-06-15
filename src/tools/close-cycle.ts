@@ -43,6 +43,7 @@ import {
   appendChangelogEntry,
 } from "./close-cycle-versioning.js";
 import { evaluateGenerativeExecution } from "./generative-execution-gate.js";
+import { evaluateStaticAnalyzers } from "./static-analyzer-gate.js";
 
 export type {
   CloseCycleOptions,
@@ -151,6 +152,47 @@ export async function closeCycle(
         reds: genExec.reds,
         overridden: genExec.overridden,
         blocked: genExec.blocked,
+      },
+    };
+  }
+
+  // Step 1.7 -- Static-analyzer gate (FC-2)
+  // The analyzer set (eslint, tsc, complexity, audit by default) is ONE
+  // structural-discipline signal. Reuses the iterate-to-green substrate: red =
+  // an active analyzer gate-violation. A red analyzer with a valid
+  // forgecraft.yaml override (with rationale) is excused. Sonar/CodeClimate skip
+  // when unconfigured. Hedge: green raises the probability of conformance — it
+  // does not prove it; one signal alongside the harness.
+  const staticAnalysis = evaluateStaticAnalyzers(projectRoot);
+  if (staticAnalysis.blocked) {
+    const nextSteps = [
+      `${staticAnalysis.failing.length} static analyzer(s) are red — fix the active violations, then re-run \`close_cycle\`: ${staticAnalysis.failing.join(", ")}`,
+      "Green raises the probability of structural-discipline conformance; it does not prove it — treat as one signal alongside the harness.",
+      "Run `read_gate_violations` to see the active analyzer failures. Green = zero active analyzer violations.",
+    ];
+    if (staticAnalysis.overridden.length > 0) {
+      nextSteps.push(
+        `Overridden (red but excused): ${staticAnalysis.overridden.join(", ")}`,
+      );
+    }
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
+      staticAnalyzerStatus: {
+        status: staticAnalysis.status,
+        failing: staticAnalysis.failing,
+        overridden: staticAnalysis.overridden,
+        blocked: staticAnalysis.blocked,
       },
     };
   }
@@ -308,6 +350,12 @@ export async function closeCycle(
       reds: genExec.reds,
       overridden: genExec.overridden,
       blocked: genExec.blocked,
+    },
+    staticAnalyzerStatus: {
+      status: staticAnalysis.status,
+      failing: staticAnalysis.failing,
+      overridden: staticAnalysis.overridden,
+      blocked: staticAnalysis.blocked,
     },
     nextRoadmapItem,
     versionSuggestion: versionSuggestion ?? undefined,

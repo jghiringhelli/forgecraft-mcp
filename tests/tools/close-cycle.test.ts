@@ -753,6 +753,143 @@ describe("closeCycle generative-execution gate (FC-1)", () => {
   });
 });
 
+// ── static-analyzer gate (FC-2) tests ─────────────────────────────────
+
+describe("closeCycle static-analyzer gate (FC-2)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-static-analyzer-${Date.now()}-${Math.random()}`);
+    mkdirSync(dir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  /** Build a passing cascade whose use-cases.md has parseable UC headers. */
+  function buildCascadeWithUcs(d: string): void {
+    buildCompleteCascade(d);
+    write(
+      d,
+      "docs/use-cases.md",
+      ["# Use Cases", "", "## UC-001: First Use Case", "", "Body."].join("\n"),
+    );
+  }
+
+  /** Persist a generative-execution flag set into verification-state.json. */
+  function writeGenExecGreen(d: string): void {
+    write(
+      d,
+      ".forgecraft/verification-state.json",
+      JSON.stringify({
+        version: "1",
+        projectDir: d,
+        tags: [],
+        language: "typescript",
+        createdAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:00.000Z",
+        steps: [],
+        summary: [],
+        aggregate_s: 0,
+        generativeExecution: [
+          {
+            ucId: "UC-001",
+            status: "green",
+            lastRunAt: "2026-06-15T00:00:00.000Z",
+            source: "harness-run",
+          },
+        ],
+      }),
+    );
+  }
+
+  /** Append an active analyzer gate-violation (no .git → always active). */
+  function writeAnalyzerViolation(d: string, hook: string): void {
+    write(
+      d,
+      ".forgecraft/gate-violations.jsonl",
+      JSON.stringify({
+        hook,
+        severity: "error",
+        message: `${hook} failed`,
+        timestamp: "2026-06-15T12:00:00Z",
+      }) + "\n",
+    );
+  }
+
+  it("blocks (ready:false) when cascade + FC-1 are green but an analyzer is red", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    writeAnalyzerViolation(dir, "pre-commit-eslint");
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.generativeExecutionStatus?.blocked).toBe(false);
+    expect(result.ready).toBe(false);
+    expect(result.staticAnalyzerStatus?.blocked).toBe(true);
+    expect(result.staticAnalyzerStatus?.failing).toContain("eslint");
+    // Gabriel's hedge must be present in the remediation.
+    expect(
+      result.nextSteps.some((s) =>
+        s.includes(
+          "does not prove it — treat as one signal alongside the harness",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("renders the static-analysis block with the hedge in the report", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    writeAnalyzerViolation(dir, "pre-commit-complexity");
+
+    const out = await closeCycleHandler({ project_dir: dir });
+    const text = out.content[0]!.text;
+    expect(text).toContain("Static Analysis");
+    expect(text).toContain("complexity");
+    expect(text).toContain(
+      "does not prove it — treat as one signal alongside the harness",
+    );
+  });
+
+  it("passes (ready:true) when cascade + FC-1 green and no analyzer is red", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.ready).toBe(true);
+    expect(result.staticAnalyzerStatus?.blocked).toBe(false);
+    expect(result.staticAnalyzerStatus?.status).toBe("green");
+  });
+
+  it("does not block when a red analyzer carries a valid override", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    writeAnalyzerViolation(dir, "pre-commit-complexity");
+    write(
+      dir,
+      "forgecraft.yaml",
+      [
+        "static_analysis:",
+        "  overrides:",
+        "    - analyzer: complexity",
+        "      rationale: Generated parser; reviewed manually.",
+      ].join("\n"),
+    );
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.ready).toBe(true);
+    expect(result.staticAnalyzerStatus?.blocked).toBe(false);
+    expect(result.staticAnalyzerStatus?.overridden).toContain("complexity");
+  });
+});
+
 // ── closeCycleHandler state leaf tests ────────────────────────────────
 
 describe("closeCycleHandler state leaf (.claude/state.md)", () => {
