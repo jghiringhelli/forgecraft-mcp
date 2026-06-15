@@ -1,0 +1,47 @@
+id: static-analyzer-gate
+title: Static-Analyzer Gate — One Structural-Discipline Signal
+domain: code-quality
+gsProperty: verifiable
+phase: development
+hook: close-cycle
+severity: warning
+description: >
+  Treats the configured set of static analyzers (eslint, tsc, complexity, audit
+  by default) as ONE structural-discipline signal, evaluated at close_cycle
+  (Step 1.7) and reused as the acceptance oracle. An analyzer is red when it has
+  an active gate-violation in .forgecraft/gate-violations.jsonl (written by the
+  blocking pre-commit hooks pre-commit-eslint, pre-commit-complexity,
+  pre-commit-audit, pre-commit-compile) or persisted .complexity/ evidence. A red
+  analyzer may carry an auditable forgecraft.yaml static_analysis.overrides entry
+  with a MANDATORY rationale. SonarQube and Code Climate are optional config-gated
+  plug-ins: absent → skipped, never blocks.
+
+  Hedge: a green static-analyzer gate RAISES THE PROBABILITY of
+  structural-discipline conformance; it does NOT prove it — treat it as one
+  signal alongside the harness, not a proof of correctness.
+check: >
+  EVALUATED at close_cycle by evaluateStaticAnalyzers (pure: reads persisted
+  evidence only — no process spawning, no writes). Iterate-to-green reuses the
+  existing violations substrate, NOT an autonomous retry: the blocking hooks
+  report failures to .forgecraft/gate-violations.jsonl → the AI reads
+  (read_gate_violations / layer_status / blocked close_cycle) → fixes → re-runs.
+passCriterion: >
+  Zero active analyzer violations across the resolved analyzer set (or each
+  remaining red analyzer carries a valid forgecraft.yaml override with a
+  mandatory rationale). Green raises the probability of structural-discipline
+  conformance; it does not prove it — one signal alongside the harness.
+tags:
+  - UNIVERSAL
+gsProperties:
+  - verifiable
+generalizable: true
+evidence: >
+  Static analysis catches correctness smells (unused vars, no-explicit-any,
+  shadowing), type errors, over-threshold cyclomatic complexity, and dependency
+  CVEs that formatters and tests miss. As one signal in a defended pipeline it
+  raises the probability of structural-discipline conformance; combined with the
+  generative-execution harness (FC-1) it narrows the gap between "the code looks
+  disciplined" and "the code runs to spec." It is not a proof — hence severity
+  warning by default and the explicit hedge.
+status: approved
+contributor: jghiringhelli
