@@ -36,7 +36,7 @@ signals** (state, behavior, contract, logs) and check coherence — the multimod
 is **NOT** a single Playwright e2e and **NOT** "run the unit tests." In this codebase its objective
 source is **`run_harness`** (`src/tools/run-harness.ts`), which runs per-UC probes in `tests/harness/`
 (`.hurl` contracts, `.spec.ts` UI, `.sh`/`.db.sh` state/logs, `.sim.ts`/`.k6.js` simulation/load) and
-writes `.forgecraft/harness-run.json`. The canonical loop (run_harness → `consolidateGenerativeExecution` → gate) is referred to as *gs-verify-deploy*; that is the name of the loop, not yet a packaged skill file.
+writes `.forgecraft/harness-run.json`. The canonical loop (run_harness → `consolidateGenerativeExecution` → gate) is referred to as *gs-verify-deploy*. **It is now a packaged skill:** every scaffolded project ships `/generative-execution` (`templates/universal/skills.yaml`, core tier → `.claude/commands/generative-execution.md`), surfaced in the lifecycle Tool Sequencing table. The skill drives `run_harness`, reads the per-UC green/red flags, frames a red as a specification violation, routes runtime discoveries into the §6c discovery log, and applies the §6f audit-RUN caveat for stochastic pipelines — closing the field gap that ForgeCraft had skills for unit tests but none for the manual QA loop that catches in-the-wild bugs.
 
 ### 2. Per-use-case green/red flag (FC-1)
 Each UC now carries a durable `generativeExecution` status — `green | red | unrun` — defined in

@@ -56,6 +56,51 @@ skills:
       - Coverage summary if available
       - Any flaky test patterns detected
 
+  - id: generative-execution
+    name: Generative Execution (manual QA loop)
+    filename: generative-execution.md
+    description: "Exercise each use case against the running system across independent signals (the multimodal verification loop) — catches the bugs unit tests miss"
+    tier: core
+    content: |
+      Run **generative execution** — the manual QA loop that catches the bugs in
+      the wild. This is NOT `npm test` and NOT a single e2e: it exercises **each
+      use case against the running system across independent signals** (state,
+      behavior, contract, logs) and checks they cohere. A unit test asserts the
+      code the author imagined; generative execution asserts the system actually
+      does what the use case promises.
+
+      $ARGUMENTS may name a single UC (e.g. `UC-003`); otherwise run all in scope.
+
+      Steps:
+
+      1. **Run the harness.** Execute `run_harness` (the MCP tool / CLI) — it runs
+         the per-UC probes in `tests/harness/` (`.hurl` contracts, `.spec.ts` UI,
+         `.sh`/`.db.sh` state & logs, `.sim.ts`/`.k6.js` simulation/load) and
+         writes `.forgecraft/harness-run.json`. If a UC has no probe, that is a
+         gap — write the probe first; an unrun UC is not a passing UC.
+
+      2. **Read the per-UC flags**, not just the exit code. Each UC is
+         `green | red | unrun`. The flag is written ONLY from harness output —
+         never set a UC green by hand (that would be a self-report, not evidence).
+
+      3. **Treat a red as a specification violation.** A red probe means the
+         running system diverges from the use case. Fix the spec and regenerate;
+         do not patch the symptom. Localize: which signal disagreed (DB vs API vs
+         UI vs logs)?
+
+      4. **Capture every runtime discovery.** A bug the spec did not predict is a
+         DELTA — register it in `docs/discovery-log.md` and capture the exact
+         triggering input as a regression fixture (a DELTA cannot close without
+         one). A spec deviation you chose on purpose is a D-XXX.
+
+      5. **If the system is stochastic** (an LLM pipeline), a single green is weak
+         evidence. Run the UC's end-to-end fixture **N times** and accept it only
+         on a pass-rate distribution (an audit-RUN) — never trust a single peak.
+
+      Report per UC: status, which signal failed, the localized spec divergence,
+      and any DELTA registered. Acceptance (`close_cycle`) blocks while any
+      in-scope UC is red or unrun — this loop is how you clear it.
+
   - id: debug-error
     name: Debug Error
     filename: debug-error.md

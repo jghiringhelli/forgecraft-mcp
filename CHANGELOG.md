@@ -20,6 +20,10 @@ Harness techniques from the VairixDX brownfield study:
 - **§6e — Known Pitfalls + Techniques.** New `.claude/pitfalls.md` with two framed sections: *Known Pitfalls* (class-level traps tests don't catch) and *Techniques* (reusable patterns the project invented). Placed behind a pointer from the always-loaded `corrections.md` rather than inside it — these sections accumulate over a project's life and would breach the always-load budget (measured +13 lines over cap); per the CNT rule *knowledge sits behind pointers*, they load on demand.
 - **§6f — LLM-pipeline disciplines for the ML/AI tag.** A new `llm-pipeline-disciplines` ML instruction block emits six disciplines into `.claude/standards/ml.md` for systems built *on* an LLM: separate stochastic extraction (temperature 0, structured-output schema, mandatory evidence excerpt) from deterministic scoring; a structural rescue (deterministic recall floor after the model's selection step); anti-double-counting of echoed signals; evidence-strength levels not LLM confidence percentages; replay fixtures (existing `llm-output-replay-fixture` gate); and audit-RUN multi-run scoring. New registry gate `stochastic-uc-run-distribution` requires a stochastic UC to be accepted on an N-run pass-rate distribution, not a single green (VairixDX audit-RUN: an 89-peak masked a regression the next run exposed).
 
+### Added — `/generative-execution` skill (the manual QA loop)
+
+- A canary comparison (scaffolding RealWorld Conduit and a VairixDX-shaped LLM pipeline) confirmed a gap: ForgeCraft shipped skills for unit tests, review, TDD, and refactor — but **nothing that drives the per-UC `run_harness` multimodal verification loop**, the loop that catches the bugs unit tests miss. `run-tests` only runs `npm test`. New **core** skill `generative-execution` (`templates/universal/skills.yaml` → `.claude/commands/generative-execution.md`, in every project) drives `run_harness`, reads the per-UC green/red flags (never set by hand — objective evidence only), frames a red as a *specification violation* (fix the spec, don't patch the symptom), routes runtime discoveries into the §6c discovery log with a captured fixture, and applies the §6f audit-RUN caveat for stochastic pipelines. Surfaced in the lifecycle Tool Sequencing table. ADR-0011's *gs-verify-deploy* loop is now a packaged skill.
+
 ### Fixed — eslint gate failed on eslint-ignored staged files
 
 - **`pre-commit-lint.sh` / `pre-commit-eslint.sh` (and their `templates/universal/hooks.yaml` source).** The gate ran `npx eslint --max-warnings=0` over all staged TS/JS files. When a staged file matched the project's eslint `ignores` (e.g. `tests/**`), eslint emitted a *"File ignored because of a matching ignore pattern"* **warning**, which `--max-warnings=0` treated as failure — blocking any commit that touched an ignored path. Added `--no-warn-ignored` so eslint-ignored files no longer generate a warning. Surfaced in this repo while committing a test file alongside the spec-map/pitfalls work.
@@ -800,3 +804,6 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **close-cycle**: EDR spec-change records + cascade re-verify (ADR-0012 §6d) (`c245b27`)
+
+### Added
+- **ml**: LLM-pipeline disciplines + audit-RUN gate for the ML/AI tag (ADR-0012 §6f) (`1849438`)
