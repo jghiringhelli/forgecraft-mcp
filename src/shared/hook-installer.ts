@@ -76,7 +76,11 @@ const DEFAULT_MANIFEST: Record<GitHookType, string[]> = {
     "pre-commit-doc-cascade.sh",
     "pre-commit-gs-links.sh",
   ],
-  "commit-msg": ["commit-msg.sh", "commit-msg-cascade.sh"],
+  "commit-msg": [
+    "commit-msg.sh",
+    "commit-msg-session-gate.sh",
+    "commit-msg-cascade.sh",
+  ],
   "post-commit": [
     "post-commit-changelog.sh",
     "post-commit-complexity-baseline.sh",

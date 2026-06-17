@@ -81,6 +81,59 @@ hooks:
 
       exit 0
 
+  - name: session-gate
+    trigger: commit-msg
+    description: "Step-gated session (inversion of control): block a code commit until intake + spec-validation are done in .claude/session-manifest.yaml"
+    filename: commit-msg-session-gate.sh
+    script: |
+      #!/usr/bin/env bash
+      # commit-msg-session-gate: force the upstream session steps before coding.
+      # ForgeCraft — generated hook (ADR-0012 §6b).
+      #
+      # The harness FORCES the steps instead of narrating them: a test:/feat:/fix:
+      # commit is blocked until 'intake' and 'spec-validation' are marked 'done'
+      # in .claude/session-manifest.yaml. The RED→GREEN order is enforced by the
+      # commit-msg TDD gate; this covers the steps that used to be prose only.
+      #
+      # Opt-in by presence: no manifest → no enforcement. Bypass one commit with
+      # FORGECRAFT_SKIP_SESSION_GATE=1.
+      set -u
+      MSG_FILE="$1"
+      [ -z "${MSG_FILE:-}" ] && exit 0
+      [ "${FORGECRAFT_SKIP_SESSION_GATE:-0}" = "1" ] && exit 0
+
+      ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+      MANIFEST="$ROOT/.claude/session-manifest.yaml"
+      [ -f "$MANIFEST" ] || exit 0
+
+      SUBJECT="$(sed '/^#/d;/^$/d' "$MSG_FILE" | head -1)"
+      # Merge/revert/fixup commits are not task work — never gate them.
+      echo "$SUBJECT" | grep -qE "^(Merge|Revert|fixup!|squash!)" && exit 0
+      # Only gate code commits; docs/chore/etc. proceed.
+      echo "$SUBJECT" | grep -qE "^(test|feat|fix)(\(|!?:)" || exit 0
+
+      step_is_done() {
+        # Match a "  <key>: done" line (value may carry a trailing comment).
+        grep -qE "^[[:space:]]*$1:[[:space:]]*done([[:space:]]|#|$)" "$MANIFEST"
+      }
+
+      MISSING=""
+      step_is_done intake || MISSING="$MISSING intake"
+      step_is_done spec-validation || MISSING="$MISSING spec-validation"
+
+      if [ -n "$MISSING" ]; then
+        echo "" >&2
+        echo "  ✗ Session gate: finish these steps before a code commit:$MISSING" >&2
+        echo "" >&2
+        echo "  Edit .claude/session-manifest.yaml and set each to 'done' once you have" >&2
+        echo "  loaded the spec slice (intake) and confirmed acceptance criteria" >&2
+        echo "  (spec-validation). This is the harness forcing intake → spec → test order." >&2
+        echo "  One-off bypass: FORGECRAFT_SKIP_SESSION_GATE=1 git commit ..." >&2
+        echo "" >&2
+        exit 1
+      fi
+      exit 0
+
   - name: branch-protection
     trigger: pre-commit
     description: "Block direct commits to main/master branches"

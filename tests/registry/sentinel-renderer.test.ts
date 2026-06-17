@@ -593,6 +593,42 @@ describe("renderSentinelTree — spec-map (targeted spec loading)", () => {
   });
 });
 
+// ── Session manifest: .claude/session-manifest.yaml (§6b) ─────────────────
+
+describe("renderSentinelTree — session manifest (step-gated session)", () => {
+  it("emits .claude/session-manifest.yaml with the ordered steps", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const manifest = getFile(files, ".claude/session-manifest.yaml");
+    for (const step of [
+      "intake",
+      "spec-validation",
+      "red",
+      "green",
+      "refactor",
+      "close",
+    ]) {
+      expect(manifest.content).toContain(`${step}:`);
+    }
+  });
+
+  it("ships every step pending and explains the inversion of control", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const manifest = getFile(files, ".claude/session-manifest.yaml");
+    // Flat `key: value` shape the gate greps; intake/spec-validation start pending.
+    expect(manifest.content).toMatch(/intake:\s*pending/);
+    expect(manifest.content).toMatch(/spec-validation:\s*pending/);
+    expect(manifest.content).toContain("inversion of control");
+    expect(manifest.content).not.toContain("{{");
+  });
+
+  it("lifecycle routes the AI to the manifest at session start", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const lifecycle = getFile(files, ".claude/lifecycle.md");
+    expect(lifecycle.content).toContain(".claude/session-manifest.yaml");
+    expect(lifecycle.content).toContain("commit-msg-session-gate");
+  });
+});
+
 // ── Pitfalls & techniques: .claude/pitfalls.md (VairixDX adoption) ────────
 
 describe("renderSentinelTree — pitfalls (knowledge behind a pointer)", () => {

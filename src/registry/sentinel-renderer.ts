@@ -117,6 +117,10 @@ export function renderSentinelTree(
     relativePath: ".claude/pitfalls.md",
     content: buildPitfallsFile(),
   });
+  files.push({
+    relativePath: ".claude/session-manifest.yaml",
+    content: buildSessionManifestFile(),
+  });
 
   // Generate slim root CLAUDE.md (prepend so it's first in the list)
   files.unshift({
@@ -474,6 +478,18 @@ function buildLifecycleFile(_context: RenderContext): string {
     `4. **Never hold unsaved decisions in working memory.** A decision worth remembering`,
     `   goes to an ADR or status.md the moment it's made — not at session end.`,
     ``,
+    `## Session Start — the step manifest (the harness forces order)`,
+    ``,
+    `\`.claude/session-manifest.yaml\` tracks the steps of the task in flight. The`,
+    `\`commit-msg-session-gate\` hook reads it and **blocks your first \`test:\`/\`feat:\`/\`fix:\``,
+    `commit until \`intake\` and \`spec-validation\` are \`done\`** — you cannot start coding`,
+    `before loading the spec slice and confirming acceptance criteria. At task start:`,
+    ``,
+    `1. Set \`task:\` and reset every step to \`pending\`.`,
+    `2. Load the spec slice (\`.claude/spec-map.md\`) + use-case → mark \`intake: done\`.`,
+    `3. Confirm acceptance criteria; resolve any \`[NEEDS CLARIFICATION]\` → mark \`spec-validation: done\`.`,
+    `4. Now write the failing test (RED), implement (GREEN), refactor — marking each step as you go.`,
+    ``,
     `## Session Loop Invariant (close-of-session gate)`,
     ``,
     `Before closing any session, verify:`,
@@ -781,6 +797,50 @@ function buildPitfallsFile(): string {
     `Post-process the model's candidate list to inject deterministic floors when cues are present —`,
     `the model cannot stochastically miss what it never had to pick. Lives in \`src/.../rescues.ts\`.`,
     `-->`,
+    ``,
+  ].join("\n");
+}
+
+// ── CNT branch: session manifest ──────────────────────────────────────
+
+/**
+ * Build .claude/session-manifest.yaml — the step-gated session tracker (§6b).
+ *
+ * Field finding (VairixDX): narrating a session loop in prose is weaker than the
+ * harness *forcing* the steps. This manifest is the inversion-of-control device:
+ * a flat `step: pending|done` ledger that the `commit-msg-session-gate` hook
+ * reads before any code commit. The first `test:`/`feat:`/`fix:` commit of a
+ * task is blocked until `intake` and `spec-validation` are marked done — so the
+ * AI cannot start coding before it has loaded the spec slice and confirmed the
+ * acceptance criteria. The RED→GREEN ordering is enforced separately (the
+ * commit-msg TDD gate); this manifest covers the *upstream* steps that gate
+ * preceded only by prose. Flat `key: value` lines keep the gate's grep robust.
+ */
+function buildSessionManifestFile(): string {
+  const date = new Date().toISOString().split("T")[0];
+
+  return [
+    `# Session manifest — the harness enforces these steps (inversion of control).`,
+    `# Generated ${date}. Reset every step to 'pending' at the start of each task.`,
+    `#`,
+    `# How it works: the commit-msg-session-gate hook reads this file before a`,
+    `# test:/feat:/fix: commit and BLOCKS it until 'intake' and 'spec-validation'`,
+    `# are 'done'. Mark a step done by changing its value to 'done' as you finish`,
+    `# it. This is the harness forcing intake → spec → test order, not narrating`,
+    `# it. Delete this file to opt a project out of step-gating.`,
+    `#`,
+    `# Each value is 'pending' or 'done'. Keep the 'key: value' shape — the gate`,
+    `# greps these lines literally.`,
+    ``,
+    `task: ""                   # one-line description of the task in flight`,
+    ``,
+    `steps:`,
+    `  intake: pending          # loaded the spec slice (.claude/spec-map.md) + use-case`,
+    `  spec-validation: pending # acceptance criteria clear; [NEEDS CLARIFICATION] resolved`,
+    `  red: pending             # failing test written  (test(scope): [RED] ...)`,
+    `  green: pending           # implemented to pass    (feat/fix(scope): [GREEN] ...)`,
+    `  refactor: pending        # refactored with tests green`,
+    `  close: pending           # close_cycle gate passes`,
     ``,
   ].join("\n");
 }

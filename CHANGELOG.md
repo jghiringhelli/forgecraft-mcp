@@ -14,6 +14,7 @@ Breaking changes are marked **BREAKING**.
 Harness techniques from the VairixDX brownfield study:
 
 - **§6a — targeted spec loading (now complete).** The sentinel renderer emits `.claude/spec-map.md`, a tag-aware "Working on → read first" cheat-sheet that routes a task to the exact spec slice it needs (API/UI/AI-pipeline/seed/test-cases rows appear only for the matching tags), carries the *load-the-slice-not-the-spec* directive, and supports a monolithic-PRD fallback by citing heading/line ranges. Wired into the root Navigate-by-Task table and the `routes/docs.md` reading order (cited *before* the raw slice). VairixDX measured ~82% fewer spec tokens per task with this lever. **The scaffolder now also emits the sections themselves** — `docs/specs/sections/{api,ui,pipeline,seed,test-cases}.md` (tag-gated, prescriptive RFC 2119 stubs) plus the authoritative `docs/specs/SPEC-INDEX.md` router. The section catalog and the spec-map rows share one tag predicate, and a canary asserts every pointer the spec-map advertises resolves to an emitted file.
+- **§6b — step-gated session (inversion of control).** The scaffolder emits `.claude/session-manifest.yaml` (a flat `step: pending|done` ledger: intake, spec-validation, red, green, refactor, close) and a `commit-msg-session-gate` hook that **blocks any `test:`/`feat:`/`fix:` commit until `intake` and `spec-validation` are `done`** — the AI cannot start coding before loading the spec slice and confirming acceptance criteria. The RED→GREEN order was already enforced by the commit-msg TDD gate; this adds the upstream steps that used to be prose. Runs at `commit-msg` (the reliable interception point). Opt-in by manifest presence; `FORGECRAFT_SKIP_SESSION_GATE=1` bypasses one commit. lifecycle.md routes the AI to the manifest at session start. Covered by a 7-case bash-hook integration test.
 - **§6e — Known Pitfalls + Techniques.** New `.claude/pitfalls.md` with two framed sections: *Known Pitfalls* (class-level traps tests don't catch) and *Techniques* (reusable patterns the project invented). Placed behind a pointer from the always-loaded `corrections.md` rather than inside it — these sections accumulate over a project's life and would breach the always-load budget (measured +13 lines over cap); per the CNT rule *knowledge sits behind pointers*, they load on demand.
 
 ### Fixed — eslint gate failed on eslint-ignored staged files
@@ -784,3 +785,6 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **sentinel**: targeted spec loading + pitfalls/techniques behind a pointer (ADR-0012 §6a/§6e) (`1973d40`)
+
+### Added
+- **scaffold**: emit sectioned spec + SPEC-INDEX router (ADR-0012 §6a complete) (`d45e174`)
