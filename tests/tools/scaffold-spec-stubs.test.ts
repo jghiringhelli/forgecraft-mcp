@@ -14,6 +14,10 @@ import {
   buildFlowDiagramStub,
   buildC4ContainerStub,
   USE_CASES_STUB,
+  SPEC_SECTION_DEFS,
+  selectSpecSections,
+  buildSpecSectionStub,
+  buildSpecIndex,
 } from "../../src/tools/scaffold-spec-stubs.js";
 
 describe("buildC4ContextStub", () => {
@@ -49,7 +53,9 @@ describe("USE_CASES_STUB", () => {
 
 describe("buildSequenceDiagramStub", () => {
   it("contains UNFILLED marker for cascade detection", () => {
-    expect(buildSequenceDiagramStub("User Authentication")).toContain("<!-- UNFILLED");
+    expect(buildSequenceDiagramStub("User Authentication")).toContain(
+      "<!-- UNFILLED",
+    );
   });
 
   it("includes the feature name in the title comment", () => {
@@ -111,7 +117,9 @@ describe("buildStateMachineDiagramStub", () => {
 
 describe("buildFlowDiagramStub", () => {
   it("contains UNFILLED marker for cascade detection", () => {
-    expect(buildFlowDiagramStub("UC-01: Register User")).toContain("<!-- UNFILLED");
+    expect(buildFlowDiagramStub("UC-01: Register User")).toContain(
+      "<!-- UNFILLED",
+    );
   });
 
   it("includes the use case name in the title comment", () => {
@@ -166,5 +174,101 @@ describe("buildC4ContainerStub", () => {
 
   it("uses C4Container keyword", () => {
     expect(buildC4ContainerStub("MyApp")).toContain("C4Container");
+  });
+});
+
+// ── Sectioned spec (§6a — targeted spec loading) ─────────────────────────────
+
+describe("selectSpecSections", () => {
+  it("always emits test-cases (the tagless slice)", () => {
+    const files = selectSpecSections(["UNIVERSAL"]).map((s) => s.file);
+    expect(files).toContain("test-cases.md");
+  });
+
+  it("emits api.md only when the API tag is present", () => {
+    expect(
+      selectSpecSections(["UNIVERSAL", "API"]).map((s) => s.file),
+    ).toContain("api.md");
+    expect(
+      selectSpecSections(["UNIVERSAL", "CLI"]).map((s) => s.file),
+    ).not.toContain("api.md");
+  });
+
+  it("emits ui.md for any web/mobile tag", () => {
+    for (const tag of ["WEB-REACT", "WEB-NEXT", "MOBILE", "EXPO"]) {
+      expect(
+        selectSpecSections(["UNIVERSAL", tag]).map((s) => s.file),
+        `expected ui.md for ${tag}`,
+      ).toContain("ui.md");
+    }
+  });
+
+  it("emits pipeline.md for ML/data/analytics tags", () => {
+    expect(selectSpecSections(["ML"]).map((s) => s.file)).toContain(
+      "pipeline.md",
+    );
+    expect(selectSpecSections(["DATA-PIPELINE"]).map((s) => s.file)).toContain(
+      "pipeline.md",
+    );
+  });
+
+  it("emits seed.md only for DATABASE", () => {
+    expect(selectSpecSections(["DATABASE"]).map((s) => s.file)).toContain(
+      "seed.md",
+    );
+    expect(selectSpecSections(["API"]).map((s) => s.file)).not.toContain(
+      "seed.md",
+    );
+  });
+
+  it("a CLI-only project gets just the test-cases slice", () => {
+    const files = selectSpecSections(["UNIVERSAL", "CLI"]).map((s) => s.file);
+    expect(files).toEqual(["test-cases.md"]);
+  });
+});
+
+describe("buildSpecSectionStub", () => {
+  it("contains UNFILLED marker for cascade detection", () => {
+    const def = SPEC_SECTION_DEFS.find((d) => d.file === "api.md")!;
+    expect(buildSpecSectionStub(def, "MyApp")).toContain("<!-- UNFILLED");
+  });
+
+  it("includes the project name and section title in the heading", () => {
+    const def = SPEC_SECTION_DEFS.find((d) => d.file === "api.md")!;
+    const out = buildSpecSectionStub(def, "Billing Service");
+    expect(out).toContain("# Billing Service — Spec: API Surface");
+  });
+
+  it("steers toward load-the-slice and prescriptive RFC 2119 phrasing", () => {
+    const def = SPEC_SECTION_DEFS.find((d) => d.file === "api.md")!;
+    const out = buildSpecSectionStub(def, "MyApp");
+    expect(out).toContain(".claude/spec-map.md");
+    expect(out).toMatch(/MUST/);
+  });
+
+  it("never ships an unrendered Liquid placeholder", () => {
+    for (const def of SPEC_SECTION_DEFS) {
+      expect(buildSpecSectionStub(def, "MyApp")).not.toContain("{{");
+    }
+  });
+});
+
+describe("buildSpecIndex", () => {
+  it("is the authoritative router that points at spec-map", () => {
+    const sections = selectSpecSections(["UNIVERSAL", "API"]);
+    const idx = buildSpecIndex("MyApp", sections);
+    expect(idx).toContain("# SPEC-INDEX — MyApp");
+    expect(idx).toContain(".claude/spec-map.md");
+    expect(idx).toContain("<!-- UNFILLED");
+  });
+
+  it("lists exactly the emitted sections as table rows", () => {
+    const sections = selectSpecSections(["UNIVERSAL", "API"]);
+    const idx = buildSpecIndex("MyApp", sections);
+    for (const s of sections) {
+      expect(idx).toContain(`docs/specs/sections/${s.file}`);
+    }
+    // A non-emitted slice must not appear.
+    expect(idx).not.toContain("docs/specs/sections/seed.md");
   });
 });

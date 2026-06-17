@@ -209,6 +209,34 @@ describe("canary: TypeScript API project", () => {
         );
       }
     });
+
+    it("sectioned spec is emitted (§6a) and the spec-map pointers resolve", () => {
+      // This is an API project → api.md + test-cases.md + SPEC-INDEX must exist.
+      const sectionsDir = join(tempDir, "docs", "specs", "sections");
+      expect(existsSync(join(sectionsDir, "api.md"))).toBe(true);
+      expect(existsSync(join(sectionsDir, "test-cases.md"))).toBe(true);
+      const indexPath = join(tempDir, "docs", "specs", "SPEC-INDEX.md");
+      expect(existsSync(indexPath)).toBe(true);
+      expect(readFileSync(indexPath, "utf-8")).toContain(
+        "docs/specs/sections/api.md",
+      );
+
+      // Every docs/specs/sections/* path the spec-map advertises must exist on
+      // disk — a broken pointer is worse than no pointer.
+      const specMap = readFileSync(
+        join(tempDir, ".claude", "spec-map.md"),
+        "utf-8",
+      );
+      const advertised = [
+        ...specMap.matchAll(/docs\/specs\/sections\/([\w-]+\.md)/g),
+      ].map((m) => m[1]!);
+      for (const file of advertised) {
+        expect(
+          existsSync(join(sectionsDir, file)),
+          `spec-map points at docs/specs/sections/${file} but it was not emitted`,
+        ).toBe(true);
+      }
+    });
   });
 
   describe("hooks", () => {

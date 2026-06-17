@@ -11,9 +11,9 @@ Breaking changes are marked **BREAKING**.
 
 ### Added — VairixDX field-study adoptions (ADR-0012 §6)
 
-Two harness techniques from the VairixDX brownfield study, both load-on-demand so the always-load line budget (≤175) is untouched:
+Harness techniques from the VairixDX brownfield study:
 
-- **§6a (partial) — targeted spec loading.** The sentinel renderer now emits `.claude/spec-map.md`, a tag-aware "Working on → read first" cheat-sheet that routes a task to the exact spec slice it needs (API/UI/AI-pipeline/seed/test-cases rows appear only for the matching tags), carries the *load-the-slice-not-the-spec* directive, and supports a monolithic-PRD fallback by citing heading/line ranges. Wired into the root Navigate-by-Task table and the `routes/docs.md` reading order (cited *before* the raw slice). VairixDX measured ~82% fewer spec tokens per task with this lever. (Full `docs/specs/sections/*.md` + `SPEC-INDEX` emission remains planned.)
+- **§6a — targeted spec loading (now complete).** The sentinel renderer emits `.claude/spec-map.md`, a tag-aware "Working on → read first" cheat-sheet that routes a task to the exact spec slice it needs (API/UI/AI-pipeline/seed/test-cases rows appear only for the matching tags), carries the *load-the-slice-not-the-spec* directive, and supports a monolithic-PRD fallback by citing heading/line ranges. Wired into the root Navigate-by-Task table and the `routes/docs.md` reading order (cited *before* the raw slice). VairixDX measured ~82% fewer spec tokens per task with this lever. **The scaffolder now also emits the sections themselves** — `docs/specs/sections/{api,ui,pipeline,seed,test-cases}.md` (tag-gated, prescriptive RFC 2119 stubs) plus the authoritative `docs/specs/SPEC-INDEX.md` router. The section catalog and the spec-map rows share one tag predicate, and a canary asserts every pointer the spec-map advertises resolves to an emitted file.
 - **§6e — Known Pitfalls + Techniques.** New `.claude/pitfalls.md` with two framed sections: *Known Pitfalls* (class-level traps tests don't catch) and *Techniques* (reusable patterns the project invented). Placed behind a pointer from the always-loaded `corrections.md` rather than inside it — these sections accumulate over a project's life and would breach the always-load budget (measured +13 lines over cap); per the CNT rule *knowledge sits behind pointers*, they load on demand.
 
 ### Fixed — eslint gate failed on eslint-ignored staged files
@@ -781,3 +781,6 @@ the published white paper and practitioner protocol.
 
 ### Fixed
 - **deps**: npm audit fix — resolve HIGH CVEs in production deps (form-data, hono) (`0da8ed1`)
+
+### Added
+- **sentinel**: targeted spec loading + pitfalls/techniques behind a pointer (ADR-0012 §6a/§6e) (`1973d40`)

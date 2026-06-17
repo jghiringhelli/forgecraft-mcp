@@ -46,6 +46,7 @@ import {
   buildFlowDiagramStub,
   USE_CASES_STUB,
   writeSpecStub,
+  writeSpecSections,
 } from "./scaffold-spec-stubs.js";
 
 export interface ScaffoldWriteInput {
@@ -257,6 +258,17 @@ export function writeScaffoldFiles(
     "docs/use-cases.md",
     join(input.project_dir, "docs", "use-cases.md"),
     USE_CASES_STUB,
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
+
+  // Sectioned spec (§6a): emit the slices the spec-map routes to, tag-gated, so
+  // every spec-map pointer resolves and a task can load one slice not the spec.
+  writeSpecSections(
+    input.project_dir,
+    input.project_name,
+    context.tags,
     input.force,
     filesCreated,
     filesSkipped,
