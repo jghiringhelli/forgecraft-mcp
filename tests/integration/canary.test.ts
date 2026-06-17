@@ -203,6 +203,12 @@ describe("canary: TypeScript API project", () => {
       expect(content).toContain("Deltas (DELTA-NNN)");
     });
 
+    it("docs/edrs/README.md (spec-change records, §6d) is written", () => {
+      const path = join(tempDir, "docs", "edrs", "README.md");
+      expect(existsSync(path)).toBe(true);
+      expect(readFileSync(path, "utf-8")).toContain("Affected UCs:");
+    });
+
     it("docs/architecture/ CNT branches are created", () => {
       const archDir = join(tempDir, "docs", "architecture");
       expect(existsSync(archDir)).toBe(true);

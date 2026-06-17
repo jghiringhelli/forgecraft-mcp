@@ -49,6 +49,7 @@ import {
   writeSpecSections,
 } from "./scaffold-spec-stubs.js";
 import { buildDiscoveryLog } from "./discovery-log.js";
+import { buildEdrsReadme } from "./spec-change-record.js";
 
 export interface ScaffoldWriteInput {
   readonly project_dir: string;
@@ -281,6 +282,14 @@ export function writeScaffoldFiles(
     "docs/discovery-log.md",
     join(input.project_dir, "docs", "discovery-log.md"),
     buildDiscoveryLog(),
+  );
+
+  // Spec-change records (§6d): EDRs list Affected UCs; close_cycle re-verifies
+  // those UCs (their green goes stale when the spec moves).
+  trackWrite(
+    "docs/edrs/README.md",
+    join(input.project_dir, "docs", "edrs", "README.md"),
+    buildEdrsReadme(),
   );
 
   const adrsDir = join(input.project_dir, "docs", "adrs");

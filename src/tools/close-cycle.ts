@@ -45,6 +45,7 @@ import {
 import { evaluateGenerativeExecution } from "./generative-execution-gate.js";
 import { evaluateStaticAnalyzers } from "./static-analyzer-gate.js";
 import { evaluateDiscoveryLog } from "./discovery-log.js";
+import { evaluateSpecChangeCascade } from "./spec-change-record.js";
 
 export type {
   CloseCycleOptions,
@@ -236,6 +237,52 @@ export async function closeCycle(
     };
   }
 
+  // Step 1.85 -- Spec-change cascade gate (§6d)
+  // An EDR records that the spec changed and which UCs it touches. Those UCs'
+  // green flags go stale: a UC verified before the edit proves nothing about the
+  // edited spec. FC-1 trusts a green; this forces a re-run of run_harness for the
+  // affected UCs after a spec change. Opt-in: skipped when no docs/edrs/ EDRs.
+  const specCascade = evaluateSpecChangeCascade(projectRoot);
+  if (specCascade.blocked) {
+    const nextSteps = [
+      `${specCascade.staleUcs.length} use-case(s) affected by a spec change (EDR) need re-verification — re-run \`run_harness\`, then re-run \`close_cycle\`:`,
+      ...specCascade.staleUcs.map((s) => `  ${s.uc} (${s.edr}): ${s.reason}`),
+      "An EDR's affected UC must be re-run after the spec change — a green that predates the edit is stale (docs/edrs/).",
+    ];
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
+      staticAnalyzerStatus: {
+        status: staticAnalysis.status,
+        failing: staticAnalysis.failing,
+        overridden: staticAnalysis.overridden,
+        blocked: staticAnalysis.blocked,
+      },
+      ...(discoveryLog.skipped
+        ? {}
+        : {
+            discoveryLogStatus: {
+              closedWithoutFixture: discoveryLog.closedWithoutFixture,
+              blocked: discoveryLog.blocked,
+            },
+          }),
+      specChangeCascadeStatus: {
+        staleUcs: specCascade.staleUcs,
+        blocked: specCascade.blocked,
+      },
+    };
+  }
+
   // Step 2 -- Test command
   const testCommand = deriveTestCommand(projectRoot);
 
@@ -419,6 +466,14 @@ export async function closeCycle(
           discoveryLogStatus: {
             closedWithoutFixture: discoveryLog.closedWithoutFixture,
             blocked: discoveryLog.blocked,
+          },
+        }),
+    ...(specCascade.skipped
+      ? {}
+      : {
+          specChangeCascadeStatus: {
+            staleUcs: specCascade.staleUcs,
+            blocked: specCascade.blocked,
           },
         }),
     nextRoadmapItem,

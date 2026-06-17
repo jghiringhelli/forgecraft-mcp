@@ -96,6 +96,21 @@ export interface CloseCycleResult {
     /** True when at least one closed DELTA lacked a fixture. */
     readonly blocked: boolean;
   };
+  /**
+   * Spec-change cascade gate (§6d). Present whenever close_cycle ran the gate
+   * (opt-in: only when docs/edrs/ has EDRs). `blocked: true` forces ready:false —
+   * an EDR's affected UC must be re-verified (run_harness) after the spec change.
+   */
+  readonly specChangeCascadeStatus?: {
+    /** Affected UCs whose generative-execution evidence is stale (uc + edr + reason). */
+    readonly staleUcs: ReadonlyArray<{
+      readonly uc: string;
+      readonly edr: string;
+      readonly reason: string;
+    }>;
+    /** True when at least one affected UC needs re-verification. */
+    readonly blocked: boolean;
+  };
 }
 
 // ── Roadmap Types ────────────────────────────────────────────────────
