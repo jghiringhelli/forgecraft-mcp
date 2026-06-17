@@ -82,6 +82,20 @@ export interface CloseCycleResult {
     /** True when at least one analyzer blocked the cycle. */
     readonly blocked: boolean;
   };
+  /**
+   * Discovery-log fixture-on-close gate (§6c). Present whenever close_cycle ran
+   * the gate (opt-in: only when docs/discovery-log.md exists). `blocked: true`
+   * forces ready:false — a DELTA cannot close without a live regression fixture.
+   */
+  readonly discoveryLogStatus?: {
+    /** Deltas marked closed without a live captured fixture (id + reason). */
+    readonly closedWithoutFixture: ReadonlyArray<{
+      readonly id: string;
+      readonly reason: string;
+    }>;
+    /** True when at least one closed DELTA lacked a fixture. */
+    readonly blocked: boolean;
+  };
 }
 
 // ── Roadmap Types ────────────────────────────────────────────────────

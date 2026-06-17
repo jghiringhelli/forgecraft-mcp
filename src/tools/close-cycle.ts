@@ -44,6 +44,7 @@ import {
 } from "./close-cycle-versioning.js";
 import { evaluateGenerativeExecution } from "./generative-execution-gate.js";
 import { evaluateStaticAnalyzers } from "./static-analyzer-gate.js";
+import { evaluateDiscoveryLog } from "./discovery-log.js";
 
 export type {
   CloseCycleOptions,
@@ -193,6 +194,44 @@ export async function closeCycle(
         failing: staticAnalysis.failing,
         overridden: staticAnalysis.overridden,
         blocked: staticAnalysis.blocked,
+      },
+    };
+  }
+
+  // Step 1.8 -- Discovery-log fixture-on-close gate (§6c)
+  // A DELTA-NNN (runtime discovery) cannot be marked closed without a captured
+  // regression fixture — the exact triggering input. A lesson that lives only in
+  // a changelog returns under a cousin input (VairixDX DELTA-079/051/007); a
+  // lesson that lives in a fixture cannot. Opt-in: skipped when no discovery log.
+  const discoveryLog = evaluateDiscoveryLog(projectRoot);
+  if (discoveryLog.blocked) {
+    const nextSteps = [
+      `${discoveryLog.closedWithoutFixture.length} DELTA(s) are marked closed without a live regression fixture — capture the triggering input and reference it as \`Fixture: <path>\`, or reopen the DELTA:`,
+      ...discoveryLog.closedWithoutFixture.map((d) => `  ${d.id}: ${d.reason}`),
+      "A DELTA closes only once the exact breaking input is a permanent fixture (docs/discovery-log.md).",
+    ];
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
+      staticAnalyzerStatus: {
+        status: staticAnalysis.status,
+        failing: staticAnalysis.failing,
+        overridden: staticAnalysis.overridden,
+        blocked: staticAnalysis.blocked,
+      },
+      discoveryLogStatus: {
+        closedWithoutFixture: discoveryLog.closedWithoutFixture,
+        blocked: discoveryLog.blocked,
       },
     };
   }
@@ -374,6 +413,14 @@ export async function closeCycle(
       overridden: staticAnalysis.overridden,
       blocked: staticAnalysis.blocked,
     },
+    ...(discoveryLog.skipped
+      ? {}
+      : {
+          discoveryLogStatus: {
+            closedWithoutFixture: discoveryLog.closedWithoutFixture,
+            blocked: discoveryLog.blocked,
+          },
+        }),
     nextRoadmapItem,
     versionSuggestion: versionSuggestion ?? undefined,
     changelogUpdated,

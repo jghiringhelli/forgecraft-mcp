@@ -48,6 +48,7 @@ import {
   writeSpecStub,
   writeSpecSections,
 } from "./scaffold-spec-stubs.js";
+import { buildDiscoveryLog } from "./discovery-log.js";
 
 export interface ScaffoldWriteInput {
   readonly project_dir: string;
@@ -272,6 +273,14 @@ export function writeScaffoldFiles(
     input.force,
     filesCreated,
     filesSkipped,
+  );
+
+  // Two-stream discovery log (§6c): D-XXX deviations + DELTA-NNN runtime
+  // discoveries; a DELTA closes only with a captured regression fixture.
+  trackWrite(
+    "docs/discovery-log.md",
+    join(input.project_dir, "docs", "discovery-log.md"),
+    buildDiscoveryLog(),
   );
 
   const adrsDir = join(input.project_dir, "docs", "adrs");

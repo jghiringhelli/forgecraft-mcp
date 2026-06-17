@@ -195,6 +195,14 @@ describe("canary: TypeScript API project", () => {
       ).toBe(true);
     });
 
+    it("docs/discovery-log.md (two-stream ledger, §6c) is written", () => {
+      const path = join(tempDir, "docs", "discovery-log.md");
+      expect(existsSync(path)).toBe(true);
+      const content = readFileSync(path, "utf-8");
+      expect(content).toContain("Deviations (D-XXX)");
+      expect(content).toContain("Deltas (DELTA-NNN)");
+    });
+
     it("docs/architecture/ CNT branches are created", () => {
       const archDir = join(tempDir, "docs", "architecture");
       expect(existsSync(archDir)).toBe(true);
