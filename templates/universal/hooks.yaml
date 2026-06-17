@@ -760,7 +760,9 @@ hooks:
       if echo "$STAGED" | grep -qE '\.(ts|tsx|js|jsx)$'; then
         if _fc_has_eslint; then
           FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | tr '\n' ' ')
-          if ! npx eslint --max-warnings=0 $FILES 2>&1; then
+          # --no-warn-ignored: a staged file that eslint config ignores (e.g. tests/**)
+          # must not emit a "File ignored" warning that trips --max-warnings=0.
+          if ! npx eslint --max-warnings=0 --no-warn-ignored $FILES 2>&1; then
             echo "❌ eslint reported errors/warnings (--max-warnings=0). Fix or run: npx eslint --fix"
             _fc_write_violation "pre-commit-lint" "error" "eslint failed on staged TS/JS files (max-warnings=0)"
             exit 1
@@ -844,7 +846,9 @@ hooks:
       fi
       echo "🧹 Running eslint gate..."
       FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | tr '\n' ' ')
-      if ! npx eslint --max-warnings=0 $FILES 2>&1; then
+      # --no-warn-ignored: a staged file that eslint config ignores (e.g. tests/**)
+      # must not emit a "File ignored" warning that trips --max-warnings=0.
+      if ! npx eslint --max-warnings=0 --no-warn-ignored $FILES 2>&1; then
         echo "❌ eslint reported errors/warnings (--max-warnings=0). Fix or run: npx eslint --fix"
         _fc_write_violation "pre-commit-eslint" "error" "eslint failed on staged TS/JS files (max-warnings=0)"
         exit 1

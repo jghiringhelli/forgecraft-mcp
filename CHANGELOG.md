@@ -9,6 +9,17 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+### Added — VairixDX field-study adoptions (ADR-0012 §6)
+
+Two harness techniques from the VairixDX brownfield study, both load-on-demand so the always-load line budget (≤175) is untouched:
+
+- **§6a (partial) — targeted spec loading.** The sentinel renderer now emits `.claude/spec-map.md`, a tag-aware "Working on → read first" cheat-sheet that routes a task to the exact spec slice it needs (API/UI/AI-pipeline/seed/test-cases rows appear only for the matching tags), carries the *load-the-slice-not-the-spec* directive, and supports a monolithic-PRD fallback by citing heading/line ranges. Wired into the root Navigate-by-Task table and the `routes/docs.md` reading order (cited *before* the raw slice). VairixDX measured ~82% fewer spec tokens per task with this lever. (Full `docs/specs/sections/*.md` + `SPEC-INDEX` emission remains planned.)
+- **§6e — Known Pitfalls + Techniques.** New `.claude/pitfalls.md` with two framed sections: *Known Pitfalls* (class-level traps tests don't catch) and *Techniques* (reusable patterns the project invented). Placed behind a pointer from the always-loaded `corrections.md` rather than inside it — these sections accumulate over a project's life and would breach the always-load budget (measured +13 lines over cap); per the CNT rule *knowledge sits behind pointers*, they load on demand.
+
+### Fixed — eslint gate failed on eslint-ignored staged files
+
+- **`pre-commit-lint.sh` / `pre-commit-eslint.sh` (and their `templates/universal/hooks.yaml` source).** The gate ran `npx eslint --max-warnings=0` over all staged TS/JS files. When a staged file matched the project's eslint `ignores` (e.g. `tests/**`), eslint emitted a *"File ignored because of a matching ignore pattern"* **warning**, which `--max-warnings=0` treated as failure — blocking any commit that touched an ignored path. Added `--no-warn-ignored` so eslint-ignored files no longer generate a warning. Surfaced in this repo while committing a test file alongside the spec-map/pitfalls work.
+
 ## [1.8.1] — 2026-06-11
 
 ### Added — field-analysis remediation, wave 2 (tag taxonomy & content)
@@ -743,3 +754,30 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **hooks**: add blocking eslint + complexity pre-commit hooks (FC-2) (`501b9df`)
+
+### Added
+- **sentinel**: canonical AGENTS.md source-of-truth + drift evaluator (PT-2) (`3e49cbf`)
+
+### Added
+- **cli**: add check-sentinel-copies bare-gate command (PT-2) (`4754126`)
+
+### Added
+- **scaffold**: generate per-agent sentinel copies on scaffold and refresh (PT-2) (`dbf1572`)
+
+### Added
+- **hooks**: add pre-commit-sentinel-copies drift gate template (PT-2) (`414ad7e`)
+
+### Added
+- **harvest-debt**: harvest inline TODO(<scope>) markers into an auditable ledger (`76a04af`)
+
+### Added
+- **close-cycle**: surface deferred TODO(min) shortcuts as a non-blocking advisory (`57df3e6`)
+
+### Documentation
+- **adr**: ADR-0012 post-experiment adoptions — model tiering, YAML frontmatter, RFC 2119, rubric guide (`8d4aec3`)
+
+### Fixed
+- **deps**: npm audit fix — resolve HIGH CVEs in production deps (form-data, hono) (`2dd7246`)
+
+### Fixed
+- **deps**: npm audit fix — resolve HIGH CVEs in production deps (form-data, hono) (`0da8ed1`)

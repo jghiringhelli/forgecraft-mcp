@@ -106,8 +106,16 @@ export function renderSentinelTree(
     content: buildDocsRoutesFile(context),
   });
   files.push({
+    relativePath: ".claude/spec-map.md",
+    content: buildSpecMapFile(context),
+  });
+  files.push({
     relativePath: ".claude/corrections.md",
     content: buildCorrectionsFile(),
+  });
+  files.push({
+    relativePath: ".claude/pitfalls.md",
+    content: buildPitfallsFile(),
   });
 
   // Generate slim root CLAUDE.md (prepend so it's first in the list)
@@ -242,7 +250,8 @@ function buildRootClaudeMd(
     ``,
     `| You're about to... | Load these branches |`,
     `| --- | --- |`,
-    `| Implement a feature | \`.claude/lifecycle.md\` → \`docs/use-cases/\` → \`.claude/routes/docs.md\` |`,
+    `| Implement a feature | \`.claude/lifecycle.md\` → \`.claude/spec-map.md\` → relevant spec slice → \`docs/use-cases/\` |`,
+    `| Find the right spec slice | \`.claude/spec-map.md\` (load the slice, never the whole spec) |`,
     `| Fix a bug | \`.claude/lifecycle.md\` → linked test → \`.claude/routes/code.md\` |`,
     `| Change architecture / layers | \`.claude/constitution.md\` → \`docs/architecture/layers.md\` → \`docs/adrs/\` |`,
     `| Change a module boundary | \`.claude/constitution.md\` → \`docs/architecture/modules.md\` |`,
@@ -605,6 +614,7 @@ function buildDocsRoutesFile(context: RenderContext): string {
     `| Data model / schema / ERD | \`docs/architecture/data-model.md\` |`,
     `| External integrations | \`docs/architecture/integrations.md\` |`,
     `| Behavioral contracts | \`docs/use-cases/\` |`,
+    `| Which spec slice a task needs | \`.claude/spec-map.md\` (load the slice, never the whole spec) |`,
     `| Why a decision was made | \`docs/adrs/active/\` |`,
     `| Current project state | \`docs/status.md\` |`,
     `| Non-functional requirements | \`docs/nfr-contracts.md\` |`,
@@ -613,10 +623,82 @@ function buildDocsRoutesFile(context: RenderContext): string {
     `## Reading Order (before starting implementation)`,
     ``,
     `1. \`docs/status.md\` — what's done, what's in progress, recent decisions`,
-    `2. Relevant use case in \`docs/use-cases/\``,
-    `3. Relevant spec section in \`docs/specs/\` or \`docs/PRD.md\``,
-    `4. Relevant ADR if the area has prior decisions in \`docs/adrs/active/\``,
-    `5. \`.claude/constitution.md\` — verify your approach doesn't violate invariants`,
+    `2. \`.claude/spec-map.md\` — find WHICH spec slice the task needs (load the slice, not the whole spec)`,
+    `3. Relevant use case in \`docs/use-cases/\``,
+    `4. The spec slice the map pointed you at (\`docs/specs/sections/*.md\` or the cited \`docs/PRD.md\` range)`,
+    `5. Relevant ADR if the area has prior decisions in \`docs/adrs/active/\``,
+    `6. \`.claude/constitution.md\` — verify your approach doesn't violate invariants`,
+    ``,
+  ].join("\n");
+}
+
+// ── CNT branch: spec-map ──────────────────────────────────────────────
+
+/**
+ * Build .claude/spec-map.md — the targeted-spec-loading cheat-sheet.
+ *
+ * Field finding (VairixDX brownfield study): loading the whole spec per task
+ * burns ~5× the tokens AND degrades attention (the relevant lines land past the
+ * ~2k-line attention cliff). A small map that points each task at the exact spec
+ * section/line-range it needs cut spec tokens ~82% with better recall. This file
+ * is the sentinel target for "which slice of the spec do I read?" — loaded on
+ * demand, never always-loaded.
+ *
+ * @param context - Project render context (tags drive the routing rows)
+ */
+function buildSpecMapFile(context: RenderContext): string {
+  const date = new Date().toISOString().split("T")[0];
+  const has = (t: string): boolean => (context.tags as string[]).includes(t);
+
+  // Tag-aware routing rows — point common task areas at the spec slice that owns them.
+  const rows: string[] = [
+    `| Use cases / behavioral contracts | \`docs/use-cases/\` |`,
+    `| Data model / schema / entities | \`docs/architecture/data-model.md\` |`,
+  ];
+  if (has("API"))
+    rows.push(
+      `| API surface / endpoints / error shapes | \`docs/specs/sections/api.md\` (or PRD §API) |`,
+    );
+  if (has("WEB-REACT") || has("WEB-NEXT") || has("MOBILE") || has("EXPO"))
+    rows.push(
+      `| UI screens / components / flows | \`docs/specs/sections/ui.md\` (or PRD §UI) |`,
+    );
+  if (has("ML") || has("DATA-PIPELINE") || has("ANALYTICS"))
+    rows.push(
+      `| AI / pipeline stages / scoring | \`docs/specs/sections/pipeline.md\` (or PRD §Pipeline) |`,
+    );
+  if (has("DATABASE"))
+    rows.push(
+      `| Seed data / migrations | \`docs/specs/sections/seed.md\` (or PRD §Data) |`,
+    );
+  rows.push(
+    `| Test cases / acceptance criteria | \`docs/specs/sections/test-cases.md\` (or PRD §TCs) |`,
+  );
+
+  return [
+    `<!-- CNT branch: spec-map | ${date} | load to find WHICH spec slice a task needs — never load the whole spec -->`,
+    ``,
+    `# Spec Navigation Cheat-Sheet`,
+    ``,
+    `> **Load the slice, not the spec.** Before implementing, find the row below and read only`,
+    `> that section. Reading the whole spec wastes tokens and buries the relevant lines past the`,
+    `> attention cliff. Keep this map current — when you learn a topic's exact location, record`,
+    `> the file + line range here so the next session jumps straight to it.`,
+    ``,
+    `## Where the spec lives`,
+    ``,
+    `- **Sectioned (preferred):** \`docs/specs/sections/*.md\`, routed by \`docs/specs/SPEC-INDEX.md\`.`,
+    `- **Monolithic fallback:** \`docs/PRD.md\` — if the spec is still one file, cite the heading/line`,
+    `  range in the table below rather than re-reading the whole document.`,
+    `- This cheat-sheet is the quick lookup; \`docs/specs/SPEC-INDEX.md\` (when present) is authoritative.`,
+    ``,
+    `## Working on → read first`,
+    ``,
+    `| Working on | Spec slice |`,
+    `| --- | --- |`,
+    ...rows,
+    ``,
+    `> Fill exact line ranges as you learn them, e.g. \`docs/PRD.md §7 (lines 1200–1700)\`.`,
     ``,
   ].join("\n");
 }
@@ -626,22 +708,78 @@ function buildDocsRoutesFile(context: RenderContext): string {
 /**
  * Build .claude/corrections.md — corrections log stub.
  * Always read before acting. Never delete entries.
+ *
+ * Kept lean on purpose: this file is in the always-load set (≤175-line budget).
+ * Class-level pitfalls and invented techniques — which accumulate over a
+ * project's life — live behind a pointer in `.claude/pitfalls.md` (load on
+ * demand), honoring the CNT rule that knowledge sits behind pointers, not in
+ * the always-loaded root.
  */
 function buildCorrectionsFile(): string {
   const date = new Date().toISOString().split("T")[0];
 
   return [
     `<!-- CNT branch: corrections | ${date} | read before acting in every session -->`,
-    `<!-- Records past AI mistakes on this project. Never delete entries. Always add. -->`,
+    `<!-- Project memory: past mistakes. Never delete entries. Always add. -->`,
     ``,
     `## Corrections Log`,
     ``,
-    `> Format: \`YYYY-MM-DD | [category] what went wrong | correct approach\``,
+    `> One-off mistakes and their fix. Format: \`YYYY-MM-DD | [category] what went wrong | correct approach\``,
     ``,
     `<!-- Add entries when an AI assistant makes a mistake on this project. Examples:`,
     `2026-01-15 | [architecture] Added business logic to a route handler — always delegate to service layer`,
     `2026-01-20 | [testing] Mocked DB in integration test — use real test DB instead`,
     `2026-02-10 | [scope] Changed more files than the sub-task required — one sub-task = ≤3 files`,
+    `-->`,
+    ``,
+    `> **Class-level pitfalls & invented techniques** live in \`.claude/pitfalls.md\` (load on demand).`,
+    `> A recurring trap with a standing workaround, or a reusable pattern, belongs there — not here.`,
+    ``,
+  ].join("\n");
+}
+
+// ── CNT branch: pitfalls ──────────────────────────────────────────────
+
+/**
+ * Build .claude/pitfalls.md — class-level pitfalls + invented techniques.
+ *
+ * Field finding (VairixDX): a project accumulates failure modes that tests
+ * never catch (structured-output hangs, a tool resolving to the wrong binary)
+ * and reusable patterns it invented. These are durable knowledge worth more
+ * than any single correction — but they grow without bound, so they sit behind
+ * a pointer in corrections.md and load on demand, never in the always-load set.
+ */
+function buildPitfallsFile(): string {
+  const date = new Date().toISOString().split("T")[0];
+
+  return [
+    `<!-- CNT branch: pitfalls | ${date} | load when debugging a recurring trap or reaching for a known pattern -->`,
+    `<!-- Durable project knowledge: class-level traps and invented techniques. Never delete entries. Always add. -->`,
+    ``,
+    `# Pitfalls & Techniques`,
+    ``,
+    `## Known Pitfalls`,
+    ``,
+    `> **Class-level** failure modes that tests don't catch — environment quirks, library traps,`,
+    `> tool surprises. Distinct from Corrections (one-off mistakes): a pitfall is a recurring trap`,
+    `> with a standing workaround. Record the symptom and the workaround so it is never re-debugged.`,
+    ``,
+    `<!-- Format: ### <short title> / then symptom + workaround. Examples:`,
+    `### OpenAI structured output with large prompts`,
+    `\`strict: true\` with >10K-token input and deep nested schemas can hang >120s. Use Promise.race with a timeout.`,
+    `### npx --no-install <tool> resolves to the wrong binary`,
+    `On some nvm setups it silently resolves to an unrelated package — pin the exact binary path.`,
+    `-->`,
+    ``,
+    `## Techniques`,
+    ``,
+    `> **Reusable patterns this project invented** — the non-obvious solution worth repeating. Record`,
+    `> the pattern and where it lives so the next session reaches for it instead of reinventing.`,
+    ``,
+    `<!-- Format: ### <pattern name> / what it does + where it lives. Examples:`,
+    `### Structural rescue after an LLM selection step`,
+    `Post-process the model's candidate list to inject deterministic floors when cues are present —`,
+    `the model cannot stochastically miss what it never had to pick. Lives in \`src/.../rescues.ts\`.`,
     `-->`,
     ``,
   ].join("\n");

@@ -529,3 +529,88 @@ describe("renderSentinelTree — domain file content", () => {
     expect(content).not.toContain("protocols.md");
   });
 });
+
+// ── Targeted spec loading: .claude/spec-map.md (VairixDX adoption) ────────
+
+describe("renderSentinelTree — spec-map (targeted spec loading)", () => {
+  it("emits .claude/spec-map.md as a load-on-demand branch", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const specMap = getFile(files, ".claude/spec-map.md");
+    // CNT marker declares it load-on-demand, not always-load.
+    expect(specMap.content).toContain("CNT branch: spec-map");
+    expect(specMap.content).not.toContain("load: always");
+  });
+
+  it("carries the load-the-slice-not-the-spec directive", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const specMap = getFile(files, ".claude/spec-map.md");
+    expect(specMap.content).toContain("Load the slice, not the spec");
+    expect(specMap.content).toContain("Working on");
+    expect(specMap.content).toContain("Spec slice");
+  });
+
+  it("routes API tasks to the api spec slice when the API tag is present", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const specMap = getFile(files, ".claude/spec-map.md");
+    expect(specMap.content).toContain("docs/specs/sections/api.md");
+  });
+
+  it("routes UI tasks to the ui spec slice for a web project", () => {
+    const webCtx: RenderContext = {
+      ...context,
+      tags: ["UNIVERSAL", "WEB-REACT"],
+    };
+    const files = renderSentinelTree([architectureBlock], webCtx);
+    const specMap = getFile(files, ".claude/spec-map.md");
+    expect(specMap.content).toContain("docs/specs/sections/ui.md");
+    // No API tag → no API row.
+    expect(specMap.content).not.toContain("docs/specs/sections/api.md");
+  });
+
+  it("routes pipeline tasks to the pipeline slice for an ML project", () => {
+    const mlCtx: RenderContext = { ...context, tags: ["UNIVERSAL", "ML"] };
+    const files = renderSentinelTree([architectureBlock], mlCtx);
+    const specMap = getFile(files, ".claude/spec-map.md");
+    expect(specMap.content).toContain("docs/specs/sections/pipeline.md");
+  });
+
+  it("docs route reading order points at spec-map before the spec slice", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const docs = getFile(files, ".claude/routes/docs.md");
+    expect(docs.content).toContain(".claude/spec-map.md");
+    // spec-map must be cited before the raw spec slice in the ordered list.
+    const mapIdx = docs.content.indexOf(".claude/spec-map.md");
+    const sliceIdx = docs.content.indexOf("The spec slice the map pointed");
+    expect(mapIdx).toBeGreaterThanOrEqual(0);
+    expect(sliceIdx).toBeGreaterThan(mapIdx);
+  });
+
+  it("root Navigate-by-Task table routes to spec-map", () => {
+    const { content } = claudeMd(
+      renderSentinelTree([architectureBlock], context),
+    );
+    expect(content).toContain(".claude/spec-map.md");
+  });
+});
+
+// ── Pitfalls & techniques: .claude/pitfalls.md (VairixDX adoption) ────────
+
+describe("renderSentinelTree — pitfalls (knowledge behind a pointer)", () => {
+  it("emits .claude/pitfalls.md with both framed sections", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const pitfalls = getFile(files, ".claude/pitfalls.md");
+    expect(pitfalls.content).toContain("CNT branch: pitfalls");
+    expect(pitfalls.content).toContain("## Known Pitfalls");
+    expect(pitfalls.content).toContain("## Techniques");
+  });
+
+  it("keeps pitfalls OUT of the always-loaded corrections file", () => {
+    const files = renderSentinelTree([architectureBlock], context);
+    const corrections = getFile(files, ".claude/corrections.md");
+    // The always-load file must not carry the growing knowledge sections...
+    expect(corrections.content).not.toContain("## Known Pitfalls");
+    expect(corrections.content).not.toContain("## Techniques");
+    // ...but must point at where they live.
+    expect(corrections.content).toContain(".claude/pitfalls.md");
+  });
+});
