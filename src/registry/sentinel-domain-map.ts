@@ -117,6 +117,7 @@ export const BLOCK_DOMAIN_MAP: Readonly<Record<string, string>> = {
   "feature-engineering": "ml",
   "model-deployment": "ml",
   "ml-testing": "ml",
+  "llm-pipeline-disciplines": "ml",
 
   // ── Observability ──
   "xray-annotations-metadata": "observability",
