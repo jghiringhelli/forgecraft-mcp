@@ -138,6 +138,12 @@ const TAG_DESCRIPTIONS: Record<
     appliesWhen:
       "Project targets iOS/Android with React Native, Expo, or Flutter.",
   },
+  EXPO: {
+    description:
+      "Expo managed workflow — EAS Build/Submit/Update (OTA), expo-router, expo-doctor, jest-expo testing.",
+    appliesWhen:
+      "Project depends on `expo`/`expo-router` (layers on top of MOBILE).",
+  },
   ANALYTICS: {
     description:
       "Analytics/reporting — event tracking, dashboards, data warehousing.",

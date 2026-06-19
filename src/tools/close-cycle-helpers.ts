@@ -47,6 +47,70 @@ export interface CloseCycleResult {
   }>;
   /** Draft gate files written to .forgecraft/gates/drafts/ this cycle. */
   readonly gateDraftsWritten?: string[];
+  /**
+   * Count of inline debt markers (TODO(<scope>)) found this cycle (PT-4).
+   * Advisory only — surfaced as a nextSteps nudge, never affects `ready`.
+   */
+  readonly debtCount?: number;
+  /**
+   * Generative-execution gate result (FC-1). Present whenever the gate ran
+   * (cascade + in-flight checks passed). `blocked: true` forces ready:false.
+   */
+  readonly generativeExecutionStatus?: {
+    /** Overall normalized status across in-scope UCs. */
+    readonly status: "green" | "red" | "unrun";
+    /** In-scope UCs that are not green and not overridden — these block. */
+    readonly reds: string[];
+    /** In-scope non-green UCs excused by a valid forgecraft.yaml override. */
+    readonly overridden: string[];
+    /** True when at least one in-scope UC blocked the cycle. */
+    readonly blocked: boolean;
+  };
+  /**
+   * Static-analyzer gate result (FC-2). Present whenever the gate ran (cascade +
+   * in-flight + FC-1 checks passed). `blocked: true` forces ready:false. Green
+   * raises the probability of structural-discipline conformance; it does not
+   * prove it — one signal alongside the harness.
+   */
+  readonly staticAnalyzerStatus?: {
+    /** Overall normalized status across the resolved analyzer set. */
+    readonly status: "green" | "red";
+    /** Analyzers that are red and not overridden — these block. */
+    readonly failing: string[];
+    /** Analyzers that are red but excused by a valid forgecraft.yaml override. */
+    readonly overridden: string[];
+    /** True when at least one analyzer blocked the cycle. */
+    readonly blocked: boolean;
+  };
+  /**
+   * Discovery-log fixture-on-close gate (§6c). Present whenever close_cycle ran
+   * the gate (opt-in: only when docs/discovery-log.md exists). `blocked: true`
+   * forces ready:false — a DELTA cannot close without a live regression fixture.
+   */
+  readonly discoveryLogStatus?: {
+    /** Deltas marked closed without a live captured fixture (id + reason). */
+    readonly closedWithoutFixture: ReadonlyArray<{
+      readonly id: string;
+      readonly reason: string;
+    }>;
+    /** True when at least one closed DELTA lacked a fixture. */
+    readonly blocked: boolean;
+  };
+  /**
+   * Spec-change cascade gate (§6d). Present whenever close_cycle ran the gate
+   * (opt-in: only when docs/edrs/ has EDRs). `blocked: true` forces ready:false —
+   * an EDR's affected UC must be re-verified (run_harness) after the spec change.
+   */
+  readonly specChangeCascadeStatus?: {
+    /** Affected UCs whose generative-execution evidence is stale (uc + edr + reason). */
+    readonly staleUcs: ReadonlyArray<{
+      readonly uc: string;
+      readonly edr: string;
+      readonly reason: string;
+    }>;
+    /** True when at least one affected UC needs re-verification. */
+    readonly blocked: boolean;
+  };
 }
 
 // ── Roadmap Types ────────────────────────────────────────────────────
@@ -292,6 +356,50 @@ export function formatCloseCycleResult(result: CloseCycleResult): string {
   if (result.cascadeBlockers?.length) {
     for (const blocker of result.cascadeBlockers) {
       lines.push(`- x ${blocker}`);
+    }
+  }
+
+  const ge = result.generativeExecutionStatus;
+  if (ge && (ge.reds.length > 0 || ge.overridden.length > 0)) {
+    lines.push("", "### Generative Execution");
+    if (ge.reds.length > 0) {
+      lines.push(
+        `⛔ ${ge.reds.length} in-scope use case(s) are not green — close_cycle blocked.`,
+        "These are specification violations: the code did not satisfy the UC postcondition when run (or was never run).",
+        "",
+      );
+      for (const uc of ge.reds) {
+        lines.push(`- ${uc}: spec violation → regenerate from spec`);
+      }
+      lines.push(
+        "",
+        "Run `run_harness` after regenerating until every in-scope UC is green.",
+      );
+    }
+    if (ge.overridden.length > 0) {
+      lines.push(
+        "",
+        `Overridden (non-green but excused via forgecraft.yaml generative_execution.overrides): ${ge.overridden.join(", ")}`,
+      );
+    }
+  }
+
+  const sa = result.staticAnalyzerStatus;
+  if (sa && (sa.failing.length > 0 || sa.overridden.length > 0)) {
+    lines.push("", "### Static Analysis");
+    if (sa.failing.length > 0) {
+      lines.push(
+        `⛔ ${sa.failing.length} static analyzer(s) are red — close_cycle blocked: ${sa.failing.join(", ")}`,
+        "Green raises the probability of structural-discipline conformance; it does not prove it — treat as one signal alongside the harness.",
+        "",
+        "Fix the active analyzer violations (read `read_gate_violations`), then re-run. Green = zero active analyzer violations.",
+      );
+    }
+    if (sa.overridden.length > 0) {
+      lines.push(
+        "",
+        `Overridden (red but excused via forgecraft.yaml static_analysis.overrides): ${sa.overridden.join(", ")}`,
+      );
     }
   }
 

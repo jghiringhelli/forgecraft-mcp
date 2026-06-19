@@ -1,7 +1,9 @@
 id: doc-cascade-required
 title: Documentation Cascade Required for Code Changes
 domain: documentation
+gsProperty: auditable
 phase: development
+hook: commit-msg
 priority: P1
 description: >
   Code changes must propagate to documentation in a structured cascade:
@@ -9,7 +11,14 @@ description: >
   added (decision optional). This is the GS anti-drift requirement: the spec
   is the source of truth, and code/tests are derivations from it. Running
   this gate enforces the docs/manifest.yaml cascade rules.
-check:
+check: >
+  Match the conventional-commit type against the docs/manifest.yaml cascade
+  rules (checkSpec below). A feat: must touch a spec; a fix: must include a
+  regression test. Refactor/perf encourage a decision record or ADR.
+passCriterion: >
+  The staged change satisfies the cascade rule for its conventional-commit type
+  (feat → spec touched; fix → regression test staged).
+checkSpec:
   type: cascade_compliance
   manifest: docs/manifest.yaml
   fallback: templates/docs-manifest.yaml

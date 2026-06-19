@@ -94,6 +94,35 @@ describe("getEnvironmentActivatedGateIds", () => {
     expect(result).toContain("no-cross-tier-urls");
   });
 
+  it("activates PII gates for containsPii: true environment", () => {
+    const envs: Record<string, DeploymentEnvironmentConfig> = {
+      cae: { provider: "railway", containsPii: true },
+    };
+    const result = getEnvironmentActivatedGateIds(envs);
+    expect(result).toContain("pii-masking-in-logs");
+    expect(result).toContain("audit-log-on-pii-access");
+  });
+
+  it("activates security-header gates for externallyAccessible: true", () => {
+    const envs: Record<string, DeploymentEnvironmentConfig> = {
+      prd: { provider: "fly", class: "prd", externallyAccessible: true },
+    };
+    const result = getEnvironmentActivatedGateIds(envs);
+    expect(result).toContain("security-headers-present");
+    expect(result).toContain("content-security-policy-set");
+  });
+
+  it("does not activate security/PII gates when properties are absent", () => {
+    const envs: Record<string, DeploymentEnvironmentConfig> = {
+      dev: { provider: "local", class: "dev" },
+    };
+    const result = getEnvironmentActivatedGateIds(envs);
+    expect(result).not.toContain("security-headers-present");
+    expect(result).not.toContain("content-security-policy-set");
+    expect(result).not.toContain("pii-masking-in-logs");
+    expect(result).not.toContain("audit-log-on-pii-access");
+  });
+
   it("returns deduplicated gate ids with no duplicates", () => {
     const envs: Record<string, DeploymentEnvironmentConfig> = {
       cae: { provider: "railway", class: "cae", containsPii: true },

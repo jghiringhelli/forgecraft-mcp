@@ -34,6 +34,8 @@ const REQUIRED_HOOKS = [
   "pre-commit-prod-quality.sh",
   "pre-commit-compile.sh",
   "pre-commit-clippy.sh",
+  "pre-commit-eslint.sh",
+  "pre-commit-complexity.sh",
   "pre-commit-test.sh",
   "commit-msg.sh",
 ] as const;

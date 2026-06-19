@@ -7,9 +7,9 @@ blocks:
     content: |
       ## Responsive Design & Offline-First Patterns
 
-      - Design mobile-first: start with the smallest viewport and progressively enhance for larger screens. Use CSS media queries or container queries to adapt layout, not separate mobile pages.
+      - Adapt layout to screen size with the platform's native tools — Flexbox plus `useWindowDimensions`/`Dimensions` and safe-area insets on React Native, size classes on native iOS/Android. (CSS media/container queries are a web concept and do not apply to native views.)
       - Implement an offline-first architecture: the app should be functional without a network connection, using locally cached data, and sync when connectivity is restored.
-      - Use a local database (SQLite, IndexedDB, Realm, WatermelonDB) as the primary data source for the UI. Sync with the server in the background using a conflict resolution strategy (last-write-wins, CRDTs, or manual merge).
+      - Use an on-device database as the primary data source for the UI, then sync with the server in the background using a conflict-resolution strategy (last-write-wins, CRDTs, or manual merge). Pick the store that fits the platform and **record the choice in an ADR** — e.g. SQLite (via `expo-sqlite`/`op-sqlite`, optionally with Drizzle), MMKV for key-value, or Realm/WatermelonDB for larger reactive datasets. Do not switch stores casually; the decision is load-bearing. (IndexedDB is web-only — not an option on React Native.)
       - Queue mutations (writes, updates, deletes) locally when offline. Process the queue in order when connectivity resumes, handling conflicts and failures for each operation.
       - Implement a network status indicator in the UI. Clearly communicate to users when they are offline and which features are unavailable or operating on stale data.
       - Cache API responses with appropriate TTLs. Use stale-while-revalidate patterns to show cached data immediately while fetching fresh data in the background.

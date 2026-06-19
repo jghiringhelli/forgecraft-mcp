@@ -66,6 +66,8 @@ const DEFAULT_MANIFEST: Record<GitHookType, string[]> = {
     "pre-commit-branch-check.sh",
     "pre-commit-format.sh",
     "pre-commit-compile.sh",
+    "pre-commit-lint.sh",
+    "pre-commit-complexity.sh",
     "pre-commit-import-cycles.sh",
     "pre-commit-tdd-check.sh",
     "pre-commit-test.sh",
@@ -74,7 +76,11 @@ const DEFAULT_MANIFEST: Record<GitHookType, string[]> = {
     "pre-commit-doc-cascade.sh",
     "pre-commit-gs-links.sh",
   ],
-  "commit-msg": ["commit-msg.sh", "commit-msg-cascade.sh"],
+  "commit-msg": [
+    "commit-msg.sh",
+    "commit-msg-session-gate.sh",
+    "commit-msg-cascade.sh",
+  ],
   "post-commit": [
     "post-commit-changelog.sh",
     "post-commit-complexity-baseline.sh",

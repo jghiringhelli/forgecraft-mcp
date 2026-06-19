@@ -1,0 +1,11 @@
+tag: EXPO
+section: mcp-servers
+servers:
+  - name: ios-simulator
+    description: "iOS Simulator control — boot, install, screenshot, and UI interaction for Expo dev builds"
+    command: npx
+    args: ["-y", "ios-simulator-mcp"]
+    tags: [EXPO]
+    category: devtools
+    tier: recommended
+    url: "https://github.com/joshuayoes/ios-simulator-mcp"

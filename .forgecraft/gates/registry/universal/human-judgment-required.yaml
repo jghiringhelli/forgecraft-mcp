@@ -1,7 +1,9 @@
 id: human-judgment-required
 title: Human Judgment Required Before Merge to Protected Branches
 domain: governance
+gsProperty: defended
 phase: integration
+hook: pre-push
 priority: P0
 description: >
   No untested or unreviewed code reaches protected branches. Even when AI agents
@@ -9,7 +11,14 @@ description: >
   This is the GS judgment-layer requirement: AI accelerates production, humans
   ratify direction. Without this gate, AI-generated code can flow to prod with
   no judgment checkpoint — the dominant new failure mode in 2025-2026 teams.
-check:
+check: >
+  Verify protected-branch governance (checkSpec below): tests pass, at least one
+  non-author human has reviewed/approved, and the PR is not an AI-only merge.
+  Enforced jointly with GitHub branch protection.
+passCriterion: >
+  PR to a protected branch has passing checks and at least one non-author human
+  approval; AI-only merges are blocked.
+checkSpec:
   type: pr_governance
   manifest: docs/manifest.yaml
   rules:

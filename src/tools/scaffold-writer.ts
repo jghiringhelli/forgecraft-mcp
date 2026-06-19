@@ -9,9 +9,19 @@ import { join, dirname } from "node:path";
 import type { ForgeCraftConfig, OutputTarget } from "../shared/types.js";
 import { OUTPUT_TARGET_CONFIGS } from "../shared/types.js";
 import type { composeTemplates } from "../registry/composer.js";
-import { renderInstructionFile, renderSkill } from "../registry/renderer.js";
+import {
+  renderInstructionFile,
+  renderSkill,
+  renderTemplate,
+} from "../registry/renderer.js";
 import type { RenderContext } from "../registry/renderer.js";
 import { renderSentinelTree } from "../registry/sentinel-renderer.js";
+import {
+  renderCanonicalSentinel,
+  projectSentinel,
+  SENTINEL_PROJECTIONS,
+} from "../registry/sentinel-projection.js";
+import { resolveSentinelTargets } from "./sentinel-copies-gate.js";
 import { writeFileIfMissing } from "../shared/filesystem.js";
 import { ensureGateDirs } from "../shared/project-gates.js";
 import { installGitHooks } from "../shared/hook-installer.js";
@@ -25,6 +35,8 @@ import {
   renderGitignore,
   renderSmokeTestsReadme,
   renderLoadTestsReadme,
+  renderEnvSmokeTest,
+  renderEnvLoadTest,
 } from "./scaffold-templates.js";
 import {
   buildC4ContextStub,
@@ -34,7 +46,10 @@ import {
   buildFlowDiagramStub,
   USE_CASES_STUB,
   writeSpecStub,
+  writeSpecSections,
 } from "./scaffold-spec-stubs.js";
+import { buildDiscoveryLog } from "./discovery-log.js";
+import { buildEdrsReadme } from "./spec-change-record.js";
 
 export interface ScaffoldWriteInput {
   readonly project_dir: string;
@@ -147,6 +162,33 @@ export function writeScaffoldFiles(
     }
   }
 
+  // PT-2: project the canonical sentinel body to each opted-in copy target.
+  // The canonical body is rendered ONCE (deterministic, date-free) and projected
+  // per target. CLAUDE.md / the CNT tree are NOT in the copy-set — they are
+  // generated above via the claude branch and stay routing-special. Default
+  // copy-set is ["agents-md"]; opt in to more via sentinel.targets.
+  const sentinelTargets = resolveSentinelTargets(userConfig);
+  if (sentinelTargets.length > 0) {
+    const canonicalBody = renderCanonicalSentinel(
+      composed.instructionBlocks,
+      context,
+      { compact: userConfig?.compact },
+    );
+    for (const target of sentinelTargets) {
+      const projection = SENTINEL_PROJECTIONS[target];
+      if (!projection) continue;
+      const projected = projectSentinel(target, canonicalBody, context);
+      if (projected === null) continue;
+      const fullPath = join(input.project_dir, projection.path);
+      mkdirSync(dirname(fullPath), { recursive: true });
+      trackWrite(
+        projection.path,
+        fullPath,
+        resolveTemplatePlaceholders(projected, placeholderContext),
+      );
+    }
+  }
+
   trackWrite(
     "Status.md",
     join(input.project_dir, "Status.md"),
@@ -223,6 +265,33 @@ export function writeScaffoldFiles(
     filesSkipped,
   );
 
+  // Sectioned spec (§6a): emit the slices the spec-map routes to, tag-gated, so
+  // every spec-map pointer resolves and a task can load one slice not the spec.
+  writeSpecSections(
+    input.project_dir,
+    input.project_name,
+    context.tags,
+    input.force,
+    filesCreated,
+    filesSkipped,
+  );
+
+  // Two-stream discovery log (§6c): D-XXX deviations + DELTA-NNN runtime
+  // discoveries; a DELTA closes only with a captured regression fixture.
+  trackWrite(
+    "docs/discovery-log.md",
+    join(input.project_dir, "docs", "discovery-log.md"),
+    buildDiscoveryLog(),
+  );
+
+  // Spec-change records (§6d): EDRs list Affected UCs; close_cycle re-verifies
+  // those UCs (their green goes stale when the spec moves).
+  trackWrite(
+    "docs/edrs/README.md",
+    join(input.project_dir, "docs", "edrs", "README.md"),
+    buildEdrsReadme(),
+  );
+
   const adrsDir = join(input.project_dir, "docs", "adrs");
   mkdirSync(adrsDir, { recursive: true });
   trackWrite(
@@ -241,7 +310,15 @@ export function writeScaffoldFiles(
   mkdirSync(hooksDir, { recursive: true });
   for (const hook of composed.hooks) {
     const hookPath = join(hooksDir, hook.filename);
-    trackWrite(`.claude/hooks/${hook.filename}`, hookPath, hook.script);
+    // Hook scripts carry Liquid vars like {{coverage_minimum | default: 80}}.
+    // They MUST be rendered before writing — an unrendered {{...}} is invalid
+    // bash and the hook fails on the first commit. (Skills/standards already
+    // render; hooks were the one path that wrote raw.)
+    trackWrite(
+      `.claude/hooks/${hook.filename}`,
+      hookPath,
+      renderTemplate(hook.script, context),
+    );
     try {
       chmodSync(hookPath, 0o755);
     } catch {
@@ -306,6 +383,26 @@ export function writeScaffoldFiles(
       join(reportsDir, ".gitkeep"),
       "",
     );
+
+    // Per-environment test stubs — one smoke script per declared environment,
+    // one load stub per non-production environment (prod is not a load target).
+    const environments = userConfig.deployment.environments ?? {};
+    for (const [envName, envConfig] of Object.entries(environments)) {
+      const smokeFile = `tests/smoke/${envName}.smoke.sh`;
+      trackWrite(
+        smokeFile,
+        join(smokeDir, `${envName}.smoke.sh`),
+        renderEnvSmokeTest(envName, envConfig, userConfig.deployment),
+      );
+      if (envConfig.class !== "prd") {
+        const loadFile = `tests/load/${envName}.load.js`;
+        trackWrite(
+          loadFile,
+          join(loadDir, `${envName}.load.js`),
+          renderEnvLoadTest(envName, envConfig, userConfig.deployment),
+        );
+      }
+    }
   }
 
   // Auto-install git hooks after all files are written. Skip silently when

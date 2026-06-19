@@ -42,6 +42,10 @@ import {
   suggestVersionBump,
   appendChangelogEntry,
 } from "./close-cycle-versioning.js";
+import { evaluateGenerativeExecution } from "./generative-execution-gate.js";
+import { evaluateStaticAnalyzers } from "./static-analyzer-gate.js";
+import { evaluateDiscoveryLog } from "./discovery-log.js";
+import { evaluateSpecChangeCascade } from "./spec-change-record.js";
 
 export type {
   CloseCycleOptions,
@@ -120,6 +124,162 @@ export async function closeCycle(
         "Run `list_changes` to review. Set status to 'verified' or 'closed' in .forgecraft/changes/<id>.yaml.",
       ],
       ready: false,
+    };
+  }
+
+  // Step 1.6 -- Generative-execution gate (FC-1)
+  // Every in-scope UC must be green (objective harness evidence) or carry a
+  // valid forgecraft.yaml override. unrun blocks: no evidence is not acceptance.
+  const inScopeUcIds = buildLayerReport(projectRoot).ucs.map((u) => u.id);
+  const genExec = evaluateGenerativeExecution(projectRoot, inScopeUcIds);
+  if (genExec.blocked) {
+    const nextSteps = [
+      `${genExec.reds.length} in-scope use case(s) are not green — regenerate from spec, then run \`run_harness\` until green: ${genExec.reds.join(", ")}`,
+      "A use case is green only when its harness probes pass (objective execution evidence). `unrun` UCs block too — run `run_harness` first.",
+    ];
+    if (genExec.overridden.length > 0) {
+      nextSteps.push(
+        `Overridden (non-green but excused): ${genExec.overridden.join(", ")}`,
+      );
+    }
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
+    };
+  }
+
+  // Step 1.7 -- Static-analyzer gate (FC-2)
+  // The analyzer set (eslint, tsc, complexity, audit by default) is ONE
+  // structural-discipline signal. Reuses the iterate-to-green substrate: red =
+  // an active analyzer gate-violation. A red analyzer with a valid
+  // forgecraft.yaml override (with rationale) is excused. Sonar/CodeClimate skip
+  // when unconfigured. Hedge: green raises the probability of conformance — it
+  // does not prove it; one signal alongside the harness.
+  const staticAnalysis = evaluateStaticAnalyzers(projectRoot);
+  if (staticAnalysis.blocked) {
+    const nextSteps = [
+      `${staticAnalysis.failing.length} static analyzer(s) are red — fix the active violations, then re-run \`close_cycle\`: ${staticAnalysis.failing.join(", ")}`,
+      "Green raises the probability of structural-discipline conformance; it does not prove it — treat as one signal alongside the harness.",
+      "Run `read_gate_violations` to see the active analyzer failures. Green = zero active analyzer violations.",
+    ];
+    if (staticAnalysis.overridden.length > 0) {
+      nextSteps.push(
+        `Overridden (red but excused): ${staticAnalysis.overridden.join(", ")}`,
+      );
+    }
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
+      staticAnalyzerStatus: {
+        status: staticAnalysis.status,
+        failing: staticAnalysis.failing,
+        overridden: staticAnalysis.overridden,
+        blocked: staticAnalysis.blocked,
+      },
+    };
+  }
+
+  // Step 1.8 -- Discovery-log fixture-on-close gate (§6c)
+  // A DELTA-NNN (runtime discovery) cannot be marked closed without a captured
+  // regression fixture — the exact triggering input. A lesson that lives only in
+  // a changelog returns under a cousin input (VairixDX DELTA-079/051/007); a
+  // lesson that lives in a fixture cannot. Opt-in: skipped when no discovery log.
+  const discoveryLog = evaluateDiscoveryLog(projectRoot);
+  if (discoveryLog.blocked) {
+    const nextSteps = [
+      `${discoveryLog.closedWithoutFixture.length} DELTA(s) are marked closed without a live regression fixture — capture the triggering input and reference it as \`Fixture: <path>\`, or reopen the DELTA:`,
+      ...discoveryLog.closedWithoutFixture.map((d) => `  ${d.id}: ${d.reason}`),
+      "A DELTA closes only once the exact breaking input is a permanent fixture (docs/discovery-log.md).",
+    ];
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
+      staticAnalyzerStatus: {
+        status: staticAnalysis.status,
+        failing: staticAnalysis.failing,
+        overridden: staticAnalysis.overridden,
+        blocked: staticAnalysis.blocked,
+      },
+      discoveryLogStatus: {
+        closedWithoutFixture: discoveryLog.closedWithoutFixture,
+        blocked: discoveryLog.blocked,
+      },
+    };
+  }
+
+  // Step 1.85 -- Spec-change cascade gate (§6d)
+  // An EDR records that the spec changed and which UCs it touches. Those UCs'
+  // green flags go stale: a UC verified before the edit proves nothing about the
+  // edited spec. FC-1 trusts a green; this forces a re-run of run_harness for the
+  // affected UCs after a spec change. Opt-in: skipped when no docs/edrs/ EDRs.
+  const specCascade = evaluateSpecChangeCascade(projectRoot);
+  if (specCascade.blocked) {
+    const nextSteps = [
+      `${specCascade.staleUcs.length} use-case(s) affected by a spec change (EDR) need re-verification — re-run \`run_harness\`, then re-run \`close_cycle\`:`,
+      ...specCascade.staleUcs.map((s) => `  ${s.uc} (${s.edr}): ${s.reason}`),
+      "An EDR's affected UC must be re-run after the spec change — a green that predates the edit is stale (docs/edrs/).",
+    ];
+    return {
+      cascadeStatus: "pass",
+      gatesAssessed: 0,
+      gatesPromoted: 0,
+      codeseekerGates: [],
+      nextSteps,
+      ready: false,
+      generativeExecutionStatus: {
+        status: genExec.status,
+        reds: genExec.reds,
+        overridden: genExec.overridden,
+        blocked: genExec.blocked,
+      },
+      staticAnalyzerStatus: {
+        status: staticAnalysis.status,
+        failing: staticAnalysis.failing,
+        overridden: staticAnalysis.overridden,
+        blocked: staticAnalysis.blocked,
+      },
+      ...(discoveryLog.skipped
+        ? {}
+        : {
+            discoveryLogStatus: {
+              closedWithoutFixture: discoveryLog.closedWithoutFixture,
+              blocked: discoveryLog.blocked,
+            },
+          }),
+      specChangeCascadeStatus: {
+        staleUcs: specCascade.staleUcs,
+        blocked: specCascade.blocked,
+      },
     };
   }
 
@@ -251,6 +411,23 @@ export async function closeCycle(
     // Gate genesis is advisory — never blocks cycle close
   }
 
+  // Step 8.6 -- Debt marker advisory (PT-4)
+  // Surface deferred minimization shortcuts (TODO(min)) as a non-blocking
+  // nudge to run harvest-debt. Advisory only — NEVER sets ready:false.
+  let debtCount: number | undefined;
+  try {
+    const { scanDebtMarkers } = await import("./harvest-debt.js");
+    const debtMarkers = scanDebtMarkers(projectRoot);
+    debtCount = debtMarkers.length;
+    if (debtCount > 0) {
+      nextSteps.push(
+        `${debtCount} deferred minimization shortcut(s) (TODO(min)) — run harvest-debt to review.`,
+      );
+    }
+  } catch {
+    // Debt harvest is advisory — never blocks cycle close
+  }
+
   if (nextSteps.length === 0) {
     nextSteps.push(
       "Cycle complete. Commit your changes with: git commit -m 'feat(...): ...'",
@@ -271,6 +448,34 @@ export async function closeCycle(
     codeseekerGates,
     nextSteps,
     ready: true,
+    generativeExecutionStatus: {
+      status: genExec.status,
+      reds: genExec.reds,
+      overridden: genExec.overridden,
+      blocked: genExec.blocked,
+    },
+    staticAnalyzerStatus: {
+      status: staticAnalysis.status,
+      failing: staticAnalysis.failing,
+      overridden: staticAnalysis.overridden,
+      blocked: staticAnalysis.blocked,
+    },
+    ...(discoveryLog.skipped
+      ? {}
+      : {
+          discoveryLogStatus: {
+            closedWithoutFixture: discoveryLog.closedWithoutFixture,
+            blocked: discoveryLog.blocked,
+          },
+        }),
+    ...(specCascade.skipped
+      ? {}
+      : {
+          specChangeCascadeStatus: {
+            staleUcs: specCascade.staleUcs,
+            blocked: specCascade.blocked,
+          },
+        }),
     nextRoadmapItem,
     versionSuggestion: versionSuggestion ?? undefined,
     changelogUpdated,
@@ -279,6 +484,7 @@ export async function closeCycle(
     ...(gsScoreLoop !== undefined ? { gsScoreLoop } : {}),
     ...(driftResult.driftDetected ? { driftWarning: driftResult.message } : {}),
     ...(experiment?.id ? { experimentId: experiment.id } : {}),
+    ...(debtCount !== undefined ? { debtCount } : {}),
     ...(gateCandidates.length > 0
       ? {
           gateCandidates: gateCandidates.map((c) => ({

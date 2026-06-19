@@ -19,7 +19,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { emitLearningGraph } from "../../src/tools/learning-graph.js";
+import {
+  emitLearningGraph,
+  assertAcyclic,
+  type Node,
+} from "../../src/tools/learning-graph.js";
 
 function makeTempDir(): string {
   const dir = join(tmpdir(), `lg-test-${Date.now()}`);
@@ -206,5 +210,24 @@ describe("emitLearningGraph", () => {
     const second = emitLearningGraph(tempDir);
     expect(second.written).toBe(true);
     expect(second.concepts).toBe(first.concepts);
+  });
+});
+
+describe("assertAcyclic (runtime DAG validation)", () => {
+  const mk = (id: number, deps: number[]): Node => ({
+    id,
+    label: `n${id}`,
+    taxonomy: "DOC",
+    deps: new Set(deps),
+  });
+
+  it("passes a valid DAG without throwing", () => {
+    expect(() =>
+      assertAcyclic([mk(1, []), mk(2, [1]), mk(3, [1, 2])]),
+    ).not.toThrow();
+  });
+
+  it("throws and names the path when a cycle exists", () => {
+    expect(() => assertAcyclic([mk(1, [2]), mk(2, [1])])).toThrow(/not a DAG/);
   });
 });

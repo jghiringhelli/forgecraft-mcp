@@ -611,6 +611,372 @@ describe("closeCycleHandler harness section", () => {
   });
 });
 
+// ── generative-execution gate (FC-1) tests ───────────────────────────
+
+describe("closeCycle generative-execution gate (FC-1)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-gen-exec-${Date.now()}-${Math.random()}`);
+    mkdirSync(dir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  /** Build a passing cascade whose use-cases.md has parseable UC headers. */
+  function buildCascadeWithUcs(d: string): void {
+    buildCompleteCascade(d);
+    write(
+      d,
+      "docs/use-cases.md",
+      [
+        "# Use Cases",
+        "",
+        "## UC-001: First Use Case",
+        "",
+        "Body.",
+        "",
+        "## UC-002: Second Use Case",
+        "",
+        "Body.",
+      ].join("\n"),
+    );
+  }
+
+  /** Persist a generative-execution flag set into verification-state.json. */
+  function writeGenExecState(
+    d: string,
+    flags: Array<{ ucId: string; status: string }>,
+  ): void {
+    write(
+      d,
+      ".forgecraft/verification-state.json",
+      JSON.stringify({
+        version: "1",
+        projectDir: d,
+        tags: [],
+        language: "typescript",
+        createdAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:00.000Z",
+        steps: [],
+        summary: [],
+        aggregate_s: 0,
+        generativeExecution: flags.map((f) => ({
+          ucId: f.ucId,
+          status: f.status,
+          lastRunAt: "2026-06-15T00:00:00.000Z",
+          source: "harness-run",
+        })),
+      }),
+    );
+  }
+
+  it("blocks (ready:false) when cascade passes but an in-scope UC is red", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecState(dir, [
+      { ucId: "UC-001", status: "green" },
+      { ucId: "UC-002", status: "red" },
+    ]);
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.ready).toBe(false);
+    expect(result.generativeExecutionStatus?.blocked).toBe(true);
+    expect(result.generativeExecutionStatus?.reds).toContain("UC-002");
+  });
+
+  it("passes (ready:true) when a red UC is excused by a valid override", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecState(dir, [
+      { ucId: "UC-001", status: "green" },
+      { ucId: "UC-002", status: "red" },
+    ]);
+    write(
+      dir,
+      "forgecraft.yaml",
+      [
+        "generative_execution:",
+        "  overrides:",
+        "    - uc: UC-002",
+        "      rationale: Flaky dependency; verified manually in staging.",
+      ].join("\n"),
+    );
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.ready).toBe(true);
+    expect(result.generativeExecutionStatus?.blocked).toBe(false);
+    expect(result.generativeExecutionStatus?.overridden).toContain("UC-002");
+  });
+
+  it("blocks when there was no harness run (UCs unrun)", async () => {
+    buildCascadeWithUcs(dir);
+    // No verification-state.json → all in-scope UCs are unrun.
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.ready).toBe(false);
+    expect(result.generativeExecutionStatus?.blocked).toBe(true);
+    expect(result.generativeExecutionStatus?.reds).toEqual(
+      expect.arrayContaining(["UC-001", "UC-002"]),
+    );
+  });
+
+  it("passes when all in-scope UCs are green", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecState(dir, [
+      { ucId: "UC-001", status: "green" },
+      { ucId: "UC-002", status: "green" },
+    ]);
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.ready).toBe(true);
+    expect(result.generativeExecutionStatus?.status).toBe("green");
+  });
+
+  it("renders red UC remediation in the close_cycle report", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecState(dir, [{ ucId: "UC-001", status: "red" }]);
+
+    const out = await closeCycleHandler({ project_dir: dir });
+    const text = out.content[0]!.text;
+    expect(text).toContain("Generative Execution");
+    expect(text).toContain("regenerate from spec");
+    expect(text).toContain("UC-001");
+  });
+});
+
+// ── static-analyzer gate (FC-2) tests ─────────────────────────────────
+
+describe("closeCycle static-analyzer gate (FC-2)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-static-analyzer-${Date.now()}-${Math.random()}`);
+    mkdirSync(dir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  /** Build a passing cascade whose use-cases.md has parseable UC headers. */
+  function buildCascadeWithUcs(d: string): void {
+    buildCompleteCascade(d);
+    write(
+      d,
+      "docs/use-cases.md",
+      ["# Use Cases", "", "## UC-001: First Use Case", "", "Body."].join("\n"),
+    );
+  }
+
+  /** Persist a generative-execution flag set into verification-state.json. */
+  function writeGenExecGreen(d: string): void {
+    write(
+      d,
+      ".forgecraft/verification-state.json",
+      JSON.stringify({
+        version: "1",
+        projectDir: d,
+        tags: [],
+        language: "typescript",
+        createdAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:00.000Z",
+        steps: [],
+        summary: [],
+        aggregate_s: 0,
+        generativeExecution: [
+          {
+            ucId: "UC-001",
+            status: "green",
+            lastRunAt: "2026-06-15T00:00:00.000Z",
+            source: "harness-run",
+          },
+        ],
+      }),
+    );
+  }
+
+  /** Append an active analyzer gate-violation (no .git → always active). */
+  function writeAnalyzerViolation(d: string, hook: string): void {
+    write(
+      d,
+      ".forgecraft/gate-violations.jsonl",
+      JSON.stringify({
+        hook,
+        severity: "error",
+        message: `${hook} failed`,
+        timestamp: "2026-06-15T12:00:00Z",
+      }) + "\n",
+    );
+  }
+
+  it("blocks (ready:false) when cascade + FC-1 are green but an analyzer is red", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    writeAnalyzerViolation(dir, "pre-commit-eslint");
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.generativeExecutionStatus?.blocked).toBe(false);
+    expect(result.ready).toBe(false);
+    expect(result.staticAnalyzerStatus?.blocked).toBe(true);
+    expect(result.staticAnalyzerStatus?.failing).toContain("eslint");
+    // Gabriel's hedge must be present in the remediation.
+    expect(
+      result.nextSteps.some((s) =>
+        s.includes(
+          "does not prove it — treat as one signal alongside the harness",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("renders the static-analysis block with the hedge in the report", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    writeAnalyzerViolation(dir, "pre-commit-complexity");
+
+    const out = await closeCycleHandler({ project_dir: dir });
+    const text = out.content[0]!.text;
+    expect(text).toContain("Static Analysis");
+    expect(text).toContain("complexity");
+    expect(text).toContain(
+      "does not prove it — treat as one signal alongside the harness",
+    );
+  });
+
+  it("passes (ready:true) when cascade + FC-1 green and no analyzer is red", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.ready).toBe(true);
+    expect(result.staticAnalyzerStatus?.blocked).toBe(false);
+    expect(result.staticAnalyzerStatus?.status).toBe("green");
+  });
+
+  it("does not block when a red analyzer carries a valid override", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    writeAnalyzerViolation(dir, "pre-commit-complexity");
+    write(
+      dir,
+      "forgecraft.yaml",
+      [
+        "static_analysis:",
+        "  overrides:",
+        "    - analyzer: complexity",
+        "      rationale: Generated parser; reviewed manually.",
+      ].join("\n"),
+    );
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.ready).toBe(true);
+    expect(result.staticAnalyzerStatus?.blocked).toBe(false);
+    expect(result.staticAnalyzerStatus?.overridden).toContain("complexity");
+  });
+});
+
+// ── debt marker advisory (PT-4) tests ─────────────────────────────────
+
+describe("closeCycle debt marker advisory (PT-4)", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = join(tmpdir(), `cc-debt-${Date.now()}-${Math.random()}`);
+    mkdirSync(dir, { recursive: true });
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  /** Build a passing cascade whose use-cases.md has one parseable UC header. */
+  function buildCascadeWithUcs(d: string): void {
+    buildCompleteCascade(d);
+    write(
+      d,
+      "docs/use-cases.md",
+      ["# Use Cases", "", "## UC-001: First Use Case", "", "Body."].join("\n"),
+    );
+  }
+
+  /** Persist a green generative-execution state so FC-1 does not block. */
+  function writeGenExecGreen(d: string): void {
+    write(
+      d,
+      ".forgecraft/verification-state.json",
+      JSON.stringify({
+        version: "1",
+        projectDir: d,
+        tags: [],
+        language: "typescript",
+        createdAt: "2026-06-15T00:00:00.000Z",
+        updatedAt: "2026-06-15T00:00:00.000Z",
+        steps: [],
+        summary: [],
+        aggregate_s: 0,
+        generativeExecution: [
+          {
+            ucId: "UC-001",
+            status: "green",
+            lastRunAt: "2026-06-15T00:00:00.000Z",
+            source: "harness-run",
+          },
+        ],
+      }),
+    );
+  }
+
+  it("surfaces a TODO(min) advisory line and keeps ready:true", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+    write(
+      dir,
+      "src/shortcut.ts",
+      "// TODO(min): inline this — upgrade: extract\n",
+    );
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.ready).toBe(true);
+    expect(result.debtCount).toBe(1);
+    expect(
+      result.nextSteps.some((s) =>
+        s.includes("deferred minimization shortcut(s) (TODO(min))"),
+      ),
+    ).toBe(true);
+  });
+
+  it("adds no advisory line when there are zero debt markers", async () => {
+    buildCascadeWithUcs(dir);
+    writeGenExecGreen(dir);
+
+    const result = await closeCycle({ projectRoot: dir });
+
+    expect(result.cascadeStatus).toBe("pass");
+    expect(result.ready).toBe(true);
+    expect(result.debtCount).toBe(0);
+    expect(result.nextSteps.some((s) => s.includes("TODO(min)"))).toBe(false);
+  });
+});
+
 // ── closeCycleHandler state leaf tests ────────────────────────────────
 
 describe("closeCycleHandler state leaf (.claude/state.md)", () => {

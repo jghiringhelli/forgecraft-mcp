@@ -28,6 +28,8 @@ beforeAll(() => {
     "pre-commit-prod-quality.sh",
     "pre-commit-compile.sh",
     "pre-commit-clippy.sh",
+    "pre-commit-eslint.sh",
+    "pre-commit-complexity.sh",
     "pre-commit-test.sh",
     "commit-msg.sh",
   ];
@@ -218,6 +220,62 @@ describe("CommitHooksArtifact", () => {
         (h) => h.filename === "commit-msg.sh",
       );
       expect(commitMsgHook?.script).toContain('COMMIT_MSG_FILE="$1"');
+    });
+  });
+
+  describe("lint + complexity hooks (between-cycle quality enforcement)", () => {
+    it("lint hook is present, stack-dispatched, and blocking", async () => {
+      const { loadAllTemplatesWithExtras } =
+        await import("../../src/registry/loader.js");
+      const { composeTemplates } =
+        await import("../../src/registry/composer.js");
+      const templateSets = await loadAllTemplatesWithExtras();
+      const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
+      const lint = composed.hooks.find(
+        (h) => h.filename === "pre-commit-lint.sh",
+      );
+      expect(lint).toBeDefined();
+      expect(lint?.trigger).toBe("pre-commit");
+      // Stack-dispatched across ecosystems
+      expect(lint?.script).toContain("eslint");
+      expect(lint?.script).toContain("ruff");
+      expect(lint?.script).toContain("golangci-lint");
+      // Blocks on violation
+      expect(lint?.script).toContain("exit 1");
+    });
+
+    it("complexity hook is present, stack-dispatched, and blocking", async () => {
+      const { loadAllTemplatesWithExtras } =
+        await import("../../src/registry/loader.js");
+      const { composeTemplates } =
+        await import("../../src/registry/composer.js");
+      const templateSets = await loadAllTemplatesWithExtras();
+      const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
+      const cx = composed.hooks.find(
+        (h) => h.filename === "pre-commit-complexity.sh",
+      );
+      expect(cx).toBeDefined();
+      expect(cx?.trigger).toBe("pre-commit");
+      // Native complexity tool per stack
+      expect(cx?.script).toContain("radon");
+      expect(cx?.script).toContain("gocyclo");
+      expect(cx?.script).toContain("complexity"); // eslint complexity rule
+      // Blocks on violation
+      expect(cx?.script).toContain("exit 1");
+    });
+
+    it("both hooks log to gate-violations.jsonl so genesis can learn from them", async () => {
+      const { loadAllTemplatesWithExtras } =
+        await import("../../src/registry/loader.js");
+      const { composeTemplates } =
+        await import("../../src/registry/composer.js");
+      const templateSets = await loadAllTemplatesWithExtras();
+      const composed = composeTemplates(["UNIVERSAL"], templateSets, {});
+      for (const name of ["pre-commit-lint.sh", "pre-commit-complexity.sh"]) {
+        const hook = composed.hooks.find((h) => h.filename === name);
+        expect(hook?.script, name).toContain("_fc_write_violation");
+        expect(hook?.script, name).toContain("gate-violations.jsonl");
+      }
     });
   });
 

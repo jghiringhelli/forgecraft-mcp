@@ -9,6 +9,95 @@ Breaking changes are marked **BREAKING**.
 
 ## [Unreleased]
 
+### Added — VairixDX field-study adoptions (ADR-0012 §6)
+
+Harness techniques from the VairixDX brownfield study:
+
+- **§6a — targeted spec loading (now complete).** The sentinel renderer emits `.claude/spec-map.md`, a tag-aware "Working on → read first" cheat-sheet that routes a task to the exact spec slice it needs (API/UI/AI-pipeline/seed/test-cases rows appear only for the matching tags), carries the *load-the-slice-not-the-spec* directive, and supports a monolithic-PRD fallback by citing heading/line ranges. Wired into the root Navigate-by-Task table and the `routes/docs.md` reading order (cited *before* the raw slice). VairixDX measured ~82% fewer spec tokens per task with this lever. **The scaffolder now also emits the sections themselves** — `docs/specs/sections/{api,ui,pipeline,seed,test-cases}.md` (tag-gated, prescriptive RFC 2119 stubs) plus the authoritative `docs/specs/SPEC-INDEX.md` router. The section catalog and the spec-map rows share one tag predicate, and a canary asserts every pointer the spec-map advertises resolves to an emitted file.
+- **§6b — step-gated session (inversion of control).** The scaffolder emits `.claude/session-manifest.yaml` (a flat `step: pending|done` ledger: intake, spec-validation, red, green, refactor, close) and a `commit-msg-session-gate` hook that **blocks any `test:`/`feat:`/`fix:` commit until `intake` and `spec-validation` are `done`** — the AI cannot start coding before loading the spec slice and confirming acceptance criteria. The RED→GREEN order was already enforced by the commit-msg TDD gate; this adds the upstream steps that used to be prose. Runs at `commit-msg` (the reliable interception point). Opt-in by manifest presence; `FORGECRAFT_SKIP_SESSION_GATE=1` bypasses one commit. lifecycle.md routes the AI to the manifest at session start. Covered by a 7-case bash-hook integration test.
+- **§6c — two-stream discovery log + fixture-on-close gate.** The scaffolder emits `docs/discovery-log.md`, an auditable ledger with two streams: **Deviations (D-XXX)** registered *before* coding and **Deltas (DELTA-NNN)** registered *after* generative execution. New `close_cycle` Step 1.8 (`evaluateDiscoveryLog`, pure) **blocks any DELTA marked `closed` whose `Fixture:` path is missing or does not exist** — a DELTA closes only once the exact triggering input is a permanent fixture (VairixDX DELTA-079/051/007: a sanitizer bug recurred three times because the breaking input lived in a changelog, not a fixture). Opt-in: skipped when no discovery log exists. Composes with the existing `regression-fixture-on-bugfix` commit-time gate and `harvest-debt` (PT-4).
+- **§6d — EDR spec-change records + cascade re-verify.** The scaffolder emits `docs/edrs/README.md` (the EDR format guide). An EDR (`docs/edrs/EDR-NNN-*.md`) carries `Date:` + `Affected UCs:`. New `close_cycle` Step 1.85 (`evaluateSpecChangeCascade`, pure) loads each affected UC's `lastRunAt` from `verification-state.json` and **blocks any affected UC whose generative-execution evidence is stale** — absent, or older than the EDR date — forcing a `run_harness` re-run after a spec change. FC-1 trusts a green; this adds the missing *staleness* axis (a green that predates the spec edit is not trustworthy). lifecycle.md's close-of-session invariant now lists the EDR step. Opt-in: skipped when no EDRs exist.
+- **§6e — Known Pitfalls + Techniques.** New `.claude/pitfalls.md` with two framed sections: *Known Pitfalls* (class-level traps tests don't catch) and *Techniques* (reusable patterns the project invented). Placed behind a pointer from the always-loaded `corrections.md` rather than inside it — these sections accumulate over a project's life and would breach the always-load budget (measured +13 lines over cap); per the CNT rule *knowledge sits behind pointers*, they load on demand.
+- **§6f — LLM-pipeline disciplines for the ML/AI tag.** A new `llm-pipeline-disciplines` ML instruction block emits six disciplines into `.claude/standards/ml.md` for systems built *on* an LLM: separate stochastic extraction (temperature 0, structured-output schema, mandatory evidence excerpt) from deterministic scoring; a structural rescue (deterministic recall floor after the model's selection step); anti-double-counting of echoed signals; evidence-strength levels not LLM confidence percentages; replay fixtures (existing `llm-output-replay-fixture` gate); and audit-RUN multi-run scoring. New registry gate `stochastic-uc-run-distribution` requires a stochastic UC to be accepted on an N-run pass-rate distribution, not a single green (VairixDX audit-RUN: an 89-peak masked a regression the next run exposed).
+
+### Added — `/generative-execution` skill (the manual QA loop)
+
+- A canary comparison (scaffolding RealWorld Conduit and a VairixDX-shaped LLM pipeline) confirmed a gap: ForgeCraft shipped skills for unit tests, review, TDD, and refactor — but **nothing that drives the per-UC `run_harness` multimodal verification loop**, the loop that catches the bugs unit tests miss. `run-tests` only runs `npm test`. New **core** skill `generative-execution` (`templates/universal/skills.yaml` → `.claude/commands/generative-execution.md`, in every project) drives `run_harness`, reads the per-UC green/red flags (never set by hand — objective evidence only), frames a red as a *specification violation* (fix the spec, don't patch the symptom), routes runtime discoveries into the §6c discovery log with a captured fixture, and applies the §6f audit-RUN caveat for stochastic pipelines. Surfaced in the lifecycle Tool Sequencing table. ADR-0011's *gs-verify-deploy* loop is now a packaged skill.
+
+### Fixed — eslint gate failed on eslint-ignored staged files
+
+- **`pre-commit-lint.sh` / `pre-commit-eslint.sh` (and their `templates/universal/hooks.yaml` source).** The gate ran `npx eslint --max-warnings=0` over all staged TS/JS files. When a staged file matched the project's eslint `ignores` (e.g. `tests/**`), eslint emitted a *"File ignored because of a matching ignore pattern"* **warning**, which `--max-warnings=0` treated as failure — blocking any commit that touched an ignored path. Added `--no-warn-ignored` so eslint-ignored files no longer generate a warning. Surfaced in this repo while committing a test file alongside the spec-map/pitfalls work.
+
+## [1.8.1] — 2026-06-11
+
+### Added — field-analysis remediation, wave 2 (tag taxonomy & content)
+
+- **U7 — EXPO tag.** New first-class tag for the Expo managed workflow, layered on MOBILE. A project depending on `expo`/`expo-router` is now tagged both MOBILE and EXPO. EXPO ships: EAS Build/Submit/Update (OTA) guidance, Expo project conventions (expo-router, `app.config.ts`, `expo-sqlite`/`expo-secure-store`, `expo install`), a recommended iOS-simulator MCP server, and a **blocking `pre-commit-expo-doctor.sh`** hook that runs `npx expo-doctor` (catches SDK/dependency/config mismatches before they fail an EAS Build; no-ops on non-Expo projects). Tag count 28 → 29.
+- **U6 — axios constraint is role-aware.** The API stack-constraints block previously banned `axios` outright, contradicting any project that *consumes* an API (the field report's Expo app had axios mandated by its spec). The rule now explicitly governs only the **API server's own outbound calls** (Node ≥18 has native `fetch`); a mobile app / SPA / SDK / CLI consuming an API may use axios/got/ky.
+- **U12 — mobile guidance no longer bleeds web.** The MOBILE responsive/offline block recommended "CSS media queries" and listed IndexedDB/WatermelonDB as primary stores — web concepts that mislead React Native work (and contradicted a project that chose Drizzle). It now points to `useWindowDimensions`/Flexbox/safe-area for layout and `expo-sqlite`/`expo-secure-store`/MMKV for storage, framing the store choice as a recorded ADR decision (IndexedDB called out as web-only).
+
+### Fixed / Added — field-analysis remediation, wave 1 (calibration & refresh)
+
+From the SafetyCore Mobile field report. Bug-class fixes that need no new tag taxonomy:
+
+- **U5 — LIBRARY no longer over-triggers.** A bare `tsconfig.json` previously tagged every TypeScript app as a LIBRARY, dragging in "library consumer" cascade pressure and ADRs about "API surface / versioning." LIBRARY now requires a real publishable package — an `exports`/`main`/`module` entry point and not `private: true`. (This also resolves **U11**: the "Library consumers need…" cascade rationales only fired because LIBRARY was misapplied; they're now accurate whenever they appear.)
+- **U4 — rejected tags stay rejected.** `refresh --remove-tags X` now records `X` in `rejectedTags` in `forgecraft.yaml`; tag inference will not re-add it on later refreshes (the WEB-REACT-keeps-coming-back loop). `refresh --add-tags X` clears the rejection.
+- **U2 — refresh renders placeholders.** The refresh path wrote sentinel files (CLAUDE.md, standards/*) raw, leaving literal `{{repo_url}}`/`{{domain}}`. It now runs `resolveTemplatePlaceholders` like the scaffold path.
+- **U3 — Stack line reflects mobile.** A MOBILE/Expo app that consumes an API was labelled "TypeScript/Node.js REST/GraphQL API". `inferStackFromTags` now ranks MOBILE/EXPO above API → "React Native (Expo) + TypeScript".
+- **U8 — schema detection sees code-defined ORMs.** The cascade Step 6 schema check only looked for standalone files (prisma/openapi/graphql). It now also scans source for Drizzle (`sqliteTable(`/`pgTable(`/`drizzle-orm`), TypeORM (`@Entity()`), Mongoose (`new Schema(`), Kysely, Sequelize, and Zod — so a Drizzle-backed project stops getting a false "no schema" warning.
+- **U9 — authoritative spec discovery.** `collectSpecCandidates` now ranks candidates largest-first and reports line counts; the disambiguation prompt flags the largest as "likely the authoritative spec" and tells the AI not to generate parallel PRD/TechSpec stubs that duplicate it.
+- **U10 — preserve blocks survive refresh.** Wrap manual edits in `<!-- forgecraft:preserve-start -->` … `<!-- forgecraft:preserve-end -->` and `refresh` carries them forward into the regenerated file (idempotent).
+
+### Fixed — CRITICAL: scaffolded hooks shipped broken (field-reported)
+
+Field analysis of a scaffolded Expo project (thanks @gabriel) surfaced two
+independent bugs that made **every scaffolded project's** pre-commit hooks fail:
+
+- **Hooks were never rendered.** Hook scripts carry Liquid vars like `{{coverage_minimum | default: 80}}` and `{{max_cyclomatic_complexity | default: 10}}`, but the scaffold write loop wrote them **raw** — skills and standards were rendered, hooks were the one path that wasn't. Result: literal `{{…}}` reached disk, producing invalid bash (`default:: command not found`, malformed `--cov-fail-under`). The coverage, complexity, function-length, and prod-quality gates all shipped non-functional. Fix: hooks now pass through `renderTemplate` (which honors the `| default:` filter) before writing.
+- **`pre-commit-prod-quality.sh` was unparseable bash** — its `for file in $SOURCE_FILES; do` loop was missing its `done`, so the whole script failed `bash -n` ("unexpected end of file") and aborted the commit chain. Added the missing `done`.
+
+**Ratchet pawl** (`tests/tools/no-unrendered-templates.test.ts`): scaffolds a broad tag set and asserts (1) **no** emitted file contains an unrendered `{{`, and (2) **every** emitted `.claude/hooks/*.sh` passes `bash -n`. This locks out both the unrendered-template and the malformed-bash classes — a hook can no longer ship broken.
+
+### Added — per-environment bounding: security gates + test suites
+
+Closes a silent false-assurance: the deployment schema's `containsPii` and
+`externallyAccessible` flags **documented** security gates that were never wired
+and did not exist. `getEnvironmentActivatedGateIds` was itself dead code — called
+only by its own test, never by `audit`.
+
+**Five new environment-activated registry gates** (`.forgecraft/gates/registry/infra/`):
+- `security-headers-present`, `content-security-policy-set` — activate on `externallyAccessible: true`
+- `pii-masking-in-logs`, `audit-log-on-pii-access` — activate on `containsPii: true`
+- `no-prod-relay-in-nonprod` — the gate the activation logic already referenced but that was never installed
+
+**Activation is now live.** `audit` reads `deployment.environments` from `forgecraft.yaml`, computes the activated gate set, and prints an **Environment-Activated Gates** section — declaring `externallyAccessible`/`containsPii`/`prd` now visibly tightens the gate set the project is held to.
+
+**Per-environment test suites are now scaffolded** (not just READMEs). For each declared environment, scaffold writes `tests/smoke/<env>.smoke.sh` targeting that tier's URL (via a per-env URL variable) and asserting its health endpoint; for every non-production environment it writes `tests/load/<env>.load.js` (k6) with the declared `concurrentUsers`/`p99CeilingMs`/`durationSeconds` baked into the thresholds. Production is excluded from load generation by design.
+
+**Ratchet pawl — registry-wide gate schema lint** (`tests/registry/gates-schema.test.ts`): every gate YAML in the registry must parse, pass `validateGate`, and have a filename matching its `id`; and every gate id `getEnvironmentActivatedGateIds` can emit must resolve to an installed gate. This invariant is what makes the false-assurance class impossible going forward.
+
+### Fixed — schema debt surfaced by the new ratchet
+- `design-doc-required` used a legacy gstack schema (`name`/`checks`/`remediation`, no `title`/`check`/`passCriterion`/`gsProperty`/`phase`) — migrated to the canonical gate schema; structured probes preserved under `checkSpec`.
+- `doc-cascade-required`, `human-judgment-required` carried a structured object `check:` (incompatible with `validateGate`) and lacked `passCriterion`/`gsProperty` — added the scalar fields; structured rules preserved under `checkSpec`.
+- `project.ts` docs for `containsPii`/`externallyAccessible` now name the gates actually activated instead of gates that never existed.
+
+### Added — between-cycle quality enforcement: blocking lint + complexity
+
+**Lint gate** (`pre-commit-lint.sh`) — closes the gap where formatters ran but real linting did not. Format hooks (prettier/black/rustfmt) fix style; they do not catch unused vars, `no-explicit-any`, shadowing, etc. The lint gate is **blocking** (exit 1) and **stack-dispatched**:
+- TS/JS → `eslint --max-warnings=0`
+- Python → `ruff check` (or `flake8` fallback)
+- Go → `golangci-lint run` (or `go vet` fallback)
+- Rust → `clippy` (already covered by `pre-commit-clippy.sh`)
+
+Skips (does not fail) when no linter is configured for the staged stack, so projects that haven't opted into a linter are not blocked — but a configured linter blocks hard.
+
+**Cyclomatic-complexity gate** (`pre-commit-complexity.sh`) — promotes the `cyclomatic-complexity-max-10` registry gate from **declarative** (advisory, human-read) to **executable** (blocking). Stack-dispatched: `radon` (Python), `gocyclo` (Go), eslint `complexity` rule (TS/JS), clippy `cognitive_complexity` (Rust). Threshold parameterized (`max_cyclomatic_complexity`, default 10). Replaces the old warning-only `function-length` heuristic as the real enforcement path.
+
+Both hooks log to `.forgecraft/gate-violations.jsonl`, so repeated lint/complexity friction feeds the gate-genesis flywheel. Wired into the default pre-commit chain after `compile` (valid syntax first) and before `test`.
+
+### Fixed
+- eslint-config detection used `ls .eslintrc* eslint.config.*`, which exits non-zero when either glob is unmatched even if the other matched a real file — replaced with independent `compgen -G` tests so `eslint.config.js`-only projects are detected.
+
 ## [1.8.0] — 2026-06-08
 
 ### Added — multi-file CNT, harness budget, gate flywheel, field-derived defenses
@@ -643,3 +732,78 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **gates**: encode Vairix field findings — 5 Forbidden Patterns + 6 registry gates (`246eb3f`)
+
+### Added
+- **learning-graph**: validate the DAG invariant at emission (`b093482`)
+
+### Added
+- **types**: add generative-execution flag types and config (FC-1) (`6cdf005`)
+
+### Added
+- **tools**: add generative-execution gate module (FC-1) (`8e3872c`)
+
+### Added
+- **tools**: consolidate generative-execution flags from run_harness (FC-1) (`92ee911`)
+
+### Added
+- **tools**: gate close_cycle on generative-execution status (FC-1) (`f37bb14`)
+
+### Documentation
+- **adr**: ADR-0011 generative-execution gate + sentinel/EG vocabulary (FORGE-DOC) (`e03fb7a`)
+
+### Added
+- **config**: add static_analysis block for FC-2 analyzer gate (`8ddb038`)
+
+### Added
+- **close-cycle**: add pure static-analyzer gate evaluator (FC-2) (`a17c029`)
+
+### Added
+- **close-cycle**: wire static-analyzer gate as Step 1.7 (FC-2) (`0095127`)
+
+### Added
+- **hooks**: add blocking eslint + complexity pre-commit hooks (FC-2) (`501b9df`)
+
+### Added
+- **sentinel**: canonical AGENTS.md source-of-truth + drift evaluator (PT-2) (`3e49cbf`)
+
+### Added
+- **cli**: add check-sentinel-copies bare-gate command (PT-2) (`4754126`)
+
+### Added
+- **scaffold**: generate per-agent sentinel copies on scaffold and refresh (PT-2) (`dbf1572`)
+
+### Added
+- **hooks**: add pre-commit-sentinel-copies drift gate template (PT-2) (`414ad7e`)
+
+### Added
+- **harvest-debt**: harvest inline TODO(<scope>) markers into an auditable ledger (`76a04af`)
+
+### Added
+- **close-cycle**: surface deferred TODO(min) shortcuts as a non-blocking advisory (`57df3e6`)
+
+### Documentation
+- **adr**: ADR-0012 post-experiment adoptions — model tiering, YAML frontmatter, RFC 2119, rubric guide (`8d4aec3`)
+
+### Fixed
+- **deps**: npm audit fix — resolve HIGH CVEs in production deps (form-data, hono) (`2dd7246`)
+
+### Fixed
+- **deps**: npm audit fix — resolve HIGH CVEs in production deps (form-data, hono) (`0da8ed1`)
+
+### Added
+- **sentinel**: targeted spec loading + pitfalls/techniques behind a pointer (ADR-0012 §6a/§6e) (`1973d40`)
+
+### Added
+- **scaffold**: emit sectioned spec + SPEC-INDEX router (ADR-0012 §6a complete) (`d45e174`)
+
+### Added
+- **session**: step-gated session manifest + commit-msg gate (ADR-0012 §6b) (`7c9bddc`)
+
+### Added
+- **close-cycle**: two-stream discovery log + fixture-on-close gate (ADR-0012 §6c) (`fe5354b`)
+
+### Added
+- **close-cycle**: EDR spec-change records + cascade re-verify (ADR-0012 §6d) (`c245b27`)
+
+### Added
+- **ml**: LLM-pipeline disciplines + audit-RUN gate for the ML/AI tag (ADR-0012 §6f) (`1849438`)

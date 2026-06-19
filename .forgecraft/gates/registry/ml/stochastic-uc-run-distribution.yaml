@@ -1,0 +1,41 @@
+id: stochastic-uc-run-distribution
+title: A Stochastic-Pipeline Use-Case Needs a Multi-Run Pass-Rate, Not a Single Green
+description: >
+  When the system under test is itself generative (an LLM pipeline), a single
+  green run is weak evidence: a fix can read GREEN on one run and miss on the
+  next purely from upstream model variance. A use-case whose behavior depends on
+  model output must be marked stochastic and verified by an audit-RUN — a
+  reusable end-to-end fixture executed N times, accepted only on a pass-rate
+  distribution that clears a documented threshold. Never trust a single peak.
+category: test-quality
+gsProperty: verifiable
+phase: development
+hook: pre-commit
+check: >
+  1. Identify use-cases whose probe exercises an LLM/model-output stage (handlers
+  under ai/ or pipeline/, or a UC the spec marks stochastic). 2. Confirm each
+  such UC is verified by a repeated end-to-end run (audit-RUN), not a single
+  invocation. 3. Confirm a pass-rate threshold over N runs is recorded and met.
+  4. Scoring of each run is deterministic (extraction is the only stochastic
+  step). A single green for a stochastic UC is not acceptance.
+passCriterion: >
+  Every stochastic use-case is accepted on an N-run pass-rate distribution that
+  meets a documented threshold; no stochastic UC is accepted on a single green.
+tags:
+  - ML
+  - DATA-PIPELINE
+generalizable: true
+evidence: >
+  VairixDX audit-RUN log recorded an 89/100 peak (Run 4) against a ~83 baseline
+  across runs; a fix could read GREEN on one run and miss on the next from
+  upstream LLM variance. Accepting a single peak would have shipped a regression
+  the next run exposed. (ADR-0011 stochastic-evidence refinement.)
+provenance:
+  experiment: vairix-audit-run
+  finding: >-
+    Single-run green is weak evidence for a stochastic pipeline; pass-rate
+    distribution over repeated runs is the correct objective signal.
+  discovered_in: GS field use (VairixDX), audit-RUN log
+status: approved
+approvedAt: '2026-06-17'
+contributor: jghiringhelli

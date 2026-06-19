@@ -41,6 +41,57 @@ blocks:
       - Log all predictions with input features, model version, and timestamp. This enables debugging, bias auditing, and retraining on production data.
       - Set up automated retraining triggers based on performance degradation, data drift detection, or a fixed schedule. Ensure the retraining pipeline is fully automated end-to-end.
 
+  - id: llm-pipeline-disciplines
+    tier: recommended
+    title: "LLM-Pipeline Disciplines (systems built ON an LLM)"
+    content: |
+      ## LLM-Pipeline Disciplines
+
+      Applies when the system *is* an LLM pipeline — it consumes model output as a
+      stage (extraction, classification, scoring, generation), not when it merely
+      trains a model. Field-derived from a generative pipeline run under GS
+      (VairixDX). The model is stochastic; the harness around it must not be.
+
+      ### Separate extraction from scoring
+      - **Extraction is the only stochastic step. Scoring MUST be deterministic.**
+        The LLM extracts structured candidates; plain code scores them. Never ask
+        the model for the final number — ask it for the evidence, then compute.
+      - The extraction call MUST use **temperature 0**, a **structured-output JSON
+        schema** (not free text you regex), and MUST require a **verbatim evidence
+        excerpt** per extracted item (the source span it came from). No excerpt →
+        the item is dropped, not scored.
+
+      ### Structural rescue (deterministic recall floor)
+      - After the model's selection step, run a **deterministic pass that injects
+        the items a rule says MUST be present** when their cue appears in the input.
+        The model cannot stochastically miss what it was never required to pick —
+        the floor is code, not a better prompt. Lives downstream of extraction.
+
+      ### Anti-double-counting
+      - When several extracted signals are **echoes of one underlying fact**, count
+        it **once**. De-duplicate by the evidence span / entity before scoring, or
+        a verbose model inflates the score by restating the same signal.
+
+      ### Evidence strength, not model confidence
+      - Rank findings by **evidence-strength levels you define** (e.g. explicit
+        statement > strong implication > weak inference), **never by an LLM-emitted
+        confidence percentage** — those numbers are not calibrated and drift run to
+        run. The level is assigned by deterministic rules over the evidence.
+
+      ### Replay fixtures (enforced by `llm-output-replay-fixture`)
+      - Every LLM-output-consuming test MUST exercise at least one **recorded real
+        output** (model, timestamp, phase captured), not synthetic mocks alone.
+        Production emits enum values, escapes, and orderings the author never
+        imagined (see the constitution's Forbidden Patterns).
+
+      ### Audit-RUN multi-run scoring (stochastic objective evidence)
+      - A single green run is **weak evidence** for a stochastic pipeline. Mark such
+        a use-case probe **stochastic** and accept it only on an **N-run pass-rate
+        distribution** (a threshold over repeated runs of a reusable end-to-end
+        fixture), logged as an audit-RUN — never trust a single peak. This is the
+        manual QA loop that catches the bugs a one-shot run hides. (ADR-0011
+        refinement.)
+
   - id: ml-testing
     tier: recommended
     title: "ML-Specific Testing Requirements"

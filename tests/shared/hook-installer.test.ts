@@ -159,6 +159,24 @@ describe("installGitHooks", () => {
     expect(manifest).toContain("pre-commit-test.sh");
   });
 
+  it("includes the blocking lint and complexity hooks in the pre-commit chain", () => {
+    initGitRepo(tempDir);
+    installGitHooks(tempDir);
+    const manifest = readFileSync(
+      join(tempDir, ".claude", "hooks", "pre-commit.list"),
+      "utf-8",
+    );
+    expect(manifest).toContain("pre-commit-lint.sh");
+    expect(manifest).toContain("pre-commit-complexity.sh");
+    // Lint runs after compile (needs valid syntax) and before tests.
+    expect(manifest.indexOf("pre-commit-lint.sh")).toBeGreaterThan(
+      manifest.indexOf("pre-commit-compile.sh"),
+    );
+    expect(manifest.indexOf("pre-commit-lint.sh")).toBeLessThan(
+      manifest.indexOf("pre-commit-test.sh"),
+    );
+  });
+
   it("does not overwrite existing manifests when force=false", () => {
     initGitRepo(tempDir);
     mkdirSync(join(tempDir, ".claude", "hooks"), { recursive: true });

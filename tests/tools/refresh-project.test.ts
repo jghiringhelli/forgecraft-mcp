@@ -16,7 +16,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { dump as yamlDump } from "js-yaml";
+import { dump as yamlDump, load as yamlLoad } from "js-yaml";
 import { refreshProjectHandler } from "../../src/tools/refresh-project.js";
 import { pullRegistryGates } from "../../src/tools/registry-refresh.js";
 
@@ -142,12 +142,64 @@ describe("refreshProjectHandler", () => {
         remove_tags: ["API"],
         output_targets: ["claude"],
       });
-      // API should not remain after removal (forgecraft.yaml updated)
-      const yamlContent = readFileSync(
-        join(tempDir, "forgecraft.yaml"),
-        "utf-8",
-      );
-      expect(yamlContent).not.toContain("- API");
+      // API should not remain in the ACTIVE tags after removal.
+      const cfg = yamlLoad(
+        readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8"),
+      ) as { tags: string[] };
+      expect(cfg.tags).not.toContain("API");
+    });
+
+    it("U2: renders {{repo_url}}/{{domain}} placeholders — no literal {{ in emitted sentinel files", async () => {
+      writeForgecraftYaml(tempDir, ["UNIVERSAL", "API"]);
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      const claudeMd = readFileSync(join(tempDir, "CLAUDE.md"), "utf-8");
+      expect(claudeMd).not.toContain("{{repo_url}}");
+      expect(claudeMd).not.toContain("{{domain}}");
+      expect(claudeMd).not.toContain("{{");
+    });
+
+    it("U4: a removed tag is recorded in rejectedTags and not re-added on next refresh", async () => {
+      const readCfg = () =>
+        yamlLoad(
+          readFileSync(join(tempDir, "forgecraft.yaml"), "utf-8"),
+        ) as { tags: string[]; rejectedTags?: string[] };
+
+      // Start with API, remove it.
+      writeForgecraftYaml(tempDir, ["UNIVERSAL", "API"]);
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        remove_tags: ["API"],
+        output_targets: ["claude"],
+      });
+      let cfg = readCfg();
+      expect(cfg.tags).not.toContain("API");
+      expect(cfg.rejectedTags).toContain("API");
+
+      // A plain refresh must NOT bring API back into active tags.
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        output_targets: ["claude"],
+      });
+      cfg = readCfg();
+      expect(cfg.tags).not.toContain("API");
+      expect(cfg.rejectedTags).toContain("API");
+
+      // Explicit re-add clears the rejection and restores the tag.
+      await refreshProjectHandler({
+        project_dir: tempDir,
+        apply: true,
+        add_tags: ["API"],
+        output_targets: ["claude"],
+      });
+      cfg = readCfg();
+      expect(cfg.tags).toContain("API");
+      expect(cfg.rejectedTags ?? []).not.toContain("API");
     });
 
     it("response text lists files written", async () => {

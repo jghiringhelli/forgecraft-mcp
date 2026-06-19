@@ -43,7 +43,7 @@ export interface ProjectContext {
   readonly isBrownfield: boolean;
   readonly specContent: string | null;
   readonly specSourceLabel: string;
-  readonly specCandidates: ReadonlyArray<{ path: string; preview: string }>;
+  readonly specCandidates: ReadonlyArray<{ path: string; preview: string; lines: number }>;
   readonly inferredTags: string[];
   readonly ambiguities: AmbiguityItem[];
 }
@@ -100,13 +100,21 @@ export function findSpecFile(projectDir: string): string | null {
  */
 export function collectSpecCandidates(
   projectDir: string,
-): Array<{ path: string; preview: string }> {
+): Array<{ path: string; preview: string; lines: number }> {
   const EXCLUDED_NAMES = new Set([
     "PRD.md", "TechSpec.md", "Status.md", "CLAUDE.md", "CHANGELOG.md",
     "CONTRIBUTING.md", "use-cases.md", "roadmap.md", "dx-workshop.md",
   ]);
   const MIN_CONTENT_LENGTH = 500;
-  const candidates: Array<{ path: string; preview: string }> = [];
+  const candidates: Array<{ path: string; preview: string; lines: number }> = [];
+
+  const record = (fullPath: string, content: string): void => {
+    candidates.push({
+      path: fullPath,
+      preview: content.slice(0, 300).replace(/\n{3,}/g, "\n\n"),
+      lines: content.split("\n").length,
+    });
+  };
 
   function walk(dir: string, depth: number): void {
     if (depth < 0 || !existsSync(dir)) return;
@@ -116,9 +124,7 @@ export function collectSpecCandidates(
         if (entry.isFile() && entry.name.endsWith(".md") && !EXCLUDED_NAMES.has(entry.name)) {
           try {
             const content = readFileSync(fullPath, "utf-8");
-            if (content.length >= MIN_CONTENT_LENGTH) {
-              candidates.push({ path: fullPath, preview: content.slice(0, 300).replace(/\n{3,}/g, "\n\n") });
-            }
+            if (content.length >= MIN_CONTENT_LENGTH) record(fullPath, content);
           } catch { /* skip unreadable */ }
         } else if (entry.isDirectory() && depth > 0) {
           walk(fullPath, depth - 1);
@@ -134,12 +140,15 @@ export function collectSpecCandidates(
         const fullPath = join(projectDir, file);
         try {
           const content = readFileSync(fullPath, "utf-8");
-          if (content.length >= MIN_CONTENT_LENGTH) candidates.push({ path: fullPath, preview: content.slice(0, 300).replace(/\n{3,}/g, "\n\n") });
+          if (content.length >= MIN_CONTENT_LENGTH) record(fullPath, content);
         } catch { /* skip */ }
       }
     }
   } catch { /* skip */ }
 
+  // Largest spec first — line count is the strongest signal for which file is
+  // the authoritative project spec (a 2,800-line spec outranks a 600-line README).
+  candidates.sort((a, b) => b.lines - a.lines);
   return candidates;
 }
 
@@ -160,7 +169,7 @@ export async function buildProjectContext(
 
   let specContent: string | null = null;
   let specSourceLabel = "none";
-  let specCandidates: Array<{ path: string; preview: string }> = [];
+  let specCandidates: Array<{ path: string; preview: string; lines: number }> = [];
 
   if (args.spec_file_confirmed) {
     if (!existsSync(args.spec_file_confirmed)) throw new Error(`Spec file not found: ${args.spec_file_confirmed}`);

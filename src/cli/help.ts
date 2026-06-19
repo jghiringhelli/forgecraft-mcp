@@ -28,10 +28,12 @@ COMMANDS
   verify  [dir]          Run tests + score §4.3 GS properties + report layer violations
   advice  [dir]          Quality cycle checklist + tool stack + example configs for your tags
   metrics [dir]          External quality report: LOC, coverage, layer violations, dead code, complexity
+  harvest-debt [dir]     Harvest inline TODO(<scope>): debt markers into an auditable ledger (read-only; --write to persist)
 
 CI / BARE GATE COMMANDS (exit codes: 0 = pass, 1 = fail)
   check-cascade [dir]    Run cascade gate checks — exit 1 if required steps are incomplete
   violations    [dir]    Report active gate violations — exit 1 if any violations present
+  check-sentinel-copies [dir]  Verify per-agent sentinel copies match canonical AGENTS.md — exit 1 on drift
   status        [dir]    Print live project state snapshot (cascade + roadmap + git + Status.md)
 
 FLAGS (vary by command)
@@ -57,5 +59,6 @@ FLAGS (vary by command)
   --compact              Strip explanatory bullet tails and deduplicate lines (~20-40% smaller output)
   --tag <tag>            Single tag filter (for add-hook)
   --check                Drift-check mode for refresh: exit 1 if tag/tier drift detected (CI gate)
+  --write                Write the debt ledger artifacts (for harvest-debt; default is read-only preview)
 `);
 }

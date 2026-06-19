@@ -127,7 +127,7 @@ function buildHeader(context: RenderContext): string {
  * @param context - Project render context
  * @returns YAML frontmatter block
  */
-function buildCursorFrontmatter(context: RenderContext): string {
+export function buildCursorFrontmatter(context: RenderContext): string {
   return (
     `---\n` +
     `description: Engineering standards for ${context.projectName}\n` +
@@ -144,11 +144,10 @@ function buildCursorFrontmatter(context: RenderContext): string {
  * @param context - Project context for variable substitution
  * @returns Rendered NFR content as a string
  */
-export function renderNfrs(
-  blocks: NfrBlock[],
-  context: RenderContext,
-): string {
-  return blocks.map((block) => renderTemplate(block.content, context)).join("\n");
+export function renderNfrs(blocks: NfrBlock[], context: RenderContext): string {
+  return blocks
+    .map((block) => renderTemplate(block.content, context))
+    .join("\n");
 }
 
 /**
@@ -162,7 +161,9 @@ export function renderReference(
   blocks: ReferenceBlock[],
   context: RenderContext,
 ): string {
-  return blocks.map((block) => renderTemplate(block.content, context)).join("\n");
+  return blocks
+    .map((block) => renderTemplate(block.content, context))
+    .join("\n");
 }
 
 /**
@@ -173,10 +174,7 @@ export function renderReference(
  * @param context - Project context for variable substitution
  * @returns Rendered skill content ready to write to file
  */
-export function renderSkill(
-  content: string,
-  context: RenderContext,
-): string {
+export function renderSkill(content: string, context: RenderContext): string {
   return renderTemplate(content, context);
 }
 
@@ -240,7 +238,9 @@ export function renderReviewChecklist(
             : item.severity === "important"
               ? "🟡"
               : "🟢";
-        sections.push(`- ${icon} **[${item.severity.toUpperCase()}]** ${item.description}`);
+        sections.push(
+          `- ${icon} **[${item.severity.toUpperCase()}]** ${item.description}`,
+        );
       }
       sections.push("");
     }
@@ -251,11 +251,19 @@ export function renderReviewChecklist(
   sections.push("## Per-Issue Output Format");
   sections.push("");
   sections.push("For every issue found, provide:");
-  sections.push("1. **Problem**: Describe concretely, with file and line references.");
-  sections.push("2. **Options**: Present 2-3 options (including \"do nothing\" where reasonable).");
-  sections.push("3. **For each option**: implementation effort, risk, impact on other code, maintenance burden.");
+  sections.push(
+    "1. **Problem**: Describe concretely, with file and line references.",
+  );
+  sections.push(
+    '2. **Options**: Present 2-3 options (including "do nothing" where reasonable).',
+  );
+  sections.push(
+    "3. **For each option**: implementation effort, risk, impact on other code, maintenance burden.",
+  );
   sections.push("4. **Recommendation**: Your preferred option with rationale.");
-  sections.push("5. **Confirmation**: Ask whether to proceed or choose a different direction.");
+  sections.push(
+    "5. **Confirmation**: Ask whether to proceed or choose a different direction.",
+  );
   sections.push("");
 
   logger.debug("Review checklist rendered", { blocks: blocks.length, scope });

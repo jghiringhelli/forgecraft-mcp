@@ -114,6 +114,40 @@ export interface GsPropertyScore {
   readonly anchor?: AnchorReference;
 }
 
+// ── Generative Execution (FC-1) ──────────────────────────────────────
+
+/**
+ * Normalized per-UC generative-execution flag derived from objective harness
+ * probe results (run_harness). NOT a self-report — `green` means the UC's
+ * probes actually passed when the code ran.
+ *
+ * - green: the UC's probes passed (objective evidence of working code)
+ * - red: at least one probe failed/errored/timed out/was not implemented/tool missing
+ * - unrun: no probe was executed for this UC (no evidence either way)
+ */
+export type GenerativeExecutionStatus = "green" | "red" | "unrun";
+
+/**
+ * Durable, normalized, auditable generative-execution record for a single UC.
+ * Persisted inside VerificationStateFile.generativeExecution[].
+ */
+export interface UcGenerativeExecution {
+  /** Use-case id, e.g. "UC-001". */
+  readonly ucId: string;
+  /** Normalized status mapped from the harness probe status. */
+  readonly status: GenerativeExecutionStatus;
+  /** ISO 8601 timestamp of the harness run this flag was derived from. */
+  readonly lastRunAt: string;
+  /**
+   * Provenance of the flag.
+   * - "harness-run": derived from objective probe execution (the only happy path)
+   * - "manual": reserved; no happy-path tool sets green manually (would reintroduce self-report)
+   */
+  readonly source: "harness-run" | "manual";
+  /** Optional free-form evidence (e.g. raw probe status). */
+  readonly evidence?: string;
+}
+
 /** Outcome of executing the project's test suite. */
 export interface TestSuiteResult {
   readonly passed: boolean;

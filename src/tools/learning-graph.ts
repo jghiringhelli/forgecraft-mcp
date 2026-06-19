@@ -25,7 +25,7 @@ export interface LearningGraphResult {
   readonly edges: number;
 }
 
-interface Node {
+export interface Node {
   readonly id: number;
   readonly label: string;
   readonly taxonomy: string;
@@ -267,6 +267,12 @@ export function emitLearningGraph(projectDir: string): LearningGraphResult {
     });
   }
 
+  // ── Validate the DAG invariant at emission (enforced, not assumed) ───
+  // Acyclicity is intended by construction (prerequisites precede dependents,
+  // self-edges dropped); we verify it on write so a future edge source cannot
+  // silently introduce a cycle. Throws with the offending path if it does.
+  assertAcyclic(nodes);
+
   // ── Serialize (4-column CSV per Definition 1) ────────────────────────
   const lines = ["ConceptID,ConceptLabel,Dependencies,TaxonomyID"];
   let edgeCount = 0;
@@ -333,6 +339,37 @@ function resolveLooseLink(
     }
   }
   return undefined;
+}
+
+/**
+ * Runtime DAG validation. Three-color DFS over (C,E); throws if any cycle
+ * exists, naming the offending path. Makes the "DAG-validated" property true
+ * at emission rather than only by construction / in tests.
+ */
+export function assertAcyclic(nodes: Node[]): void {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const WHITE = 0,
+    GRAY = 1,
+    BLACK = 2;
+  const color = new Map<number, number>(nodes.map((n) => [n.id, WHITE]));
+  const stack: number[] = [];
+  const visit = (id: number): void => {
+    color.set(id, GRAY);
+    stack.push(id);
+    for (const dep of byId.get(id)!.deps) {
+      const c = color.get(dep);
+      if (c === GRAY) {
+        const path = [...stack.slice(stack.indexOf(dep)), dep]
+          .map((x) => byId.get(x)?.label ?? String(x))
+          .join(" → ");
+        throw new Error(`learning-graph.csv is not a DAG: cycle ${path}`);
+      }
+      if (c === WHITE) visit(dep);
+    }
+    stack.pop();
+    color.set(id, BLACK);
+  };
+  for (const n of nodes) if (color.get(n.id) === WHITE) visit(n.id);
 }
 
 function sanitizeLabel(label: string): string {

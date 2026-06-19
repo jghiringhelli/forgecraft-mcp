@@ -81,6 +81,59 @@ hooks:
 
       exit 0
 
+  - name: session-gate
+    trigger: commit-msg
+    description: "Step-gated session (inversion of control): block a code commit until intake + spec-validation are done in .claude/session-manifest.yaml"
+    filename: commit-msg-session-gate.sh
+    script: |
+      #!/usr/bin/env bash
+      # commit-msg-session-gate: force the upstream session steps before coding.
+      # ForgeCraft — generated hook (ADR-0012 §6b).
+      #
+      # The harness FORCES the steps instead of narrating them: a test:/feat:/fix:
+      # commit is blocked until 'intake' and 'spec-validation' are marked 'done'
+      # in .claude/session-manifest.yaml. The RED→GREEN order is enforced by the
+      # commit-msg TDD gate; this covers the steps that used to be prose only.
+      #
+      # Opt-in by presence: no manifest → no enforcement. Bypass one commit with
+      # FORGECRAFT_SKIP_SESSION_GATE=1.
+      set -u
+      MSG_FILE="$1"
+      [ -z "${MSG_FILE:-}" ] && exit 0
+      [ "${FORGECRAFT_SKIP_SESSION_GATE:-0}" = "1" ] && exit 0
+
+      ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+      MANIFEST="$ROOT/.claude/session-manifest.yaml"
+      [ -f "$MANIFEST" ] || exit 0
+
+      SUBJECT="$(sed '/^#/d;/^$/d' "$MSG_FILE" | head -1)"
+      # Merge/revert/fixup commits are not task work — never gate them.
+      echo "$SUBJECT" | grep -qE "^(Merge|Revert|fixup!|squash!)" && exit 0
+      # Only gate code commits; docs/chore/etc. proceed.
+      echo "$SUBJECT" | grep -qE "^(test|feat|fix)(\(|!?:)" || exit 0
+
+      step_is_done() {
+        # Match a "  <key>: done" line (value may carry a trailing comment).
+        grep -qE "^[[:space:]]*$1:[[:space:]]*done([[:space:]]|#|$)" "$MANIFEST"
+      }
+
+      MISSING=""
+      step_is_done intake || MISSING="$MISSING intake"
+      step_is_done spec-validation || MISSING="$MISSING spec-validation"
+
+      if [ -n "$MISSING" ]; then
+        echo "" >&2
+        echo "  ✗ Session gate: finish these steps before a code commit:$MISSING" >&2
+        echo "" >&2
+        echo "  Edit .claude/session-manifest.yaml and set each to 'done' once you have" >&2
+        echo "  loaded the spec slice (intake) and confirmed acceptance criteria" >&2
+        echo "  (spec-validation). This is the harness forcing intake → spec → test order." >&2
+        echo "  One-off bypass: FORGECRAFT_SKIP_SESSION_GATE=1 git commit ..." >&2
+        echo "" >&2
+        exit 1
+      fi
+      exit 0
+
   - name: branch-protection
     trigger: pre-commit
     description: "Block direct commits to main/master branches"
@@ -662,6 +715,7 @@ hooks:
             fi
           fi
         fi
+      done
       rm -f /tmp/violations
       if [ $VIOLATIONS -gt 0 ]; then
         echo "❌ $VIOLATIONS violation(s) found — commit blocked."
@@ -720,6 +774,255 @@ hooks:
         WARNINGS=$((WARNINGS + $?))
       done
       # Warning only — does not block commit since bash heuristics aren't perfect
+      exit 0
+
+  - name: lint
+    trigger: pre-commit
+    description: "Blocking lint — stack-dispatched (eslint/ruff/golangci-lint/clippy). Format is not lint; this catches unused vars, no-explicit-any, shadowing, etc. that formatters ignore."
+    filename: pre-commit-lint.sh
+    script: |
+      #!/bin/bash
+      # Pre-Commit Hook: Lint Gate (blocking, language-agnostic)
+      # Runs the project's linter on staged source. Skips when no linter config
+      # is present (a project without a linter is not failed — but if config
+      # exists, lint errors block the commit). Format hooks fix style; lint
+      # catches correctness smells that style fixers do not.
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root; repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"; mkdir -p "$dir" 2>/dev/null || return 0
+        local ts; ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg; esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      [ -z "$STAGED" ] && exit 0
+      echo "🧹 Running lint gate..."
+      RAN=0
+
+      # compgen -G tests each glob independently — `ls a* b*` exits non-zero
+      # when EITHER glob is unmatched, even if the other matched a real file.
+      _fc_has_eslint() {
+        compgen -G ".eslintrc*" >/dev/null 2>&1 && return 0
+        compgen -G "eslint.config.*" >/dev/null 2>&1 && return 0
+        grep -q '"eslintConfig"' package.json 2>/dev/null && return 0
+        return 1
+      }
+      # ── TypeScript / JavaScript — eslint ──────────────────────────────
+      if echo "$STAGED" | grep -qE '\.(ts|tsx|js|jsx)$'; then
+        if _fc_has_eslint; then
+          FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | tr '\n' ' ')
+          # --no-warn-ignored: a staged file that eslint config ignores (e.g. tests/**)
+          # must not emit a "File ignored" warning that trips --max-warnings=0.
+          if ! npx eslint --max-warnings=0 --no-warn-ignored $FILES 2>&1; then
+            echo "❌ eslint reported errors/warnings (--max-warnings=0). Fix or run: npx eslint --fix"
+            _fc_write_violation "pre-commit-lint" "error" "eslint failed on staged TS/JS files (max-warnings=0)"
+            exit 1
+          fi
+          RAN=1; echo "  ✅ eslint clean"
+        fi
+      fi
+
+      # ── Python — ruff (preferred) or flake8 ───────────────────────────
+      if echo "$STAGED" | grep -qE '\.py$'; then
+        PYF=$(echo "$STAGED" | grep -E '\.py$' | tr '\n' ' ')
+        if command -v ruff &>/dev/null; then
+          if ! ruff check $PYF 2>&1; then
+            echo "❌ ruff reported lint errors. Fix or run: ruff check --fix"
+            _fc_write_violation "pre-commit-lint" "error" "ruff failed on staged Python files"
+            exit 1
+          fi
+          RAN=1; echo "  ✅ ruff clean"
+        elif command -v flake8 &>/dev/null; then
+          if ! flake8 $PYF 2>&1; then
+            echo "❌ flake8 reported lint errors."
+            _fc_write_violation "pre-commit-lint" "error" "flake8 failed on staged Python files"
+            exit 1
+          fi
+          RAN=1; echo "  ✅ flake8 clean"
+        fi
+      fi
+
+      # ── Go — golangci-lint (preferred) or go vet ──────────────────────
+      if echo "$STAGED" | grep -qE '\.go$'; then
+        if command -v golangci-lint &>/dev/null; then
+          if ! golangci-lint run 2>&1; then
+            echo "❌ golangci-lint reported errors."
+            _fc_write_violation "pre-commit-lint" "error" "golangci-lint failed"
+            exit 1
+          fi
+          RAN=1; echo "  ✅ golangci-lint clean"
+        elif command -v go &>/dev/null; then
+          if ! go vet ./... 2>&1; then
+            echo "❌ go vet reported errors."
+            _fc_write_violation "pre-commit-lint" "error" "go vet failed"
+            exit 1
+          fi
+          RAN=1; echo "  ✅ go vet clean"
+        fi
+      fi
+
+      # ── Rust clippy is handled by pre-commit-clippy.sh (RUST stack) ──
+      if [ "$RAN" -eq 0 ]; then
+        echo "  ⊘ No configured linter for staged files — skipping (install eslint/ruff/golangci-lint to enforce)."
+      fi
+      exit 0
+
+  - name: eslint
+    trigger: pre-commit
+    description: "Blocking eslint gate (FC-2 static-analyzer set) — runs eslint on staged TS/JS with --max-warnings=0 when an eslint config is present. eslint is not format: it catches unused vars, no-explicit-any, shadowing. Writes failures to .forgecraft/gate-violations.jsonl so close_cycle's static-analyzer gate sees the red."
+    filename: pre-commit-eslint.sh
+    script: |
+      #!/bin/bash
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root; repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"; mkdir -p "$dir" 2>/dev/null || return 0
+        local ts; ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg; esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      [ -z "$STAGED" ] && exit 0
+      echo "$STAGED" | grep -qE '\.(ts|tsx|js|jsx)$' || exit 0
+      _fc_has_eslint() {
+        compgen -G ".eslintrc*" >/dev/null 2>&1 && return 0
+        compgen -G "eslint.config.*" >/dev/null 2>&1 && return 0
+        grep -q '"eslintConfig"' package.json 2>/dev/null && return 0
+        return 1
+      }
+      if ! _fc_has_eslint; then
+        echo "  ⊘ No eslint config for staged TS/JS files — skipping eslint gate."
+        exit 0
+      fi
+      echo "🧹 Running eslint gate..."
+      FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | tr '\n' ' ')
+      # --no-warn-ignored: a staged file that eslint config ignores (e.g. tests/**)
+      # must not emit a "File ignored" warning that trips --max-warnings=0.
+      if ! npx eslint --max-warnings=0 --no-warn-ignored $FILES 2>&1; then
+        echo "❌ eslint reported errors/warnings (--max-warnings=0). Fix or run: npx eslint --fix"
+        _fc_write_violation "pre-commit-eslint" "error" "eslint failed on staged TS/JS files (max-warnings=0)"
+        exit 1
+      fi
+      echo "  ✅ eslint clean"
+      exit 0
+
+  - name: cyclomatic-complexity
+    trigger: pre-commit
+    description: "Blocking cyclomatic-complexity gate — stack-dispatched. Promotes the cyclomatic-complexity-max-10 registry gate from advisory to executable when a complexity tool is available."
+    filename: pre-commit-complexity.sh
+    script: |
+      #!/bin/bash
+      # Pre-Commit Hook: Cyclomatic Complexity Gate (blocking when tool present)
+      # Threshold: {{max_cyclomatic_complexity | default: 10}}. Uses the native
+      # complexity tool per stack; skips (does not fail) when none is installed,
+      # so the gate never blocks a project that hasn't opted into a tool — but
+      # enforces hard when one is configured.
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root; repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"; mkdir -p "$dir" 2>/dev/null || return 0
+        local ts; ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg; esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
+      STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+      [ -z "$STAGED" ] && exit 0
+      MAX={{max_cyclomatic_complexity | default: 10}}
+      echo "🔬 Cyclomatic complexity gate (max $MAX)..."
+      RAN=0
+
+      # ── Python — radon ────────────────────────────────────────────────
+      if echo "$STAGED" | grep -qE '\.py$' && command -v radon &>/dev/null; then
+        PYF=$(echo "$STAGED" | grep -E '\.py$' | grep -vE '(_test\.py|test_)' | tr '\n' ' ')
+        if [ -n "$PYF" ]; then
+          # radon cc -n exits 0; we grade by rank. Block on any block ranked above max.
+          OUT=$(radon cc -s -n $(python -c "print('A' if $MAX>=11 else 'C')") $PYF 2>&1)
+          # Simpler: flag any function whose numeric complexity exceeds MAX.
+          if radon cc -j $PYF 2>/dev/null | python -c "import sys,json; d=json.load(sys.stdin); import itertools; bad=[b for fns in d.values() for b in fns if b.get('complexity',0)>$MAX]; sys.exit(1 if bad else 0)"; then
+            RAN=1; echo "  ✅ radon: all functions ≤ $MAX"
+          else
+            echo "❌ radon: functions exceed cyclomatic complexity $MAX"
+            radon cc -s -n C $PYF 2>&1 | head -20
+            _fc_write_violation "pre-commit-complexity" "error" "Python function exceeds cyclomatic complexity $MAX (radon)"
+            exit 1
+          fi
+        fi
+      fi
+
+      # ── Go — gocyclo ──────────────────────────────────────────────────
+      if echo "$STAGED" | grep -qE '\.go$' && command -v gocyclo &>/dev/null; then
+        OVER=$(gocyclo -over $MAX . 2>/dev/null)
+        if [ -n "$OVER" ]; then
+          echo "❌ gocyclo: functions over complexity $MAX:"; echo "$OVER" | head -20
+          _fc_write_violation "pre-commit-complexity" "error" "Go function exceeds cyclomatic complexity $MAX (gocyclo)"
+          exit 1
+        fi
+        RAN=1; echo "  ✅ gocyclo: all functions ≤ $MAX"
+      fi
+
+      # ── TS/JS — eslint complexity rule (only if eslint present) ───────
+      _fc_has_eslint() {
+        compgen -G ".eslintrc*" >/dev/null 2>&1 && return 0
+        compgen -G "eslint.config.*" >/dev/null 2>&1 && return 0
+        return 1
+      }
+      if echo "$STAGED" | grep -qE '\.(ts|tsx|js|jsx)$' && _fc_has_eslint; then
+        FILES=$(echo "$STAGED" | grep -E '\.(ts|tsx|js|jsx)$' | tr '\n' ' ')
+        if ! npx eslint --rule "{\"complexity\":[\"error\",$MAX]}" --no-eslintrc --parser @typescript-eslint/parser $FILES >/dev/null 2>&1; then
+          # Fallback: rely on project eslint config if it already sets complexity.
+          if npx eslint $FILES 2>&1 | grep -qi "complexity"; then
+            echo "❌ eslint complexity rule exceeded (max $MAX)"
+            _fc_write_violation "pre-commit-complexity" "error" "TS/JS function exceeds cyclomatic complexity $MAX (eslint)"
+            exit 1
+          fi
+        fi
+        RAN=1; echo "  ✅ eslint complexity ≤ $MAX (or not configured)"
+      fi
+
+      if [ "$RAN" -eq 0 ]; then
+        echo "  ⊘ No complexity tool for staged files — skipping (install radon/gocyclo or eslint complexity rule to enforce)."
+      fi
+      exit 0
+
+  - name: sentinel-copies
+    trigger: pre-commit
+    description: "Blocking sentinel-copies drift gate (PT-2) — the canonical AGENTS.md body is the single source of truth; per-agent copies (copilot/cline/windsurf/cursor) must be byte-identical projections. Runs only when a sentinel copy path or forgecraft.yaml/templates are staged. Writes failures to .forgecraft/gate-violations.jsonl."
+    filename: pre-commit-sentinel-copies.sh
+    script: |
+      #!/bin/bash
+      # Pre-Commit Hook: Sentinel-Copies Drift Gate (blocking, PT-2)
+      # The canonical AGENTS.md body is authored once (composed blocks → render);
+      # other agent targets are PURE projections of it. This gate fails the commit
+      # when an opted-in copy has drifted from a fresh re-render of the canonical
+      # body. It runs only when something that could change the copies is staged:
+      # a sentinel copy path, forgecraft.yaml, or a template directory. CLAUDE.md /
+      # the CNT tree are routing-special and are NOT part of the copy-set.
+      _fc_write_violation() {
+        local hook_name="$1" severity="${2:-error}" message="$3"
+        local repo_root; repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+        local dir="$repo_root/.forgecraft"; mkdir -p "$dir" 2>/dev/null || return 0
+        local ts; ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || printf "unknown")"
+        local esc_msg; esc_msg="$(printf '%s' "$message" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        printf '{"hook":"%s","severity":"%s","message":"%s","timestamp":"%s"}\n' \
+          "$hook_name" "$severity" "$esc_msg" "$ts" >> "$dir/gate-violations.jsonl" 2>/dev/null || true
+      }
+      STAGED=$(git diff --cached --name-only --diff-filter=ACMD)
+      [ -z "$STAGED" ] && exit 0
+      # Only run when copy targets or their source-of-truth inputs are staged.
+      if ! echo "$STAGED" | grep -qE '(^AGENTS\.md$|^\.clinerules$|^\.github/copilot-instructions\.md$|^\.windsurf/rules/|^\.cursor/rules/|^forgecraft\.yaml$|^templates/)'; then
+        exit 0
+      fi
+      echo "🛰  Sentinel-copies drift gate..."
+      if ! npx forgecraft-mcp check-sentinel-copies . --json; then
+        echo "❌ Sentinel copies drifted from canonical AGENTS.md. Run: npx forgecraft-mcp refresh . --apply"
+        _fc_write_violation "pre-commit-sentinel-copies" "error" "Per-agent sentinel copies drifted from the canonical AGENTS.md body"
+        exit 1
+      fi
+      echo "  ✅ sentinel copies in sync"
       exit 0
 
   - name: import-cycle-detector

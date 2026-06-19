@@ -7,7 +7,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 
 export const USE_CASES_STUB = `<!-- UNFILLED: Use Cases -->
 # Use Cases
@@ -187,6 +187,239 @@ C4Container
     Rel(api, db, "<!-- FILL: query, e.g. Reads and writes -->", "<!-- FILL: protocol, e.g. SQL -->")
 \`\`\`
 `;
+}
+
+// ── Sectioned spec (§6a — targeted spec loading) ──────────────────────────
+//
+// VairixDX measured ~82% fewer spec tokens per task when the spec is sectioned
+// and routed, because a task loads only the slice it needs and the relevant
+// lines stop landing past the attention cliff. `.claude/spec-map.md` already
+// routes tasks to these exact filenames; here we emit the slices + a SPEC-INDEX
+// router so those pointers resolve. Sections are prescriptive (RFC 2119
+// MUST/SHOULD/MAY) per ADR-0012 §3/§4: each MUST becomes an acceptance
+// criterion and therefore a probe.
+
+/** One sectioned-spec slice: filename, title, the tags that warrant it, body. */
+export interface SpecSectionDef {
+  /** Slice filename under docs/specs/sections/ (must match spec-map.md rows). */
+  readonly file: string;
+  /** Human title for the SPEC-INDEX router + the section H1. */
+  readonly title: string;
+  /** What this slice owns (one line, shown in the SPEC-INDEX table). */
+  readonly owns: string;
+  /** Tags that warrant this slice; empty array = always emitted. */
+  readonly tags: readonly string[];
+  /** Section-specific UNFILLED body (after the shared preamble). */
+  readonly body: string;
+}
+
+/**
+ * The full sectioned-spec catalog. The `tags` predicate mirrors the routing
+ * rows in `buildSpecMapFile` (src/registry/sentinel-renderer.ts) exactly — keep
+ * the two in sync so every spec-map pointer resolves to an emitted file.
+ */
+export const SPEC_SECTION_DEFS: readonly SpecSectionDef[] = [
+  {
+    file: "api.md",
+    title: "API Surface",
+    owns: "endpoints, request/response shapes, error envelope",
+    tags: ["API"],
+    body: `## Endpoints
+<!-- FILL: one row per endpoint — METHOD /path — purpose. Phrase obligations with
+     RFC 2119 keywords (MUST/SHOULD/MAY); each MUST is an acceptance criterion. -->
+
+## Request / response shapes
+<!-- FILL: the canonical request and response bodies (link a schema if one exists) -->
+
+## Error envelope
+<!-- FILL: the single error response shape every endpoint MUST return on failure -->
+
+## Acceptance criteria
+<!-- FILL: each MUST above, restated as a checkable probe in tests/harness/ -->`,
+  },
+  {
+    file: "ui.md",
+    title: "UI Screens & Flows",
+    owns: "screens, components, navigation, states",
+    tags: ["WEB-REACT", "WEB-NEXT", "MOBILE", "EXPO"],
+    body: `## Screens
+<!-- FILL: one row per screen/route — name — purpose — primary actor -->
+
+## Components & states
+<!-- FILL: key components and their states (loading / empty / error / success) -->
+
+## Navigation / flows
+<!-- FILL: how a user moves between screens; the primary happy-path flow -->
+
+## Acceptance criteria
+<!-- FILL: each MUST behavior, restated as a checkable probe (e.g. .spec.ts) -->`,
+  },
+  {
+    file: "pipeline.md",
+    title: "AI / Pipeline Stages",
+    owns: "pipeline stages, extraction vs scoring, evidence",
+    tags: ["ML", "DATA-PIPELINE", "ANALYTICS"],
+    body: `## Stages
+<!-- FILL: one row per stage — input → transform → output. Separate stochastic
+     extraction (LLM, temperature 0, structured output) from deterministic scoring. -->
+
+## Contracts per stage
+<!-- FILL: the structured output schema each stage MUST emit; evidence requirements -->
+
+## Acceptance criteria
+<!-- FILL: each MUST restated as a probe; for stochastic stages require an N-run
+     pass-rate distribution (see .claude/standards/ml.md), not a single green. -->`,
+  },
+  {
+    file: "seed.md",
+    title: "Seed Data & Migrations",
+    owns: "seed data, migrations, fixtures",
+    tags: ["DATABASE"],
+    body: `## Seed data
+<!-- FILL: the minimal data set the system MUST ship with (reference data, admin user) -->
+
+## Migrations
+<!-- FILL: ordered schema migrations; each MUST be reversible or explicitly one-way -->
+
+## Acceptance criteria
+<!-- FILL: each MUST restated as a probe (e.g. a .db.sh state check) -->`,
+  },
+  {
+    file: "test-cases.md",
+    title: "Test Cases & Acceptance Criteria",
+    owns: "acceptance criteria, probe inputs, edge cases",
+    tags: [],
+    body: `## Acceptance criteria
+<!-- FILL: the cross-cutting MUSTs that span sections; each becomes a harness probe -->
+
+## Edge cases
+<!-- FILL: the inputs that break naive implementations — empty, boundary, malformed -->
+
+## Probe inputs
+<!-- FILL: concrete inputs a probe in tests/harness/ exercises (the real payloads) -->`,
+  },
+];
+
+/**
+ * Build one sectioned-spec slice stub with the shared preamble + section body.
+ *
+ * @param def - The section definition (file, title, body)
+ * @param projectName - Human-readable project name for the heading
+ * @returns Stub content with UNFILLED + FILL markers
+ */
+export function buildSpecSectionStub(
+  def: SpecSectionDef,
+  projectName: string,
+): string {
+  return `<!-- UNFILLED: Spec Section — ${def.title} -->
+# ${projectName} — Spec: ${def.title}
+
+> **One slice of the spec.** Loaded on demand via \`.claude/spec-map.md\`; routed by
+> \`docs/specs/SPEC-INDEX.md\`. Keep it small and prescriptive (RFC 2119
+> MUST/SHOULD/MAY). When you fill a heading, record its line range in the
+> SPEC-INDEX so the next session jumps straight here instead of re-reading.
+
+${def.body}
+`;
+}
+
+/**
+ * Select the sectioned-spec slices warranted by a tag set: every always-on
+ * slice (empty tags) plus any whose tag predicate intersects the project tags.
+ *
+ * @param tags - Project tags
+ * @returns The applicable section definitions, in catalog order
+ */
+export function selectSpecSections(
+  tags: readonly string[],
+): readonly SpecSectionDef[] {
+  return SPEC_SECTION_DEFS.filter(
+    (def) => def.tags.length === 0 || def.tags.some((t) => tags.includes(t)),
+  );
+}
+
+/**
+ * Build docs/specs/SPEC-INDEX.md — the authoritative router for the sectioned
+ * spec. `.claude/spec-map.md` is the quick task→slice cheat-sheet; this file is
+ * the source of truth for which sections exist and what each owns.
+ *
+ * @param projectName - Human-readable project name for the heading
+ * @param sections - The emitted section definitions
+ * @returns SPEC-INDEX content with an UNFILLED marker (line ranges fill later)
+ */
+export function buildSpecIndex(
+  projectName: string,
+  sections: readonly SpecSectionDef[],
+): string {
+  const rows = sections
+    .map(
+      (s) => `| ${s.title} | ${s.owns} | \`docs/specs/sections/${s.file}\` |`,
+    )
+    .join("\n");
+
+  return `<!-- UNFILLED: SPEC-INDEX router -->
+# SPEC-INDEX — ${projectName}
+
+> **Load the slice a task needs, never the whole spec.** \`.claude/spec-map.md\` is
+> the quick task→slice cheat-sheet; this file is the authoritative list of which
+> sections exist and what each owns. The monolithic \`docs/PRD.md\` remains the
+> fallback and is superseded by a section as that section fills.
+
+## Sections
+
+| Section | Owns | File |
+| --- | --- | --- |
+${rows}
+
+## Conventions
+
+- Sections use RFC 2119 keywords (**MUST / SHOULD / MAY**); each **MUST** is an
+  acceptance criterion and therefore a harness probe.
+- Record line ranges here as sections fill, e.g. \`api.md §Endpoints (lines 12–48)\`,
+  so the next session loads the exact slice with no re-reading.
+- Behavioral contracts live in \`docs/use-cases/\`; the data model lives in
+  \`docs/architecture/data-model.md\` — the spec-map routes to those directly.
+`;
+}
+
+/**
+ * Write the sectioned spec (docs/specs/sections/*.md + docs/specs/SPEC-INDEX.md)
+ * for the given tags, using the same UNFILLED/force semantics as other stubs.
+ *
+ * @param projectDir - Absolute project root
+ * @param projectName - Human-readable project name
+ * @param tags - Project tags (drive which slices are emitted)
+ * @param force - Whether to overwrite existing UNFILLED stubs
+ * @param filesCreated - Mutable array to append created paths to
+ * @param filesSkipped - Mutable array to append skipped paths to
+ */
+export function writeSpecSections(
+  projectDir: string,
+  projectName: string,
+  tags: readonly string[],
+  force: boolean,
+  filesCreated: string[],
+  filesSkipped: string[],
+): void {
+  const sections = selectSpecSections(tags);
+  for (const def of sections) {
+    writeSpecStub(
+      `docs/specs/sections/${def.file}`,
+      join(projectDir, "docs", "specs", "sections", def.file),
+      buildSpecSectionStub(def, projectName),
+      force,
+      filesCreated,
+      filesSkipped,
+    );
+  }
+  writeSpecStub(
+    "docs/specs/SPEC-INDEX.md",
+    join(projectDir, "docs", "specs", "SPEC-INDEX.md"),
+    buildSpecIndex(projectName, sections),
+    force,
+    filesCreated,
+    filesSkipped,
+  );
 }
 
 /**

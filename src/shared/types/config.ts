@@ -58,6 +58,13 @@ export interface ForgeCraftConfig {
   /** Additional tags beyond auto-detected ones. */
   readonly additionalTags?: Tag[];
   /**
+   * Tags the user explicitly removed via `refresh --remove-tags`. Tag inference
+   * will NOT re-add these on subsequent refreshes (even if their dependency
+   * signal is still present), so a deliberate removal stays removed. Re-adding a
+   * tag via `refresh --add-tags` clears it from this list.
+   */
+  readonly rejectedTags?: Tag[];
+  /**
    * Practitioner experience level. Controls verbosity of generated session prompts.
    * - `novice` (default): full methodology explanations, step-by-step instructions
    * - `experienced`: compact output — just commit sequence and test command; no methodology teaching
@@ -95,6 +102,89 @@ export interface ForgeCraftConfig {
   };
   /** Optional experiment metadata. When present, close_cycle auto-contributes gates with this id as label. */
   readonly experiment?: ExperimentConfig;
+  /**
+   * Generative-execution gate (FC-1) configuration. Auditable, file-based overrides
+   * that allow a non-green UC to NOT block close_cycle, with a mandatory rationale.
+   */
+  readonly generative_execution?: {
+    /** Per-UC overrides. An override with an empty/missing rationale is NOT valid. */
+    readonly overrides?: ReadonlyArray<{
+      /** Use-case id this override applies to, e.g. "UC-001". */
+      readonly uc: string;
+      /** Mandatory justification for why a non-green UC may pass the gate. */
+      readonly rationale: string;
+    }>;
+  };
+  /**
+   * Static-analyzer gate (FC-2) configuration. Treats a set of static analyzers
+   * (eslint, tsc, complexity, audit by default) as ONE structural-discipline
+   * signal, evaluated at close_cycle. Green raises the probability of
+   * structural-discipline conformance; it does not prove it — one signal
+   * alongside the harness. Sonar/CodeClimate are optional config-gated plug-ins:
+   * absent → skipped (never blocks). Analyzer commands resolve from `tools:`.
+   */
+  readonly static_analysis?: {
+    /**
+     * Analyzers to treat as the gate signal. Defaults (when omitted) to
+     * ["eslint", "tsc", "complexity", "audit"].
+     */
+    readonly analyzers?: ReadonlyArray<string>;
+    /** Threshold knobs surfaced to the analyzer hooks. */
+    readonly thresholds?: {
+      /** Maximum cyclomatic complexity per function. Default 10. */
+      readonly complexity_max?: number;
+      /** Minimum audit severity that blocks. Default "high". */
+      readonly audit_level?: "low" | "moderate" | "high" | "critical";
+    };
+    /**
+     * Per-analyzer overrides. An override with an empty/missing rationale is NOT
+     * valid (mirrors generative_execution.overrides).
+     */
+    readonly overrides?: ReadonlyArray<{
+      /** Analyzer this override excuses, e.g. "complexity". */
+      readonly analyzer: string;
+      /** Mandatory justification for why a failing analyzer may pass the gate. */
+      readonly rationale: string;
+    }>;
+    /**
+     * Optional SonarQube plug-in seam (DEFERRED). When this block is absent the
+     * analyzer is skipped and never blocks. Real scanner invocation is a
+     * documented extension point — the MVP only wires the absent → skip path.
+     */
+    readonly sonar?: Record<string, unknown>;
+    /**
+     * Optional Code Climate plug-in seam (DEFERRED). Same skip-if-absent
+     * semantics as `sonar`.
+     */
+    readonly code_climate?: Record<string, unknown>;
+  };
+  /**
+   * Multi-agent sentinel projection (PT-2). Treats the canonical AGENTS.md body
+   * as the single source of truth and projects byte-identical copies to other
+   * agent targets (copilot, cline, windsurf, cursor). A drift check (the
+   * sentinel-copies gate) verifies the on-disk copies match the re-rendered
+   * canonical. CLAUDE.md / the CNT tree stay SPECIAL (routing root) and are NOT
+   * in the copy-set.
+   */
+  readonly sentinel?: {
+    /**
+     * Copy targets to project the canonical body to. Defaults (when omitted) to
+     * ["agents-md"]. claude/CNT is always generated via its existing path and is
+     * never a copy target.
+     */
+    readonly targets?: ReadonlyArray<string>;
+    /**
+     * Per-target overrides. An override with an empty/missing rationale is NOT
+     * valid (mirrors generative_execution.overrides / static_analysis.overrides).
+     * An overridden target that drifts does not block the gate.
+     */
+    readonly overrides?: ReadonlyArray<{
+      /** Copy target this override excuses, e.g. "copilot". */
+      readonly target: string;
+      /** Mandatory justification for why a drifted copy may pass the gate. */
+      readonly rationale: string;
+    }>;
+  };
   /**
    * When true, the project was detected as brownfield (existing source code, no substantial spec).
    * setup_project writes this flag and uses brownfield calibration questions.

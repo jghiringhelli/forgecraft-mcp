@@ -261,6 +261,86 @@ export function checkBehavioralContracts(projectDir: string): CascadeStep {
  * @param projectDir - Absolute project root
  * @returns Cascade step result
  */
+/** Code-defined schema signatures, keyed by the ORM/tool that emits them. */
+const ORM_SCHEMA_PATTERNS: ReadonlyArray<{ tool: string; re: RegExp }> = [
+  { tool: "Drizzle", re: /drizzle-orm|sqliteTable\(|pgTable\(|mysqlTable\(/ },
+  { tool: "TypeORM", re: /@Entity\(|typeorm/ },
+  { tool: "Mongoose", re: /new\s+(mongoose\.)?Schema\(|mongoose\.model\(/ },
+  { tool: "Kysely", re: /Kysely<|Generated<|kysely/ },
+  { tool: "Sequelize", re: /sequelize\.define\(|extends\s+Model\b/ },
+  { tool: "Zod schema", re: /\bz\.object\(/ },
+];
+
+/** Directories likely to hold code-defined schemas (bounded scan). */
+const SCHEMA_SCAN_DIRS = [
+  "src",
+  "db",
+  "database",
+  "models",
+  "entities",
+  "drizzle",
+  "prisma",
+  "lib",
+  "app",
+] as const;
+
+/**
+ * Detect a schema defined in code (Drizzle/TypeORM/Mongoose/Kysely/etc.) that
+ * the static file-path list cannot see. Bounded: scans a capped number of
+ * .ts/.js files under likely directories.
+ *
+ * @param projectDir - Absolute path to project root
+ * @returns "<tool> in <relative-path>" when a schema is found, else undefined
+ */
+export function detectCodeDefinedSchema(projectDir: string): string | undefined {
+  let filesScanned = 0;
+  const MAX_FILES = 400;
+
+  const walk = (dir: string, depth: number): string | undefined => {
+    if (depth > 5 || filesScanned >= MAX_FILES) return undefined;
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return undefined;
+    }
+    for (const entry of entries) {
+      if (filesScanned >= MAX_FILES) return undefined;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) {
+          continue;
+        }
+        const hit = walk(full, depth + 1);
+        if (hit) return hit;
+      } else if (/\.(ts|tsx|js|mjs)$/.test(entry.name)) {
+        if (/\.(test|spec)\./.test(entry.name)) continue;
+        filesScanned++;
+        let content: string;
+        try {
+          content = readFileSync(full, "utf-8");
+        } catch {
+          continue;
+        }
+        for (const { tool, re } of ORM_SCHEMA_PATTERNS) {
+          if (re.test(content)) {
+            return `${tool} in ${full.slice(projectDir.length + 1).replace(/\\/g, "/")}`;
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+
+  for (const dir of SCHEMA_SCAN_DIRS) {
+    const target = join(projectDir, dir);
+    if (!existsSync(target)) continue;
+    const hit = walk(target, 0);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 export function checkSchemaDefinitions(projectDir: string): CascadeStep {
   const found = SCHEMA_ARTIFACT_PATHS.find((p) =>
     existsSync(join(projectDir, p)),
@@ -271,6 +351,19 @@ export function checkSchemaDefinitions(projectDir: string): CascadeStep {
       name: "Schema Definitions",
       status: "PASS",
       detail: `Schema artifact found: ${found}`,
+      questions: [],
+    };
+  }
+
+  // Schema may be defined in code (Drizzle/TypeORM/Mongoose/Kysely) rather than
+  // a standalone file — scan for it before warning.
+  const codeSchema = detectCodeDefinedSchema(projectDir);
+  if (codeSchema) {
+    return {
+      step: 6,
+      name: "Schema Definitions",
+      status: "PASS",
+      detail: `Code-defined schema found: ${codeSchema}`,
       questions: [],
     };
   }
