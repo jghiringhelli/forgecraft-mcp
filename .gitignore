@@ -41,3 +41,6 @@ tmpclaude-*
 .session-log/
 .complexity/
 .env-audit/
+
+# Stryker mutation-testing sandbox (never commit)
+.stryker-tmp/
