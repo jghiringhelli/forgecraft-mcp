@@ -807,3 +807,6 @@ the published white paper and practitioner protocol.
 
 ### Added
 - **ml**: LLM-pipeline disciplines + audit-RUN gate for the ML/AI tag (ADR-0012 §6f) (`1849438`)
+
+### Added
+- **skill**: generative-execution manual QA loop as a core skill (`c62dbeb`)
