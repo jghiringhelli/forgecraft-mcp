@@ -32,6 +32,7 @@ beforeAll(() => {
     "pre-commit-complexity.sh",
     "pre-commit-test.sh",
     "commit-msg.sh",
+    "commit-msg-fix-test-gate.sh",
   ];
   for (const h of required) {
     writeFileSync(join(FULL_HOOKS_DIR, h), "#!/usr/bin/env sh\nexit 0");
@@ -79,6 +80,12 @@ describe("CommitHooksArtifact", () => {
       expect(coversText).toContain("Conventional commit");
     });
 
+    it("covers fix regression gate requirement", () => {
+      const artifact = new CommitHooksArtifact(TMP_DIR);
+      const coversText = artifact.covers.join(" ");
+      expect(coversText).toContain("regression");
+    });
+
     it("excludes hook implementation details from its own spec", () => {
       const artifact = new CommitHooksArtifact(TMP_DIR);
       const excludesText = artifact.excludes.join(" ");
@@ -87,50 +94,74 @@ describe("CommitHooksArtifact", () => {
   });
 
   describe("isInScope", () => {
-    const artifact = new CommitHooksArtifact(TMP_DIR);
-
     it("returns true for .claude/hooks/ paths", () => {
-      expect(artifact.isInScope(".claude/hooks/pre-commit-test.sh")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(
+          ".claude/hooks/pre-commit-test.sh",
+        ),
+      ).toBe(true);
     });
 
     it("returns true for .claude/hooks/commit-msg.sh", () => {
-      expect(artifact.isInScope(".claude/hooks/commit-msg.sh")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(
+          ".claude/hooks/commit-msg.sh",
+        ),
+      ).toBe(true);
     });
 
     it("returns true for .git/hooks/ paths", () => {
-      expect(artifact.isInScope(".git/hooks/pre-commit")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(".git/hooks/pre-commit"),
+      ).toBe(true);
     });
 
     it("returns true for .git/hooks/commit-msg", () => {
-      expect(artifact.isInScope(".git/hooks/commit-msg")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope(".git/hooks/commit-msg"),
+      ).toBe(true);
     });
 
     it("returns true for scripts/setup-hooks.sh", () => {
-      expect(artifact.isInScope("scripts/setup-hooks.sh")).toBe(true);
+      expect(
+        new CommitHooksArtifact(TMP_DIR).isInScope("scripts/setup-hooks.sh"),
+      ).toBe(true);
     });
 
     it("returns false for unrelated paths", () => {
+      const artifact = new CommitHooksArtifact(TMP_DIR);
       expect(artifact.isInScope("src/index.ts")).toBe(false);
       expect(artifact.isInScope("CLAUDE.md")).toBe(false);
     });
   });
 
   describe("verify()", () => {
-    const artifact = new CommitHooksArtifact(TMP_DIR);
-
     it("passes for an existing file", async () => {
-      const results = await artifact.verify(".claude/hooks/pre-commit-test.sh");
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/pre-commit-test.sh",
+      );
       expect(results[0]?.passed).toBe(true);
       expect(results[0]?.criterion).toBe("file-exists");
     });
 
     it("passes for commit-msg.sh", async () => {
-      const results = await artifact.verify(".claude/hooks/commit-msg.sh");
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/commit-msg.sh",
+      );
+      expect(results[0]?.passed).toBe(true);
+    });
+
+    it("passes for commit-msg-fix-test-gate.sh", async () => {
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/commit-msg-fix-test-gate.sh",
+      );
       expect(results[0]?.passed).toBe(true);
     });
 
     it("fails for a non-existent file", async () => {
-      const results = await artifact.verify(".claude/hooks/nonexistent.sh");
+      const results = await new CommitHooksArtifact(TMP_DIR).verify(
+        ".claude/hooks/nonexistent.sh",
+      );
       expect(results[0]?.passed).toBe(false);
     });
   });
